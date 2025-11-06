@@ -36,7 +36,7 @@ const OnboardingScreen = () => {
         {/* Action Button */}
         <TouchableOpacity
           className="w-full bg-primary p-4 rounded-xl"
-          onPress={() => router.push('/sign-in')} // Navigates to the sign-in screen
+          onPress={() => router.push('./selection')} // Navigates to the sign-in screen
         >
           <Text className="text-white text-center text-lg font-semibold">
             Get Started
