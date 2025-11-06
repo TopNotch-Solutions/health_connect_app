@@ -13,6 +13,8 @@ const RootLayout = () => {
       {/* The (tabs) group for the main app */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
+      {/* Add other screens/groups here if needed */}
+      <Stack.Screen name="(verification)" options={{ headerShown: false }} />
     </Stack>
   );
 };

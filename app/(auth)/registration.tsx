@@ -93,7 +93,7 @@ const RegistrationScreen = () => {
     });
 
     try {
-      const response = await apiClient.post('/auth/register-patient', data, {
+      const response = await apiClient.post('/app/auth/register-patient', data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
