@@ -10,6 +10,7 @@ const VerifyPhoneScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSendCode = async () => {
+    
     if (phoneNumber.length < 9) {
       return Alert.alert('Invalid Number', 'Please enter a valid 9-digit phone number.');
     }
@@ -31,12 +32,16 @@ const VerifyPhoneScreen = () => {
         router.push({ pathname: '/verify-otp', params: { phoneNumber: fullPhoneNumber } });
       }
      } catch (error) {
-      // --- ADD THIS DETAILED LOGGING ---
-      console.error("Full API Error:", JSON.stringify(error, null, 2));
-      // ------------------------------------
+      console.error("=== API Error Debug ===");
+  console.error("Message:", error.message);
+  console.error("Response Data:", error.response?.data);
+  console.error("Response Status:", error.response?.status);
+  console.error("Request URL:", error.config?.url);
+  console.error("Full Error:", error);
+  console.error("=====================");
 
-      const errorMessage = error.response?.data?.message || 'An error occurred. Please try again.';
-      Alert.alert('Error', errorMessage);
+  const errorMessage = error.response?.data?.message || 'An error occurred. Please try again.';
+  Alert.alert('Error', errorMessage);
     }  finally {
       setIsLoading(false);
     }
