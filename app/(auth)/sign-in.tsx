@@ -1,25 +1,39 @@
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
-import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../context/AuthContext'; // Import the useAuth hook
 
 const SignInScreen = () => {
   const router = useRouter();
-  const [email, setEmail] = React.useState('');
-  const [password, setPassword] = React.useState('');
+  const { login } = useAuth(); // Get the login function from our context
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // Local loading state for the button
 
-  const handleSignIn = () => {
-    // --- THIS IS WHERE YOU'LL CONNECT TO YOUR BACKEND ---
-    // For now, we'll simulate the action.
+  const handleSignIn = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please enter both email and password.');
       return;
     }
-    console.log('Attempting to sign in with:', { email, password });
-    Alert.alert('Success (Simulated)', 'You are now signed in!');
-    // On a real success, you would navigate to the main app like this:
-    // router.replace('/home'); 
+
+    setIsLoading(true);
+    try {
+      // Call the login function from the context
+      await login(email, password);
+      
+      // On success, the ProtectedLayout in `app/_layout.tsx` will automatically
+      // handle redirecting the user to the home screen.
+
+    } catch (error: any) {
+      // The context's login function re-throws the error, so we can catch it here
+      // to show a specific message to the user.
+      const errorMessage = error.response?.data?.message || 'Login failed. Please check your credentials and try again.';
+      Alert.alert('Login Failed', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -56,19 +70,31 @@ const SignInScreen = () => {
           />
         </View>
 
-        {/* Sign In Button */}
+         <View className="w-full items-end mb-8">
+            <TouchableOpacity onPress={() =>  router.push({ pathname: '/(verification)/verify-phone', params: { flow: 'resetPassword' } })
+}>
+                <Text className="text-primary font-semibold">Forgot Password?</Text>
+            </TouchableOpacity>
+        </View>
+
+        {/* Sign In Button with Loading State */}
         <TouchableOpacity
-          className="w-full bg-primary p-4 rounded-xl"
+          className={`w-full p-4 rounded-xl flex-row justify-center items-center ${isLoading ? 'bg-gray-400' : 'bg-primary'}`}
           onPress={handleSignIn}
+          disabled={isLoading}
         >
-          <Text className="text-white text-center text-lg font-semibold">Sign In</Text>
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text className="text-white text-center text-lg font-semibold">Sign In</Text>
+          )}
         </TouchableOpacity>
 
-        {/* Link to Registration Screen */}
+        {/* Link to Go Back to Role Selection */}
         <View className="flex-row justify-center mt-8">
-          <Text className="text-text-main text-base">Don&apos;t have an account? </Text>
-          <TouchableOpacity onPress={() => router.push('/registration')}>
-            <Text className="text-primary font-bold text-base">Register</Text>
+          <Text className="text-text-main text-base">New user? </Text>
+          <TouchableOpacity onPress={() => router.push('/selection')}>
+            <Text className="text-primary font-bold text-base">Create an account</Text>
           </TouchableOpacity>
         </View>
 

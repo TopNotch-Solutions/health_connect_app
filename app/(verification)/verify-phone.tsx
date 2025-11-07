@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import apiClient from '../../lib/api'; // Import our API client
 
 const VerifyPhoneScreen = () => {
   const router = useRouter();
+   const { flow } = useLocalSearchParams();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -44,7 +45,10 @@ const handleSendCode = async () => {
       if (response.status === 200) {
         console.log('OTP from backend:', response.data.otp);
         Alert.alert('Code Sent', 'A verification code has been sent to your phone.');
-        router.push({ pathname: '/verify-otp', params: { phoneNumber: fullPhoneNumber } });
+        router.push({ 
+          pathname: '/verify-otp', 
+          params: { phoneNumber: fullPhoneNumber, flow: flow }
+        });
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'An error occurred. Please try again.';

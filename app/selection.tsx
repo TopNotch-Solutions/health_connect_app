@@ -14,7 +14,7 @@ const SelectionScreen = () => {
     // For now, we only have the patient flow built.
     // In the future, you would navigate providers to a different screen.
     if (role === 'patient') {
-      router.push('/(verification)/verify-phone');
+      router.push({ pathname: '/(verification)/verify-phone', params: { flow: 'auth' } });
     } else {
       // --- FUTURE DEVELOPMENT ---
       // router.push('/provider-sign-in'); 

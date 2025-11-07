@@ -28,44 +28,68 @@ const OTPScreen = () => {
     }
   };
   
-  const handleVerifyOtp = async () => {
+  // In app/(verification)/verify-otp.tsx
+
+const handleVerifyOtp = async () => {
     const finalOtp = otp.join('');
     if (finalOtp.length < 6) {
       return Alert.alert('Invalid Code', 'Please enter the complete 6-digit code.');
     }
     
-    // --- CHANGE 2: Check the property on the params object ---
-    if (!params.phoneNumber || typeof params.phoneNumber !== 'string') {
-        Alert.alert('Error', 'Could not verify number. Please go back and try again.');
-        return;
+    // The params object now contains the 'flow'
+    if (!params.phoneNumber || typeof params.phoneNumber !== 'string' || !params.flow) {
+        return Alert.alert('Error', 'An error occurred. Please restart the process.');
     }
 
     setIsLoading(true);
 
-    try {
-      const response = await apiClient.post('/auth/verify-otp', {
-        // --- CHANGE 3: Use params.phoneNumber in the API call ---
-        cellphoneNumber: params.phoneNumber,
-        otp: finalOtp,
-      });
+    // --- THIS IS THE NEW CONDITIONAL LOGIC ---
+    if (params.flow === 'resetPassword') {
+        // --- FORGOT PASSWORD LOGIC ---
+        try {
+            const response = await apiClient.post('/app/auth/forgot-password-verify-otp', {
+                cellphoneNumber: params.phoneNumber,
+                otp: finalOtp,
+            });
 
-      if (response.status === 200) {
-        const { activeUser } = response.data;
-        Alert.alert('Success', 'Phone number verified successfully!');
-
-        if (activeUser) {
-          router.replace('/(auth)/sign-in');
-        } else {
-           router.replace({ pathname: '/(auth)/registration', params: { cellphoneNumber: params.phoneNumber } });
+            if (response.status === 200 && response.data.userId) {
+                Alert.alert('Success', 'OTP verified. Please set your new password.');
+                router.replace({ pathname: '/(auth)/reset-password', params: { userId: response.data.userId } });
+            } else {
+                throw new Error(response.data.message || 'Verification failed.');
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || 'An error occurred.';
+            Alert.alert('Verification Failed', errorMessage);
+        } finally {
+            setIsLoading(false);
         }
-      }
-    } catch (error) {
-      const errorMessage = error.response?.data?.message || 'An error occurred. Please try again.';
-      Alert.alert('Verification Failed', errorMessage);
-    } finally {
-      setIsLoading(false);
+
+    } else {
+        // --- NEW USER/AUTH LOGIC ---
+        try {
+            const response = await apiClient.post('/auth/verify-otp', {
+                cellphoneNumber: params.phoneNumber,
+                otp: finalOtp,
+            });
+
+            if (response.status === 200) {
+                const { activeUser } = response.data;
+                Alert.alert('Success', 'Phone number verified successfully!');
+                if (activeUser) {
+                    router.replace('/(auth)/sign-in');
+                } else {
+                    router.replace({ pathname: '/(auth)/registration', params: { cellphoneNumber: params.phoneNumber } });
+                }
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || 'An error occurred.';
+            Alert.alert('Verification Failed', errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
     }
-  };
+};
 
   return (
     <SafeAreaView className="flex-1 bg-background-light">
