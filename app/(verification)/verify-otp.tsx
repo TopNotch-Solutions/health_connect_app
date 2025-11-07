@@ -2,11 +2,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import apiClient from '../../lib/api'; // Import our API client
+import apiClient from '../../lib/api';
 
 const OTPScreen = () => {
   const router = useRouter();
-  const { phoneNumber } = useLocalSearchParams();
+  // --- CHANGE 1: Get the whole params object ---
+  const params = useLocalSearchParams();
   const [otp, setOtp] = useState(new Array(6).fill(''));
   const inputs = useRef<(TextInput | null)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,27 +34,29 @@ const OTPScreen = () => {
       return Alert.alert('Invalid Code', 'Please enter the complete 6-digit code.');
     }
     
+    // --- CHANGE 2: Check the property on the params object ---
+    if (!params.phoneNumber || typeof params.phoneNumber !== 'string') {
+        Alert.alert('Error', 'Could not verify number. Please go back and try again.');
+        return;
+    }
+
     setIsLoading(true);
 
     try {
       const response = await apiClient.post('/auth/verify-otp', {
-        phoneNumber,
+        // --- CHANGE 3: Use params.phoneNumber in the API call ---
+        cellphoneNumber: params.phoneNumber,
         otp: finalOtp,
       });
 
       if (response.status === 200) {
-        // This is the key logic from the backend
         const { activeUser } = response.data;
-
         Alert.alert('Success', 'Phone number verified successfully!');
 
         if (activeUser) {
-          // User already exists, so send them to the login screen.
-          // We use replace to clear the verification history.
           router.replace('/(auth)/sign-in');
         } else {
-          // User is new, so send them to the registration screen.
-          router.replace('/(auth)/registration');
+           router.replace({ pathname: '/(auth)/registration', params: { cellphoneNumber: params.phoneNumber } });
         }
       }
     } catch (error) {
@@ -69,7 +72,10 @@ const OTPScreen = () => {
       <View className="flex-1 p-6 justify-center">
         <View className="text-center items-center mb-10">
           <Text className="text-3xl font-bold text-text-main">Enter Code</Text>
-          <Text className="text-base text-text-main mt-3 text-center">A 6-digit code was sent to {phoneNumber || 'your number'}.</Text>
+          {/* --- CHANGE 4: Use params.phoneNumber for display --- */}
+          <Text className="text-base text-text-main mt-3 text-center">
+            A 6-digit code was sent to {params.phoneNumber || 'your number'}.
+          </Text>
         </View>
         <View className="flex-row justify-between w-full mb-8">
           {otp.map((digit, index) => (

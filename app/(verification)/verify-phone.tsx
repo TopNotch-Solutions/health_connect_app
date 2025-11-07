@@ -9,35 +9,47 @@ const VerifyPhoneScreen = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSendCode = async () => {
-    if (phoneNumber.length < 9) {
-      return Alert.alert('Invalid Number', 'Please enter a valid 9-digit phone number.');
+  // In app/(verification)/verify-phone.tsx
+
+// In app/(verification)/verify-phone.tsx
+
+const handleSendCode = async () => {
+    // 1. Sanitize the input
+    let sanitizedNumber = phoneNumber.trim();
+    if (sanitizedNumber.startsWith('264')) {
+      sanitizedNumber = sanitizedNumber.slice(3);
+    }
+
+    // 2. Validate the sanitized number
+    if (sanitizedNumber.length !== 9) {
+      return Alert.alert(
+        'Invalid Number', 
+        'Please enter a valid 9-digit Namibian number (e.g., 81 234 5678).'
+      );
     }
 
     setIsLoading(true);
-    const fullPhoneNumber = `+264${phoneNumber}`;
+    // 3. Construct the final, correct phone number
+    const fullPhoneNumber = `264${sanitizedNumber}`;
+
+    // --- ADD THIS LOG ---
+    console.log("Sending this phone number to the backend:", fullPhoneNumber);
+    // --------------------
 
     try {
-      // Call the existing backend endpoint
       const response = await apiClient.post('/auth/send-otp', {
         cellphoneNumber: fullPhoneNumber,
       });
 
       if (response.status === 200) {
-        // NOTE: Your backend sends the OTP in the response for debugging.
-        // In a real app, this would be sent via SMS.
         console.log('OTP from backend:', response.data.otp);
         Alert.alert('Code Sent', 'A verification code has been sent to your phone.');
         router.push({ pathname: '/verify-otp', params: { phoneNumber: fullPhoneNumber } });
       }
-     } catch (error) {
-      // --- ADD THIS DETAILED LOGGING ---
-      console.error("Full API Error:", JSON.stringify(error, null, 2));
-      // ------------------------------------
-
+    } catch (error) {
       const errorMessage = error.response?.data?.message || 'An error occurred. Please try again.';
       Alert.alert('Error', errorMessage);
-    }  finally {
+    } finally {
       setIsLoading(false);
     }
   };
@@ -57,13 +69,13 @@ const VerifyPhoneScreen = () => {
                 <Text className="text-2xl mr-3">🇳🇦</Text>
                 <Text className="text-xl font-semibold text-text-main mr-2">+264</Text>
                 <TextInput
-                  className="flex-1 h-full text-xl"
-                  placeholder="81 234 5678"
-                  keyboardType="phone-pad"
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  maxLength={9}
-                />
+    className="flex-1 h-full text-xl"
+    placeholder="81 234 5678"
+    keyboardType="phone-pad"
+    value={phoneNumber}
+    onChangeText={setPhoneNumber}
+    maxLength={12} // <-- Corrected to allow for "264" + 9 digits
+/>
               </View>
             </View>
           </View>

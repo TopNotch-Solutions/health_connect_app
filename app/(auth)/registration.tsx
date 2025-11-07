@@ -1,15 +1,26 @@
+import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { namibianRegions, townsByRegion } from '../../constants/locations';
 import apiClient from '../../lib/api';
+
+// A reusable component to style the dropdowns using Tailwind CSS
+const PickerContainer = ({ children }: { children: React.ReactNode }) => (
+  <View className="bg-white border border-gray-200 rounded-xl px-3" style={{ height: 56, justifyContent: 'center' }}>
+    {children}
+  </View>
+);
 
 const RegistrationScreen = () => {
   const router = useRouter();
-  
+  const params = useLocalSearchParams();
+
   const [formData, setFormData] = useState({
     fullname: '',
     email: '',
@@ -22,15 +33,27 @@ const RegistrationScreen = () => {
     town: '',
     region: '',
     nationalId: '',
-    profileImage: null,
+    profileImage: null as ImagePicker.ImagePickerAsset | null, // Added type for clarity
   });
 
   const [step, setStep] = useState(1);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [availableTowns, setAvailableTowns] = useState<{ label: string; value: string }[]>([]);
 
-  const handleInputChange = (name, value) => {
-    setFormData({ ...formData, [name]: value });
+  useEffect(() => {
+    if (params.cellphoneNumber && typeof params.cellphoneNumber === 'string') {
+      setFormData(prev => ({ ...prev, cellphoneNumber: params.cellphoneNumber as string }));
+    }
+  }, [params.cellphoneNumber]);
+
+  const handleInputChange = (name: string, value: any) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+
+    if (name === 'region') {
+      setAvailableTowns(townsByRegion[value] || []);
+      setFormData(prev => ({ ...prev, town: '' }));
+    }
   };
 
   const pickImage = async () => {
@@ -49,7 +72,7 @@ const RegistrationScreen = () => {
     }
   };
 
-  const onDateChange = (event, selectedDate) => {
+  const onDateChange = (event: any, selectedDate?: Date) => {
     const currentDate = selectedDate || formData.dateOfBirth;
     setShowDatePicker(Platform.OS === 'ios');
     handleInputChange('dateOfBirth', currentDate);
@@ -76,18 +99,19 @@ const RegistrationScreen = () => {
     const uri = formData.profileImage.uri;
     const uriParts = uri.split('.');
     const fileType = uriParts[uriParts.length - 1];
-    data.append('profileImage', { // Using 'profileImage' as the key, ensure your Multer config matches this.
+    data.append('profileImage', {
       uri,
       name: `profile.${fileType}`,
       type: `image/${fileType}`,
-    });
+    } as any);
 
     Object.keys(formData).forEach(key => {
       if (key !== 'profileImage' && key !== 'confirmPassword') {
-        if (key === 'dateOfBirth') {
-          data.append(key, formData[key].toISOString().split('T')[0]);
-        } else {
-          data.append(key, formData[key]);
+        const value = formData[key as keyof typeof formData];
+        if (key === 'dateOfBirth' && value instanceof Date) {
+          data.append(key, value.toISOString().split('T')[0]);
+        } else if (typeof value === 'string' || typeof value === 'number') {
+          data.append(key, value.toString());
         }
       }
     });
@@ -101,9 +125,9 @@ const RegistrationScreen = () => {
 
       if (response.status === 201) {
         Alert.alert('Success!', 'Patient registration completed successfully.');
-        router.push('/sign-in');
+        router.push('/(auth)/sign-in');
       }
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'An error occurred. Please try again.';
       Alert.alert('Registration Failed', errorMessage);
     } finally {
@@ -124,31 +148,32 @@ const RegistrationScreen = () => {
           {step === 1 && (
              <View>
               <Text className="text-base text-text-main mb-2 font-semibold">Full Name</Text>
-              <TextInput className="w-full bg-white p-4 rounded-xl mb-4" placeholder="Enter your full name" value={formData.fullname} onChangeText={(val) => handleInputChange('fullname', val)} />
+              <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="Enter your full name" value={formData.fullname} onChangeText={(val) => handleInputChange('fullname', val)} />
               <Text className="text-base text-text-main mb-2 font-semibold">Email</Text>
-              <TextInput className="w-full bg-white p-4 rounded-xl mb-4" placeholder="youremail@example.com" value={formData.email} onChangeText={(val) => handleInputChange('email', val)} keyboardType="email-address" autoCapitalize="none" />
+              <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="youremail@example.com" value={formData.email} onChangeText={(val) => handleInputChange('email', val)} keyboardType="email-address" autoCapitalize="none" />
               <Text className="text-base text-text-main mb-2 font-semibold">Password</Text>
-              <TextInput className="w-full bg-white p-4 rounded-xl mb-4" placeholder="Create a password" value={formData.password} onChangeText={(val) => handleInputChange('password', val)} secureTextEntry />
+              <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="Create a password" value={formData.password} onChangeText={(val) => handleInputChange('password', val)} secureTextEntry />
               <Text className="text-base text-text-main mb-2 font-semibold">Confirm Password</Text>
-              <TextInput className="w-full bg-white p-4 rounded-xl mb-4" placeholder="Confirm your password" value={formData.confirmPassword} onChangeText={(val) => handleInputChange('confirmPassword', val)} secureTextEntry />
+              <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="Confirm your password" value={formData.confirmPassword} onChangeText={(val) => handleInputChange('confirmPassword', val)} secureTextEntry />
             </View>
           )}
 
           {/* Step 2 */}
           {step === 2 && (
              <View>
-                <Text className="text-base text-text-main mb-2 font-semibold">Cellphone Number</Text>
-                <TextInput className="w-full bg-white p-4 rounded-xl mb-4" placeholder="e.g., 0812345678" value={formData.cellphoneNumber} onChangeText={(val) => handleInputChange('cellphoneNumber', val)} keyboardType="phone-pad" />
+                <Text className="text-base text-text-main mb-2 font-semibold">Verified Phone Number</Text>
+                <View className="w-full bg-gray-100 p-4 rounded-xl mb-4 border border-gray-200">
+                    <Text className="text-base text-gray-500">{formData.cellphoneNumber}</Text>
+                </View>
                 <Text className="text-base text-text-main mb-2 font-semibold">Date of Birth</Text>
-                <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-                    {/* --- THIS IS THE CORRECTED LINE --- */}
-                    <Text className="w-full bg-white p-4 rounded-xl mb-4 text-gray-500">{formData.dateOfBirth.toLocaleDateString()}</Text>
+                <TouchableOpacity onPress={() => setShowDatePicker(true)} className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200">
+                    <Text className="text-base text-text-main">{formData.dateOfBirth.toLocaleDateString()}</Text>
                 </TouchableOpacity>
                 {showDatePicker && <DateTimePicker value={formData.dateOfBirth} mode="date" display="default" onChange={onDateChange} />}
                 <Text className="text-base text-text-main mb-2 font-semibold">Gender</Text>
                 <View className="flex-row justify-around mb-4">
                     {['Male', 'Female', 'Other'].map(g => (
-                        <TouchableOpacity key={g} className={`p-3 rounded-lg border ${formData.gender === g ? 'bg-primary border-primary' : 'bg-white border-gray-200'}`} onPress={() => handleInputChange('gender', g)}>
+                        <TouchableOpacity key={g} className={`p-3 rounded-lg border flex-1 mx-1 items-center ${formData.gender === g ? 'bg-primary border-primary' : 'bg-white border-gray-200'}`} onPress={() => handleInputChange('gender', g)}>
                             <Text className={`${formData.gender === g ? 'text-white' : 'text-text-main'}`}>{g}</Text>
                         </TouchableOpacity>
                     ))}
@@ -160,23 +185,44 @@ const RegistrationScreen = () => {
           {step === 3 && (
             <View>
                 <Text className="text-base text-text-main mb-2 font-semibold">Address</Text>
-                <TextInput className="w-full bg-white p-4 rounded-xl mb-4" placeholder="Your street address" value={formData.address} onChangeText={(val) => handleInputChange('address', val)} />
-                <Text className="text-base text-text-main mb-2 font-semibold">Town</Text>
-                <TextInput className="w-full bg-white p-4 rounded-xl mb-4" placeholder="e.g., Windhoek" value={formData.town} onChangeText={(val) => handleInputChange('town', val)} />
+                <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="Your street address or P.O. Box" value={formData.address} onChangeText={(val) => handleInputChange('address', val)} />
+                
                 <Text className="text-base text-text-main mb-2 font-semibold">Region</Text>
-                <TextInput className="w-full bg-white p-4 rounded-xl mb-4" placeholder="e.g., Khomas" value={formData.region} onChangeText={(val) => handleInputChange('region', val)} />
+                <PickerContainer>
+                    <RNPickerSelect
+                        onValueChange={(value) => handleInputChange('region', value)}
+                        items={namibianRegions}
+                        placeholder={{ label: "Select a region...", value: null }}
+                        value={formData.region}
+                        style={{ inputIOS: { color: 'black' }, inputAndroid: { color: 'black' } }}
+                        Icon={() => <Feather name="chevron-down" size={24} color="gray" />}
+                    />
+                </PickerContainer>
+
+                <Text className="text-base text-text-main mb-2 font-semibold mt-4">Town</Text>
+                <PickerContainer>
+                    <RNPickerSelect
+                        onValueChange={(value) => handleInputChange('town', value)}
+                        items={availableTowns}
+                        placeholder={{ label: "Select a town...", value: null }}
+                        value={formData.town}
+                        disabled={!formData.region}
+                        style={{ inputIOS: { color: 'black' }, inputAndroid: { color: 'black' } }}
+                        Icon={() => <Feather name="chevron-down" size={24} color="gray" />}
+                    />
+                </PickerContainer>
             </View>
           )}
 
           {/* Step 4 */}
           {step === 4 && (
             <View className="items-center">
-                <Text className="text-base text-text-main mb-2 font-semibold">Profile Image</Text>
+                <Text className="text-base text-text-main mb-2 font-semibold self-start">Profile Image</Text>
                 <TouchableOpacity onPress={pickImage} className="w-40 h-40 rounded-full bg-white border border-gray-200 justify-center items-center mb-6">
                     {formData.profileImage ? <Image source={{ uri: formData.profileImage.uri }} className="w-full h-full rounded-full" /> : <Text className="text-gray-500 text-center">Tap to select image</Text>}
                 </TouchableOpacity>
-                <Text className="text-base text-text-main mb-2 font-semibold">National ID</Text>
-                <TextInput className="w-full bg-white p-4 rounded-xl" placeholder="Enter your National ID" value={formData.nationalId} onChangeText={(val) => handleInputChange('nationalId', val)} />
+                <Text className="text-base text-text-main mb-2 font-semibold self-start">National ID</Text>
+                <TextInput className="w-full bg-white p-4 rounded-xl border border-gray-200" placeholder="Enter your National ID" value={formData.nationalId} onChangeText={(val) => handleInputChange('nationalId', val)} />
             </View>
           )}
 
@@ -184,8 +230,8 @@ const RegistrationScreen = () => {
           <View className="mt-8">
             <View className="flex-row justify-between">
               {step > 1 && !isLoading && (
-                <TouchableOpacity className="bg-gray-300 p-4 rounded-xl flex-1 mr-2" onPress={handleBack}>
-                  <Text className="text-center text-lg font-semibold">Back</Text>
+                <TouchableOpacity className="bg-gray-200 p-4 rounded-xl flex-1 mr-2" onPress={handleBack}>
+                  <Text className="text-center text-lg font-semibold text-text-main">Back</Text>
                 </TouchableOpacity>
               )}
               {step < 4 && (
@@ -205,7 +251,7 @@ const RegistrationScreen = () => {
             </View>
             <View className="flex-row justify-center mt-8">
                 <Text className="text-text-main text-base">Already have an account? </Text>
-                <TouchableOpacity onPress={() => router.push('/sign-in')}>
+                <TouchableOpacity onPress={() => router.push('/(auth)/sign-in')}>
                     <Text className="text-primary font-bold text-base">Sign In</Text>
                 </TouchableOpacity>
             </View>
