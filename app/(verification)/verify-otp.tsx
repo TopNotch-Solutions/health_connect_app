@@ -11,6 +11,7 @@ const OTPScreen = () => {
   const [otp, setOtp] = useState(new Array(6).fill(''));
   const inputs = useRef<(TextInput | null)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false); 
 
   const handleOtpChange = (text: string, index: number) => {
     if (isNaN(Number(text))) return;
@@ -89,7 +90,29 @@ const handleVerifyOtp = async () => {
             setIsLoading(false);
         }
     }
+
+    
 };
+ const handleResendOtp = async () => {
+    if (!params.phoneNumber || typeof params.phoneNumber !== 'string') {
+        return Alert.alert('Error', 'Could not resend code. Please go back.');
+    }
+
+    setIsResending(true);
+    try {
+        // We call the same 'send-otp' endpoint again
+        await apiClient.post('/auth/send-otp', {
+            cellphoneNumber: params.phoneNumber,
+        });
+        Alert.alert('Code Resent', 'A new verification code has been sent to your phone.');
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.message || 'An error occurred.';
+        Alert.alert('Error', errorMessage);
+    } finally {
+        setIsResending(false);
+    }
+  };
+
 
   return (
     <SafeAreaView className="flex-1 bg-background-light">
@@ -124,8 +147,12 @@ const handleVerifyOtp = async () => {
         </TouchableOpacity>
         <View className="flex-row justify-center mt-6">
           <Text className="text-text-main">Didn&apos;t receive code? </Text>
-          <TouchableOpacity onPress={() => alert('Resend code logic to be implemented.')}>
-            <Text className="text-primary font-bold">Resend</Text>
+        <TouchableOpacity onPress={handleResendOtp} disabled={isResending}>
+            {isResending ? (
+              <ActivityIndicator size="small" color="#007BFF" />
+            ) : (
+              <Text className="text-primary font-bold">Resend</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
