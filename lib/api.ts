@@ -2,8 +2,7 @@
 
 import axios from 'axios';
 
-// Replace with your actual local IP
-const API_BASE_URL = 'http://10.11.12.55:4000/api';  // Remove '/app'
+const API_BASE_URL = 'http://10.11.12.55:4000/api'; 
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
