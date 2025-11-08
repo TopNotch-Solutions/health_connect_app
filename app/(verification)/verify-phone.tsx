@@ -1,4 +1,4 @@
-import { useRouter,useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,10 +6,9 @@ import apiClient from '../../lib/api'; // Import our API client
 
 const VerifyPhoneScreen = () => {
   const router = useRouter();
-  const { role = 'patient'} = useLocalSearchParams<{role?: 'patient' | 'provider'}>();
+   const { flow } = useLocalSearchParams();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
 
   // In app/(verification)/verify-phone.tsx
 
@@ -48,10 +47,7 @@ const handleSendCode = async () => {
         Alert.alert('Code Sent', 'A verification code has been sent to your phone.');
         router.push({ 
           pathname: '/verify-otp', 
-          params: { 
-            phoneNumber: fullPhoneNumber,
-            role,
-          } 
+          params: { phoneNumber: fullPhoneNumber, flow: flow }
         });
       }
     } catch (error) {
