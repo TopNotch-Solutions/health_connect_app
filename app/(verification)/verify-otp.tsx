@@ -12,6 +12,11 @@ const OTPScreen = () => {
   const inputs = useRef<(TextInput | null)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  const role = typeof params.role === 'string' && params.role === 'provider' ? 'provider' : 'patient';
+  const cellphoneNumber = 
+    (typeof params.phoneNumber === 'string' && params.phoneNumber) ||
+    (typeof params.cellphoneNumber === 'string' && params.cellphoneNumber) ||
+    '';
   const handleOtpChange = (text: string, index: number) => {
     if (isNaN(Number(text))) return;
     const newOtp = [...otp];
@@ -35,9 +40,9 @@ const OTPScreen = () => {
     }
     
     // --- CHANGE 2: Check the property on the params object ---
-    if (!params.phoneNumber || typeof params.phoneNumber !== 'string') {
-        Alert.alert('Error', 'Could not verify number. Please go back and try again.');
-        return;
+    if (!cellphoneNumber) {
+      Alert.alert('Error', 'Could not verify number. Please go back and try again.');
+      return;
     }
 
     setIsLoading(true);
@@ -56,10 +61,24 @@ const OTPScreen = () => {
         if (activeUser) {
           router.replace('/(auth)/sign-in');
         } else {
-           router.replace({ pathname: '/(auth)/registration', params: { cellphoneNumber: params.phoneNumber } });
+          if (role === 'provider'){
+            router.replace({ 
+              pathname: '/(auth)/provider-type', 
+              params: { 
+                cellphoneNumber: params.phoneNumber 
+              } 
+            });
+          } else {
+            router.replace({ 
+              pathname: '/(auth)/registration', 
+              params: { 
+                cellphoneNumber: params.phoneNumber 
+              } 
+            });
+          }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'An error occurred. Please try again.';
       Alert.alert('Verification Failed', errorMessage);
     } finally {

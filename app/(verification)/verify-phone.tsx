@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter,useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,15 +6,11 @@ import apiClient from '../../lib/api'; // Import our API client
 
 const VerifyPhoneScreen = () => {
   const router = useRouter();
+  const { role = 'patient'} = useLocalSearchParams<{role?: 'patient' | 'provider'}>();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-<<<<<<< HEAD
-  const handleSendCode = async () => {
-    
-    if (phoneNumber.length < 9) {
-      return Alert.alert('Invalid Number', 'Please enter a valid 9-digit phone number.');
-=======
+
   // In app/(verification)/verify-phone.tsx
 
 // In app/(verification)/verify-phone.tsx
@@ -32,7 +28,6 @@ const handleSendCode = async () => {
         'Invalid Number', 
         'Please enter a valid 9-digit Namibian number (e.g., 81 234 5678).'
       );
->>>>>>> fe80076373801ac92fd870e8d4f6cdc53b1a167b
     }
 
     setIsLoading(true);
@@ -51,27 +46,18 @@ const handleSendCode = async () => {
       if (response.status === 200) {
         console.log('OTP from backend:', response.data.otp);
         Alert.alert('Code Sent', 'A verification code has been sent to your phone.');
-        router.push({ pathname: '/verify-otp', params: { phoneNumber: fullPhoneNumber } });
+        router.push({ 
+          pathname: '/verify-otp', 
+          params: { 
+            phoneNumber: fullPhoneNumber,
+            role,
+          } 
+        });
       }
-<<<<<<< HEAD
-     } catch (error) {
-      console.error("=== API Error Debug ===");
-  console.error("Message:", error.message);
-  console.error("Response Data:", error.response?.data);
-  console.error("Response Status:", error.response?.status);
-  console.error("Request URL:", error.config?.url);
-  console.error("Full Error:", error);
-  console.error("=====================");
-
-  const errorMessage = error.response?.data?.message || 'An error occurred. Please try again.';
-  Alert.alert('Error', errorMessage);
-    }  finally {
-=======
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'An error occurred. Please try again.';
       Alert.alert('Error', errorMessage);
     } finally {
->>>>>>> fe80076373801ac92fd870e8d4f6cdc53b1a167b
       setIsLoading(false);
     }
   };

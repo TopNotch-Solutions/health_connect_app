@@ -9,18 +9,29 @@ const SignInScreen = () => {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
 
-  const handleSignIn = () => {
-    // --- THIS IS WHERE YOU'LL CONNECT TO YOUR BACKEND ---
-    // For now, we'll simulate the action.
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password.');
-      return;
-    }
-    console.log('Attempting to sign in with:', { email, password });
-    Alert.alert('Success (Simulated)', 'You are now signed in!');
-    // On a real success, you would navigate to the main app like this:
-    // router.replace('/home'); 
-  };
+  const displayNameFromEmail = (e: string) => {
+  const base = (e || "").split("@")[0] || "Patient";
+  return base
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+const handleSignIn = () => {
+  if (!email || !password) {
+    Alert.alert('Error', 'Please enter both email and password.');
+    return;
+  }
+
+  // Simulated success
+  console.log('Attempting to sign in with:', { email, password });
+  Alert.alert('Success (Simulated)', 'You are now signed in!');
+
+  // Go straight to the home screen with a name param
+  router.replace({
+    pathname: "/(app)/patient-home",
+    params: { name: displayNameFromEmail(email) },
+  });
+};
 
   return (
     <SafeAreaView className="flex-1 bg-background-light">

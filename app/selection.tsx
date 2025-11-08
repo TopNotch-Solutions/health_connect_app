@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons'; // A great library for icons
-import { useRouter } from 'expo-router';
+import { useRouter, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
@@ -11,15 +11,10 @@ const SelectionScreen = () => {
   const handleSelection = (role: 'patient' | 'provider') => {
     console.log('Selected Role:', role);
     
-    // For now, we only have the patient flow built.
-    // In the future, you would navigate providers to a different screen.
-    if (role === 'patient') {
-      router.push('/(verification)/verify-phone');
-    } else {
-      // --- FUTURE DEVELOPMENT ---
-      // router.push('/provider-sign-in'); 
-      alert('Provider flow is coming soon!');
-    }
+    router.push({
+      pathname: '/(verification)/verify-phone',
+      params: {role},
+    });
   };
 
   return (
