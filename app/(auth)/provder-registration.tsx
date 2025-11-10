@@ -2,6 +2,7 @@
 import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
+import type { DocumentPickerAsset } from "expo-document-picker"; // ✅ add this
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState, useEffect } from "react";
@@ -9,7 +10,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -23,7 +23,8 @@ import DocPickerField from "../components/DocPickerField";
 import { namibianRegions, townsByRegion } from "../../constants/locations";
 
 type ProviderType = "doctor" | "nurse" | "physiotherapist" | "social worker";
-type PickedFile = { uri: string; name?: string; type?: string } | null;
+type PickedImage = { uri: string; name?: string; type?: string } | null; // for profile image only
+type DocFile = DocumentPickerAsset | null; // ✅ what DocPickerField returns/expects
 
 /**
  * IMPORTANT: These keys MUST match the backend multer.fields:
@@ -35,7 +36,11 @@ type PickedFile = { uri: string; name?: string; type?: string } | null;
  */
 const DOCS_BY_TYPE: Record<
   ProviderType,
-  Array<{ key: "idDocumentFront" | "idDocumentBack" | "primaryQualification" | "annualQualification"; label: string; required?: boolean }>
+  Array<{
+    key: "idDocumentFront" | "idDocumentBack" | "primaryQualification" | "annualQualification";
+    label: string;
+    required?: boolean;
+  }>
 > = {
   doctor: [
     { key: "idDocumentFront", label: "ID – front", required: true },
@@ -97,20 +102,20 @@ export default function ProviderRegistration() {
     region: "",
     town: "",
     address: "",
-    profileImage: null as PickedFile,
+    profileImage: null as PickedImage,
 
-    // Backend-required provider fields:
-    // role (we'll derive from providerType)
+    // Backend required provider fields
     hpcnaNumber: "",
     hpcnaExpiryDate: new Date(),
     yearsOfExperience: "",
-    operationalZone: "", // we will map to region name for now
+    operationalZone: "",
     governingCouncil: "",
     bio: "",
-    specializationsCsv: "", // we'll split into array and send as specializations[]
+    specializationsCsv: "",
   });
 
-  const [docs, setDocs] = useState<Record<string, PickedFile | null>>({});
+  // ✅ Store doc files as DocumentPickerAsset
+  const [docs, setDocs] = useState<Record<string, DocFile>>({});
 
   useEffect(() => {
     if (formData.region) {
@@ -127,16 +132,19 @@ export default function ProviderRegistration() {
     }
   };
 
-  const setDoc = (key: string) => (file: PickedFile | null) =>
-    setDocs((prev) => ({ ...prev, [key]: file }));
+  // ✅ Match DocPickerField signature
+  const setDoc =
+    (key: string) =>
+    (file: DocFile): void =>
+      setDocs((prev) => ({ ...prev, [key]: file }));
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
+  const onDateChange = (_: any, selectedDate?: Date) => {
     const currentDate = selectedDate || formData.dateOfBirth;
     setShowDatePicker(false);
     handleInputChange("dateOfBirth", currentDate);
   };
 
-  const onHpcnaDateChange = (event: any, selectedDate?: Date) => {
+  const onHpcnaDateChange = (_: any, selectedDate?: Date) => {
     const currentDate = selectedDate || formData.hpcnaExpiryDate;
     setShowHpcnaDatePicker(false);
     handleInputChange("hpcnaExpiryDate", currentDate);
@@ -186,7 +194,7 @@ export default function ProviderRegistration() {
   const handleBack = () => setStep((prev) => prev - 1);
 
   const onSubmit = async () => {
-    // Validate required documents by backend keys
+    // Required docs
     const requiredDocKeys = docConfig.filter((d) => d.required).map((d) => d.key);
     for (const key of requiredDocKeys) {
       if (!docs[key]) {
@@ -194,7 +202,7 @@ export default function ProviderRegistration() {
       }
     }
 
-    // Validate provider required fields (backend)
+    // Required provider fields
     if (!formData.hpcnaNumber) return Alert.alert("Error", "HPCNA number is required.");
     if (!formData.governingCouncil) return Alert.alert("Error", "Governing council is required.");
     if (!formData.bio) return Alert.alert("Error", "Professional bio is required.");
@@ -219,8 +227,8 @@ export default function ProviderRegistration() {
       fd.append("town", formData.town);
       fd.append("region", formData.region);
 
-      // IMPORTANT: map to backend names
-      fd.append("role", normalizedProviderType); // backend expects "role"
+      // Backend mapping
+      fd.append("role", normalizedProviderType);
       fd.append("hpcnaNumber", formData.hpcnaNumber);
       fd.append("hpcnaExpiryDate", formData.hpcnaExpiryDate.toISOString().split("T")[0]);
       fd.append("yearsOfExperience", formData.yearsOfExperience);
@@ -228,7 +236,7 @@ export default function ProviderRegistration() {
       fd.append("governingCouncil", formData.governingCouncil);
       fd.append("bio", formData.bio);
 
-      // Specializations: send as repeated fields to become an array on server
+      // Specializations
       formData.specializationsCsv
         .split(",")
         .map((s) => s.trim())
@@ -238,9 +246,9 @@ export default function ProviderRegistration() {
           fd.append("specializations", spec);
         });
 
-      // profile image (optional) — backend key must be "profileImage"
+      // Profile image (optional)
       if (formData.profileImage) {
-        // @ts-ignore RN FormData
+        // @ts-ignore React Native FormData
         fd.append("profileImage", {
           uri: formData.profileImage.uri,
           name: formData.profileImage.name ?? "profile.jpg",
@@ -248,20 +256,19 @@ export default function ProviderRegistration() {
         });
       }
 
-      // documents — use backend keys exactly
+      // ✅ Documents — adapt DocumentPickerAsset shape (mimeType instead of type)
       docConfig.forEach(({ key }) => {
         const file = docs[key];
         if (file) {
-          // @ts-ignore RN FormData
+          // @ts-ignore React Native FormData
           fd.append(key, {
             uri: file.uri,
-            name: file.name ?? `${key}.jpg`,
-            type: file.type ?? "application/octet-stream",
+            name: file.name ?? `${key}.pdf`,
+            type: file.mimeType ?? "application/octet-stream",
           });
         }
       });
 
-      // Let Axios set the correct multipart boundary
       await apiClient.post("/app/auth/register-health-provider", fd);
 
       Alert.alert("Success", "Provider account created. Please sign in.");
@@ -276,38 +283,51 @@ export default function ProviderRegistration() {
 
   return (
     <SafeAreaView className="flex-1">
-      <ScrollView 
-        contentContainerStyle={{ 
-          paddingBottom: step < 4 ? 120 : 24,
-        }}  
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: step < 4 ? 120 : 24 }}
         keyboardShouldPersistTaps="handled"
       >
         <View className="p-6">
           <View className="mb-6">
             <Text className="text-4xl font-bold">Provider Registration</Text>
-              <Text className="mt-2">
-                Provider type: <Text className="font-semibold capitalize">{normalizedProviderType}</Text>
-              </Text>
-
-              <Text className="mt-2">
-                Verified: {cellphoneNumber}
-              </Text>
+            <Text className="mt-2">
+              Provider type: <Text className="font-semibold capitalize">{normalizedProviderType}</Text>
+            </Text>
+            <Text className="mt-2">Verified: {cellphoneNumber}</Text>
             <Text className="mt-4 text-lg">Step {step} of 4</Text>
           </View>
 
-          {/* STEP 1: Account */}
+          {/* STEP 1 */}
           {step === 1 && (
             <View>
               <Text className="text-base text-text-main mb-2 font-semibold">Full name</Text>
-              <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="Enter your full name" value={formData.fullname} onChangeText={(val) => handleInputChange("fullname", val)} />
+              <TextInput
+                className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                placeholder="Enter your full name"
+                value={formData.fullname}
+                onChangeText={(val) => handleInputChange("fullname", val)}
+              />
               <Text className="text-base text-text-main mb-2 font-semibold">Email</Text>
-              <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="youremail@example.com" value={formData.email} onChangeText={(val) => handleInputChange("email", val)} keyboardType="email-address" autoCapitalize="none" />
+              <TextInput
+                className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                placeholder="youremail@example.com"
+                value={formData.email}
+                onChangeText={(val) => handleInputChange("email", val)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
               <Text className="text-base text-text-main mb-2 font-semibold">Password</Text>
-              <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="Create a password" value={formData.password} onChangeText={(val) => handleInputChange("password", val)} secureTextEntry />
+              <TextInput
+                className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                placeholder="Create a password"
+                value={formData.password}
+                onChangeText={(val) => handleInputChange("password", val)}
+                secureTextEntry
+              />
             </View>
           )}
 
-          {/* STEP 2: Personal */}
+          {/* STEP 2 */}
           {step === 2 && (
             <View>
               <Text className="text-base text-text-main mb-2 font-semibold">Verified Phone Number</Text>
@@ -316,7 +336,10 @@ export default function ProviderRegistration() {
               </View>
 
               <Text className="text-base text-text-main mb-2 font-semibold">Date of Birth</Text>
-              <TouchableOpacity onPress={() => setShowDatePicker(true)} className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200">
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(true)}
+                className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200"
+              >
                 <Text className="text-base text-text-main">{formData.dateOfBirth.toLocaleDateString()}</Text>
               </TouchableOpacity>
               {showDatePicker && <DateTimePicker value={formData.dateOfBirth} mode="date" display="default" onChange={onDateChange} />}
@@ -326,7 +349,9 @@ export default function ProviderRegistration() {
                 {["Male", "Female", "Other"].map((g) => (
                   <TouchableOpacity
                     key={g}
-                    className={`p-3 rounded-lg border flex-1 mx-1 items-center ${formData.gender === g ? "bg-primary border-primary" : "bg-white border-gray-200"}`}
+                    className={`p-3 rounded-lg border flex-1 mx-1 items-center ${
+                      formData.gender === g ? "bg-primary border-primary" : "bg-white border-gray-200"
+                    }`}
                     onPress={() => handleInputChange("gender", g)}
                   >
                     <Text className={`${formData.gender === g ? "text-white" : "text-text-main"}`}>{g}</Text>
@@ -335,15 +360,25 @@ export default function ProviderRegistration() {
               </View>
 
               <Text className="text-base text-text-main mb-2 font-semibold">National ID</Text>
-              <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="Enter your National ID" value={formData.nationalId} onChangeText={(val) => handleInputChange("nationalId", val)} />
+              <TextInput
+                className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                placeholder="Enter your National ID"
+                value={formData.nationalId}
+                onChangeText={(val) => handleInputChange("nationalId", val)}
+              />
             </View>
           )}
 
-          {/* STEP 3: Address + Region/Town */}
+          {/* STEP 3 */}
           {step === 3 && (
             <View>
               <Text className="text-base text-text-main mb-2 font-semibold">Address</Text>
-              <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="Your street address or P.O. Box" value={formData.address} onChangeText={(val) => handleInputChange("address", val)} />
+              <TextInput
+                className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                placeholder="Your street address or P.O. Box"
+                value={formData.address}
+                onChangeText={(val) => handleInputChange("address", val)}
+              />
 
               <Text className="text-base text-text-main mb-2 font-semibold">Region</Text>
               <PickerContainer>
@@ -372,7 +407,7 @@ export default function ProviderRegistration() {
             </View>
           )}
 
-          {/* STEP 4: Image + Professional + Docs */}
+          {/* STEP 4 */}
           {step === 4 && (
             <View>
               <Text className="text-base text-text-main mb-2 font-semibold">Profile Image</Text>
@@ -384,10 +419,14 @@ export default function ProviderRegistration() {
                 )}
               </TouchableOpacity>
 
-              {/* Provider-specific backend-required fields */}
               <Text className="text-base text-text-main mb-3 font-semibold">Professional details</Text>
-              <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="HPCNA number" value={formData.hpcnaNumber} onChangeText={(val) => handleInputChange("hpcnaNumber", val)} />
-              
+              <TextInput
+                className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                placeholder="HPCNA number"
+                value={formData.hpcnaNumber}
+                onChangeText={(val) => handleInputChange("hpcnaNumber", val)}
+              />
+
               <Text className="text-base text-text-main mb-2 font-semibold">HPCNA Expiry Date</Text>
               <TouchableOpacity
                 onPress={() => setShowHpcnaDatePicker(true)}
@@ -396,12 +435,7 @@ export default function ProviderRegistration() {
                 <Text className="text-base text-text-main">{formData.hpcnaExpiryDate.toLocaleDateString()}</Text>
               </TouchableOpacity>
               {showHpcnaDatePicker && (
-                <DateTimePicker
-                  value={formData.hpcnaExpiryDate}
-                  mode="date"
-                  display="default"
-                  onChange={onHpcnaDateChange}
-                />
+                <DateTimePicker value={formData.hpcnaExpiryDate} mode="date" display="default" onChange={onHpcnaDateChange} />
               )}
 
               <TextInput
@@ -437,40 +471,40 @@ export default function ProviderRegistration() {
               <Text className="text-base text-text-main mb-3 font-semibold">Required documents</Text>
               {docConfig.map(({ key, label, required }) => (
                 <DocPickerField
-                  setFile={setDoc(key)}
                   key={key}
                   label={`${label}${required ? " *" : ""}`}
-                  value={docs[key] ?? null}
-                  onChange={setDoc(key)}
+                  file={docs[key] ?? null}        // ✅ correct prop
+                  setFile={setDoc(key)}           // ✅ correct prop
+                  // accept={['image/*','application/pdf']} // optional
                 />
               ))}
+
+              {/* Submit button */}
+              <View className="mt-8">
+                <TouchableOpacity
+                  className={`p-4 rounded-xl ${isSubmitting ? "bg-gray-400" : "bg-primary"}`}
+                  onPress={onSubmit}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-center text-lg font-semibold">Create account</Text>}
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
-          {/* Nav / Submit */}
-          <View className="mt-8 flex-row">
-            {step > 1 && !isSubmitting && (
-              <TouchableOpacity className="bg-gray-200 p-4 rounded-xl flex-1 mr-2" onPress={handleBack}>
-                <Text className="text-center text-lg font-semibold text-text-main">Back</Text>
-              </TouchableOpacity>
-            )}
-
-            {step < 4 && (
+          {/* Nav / Submit for steps 1–3 */}
+          {step < 4 && (
+            <View className="mt-8 flex-row">
+              {step > 1 && !isSubmitting && (
+                <TouchableOpacity className="bg-gray-200 p-4 rounded-xl flex-1 mr-2" onPress={handleBack}>
+                  <Text className="text-center text-lg font-semibold text-text-main">Back</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity className="bg-primary p-4 rounded-xl flex-1" onPress={handleNext}>
                 <Text className="text-white text-center text-lg font-semibold">Next</Text>
               </TouchableOpacity>
-            )}
-
-            {step === 4 && (
-              <TouchableOpacity
-                className={`p-4 rounded-xl flex-1 ${isSubmitting ? "bg-gray-400" : "bg-primary"}`}
-                onPress={onSubmit}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-center text-lg font-semibold">Create account</Text>}
-              </TouchableOpacity>
-            )}
-          </View>
+            </View>
+          )}
         </View>
       </ScrollView>
       <StatusBar backgroundColor="#E9F7EF" style="dark" />
