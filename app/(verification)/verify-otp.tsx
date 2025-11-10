@@ -86,7 +86,7 @@ const OTPScreen = () => {
               });
             } else {
               router.replace({
-                pathname: '/(auth)/provider-type',
+                pathname: '/(auth)/registration',
                 params: { cellphoneNumber },
               });
             }
