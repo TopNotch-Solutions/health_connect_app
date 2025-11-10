@@ -276,8 +276,13 @@ export default function ProviderRegistration() {
 
   return (
     <SafeAreaView className="flex-1">
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }} keyboardShouldPersistTaps="handled">
-        <View className="p-6 pb-10">
+      <ScrollView 
+        contentContainerStyle={{ 
+          paddingBottom: step < 4 ? 120 : 24,
+        }}  
+        keyboardShouldPersistTaps="handled"
+      >
+        <View className="p-6">
           <View className="mb-6">
             <Text className="text-4xl font-bold">Provider Registration</Text>
               <Text className="mt-2">
@@ -458,7 +463,7 @@ export default function ProviderRegistration() {
 
             {step === 4 && (
               <TouchableOpacity
-                className={`p-4 rounded-xl flex-1 ${isSubmitting ? "bg-blue-400" : "bg-secondary"}`}
+                className={`p-4 rounded-xl flex-1 ${isSubmitting ? "bg-gray-400" : "bg-primary"}`}
                 onPress={onSubmit}
                 disabled={isSubmitting}
               >

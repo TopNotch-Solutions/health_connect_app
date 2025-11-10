@@ -124,7 +124,7 @@ const OTPScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background-light">
+    <SafeAreaView className="flex-1">
       <View className="flex-1 p-6 justify-center">
         <View className="text-center items-center mb-10">
           <Text className="text-3xl font-bold text-text-main">Enter Code</Text>
@@ -149,7 +149,7 @@ const OTPScreen = () => {
         </View>
 
         <TouchableOpacity
-          className={`w-full p-4 rounded-xl ${isLoading ? 'bg-gray-400' : 'bg-secondary'}`}
+          className={`w-full p-4 rounded-xl ${isLoading ? 'bg-gray-400' : 'bg-primary'}`}
           onPress={handleVerifyOtp}
           disabled={isLoading}
         >

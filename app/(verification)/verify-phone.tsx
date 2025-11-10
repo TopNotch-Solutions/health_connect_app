@@ -59,7 +59,7 @@ const handleSendCode = async () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background-light" edges={['top', 'bottom']}>
+    <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <View className="flex-1 p-6 justify-between">
           <View>

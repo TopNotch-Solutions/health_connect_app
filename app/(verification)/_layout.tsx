@@ -10,20 +10,20 @@ const VerificationLayout = () => {
           name="verify-phone" 
           options={{ 
             headerTitle: 'Verify Your Number',
-            headerShadowVisible: false, // For a cleaner look
-            headerStyle: { backgroundColor: '#E9F7EF' }, // Matches our app background
+            headerShadowVisible: true, // For a cleaner look
+            headerStyle: { backgroundColor: '#ffffffff' }, // Matches our app background
           }} 
         />
         <Stack.Screen 
           name="verify-otp" 
           options={{ 
             headerTitle: 'Enter Code',
-            headerShadowVisible: false,
-            headerStyle: { backgroundColor: '#E9F7EF' },
+            headerShadowVisible: true,
+            headerStyle: { backgroundColor: '#ffffffff' },
           }} 
         />
       </Stack>
-      <StatusBar backgroundColor="#E9F7EF" style="dark" />
+      <StatusBar backgroundColor="#ffffffff" style="dark" />
     </>
   );
 };
