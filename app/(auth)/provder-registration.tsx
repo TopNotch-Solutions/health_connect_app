@@ -82,6 +82,7 @@ export default function ProviderRegistration() {
 
   const [step, setStep] = useState(1);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showHpcnaDatePicker, setShowHpcnaDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [availableTowns, setAvailableTowns] = useState<{ label: string; value: string }[]>([]);
@@ -131,8 +132,14 @@ export default function ProviderRegistration() {
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     const currentDate = selectedDate || formData.dateOfBirth;
-    setShowDatePicker(Platform.OS === "ios");
+    setShowDatePicker(false);
     handleInputChange("dateOfBirth", currentDate);
+  };
+
+  const onHpcnaDateChange = (event: any, selectedDate?: Date) => {
+    const currentDate = selectedDate || formData.hpcnaExpiryDate;
+    setShowHpcnaDatePicker(false);
+    handleInputChange("hpcnaExpiryDate", currentDate);
   };
 
   const pickImage = async () => {
@@ -372,20 +379,22 @@ export default function ProviderRegistration() {
               {/* Provider-specific backend-required fields */}
               <Text className="text-base text-text-main mb-3 font-semibold">Professional details</Text>
               <TextInput className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200" placeholder="HPCNA number" value={formData.hpcnaNumber} onChangeText={(val) => handleInputChange("hpcnaNumber", val)} />
+              
               <Text className="text-base text-text-main mb-2 font-semibold">HPCNA Expiry Date</Text>
               <TouchableOpacity
-                onPress={() => handleInputChange("showHpcnaDatePicker", true)}
+                onPress={() => setShowHpcnaDatePicker(true)}
                 className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200"
               >
                 <Text className="text-base text-text-main">{formData.hpcnaExpiryDate.toLocaleDateString()}</Text>
               </TouchableOpacity>
-              {/* simple inline picker for expiry date */}
-              <DateTimePicker
-                value={formData.hpcnaExpiryDate}
-                mode="date"
-                display="default"
-                onChange={(_, d) => d && handleInputChange("hpcnaExpiryDate", d)}
-              />
+              {showHpcnaDatePicker && (
+                <DateTimePicker
+                  value={formData.hpcnaExpiryDate}
+                  mode="date"
+                  display="default"
+                  onChange={onHpcnaDateChange}
+                />
+              )}
 
               <TextInput
                 className="w-full bg-white p-4 rounded-xl mb-4 border border-gray-200"
