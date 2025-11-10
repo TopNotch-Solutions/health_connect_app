@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Image } from "react-native";
 type ProviderType = "doctor" | "nurse" | "physiotherapist" | "social worker";
 
 const CARDS: Array<{
@@ -24,21 +25,21 @@ const CARDS: Array<{
         type: "nurse",
         title: "Nurse",
         icon: "heart",
-        color: "#28A745",
+        color: "#007BFF",
         desc: "Provide nursing care & follow-ups.",
     },
     { 
         type: "physiotherapist",
         title: "Physiotherapist",
         icon: "activity",
-        color: "#6F42C1",
+        color: "#007BFF",
         desc: "Rehab, mobility plans & exercises.",
     },
     {
         type: "social worker",
         title: "Social Worker",
         icon: "users",
-        color: "#17A2B8",
+        color: "#007BFF",
         desc: "Support services & case management.",
     },
 ];
@@ -54,13 +55,21 @@ export default function ProviderType() {
     });
 
     return (
-        <SafeAreaView className="flex-1 bg-background-light">
-            <View className="flex-1 justify-center p-6">
-                <View className="mb-6">
-                    <Text className="text-3xl font-bold text-text-main">
-                        Select provider type
+        <SafeAreaView className="flex-1">
+            <View className="items-center">
+                <Image
+                    source={require('../../assets/images/healthconnectlogo.png')} 
+                    className="w-40 h-40"
+                    resizeMode="contain"
+                />
+            </View>
+
+            <View className="flex-1 p-6">
+                <View className="mt-3 mb-4">
+                    <Text className="text-3xl font-bold text-text-main text-black">
+                        Select Health Provider Type
                     </Text>
-                    <Text className="text-gray-500">
+                    <Text className="text-black">
                         Verified: {cellphoneNumber}
                     </Text>
                 </View>

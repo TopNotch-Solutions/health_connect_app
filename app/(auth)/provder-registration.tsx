@@ -275,16 +275,19 @@ export default function ProviderRegistration() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background-light">
+    <SafeAreaView className="flex-1">
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }} keyboardShouldPersistTaps="handled">
         <View className="p-6 pb-10">
           <View className="mb-6">
-            <Text className="text-4xl font-bold text-text-main">Provider Registration</Text>
-            <Text className="text-text-main mt-2">
-              Provider type: <Text className="font-semibold capitalize">{normalizedProviderType}</Text>
-            </Text>
-            <Text className="text-text-main mt-2">Verified: {cellphoneNumber}</Text>
-            <Text className="text-lg text-text-main mt-4">Step {step} of 4</Text>
+            <Text className="text-4xl font-bold">Provider Registration</Text>
+              <Text className="mt-2">
+                Provider type: <Text className="font-semibold capitalize">{normalizedProviderType}</Text>
+              </Text>
+
+              <Text className="mt-2">
+                Verified: {cellphoneNumber}
+              </Text>
+            <Text className="mt-4 text-lg">Step {step} of 4</Text>
           </View>
 
           {/* STEP 1: Account */}
@@ -455,7 +458,7 @@ export default function ProviderRegistration() {
 
             {step === 4 && (
               <TouchableOpacity
-                className={`p-4 rounded-xl flex-1 ${isSubmitting ? "bg-gray-400" : "bg-secondary"}`}
+                className={`p-4 rounded-xl flex-1 ${isSubmitting ? "bg-blue-400" : "bg-secondary"}`}
                 onPress={onSubmit}
                 disabled={isSubmitting}
               >
