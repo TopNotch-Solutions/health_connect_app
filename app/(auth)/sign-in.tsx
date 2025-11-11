@@ -93,7 +93,8 @@ const handleSignIn = () => {
         {/* Link to Go Back to Role Selection */}
         <View className="flex-row justify-center mt-8">
           <Text className="text-text-main text-base">New user? </Text>
-          <TouchableOpacity onPress={() => router.push('/selection')}>
+          <TouchableOpacity 
+            onPress={() => router.push({pathname: '/selection', params: {mode: 'signup'}})}>
             <Text className="text-primary font-bold text-base">Create an account</Text>
           </TouchableOpacity>
         </View>

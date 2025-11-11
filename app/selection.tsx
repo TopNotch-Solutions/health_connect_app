@@ -1,21 +1,62 @@
 import { Feather } from '@expo/vector-icons'; // A great library for icons
-import { useRouter, router } from 'expo-router';
+import { useRouter, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const STORAGE_KEY = 'hasSeenOnboarding';
 
 const SelectionScreen = () => {
   const router = useRouter();
+  const {mode} = useLocalSearchParams<{mode?: 'signup' | 'onboarding'}>();
+  const isSignupMode = mode === 'signup';
+  const [checking, setChecking] = useState(true);
 
-  const handleSelection = (role: 'patient' | 'provider') => {
+  useEffect(() => {
+    if (isSignupMode) {
+      setChecking(false);
+      return;
+    }
+    (async () => {
+      try{
+        const seen = await AsyncStorage.getItem(STORAGE_KEY);
+        if(seen === 'true') {
+          router.replace('/(auth)/sign-in');
+          return;
+        }
+      } catch {
+
+      } finally {
+        setChecking(false);
+      }
+    })();
+  }, []);
+
+  const handleSelection = async (role: 'patient' | 'provider') => {
     console.log('Selected Role:', role);
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, 'true')
+    } catch {
+
+    }
     
     router.push({
       pathname: '/(verification)/verify-phone',
       params: {role},
     });
   };
+
+  if(checking){
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center">
+        <ActivityIndicator size="large" />
+        <StatusBar style="dark" />
+      </SafeAreaView>
+    )
+  }
 
   return (
     <SafeAreaView className="flex-1">
@@ -50,6 +91,15 @@ const SelectionScreen = () => {
             <Text className="text-base text-text-main mt-1">Manage patients & appointments.</Text>
           </View>
         </TouchableOpacity>
+
+        {isSignupMode && (
+          <TouchableOpacity
+            className='mt-8'
+            onPress={() => router.back()}
+          >
+            <Text className='text-primary font-semibold'>Back to Sign In</Text>
+          </TouchableOpacity>
+        )}
 
       </View>
       <StatusBar backgroundColor="#E9F7EF" style="dark" />
