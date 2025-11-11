@@ -1,4 +1,5 @@
 // app/(verification)/verify-phone.tsx
+import axios from 'axios';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -13,11 +14,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import apiClient from '../../lib/api';
-import axios from 'axios';
 
 const VerifyPhoneScreen = () => {
   const router = useRouter();
-  const { flow } = useLocalSearchParams<{ flow?: string }>();
+  const params = useLocalSearchParams(); 
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -48,9 +48,12 @@ const VerifyPhoneScreen = () => {
       if (response.status === 200) {
         console.log('OTP from backend:', response.data?.otp);
         Alert.alert('Code Sent', 'A verification code has been sent to your phone.');
-        router.push({
-          pathname: '/(verification)/verify-otp',
-          params: { phoneNumber: fullPhoneNumber, flow: flow ?? '' },
+        router.push({ 
+          pathname: '/verify-otp', 
+          params: { 
+            phoneNumber: fullPhoneNumber, 
+            role: params.role // Pass the role we received
+          },
         });
       }
     } catch (err: unknown) {
