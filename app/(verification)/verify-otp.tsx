@@ -127,7 +127,7 @@ const OTPScreen = () => {
     <SafeAreaView className="flex-1">
       <View className="flex-1 p-6 justify-center">
         <View className="text-center items-center mb-10">
-          <Text className="text-3xl font-bold text-text-main">Enter Code</Text>
+          <Text className="text-3xl font-bold">Enter Code</Text>
           <Text className="text-base text-text-main mt-3 text-center">
             A 6-digit code was sent to {cellphoneNumber || 'your number'}.
           </Text>

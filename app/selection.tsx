@@ -1,5 +1,5 @@
-import { Feather } from '@expo/vector-icons'; // A great library for icons
-import { useRouter, router, useLocalSearchParams } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
@@ -10,7 +10,7 @@ const STORAGE_KEY = 'hasSeenOnboarding';
 
 const SelectionScreen = () => {
   const router = useRouter();
-  const {mode} = useLocalSearchParams<{mode?: 'signup' | 'onboarding'}>();
+  const { mode } = useLocalSearchParams<{ mode?: 'signup' | 'onboarding' }>();
   const isSignupMode = mode === 'signup';
   const [checking, setChecking] = useState(true);
 
@@ -20,14 +20,14 @@ const SelectionScreen = () => {
       return;
     }
     (async () => {
-      try{
+      try {
         const seen = await AsyncStorage.getItem(STORAGE_KEY);
-        if(seen === 'true') {
+        if (seen === 'true') {
           router.replace('/(auth)/sign-in');
           return;
         }
       } catch {
-
+        // Error handling
       } finally {
         setChecking(false);
       }
@@ -38,71 +38,92 @@ const SelectionScreen = () => {
     console.log('Selected Role:', role);
 
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, 'true')
+      await AsyncStorage.setItem(STORAGE_KEY, 'true');
     } catch {
-
+      // Error handling
     }
-    
+
     router.push({
       pathname: '/(verification)/verify-phone',
-      params: {role},
+      params: { role },
     });
   };
 
-  if(checking){
+  if (checking) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center">
-        <ActivityIndicator size="large" />
-        <StatusBar style="dark" />
+      <SafeAreaView className="flex-1 bg-gray-50 items-center justify-center">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <StatusBar backgroundColor="#F9FAFB" style="dark" />
       </SafeAreaView>
-    )
+    );
   }
 
   return (
-    <SafeAreaView className="flex-1">
-      <View className="flex-1 justify-center items-center p-6">
+    <SafeAreaView className="flex-1 bg-gray-50">
+      <View className="flex-1 px-6 pt-12">
         
-        {/* Header Text */}
-        <View className="text-center items-center mb-12">
-          <Text className="text-4xl font-bold text-text-main">Are you a...</Text>
-          <Text className="text-lg text-text-main mt-2">Choose your role to get started.</Text>
+        {/* Header Section */}
+        <View className="items-center mb-16">
+          <Text className="text-3xl font-bold text-gray-900 text-center mb-3">
+            Select Your Role
+          </Text>
+          <Text className="text-base text-gray-600 text-center">
+            Choose how you'll be using the platform
+          </Text>
         </View>
 
-        {/* Patient Selection Button */}
-        <TouchableOpacity
-          className="w-full bg-white p-6 rounded-xl border border-gray-200 flex-row items-center mb-4"
-          onPress={() => handleSelection('patient')}
-        >
-          <Feather name="user" size={30} color="#007BFF" />
-          <View className="ml-5">
-            <Text className="text-xl font-bold text-text-main">Patient</Text>
-            <Text className="text-base text-text-main mt-1">Book appointments & manage health.</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Provider Selection Button */}
-        <TouchableOpacity
-          className="w-full bg-white p-6 rounded-xl border border-gray-200 flex-row items-center"
-          onPress={() => handleSelection('provider')}
-        >
-          <Feather name="briefcase" size={30} color="#28A745" />
-          <View className="ml-5">
-            <Text className="text-xl font-bold text-text-main">Provider</Text>
-            <Text className="text-base text-text-main mt-1">Manage patients & appointments.</Text>
-          </View>
-        </TouchableOpacity>
-
-        {isSignupMode && (
+        {/* Selection Cards */}
+        <View>
+          {/* Patient Card */}
           <TouchableOpacity
-            className='mt-8'
-            onPress={() => router.back()}
+            className="w-full bg-white p-5 rounded-xl border border-gray-200 flex-row items-center mb-4 shadow-sm"
+            onPress={() => handleSelection('patient')}
+            activeOpacity={0.7}
           >
-            <Text className='text-primary font-semibold'>Back to Sign In</Text>
+            <View className="w-12 h-12 bg-blue-50 rounded-full items-center justify-center">
+              <Feather name="user" size={24} color="#3B82F6" />
+            </View>
+            <View className="flex-1 ml-4">
+              <Text className="text-lg font-semibold text-gray-900 mb-1">Patient</Text>
+              <Text className="text-sm text-gray-600">
+                Book appointments and manage your health
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#9CA3AF" />
           </TouchableOpacity>
+
+          {/* Provider Card */}
+          <TouchableOpacity
+            className="w-full bg-white p-5 rounded-xl border border-gray-200 flex-row items-center shadow-sm"
+            onPress={() => handleSelection('provider')}
+            activeOpacity={0.7}
+          >
+            <View className="w-12 h-12 bg-green-50 rounded-full items-center justify-center">
+              <Feather name="briefcase" size={24} color="#10B981" />
+            </View>
+            <View className="flex-1 ml-4">
+              <Text className="text-lg font-semibold text-gray-900 mb-1">Provider</Text>
+              <Text className="text-sm text-gray-600">
+                Manage patients and appointments
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Back to Sign In Link */}
+        {isSignupMode && (
+          <View className="items-center mt-12">
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text className="text-blue-600 font-semibold text-sm">
+                Back to Sign In
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
 
       </View>
-      <StatusBar backgroundColor="#E9F7EF" style="dark" />
+      <StatusBar backgroundColor="#F9FAFB" style="dark" />
     </SafeAreaView>
   );
 };
