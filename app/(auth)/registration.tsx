@@ -167,7 +167,7 @@ const RegistrationScreen = () => {
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
         <View className="p-6">
           <View className="mb-10">
-            <Text className="text-4xl font-bold text-text-main">Create Account</Text>
+            <Text className="text-4xl font-bold">Create Account</Text>
             <Text className="text-lg text-text-main mt-2">Step {step} of 4</Text>
           </View>
 
@@ -363,12 +363,6 @@ const RegistrationScreen = () => {
                   )}
                 </TouchableOpacity>
               )}
-            </View>
-            <View className="flex-row justify-center mt-8">
-              <Text className="text-text-main text-base">Already have an account? </Text>
-              <TouchableOpacity onPress={() => router.push('/(auth)/sign-in')}>
-                <Text className="text-primary font-bold text-base">Sign In</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </View>

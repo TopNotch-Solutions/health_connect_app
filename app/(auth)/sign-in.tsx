@@ -37,7 +37,7 @@ const handleSignIn = () => {
 };
 
   return (
-    <SafeAreaView className="flex-1 bg-background-light">
+    <SafeAreaView className="flex-1">
       <View className="flex-1 justify-center p-6">
         
         {/* Header Section */}
