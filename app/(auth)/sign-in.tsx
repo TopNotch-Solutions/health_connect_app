@@ -31,7 +31,7 @@ const handleSignIn = () => {
 
   // Go straight to the home screen with a name param
   router.replace({
-    pathname: "/(app)/patient-home",
+    pathname: "/(tabs)/home",
     params: { name: displayNameFromEmail(email) },
   });
 };
