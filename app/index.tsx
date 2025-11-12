@@ -10,7 +10,7 @@ const OnboardingScreen = () => {
 
   return (
     // SafeAreaView ensures content is not hidden by notches or the status bar
-    <SafeAreaView className="flex-1 bg-background-light">
+    <SafeAreaView className="flex-1">
       <View className="flex-1 justify-center items-center p-6">
         
         {/* Image/Illustration Section */}

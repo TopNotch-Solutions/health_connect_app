@@ -67,7 +67,10 @@ export default function ProviderType() {
             <View className="flex-1 p-6">
                 <View className="mt-3 mb-4">
                     <Text className="text-3xl font-bold">
-                        Select Health Provider Type
+                        Select Specialty
+                    </Text>
+                    <Text className="text-base text-gray-600">
+                        Please select your medical profession
                     </Text>
                     <Text className="">
                         Verified: {cellphoneNumber}

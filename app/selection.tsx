@@ -65,7 +65,7 @@ const SelectionScreen = () => {
         {/* Header Section */}
         <View className="items-center mb-16">
           <Text className="text-3xl font-bold text-gray-900 text-center mb-3">
-            Select Your Role
+            Registration Type
           </Text>
           <Text className="text-base text-gray-600 text-center">
             Choose how you'll be using the platform
@@ -102,7 +102,7 @@ const SelectionScreen = () => {
               <Feather name="briefcase" size={24} color="#10B981" />
             </View>
             <View className="flex-1 ml-4">
-              <Text className="text-lg font-semibold text-gray-900 mb-1">Provider</Text>
+              <Text className="text-lg font-semibold text-gray-900 mb-1">Health Provider</Text>
               <Text className="text-sm text-gray-600">
                 Manage patients and appointments
               </Text>

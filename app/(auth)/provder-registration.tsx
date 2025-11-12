@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import DateTimePicker from "@react-native-community/datetimepicker";
 import Checkbox from 'expo-checkbox';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -22,6 +23,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 type PickedImage = ImagePicker.ImagePickerAsset | null;
 type DocFile = DocumentPicker.DocumentPickerAsset | null;
 type Step = 1 | 2 | 3 | 4;
+
+// fixed specialization options
+const SPECIALIZATION_OPTIONS = [
+  'General Practitioner (GP)',
+  'Pediatrician',
+  'Geriatrician',
+  'Dermatologist',
+  'Internal Medicine Specialist',
+];
 
 // --- Reusable UI Components ---
 const UploadBox = ({
@@ -69,12 +79,6 @@ const ReviewRow = ({ label, value }: { label: string; value?: string }) => (
   </View>
 );
 
-const pickerStyle = {
-  inputIOS: { color: 'black' },
-  inputAndroid: { color: 'black', paddingRight: 28 },
-  iconContainer: { top: 16, right: 10 },
-};
-
 // ---- Helpers for previews ----
 const getExt = (file?: PickedImage | DocFile | null) => {
   const name = (file as any)?.name || (file as any)?.fileName || '';
@@ -86,7 +90,7 @@ const isImageAsset = (file?: PickedImage | DocFile | null) => {
   if (!file) return false;
   const mime =
     (file as any)?.mimeType ||
-    (file as any)?.type || // some pickers put 'image/jpeg' in `type`
+    (file as any)?.type ||
     '';
   const name = (file as any)?.name || (file as any)?.fileName || '';
   return (
@@ -171,6 +175,10 @@ export default function ProviderRegistrationScreen() {
   const [step, setStep] = useState<Step>(1);
   const [isLoading, setIsLoading] = useState(false);
 
+  // date of expiration
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [expirationDate, setExpirationDate] = useState<Date>(new Date());
+
   // --- State Management for Form Data ---
   const [accountInfo, setAccountInfo] = useState({
     fullname: '',
@@ -191,7 +199,8 @@ export default function ProviderRegistrationScreen() {
     registrationCategory: '',
     hpcnaNumber: '',
     bio: '',
-    specializations: '', // Comma-separated string
+    // NOW an array of strings
+    specializations: [] as string[],
   });
 
   // Pre-fill phone number from previous screen
@@ -222,19 +231,40 @@ export default function ProviderRegistrationScreen() {
       setDocuments((prev) => ({ ...prev, [field]: result.assets[0] }));
   };
 
+  // --- date change ---
+  const onExpirationDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setExpirationDate(selectedDate);
+    }
+  };
+
+  // --- specialization toggle ---
+  const toggleSpecialization = (spec: string) => {
+    setProfessionalDetails((prev) => {
+      const already = prev.specializations.includes(spec);
+      return {
+        ...prev,
+        specializations: already
+          ? prev.specializations.filter((s) => s !== spec)
+          : [...prev.specializations, spec],
+      };
+    });
+  };
+
   // --- Navigation Logic ---
   const handleNext = () => setStep((prev) => Math.min(prev + 1, 4) as Step);
   const handleBack = () => setStep((prev) => Math.max(prev - 1, 1) as Step);
 
   // --- Final Submission ---
   const handleSubmit = async () => {
+    // send:
+    // accountInfo
+    // documents
+    // professionalDetails.specializations (array)
+    // expirationDate.toISOString()
     Alert.alert('Submit', 'This will submit the form to the backend.');
   };
-
-  const specializationsArray = professionalDetails.specializations
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
 
   return (
     <SafeAreaView className="flex-1">
@@ -307,15 +337,15 @@ export default function ProviderRegistrationScreen() {
               </View>
               <View className="flex-row" style={{ gap: 16 }}>
                 <UploadBox
-                  label="Upload Photo"
-                  file={documents.profileImage}
-                  onPick={() => pickImage('profileImage')}
-                  icon="camera"
-                />
-                <UploadBox
                   label="Upload Identification (front)"
                   file={documents.idDocumentFront}
                   onPick={() => pickDocument('idDocumentFront')}
+                  icon="file-text"
+                />
+                <UploadBox
+                  label="Upload Identification (back)"
+                  file={documents.idDocumentBack}
+                  onPick={() => pickDocument('idDocumentBack')}
                   icon="file-text"
                 />
               </View>
@@ -329,10 +359,10 @@ export default function ProviderRegistrationScreen() {
                 Documents & Qualifications
               </Text>
               <UploadBox
-                label="Upload Identification (Back)"
-                file={documents.idDocumentBack}
-                onPick={() => pickDocument('idDocumentBack')}
-                icon="file-text"
+                label="Upload Photo"
+                file={documents.profileImage}
+                onPick={() => pickImage('profileImage')}
+                icon="camera"
               />
               <View className="h-3" />
               <UploadBox
@@ -397,6 +427,29 @@ export default function ProviderRegistrationScreen() {
                 }
                 className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
               />
+
+              {/* Date of Expiration */}
+              <Text className="text-base text-text-main mb-2 font-semibold">
+                Date of Expiration
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(true)}
+                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+              >
+                <Text className="text-base text-text-main">
+                  {expirationDate.toLocaleDateString()}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={expirationDate}
+                  mode="date"
+                  display="default"
+                  onChange={onExpirationDateChange}
+                />
+              )}
+
+              {/* Bio */}
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Professional Bio
               </Text>
@@ -409,28 +462,48 @@ export default function ProviderRegistrationScreen() {
                 multiline
                 textAlignVertical="top"
               />
+
+              {/* Specializations: read-only text field + chips */}
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Specializations
               </Text>
               <TextInput
-                value={professionalDetails.specializations}
-                onChangeText={(t) =>
-                  setProfessionalDetails((p) => ({ ...p, specializations: t }))
-                }
-                className="bg-white p-4 rounded-xl border border-gray-200"
-                placeholder="e.g. Internal Medicine, Cardiology"
+                value={professionalDetails.specializations.join(', ')}
+                editable={false}
+                placeholder="Select specialization(s) below"
+                className="bg-white p-4 rounded-xl mb-3 border border-gray-200"
               />
-              <View className="flex-row flex-wrap mt-2" style={{ gap: 8 }}>
-                {specializationsArray.map((spec) => (
-                  <View key={spec} className="bg-primary rounded-full px-3 py-1">
-                    <Text className="text-white font-semibold">{spec}</Text>
-                  </View>
-                ))}
+              <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+                {SPECIALIZATION_OPTIONS.map((spec) => {
+                  const selected = professionalDetails.specializations.includes(
+                    spec
+                  );
+                  return (
+                    <TouchableOpacity
+                      key={spec}
+                      onPress={() => toggleSpecialization(spec)}
+                    >
+                      <View
+                        className={`px-3 py-1 rounded-full ${
+                          selected ? 'bg-primary' : 'bg-gray-200'
+                        }`}
+                      >
+                        <Text
+                          className={`${
+                            selected ? 'text-white' : 'text-text-main'
+                          } font-semibold`}
+                        >
+                          {spec}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           )}
 
-          {/* Step 4: Review & Submit (Previews INSIDE the card, stacked) */}
+          {/* Step 4: Review & Submit */}
           {step === 4 && (
             <View className="items-center">
               <View className="w-16 h-16 rounded-full bg-green-100 items-center justify-center mb-4">
@@ -463,6 +536,35 @@ export default function ProviderRegistrationScreen() {
                   label="HPCNA Registration Number"
                   value={professionalDetails.hpcnaNumber}
                 />
+                <ReviewRow
+                  label="Date of Expiration"
+                  value={expirationDate.toLocaleDateString()}
+                />
+
+                {/* Specializations on review */}
+                <View className="mb-3 mt-3">
+                  <Text className="text-sm text-gray-500">
+                    Specializations
+                  </Text>
+                  <View className="flex-row flex-wrap mt-1" style={{ gap: 6 }}>
+                    {professionalDetails.specializations.length > 0 ? (
+                      professionalDetails.specializations.map((spec) => (
+                        <View
+                          key={spec}
+                          className="bg-primary rounded-full px-3 py-1"
+                        >
+                          <Text className="text-white font-semibold">
+                            {spec}
+                          </Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text className="text-base text-text-main font-semibold">
+                        Not provided
+                      </Text>
+                    )}
+                  </View>
+                </View>
 
                 {/* Divider before files */}
                 <View className="h-px bg-gray-200 my-4" />
