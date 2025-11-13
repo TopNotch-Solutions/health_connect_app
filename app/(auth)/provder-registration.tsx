@@ -4,6 +4,7 @@ import Checkbox from 'expo-checkbox';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import apiClient from '../../lib/api';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -33,6 +34,33 @@ const SPECIALIZATION_OPTIONS = [
   'Internal Medicine Specialist',
 ];
 
+// --- Helper Functions for File Handling ---
+const getExt = (file?: PickedImage | DocFile | null) => {
+  const name = (file as any)?.name || (file as any)?.fileName || '';
+  const match = /\.[A-Za-z0-9]+$/.exec(name);
+  return match ? match[0].replace('.', '').toUpperCase() : '';
+};
+
+const isImageAsset = (file?: PickedImage | DocFile | null) => {
+  if (!file) return false;
+  const mime = (file as any)?.mimeType || (file as any)?.type || '';
+  const name = (file as any)?.name || (file as any)?.fileName || '';
+  return (
+    (typeof mime === 'string' && mime.startsWith('image/')) ||
+    /\.(png|jpe?g|gif|bmp|webp|heic)$/i.test(name)
+  );
+};
+
+const openFile = async (file?: PickedImage | DocFile | null) => {
+  try {
+    const uri = (file as any)?.uri;
+    if (!uri) return;
+    await Linking.openURL(uri);
+  } catch {
+    Alert.alert('Cannot open file', 'Please try again or re-upload the file.');
+  }
+};
+
 // --- Reusable UI Components ---
 const UploadBox = ({
   label,
@@ -43,10 +71,11 @@ const UploadBox = ({
   label: string;
   file: PickedImage | DocFile;
   onPick: () => void;
-  icon: any;
+  icon: React.ComponentProps<typeof Feather>['name'];
 }) => (
   <TouchableOpacity
     onPress={onPick}
+    activeOpacity={0.85}
     className="bg-gray-100 border border-gray-200 rounded-xl items-center justify-center h-32 flex-1"
   >
     {file ? (
@@ -70,46 +99,16 @@ const UploadBox = ({
   </TouchableOpacity>
 );
 
-const ReviewRow = ({ label, value }: { label: string; value?: string }) => (
+const ReviewRow = ({ label, value }: { label: string; value: string | number | undefined }) => (
   <View className="mb-3">
     <Text className="text-sm text-gray-500">{label}</Text>
     <Text className="text-base text-text-main font-semibold">
-      {value || 'Not provided'}
+      {String(value ?? 'Not provided')}
     </Text>
   </View>
 );
 
-// ---- Helpers for previews ----
-const getExt = (file?: PickedImage | DocFile | null) => {
-  const name = (file as any)?.name || (file as any)?.fileName || '';
-  const match = /\.[A-Za-z0-9]+$/.exec(name);
-  return match ? match[0].replace('.', '').toUpperCase() : '';
-};
-
-const isImageAsset = (file?: PickedImage | DocFile | null) => {
-  if (!file) return false;
-  const mime =
-    (file as any)?.mimeType ||
-    (file as any)?.type ||
-    '';
-  const name = (file as any)?.name || (file as any)?.fileName || '';
-  return (
-    (typeof mime === 'string' && mime.startsWith('image/')) ||
-    /\.(png|jpe?g|gif|bmp|webp|heic)$/i.test(name)
-  );
-};
-
-const openFile = async (file?: PickedImage | DocFile | null) => {
-  try {
-    const uri = (file as any)?.uri;
-    if (!uri) return;
-    await Linking.openURL(uri);
-  } catch {
-    Alert.alert('Cannot open file', 'Please try again or re-upload the file.');
-  }
-};
-
-// --- New: vertical row preview (inside the card) ---
+// --- Document Row Component for Review ---
 const DocRow = ({
   label,
   file,
@@ -145,10 +144,7 @@ const DocRow = ({
       {/* Middle: labels */}
       <View className="flex-1">
         <Text className="text-text-main font-medium">{label}</Text>
-        <Text
-          className="text-gray-500 text-xs"
-          numberOfLines={1}
-        >
+        <Text className="text-gray-500 text-xs" numberOfLines={1}>
           {file
             ? (file as any)?.name ||
               (file as any)?.fileName ||
@@ -172,10 +168,9 @@ const DocRow = ({
 export default function ProviderRegistrationScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+
   const [step, setStep] = useState<Step>(1);
   const [isLoading, setIsLoading] = useState(false);
-
-  // date of expiration
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [expirationDate, setExpirationDate] = useState<Date>(new Date());
 
@@ -186,6 +181,8 @@ export default function ProviderRegistrationScreen() {
     cellphoneNumber: '',
     password: '',
     agreeToTerms: false,
+    nationalId: '',
+    gender: '',
   });
   const [documents, setDocuments] = useState({
     profileImage: null as PickedImage,
@@ -199,8 +196,9 @@ export default function ProviderRegistrationScreen() {
     registrationCategory: '',
     hpcnaNumber: '',
     bio: '',
-    // NOW an array of strings
     specializations: [] as string[],
+    yearsOfExperience: '',
+    operationalZone: '',
   });
 
   // Pre-fill phone number from previous screen
@@ -223,12 +221,13 @@ export default function ProviderRegistrationScreen() {
     if (!result.canceled)
       setDocuments((prev) => ({ ...prev, [field]: result.assets[0] }));
   };
+  
   const pickDocument = async (field: keyof typeof documents) => {
     const result = await DocumentPicker.getDocumentAsync({
       type: ['image/*', 'application/pdf'],
     });
-    if (!result.canceled)
-      setDocuments((prev) => ({ ...prev, [field]: result.assets[0] }));
+    if (!result.canceled && result.assets && result.assets.length)
+      setDocuments((prev) => ({ ...prev, [field]: result.assets[0] as any }));
   };
 
   // --- date change ---
@@ -256,14 +255,108 @@ export default function ProviderRegistrationScreen() {
   const handleNext = () => setStep((prev) => Math.min(prev + 1, 4) as Step);
   const handleBack = () => setStep((prev) => Math.max(prev - 1, 1) as Step);
 
+  // --- helpers for submission ---
+  const normalizeCell = (raw: string) => {
+    const digits = String(raw).replace(/\D/g, '');
+    if (digits.startsWith('264') && digits.length === 12) return digits;
+    if (digits.startsWith('0') && digits.length === 10) return '264' + digits.slice(1);
+    if (digits.startsWith('81') && digits.length === 9) return '264' + digits;
+    return digits;
+  };
+
+  const buildFormData = () => {
+    const fd = new FormData();
+    const role =
+      typeof params?.providerType === 'string'
+        ? String(params.providerType).toLowerCase()
+        : 'doctor';
+
+    // text fields
+    const pairs: Array<[string, string]> = [
+      ['fullname', accountInfo.fullname],
+      ['cellphoneNumber', normalizeCell(accountInfo.cellphoneNumber)],
+      ['email', accountInfo.email],
+      ['password', accountInfo.password],
+      ['role', role],
+      ['nationalId', accountInfo.nationalId || ''],
+      ['gender', accountInfo.gender || ''],
+      ['address', ''],
+      ['governingCouncil', professionalDetails.governingCouncil],
+      ['hpcnaNumber', professionalDetails.hpcnaNumber],
+      ['bio', professionalDetails.bio],
+      ['hpcnaExpiryDate', expirationDate.toISOString()],
+      ['yearsOfExperience', professionalDetails.yearsOfExperience || ''],
+      ['operationalZone', professionalDetails.operationalZone || ''],
+      ['specializations', professionalDetails.specializations.join(', ')],
+    ];
+    pairs.forEach(([k, v]) => { if (v) fd.append(k, v); });
+
+    // files
+    const toFile = (asset: any, fallback: string) => {
+      if (!asset) return null;
+      const uri = asset.uri;
+      const name = asset.name || asset.fileName || (fallback + (uri && uri.includes('.') ? uri.slice(uri.lastIndexOf('.')) : '.jpg'));
+      const type = asset.mimeType || asset.type || (name.endsWith('.png') ? 'image/png' : name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+      return { uri, name, type } as any;
+    };
+
+    const files: Array<[any, string]> = [
+      [documents.profileImage, 'profileImage'],
+      [documents.idDocumentFront, 'idDocumentFront'],
+      [documents.idDocumentBack, 'idDocumentBack'],
+      [documents.primaryQualification, 'primaryQualification'],
+      [documents.annualQualification, 'annualQualification'],
+    ];
+    files.forEach(([f, key]) => { const file = toFile(f, key); if (file) fd.append(key, file); });
+
+    return fd;
+  };
+
   // --- Final Submission ---
   const handleSubmit = async () => {
-    // send:
-    // accountInfo
-    // documents
-    // professionalDetails.specializations (array)
-    // expirationDate.toISOString()
-    Alert.alert('Submit', 'This will submit the form to the backend.');
+    // Basic validations
+    const missing: string[] = [];
+    if (!accountInfo.fullname) missing.push('Full Name');
+    if (!accountInfo.email) missing.push('Email');
+    if (!accountInfo.cellphoneNumber) missing.push('Cellphone');
+    if (!accountInfo.password) missing.push('Password');
+    if (!accountInfo.nationalId) missing.push('National ID Number');
+    if (!accountInfo.gender) missing.push('Gender');
+    if (!professionalDetails.hpcnaNumber) missing.push('HPCNA Registration Number');
+    if (!professionalDetails.yearsOfExperience) missing.push('Years of Experience');
+    if (!professionalDetails.operationalZone) missing.push('Operational Zone');
+    if (!documents.idDocumentFront) missing.push('ID Front');
+    if (!documents.idDocumentBack) missing.push('ID Back');
+    if (!documents.profileImage) missing.push('Photo');
+    if (!documents.primaryQualification) missing.push('Primary Qualification');
+    if (!documents.annualQualification) missing.push('Annual Practicing Certificate');
+
+    if (missing.length) {
+      Alert.alert('Missing info', 'Please provide:\n• ' + missing.join('\n• '));
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const formData = buildFormData();
+
+      const res = await apiClient.post(
+        '/app/auth/register-health-provider',
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+
+      if (res && (res.status === 201 || res.status === 200)) {
+        Alert.alert('Success', 'Registration complete.');
+        router.replace('/(provider)/home');
+      } else {
+        Alert.alert('Error', res?.data?.message ?? 'Unable to register.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.message ?? e?.message ?? 'Upload failed.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -314,11 +407,58 @@ export default function ProviderRegistrationScreen() {
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Mobile
               </Text>
-              <View className="bg-gray-100 p-4 rounded-xl mb-6 border border-gray-200">
+              <View className="bg-gray-100 p-4 rounded-xl mb-4 border border-gray-200">
                 <Text className="text-base text-gray-500">
                   {accountInfo.cellphoneNumber}
                 </Text>
               </View>
+              <Text className="text-base text-text-main mb-2 font-semibold">
+                Password
+              </Text>
+              <TextInput
+                value={accountInfo.password}
+                onChangeText={(t) =>
+                  setAccountInfo((p) => ({ ...p, password: t }))
+                }
+                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                secureTextEntry
+              />
+
+              <Text className="text-base text-text-main mb-2 font-semibold">
+                National ID Number
+              </Text>
+              <TextInput
+                value={accountInfo.nationalId}
+                onChangeText={(t) => setAccountInfo((p) => ({ ...p, nationalId: t }))}
+                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+              />
+
+              <Text className="text-base text-text-main mb-2 font-semibold">
+                Gender
+              </Text>
+              <View
+                className="bg-white border border-gray-200 rounded-xl px-3 mb-4"
+                style={{ height: 56, justifyContent: 'center' }}
+              >
+                <RNPickerSelect
+                  onValueChange={(v) => setAccountInfo((p) => ({ ...p, gender: String(v || '') }))}
+                  value={accountInfo.gender}
+                  items={[
+                    { label: 'Male', value: 'Male' },
+                    { label: 'Female', value: 'Female' },
+                    { label: 'Other', value: 'Other' },
+                  ]}
+                  placeholder={{ label: 'Select gender…', value: '' }}
+                  Icon={() => null}
+                  useNativeAndroidPickerStyle={false}
+                  style={{
+                    inputAndroid: { fontSize: 16, color: '#111' },
+                    inputIOS: { fontSize: 16, color: '#111' },
+                    placeholder: { color: '#888' },
+                  }}
+                />
+              </View>
+
               <View className="flex-row items-center mb-6">
                 <Checkbox
                   value={accountInfo.agreeToTerms}
@@ -411,10 +551,14 @@ export default function ProviderRegistrationScreen() {
                     { label: 'Specialist', value: 'Specialist' },
                     { label: 'General Practitioner', value: 'General Practitioner' },
                   ]}
-                  placeholder={{ label: 'Select a category...', value: null }}
-                  Icon={() => (
-                    <Feather name="chevron-down" size={24} color="gray" />
-                  )}
+                  placeholder={{ label: 'Select category…', value: '' }}
+                  Icon={() => null}
+                  useNativeAndroidPickerStyle={false}
+                  style={{
+                    inputAndroid: { fontSize: 16, color: '#111' },
+                    inputIOS: { fontSize: 16, color: '#111' },
+                    placeholder: { color: '#888' },
+                  }}
                 />
               </View>
               <Text className="text-base text-text-main mb-2 font-semibold">
@@ -425,6 +569,25 @@ export default function ProviderRegistrationScreen() {
                 onChangeText={(t) =>
                   setProfessionalDetails((p) => ({ ...p, hpcnaNumber: t }))
                 }
+                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+              />
+
+              <Text className="text-base text-text-main mb-2 font-semibold">
+                Years of Experience
+              </Text>
+              <TextInput
+                value={professionalDetails.yearsOfExperience}
+                onChangeText={(t) => setProfessionalDetails((p) => ({ ...p, yearsOfExperience: t }))}
+                keyboardType="number-pad"
+                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+              />
+
+              <Text className="text-base text-text-main mb-2 font-semibold">
+                Operational Zone
+              </Text>
+              <TextInput
+                value={professionalDetails.operationalZone}
+                onChangeText={(t) => setProfessionalDetails((p) => ({ ...p, operationalZone: t }))}
                 className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
               />
 
@@ -463,7 +626,7 @@ export default function ProviderRegistrationScreen() {
                 textAlignVertical="top"
               />
 
-              {/* Specializations: read-only text field + chips */}
+              {/* Specializations */}
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Specializations
               </Text>
@@ -475,9 +638,7 @@ export default function ProviderRegistrationScreen() {
               />
               <View className="flex-row flex-wrap" style={{ gap: 8 }}>
                 {SPECIALIZATION_OPTIONS.map((spec) => {
-                  const selected = professionalDetails.specializations.includes(
-                    spec
-                  );
+                  const selected = professionalDetails.specializations.includes(spec);
                   return (
                     <TouchableOpacity
                       key={spec}
@@ -521,6 +682,8 @@ export default function ProviderRegistrationScreen() {
                 <ReviewRow label="Full Name" value={accountInfo.fullname} />
                 <ReviewRow label="Email" value={accountInfo.email} />
                 <ReviewRow label="Mobile" value={accountInfo.cellphoneNumber} />
+                <ReviewRow label="National ID" value={accountInfo.nationalId} />
+                <ReviewRow label="Gender" value={accountInfo.gender} />
 
                 <View className="h-px bg-gray-200 my-3" />
 
@@ -540,12 +703,18 @@ export default function ProviderRegistrationScreen() {
                   label="Date of Expiration"
                   value={expirationDate.toLocaleDateString()}
                 />
+                <ReviewRow
+                  label="Years of Experience"
+                  value={professionalDetails.yearsOfExperience}
+                />
+                <ReviewRow
+                  label="Operational Zone"
+                  value={professionalDetails.operationalZone}
+                />
 
                 {/* Specializations on review */}
                 <View className="mb-3 mt-3">
-                  <Text className="text-sm text-gray-500">
-                    Specializations
-                  </Text>
+                  <Text className="text-sm text-gray-500">Specializations</Text>
                   <View className="flex-row flex-wrap mt-1" style={{ gap: 6 }}>
                     {professionalDetails.specializations.length > 0 ? (
                       professionalDetails.specializations.map((spec) => (
@@ -553,9 +722,7 @@ export default function ProviderRegistrationScreen() {
                           key={spec}
                           className="bg-primary rounded-full px-3 py-1"
                         >
-                          <Text className="text-white font-semibold">
-                            {spec}
-                          </Text>
+                          <Text className="text-white font-semibold">{spec}</Text>
                         </View>
                       ))
                     ) : (
@@ -569,7 +736,7 @@ export default function ProviderRegistrationScreen() {
                 {/* Divider before files */}
                 <View className="h-px bg-gray-200 my-4" />
 
-                {/* Stacked file previews inside this same container */}
+                {/* Stacked file previews */}
                 <Text className="text-lg font-semibold text-text-main mb-2">
                   Uploaded Files
                 </Text>
@@ -597,6 +764,7 @@ export default function ProviderRegistrationScreen() {
           {step > 1 && (
             <TouchableOpacity
               onPress={handleBack}
+              disabled={isLoading}
               className="bg-gray-200 p-4 rounded-xl flex-1"
             >
               <Text className="text-center text-lg font-semibold text-text-main">
@@ -607,6 +775,7 @@ export default function ProviderRegistrationScreen() {
           {step < 4 ? (
             <TouchableOpacity
               onPress={handleNext}
+              disabled={isLoading}
               className="bg-primary p-4 rounded-xl flex-1"
             >
               <Text className="text-white text-center text-lg font-semibold">
