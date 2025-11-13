@@ -1,72 +1,65 @@
-// In app/(patient)/_layout.tsx
-
-import { Feather } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Feather } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
+import React from "react";
 
 export default function PatientTabLayout() {
-  const activeColor = '#007BFF'; // Our primary color
-  const inactiveColor = '#6C757D'; // Our text-main color
+  const activeColor = '#007BFF';
+  const inactiveColor = '#6C757D';
 
   return (
     <Tabs
       screenOptions={{
-        // --- 1. SET THE COLORS ---
         tabBarActiveTintColor: activeColor,
         tabBarInactiveTintColor: inactiveColor,
-        
-        // --- 2. MAKE SURE LABELS ARE VISIBLE ---
         tabBarShowLabel: true, 
-
-        // --- 3. STYLE THE TAB BAR AND LABELS ---
         tabBarStyle: {
-          backgroundColor: '#FFFFFF', // White background
-          height: 60, // A standard, comfortable height
-          borderTopWidth: 1, // Add a subtle top border
-          borderTopColor: '#E5E7EB', // A light gray border color
+          backgroundColor: '#FFFFFF',
+          height: 64,
+          paddingTop: 6,
+          borderTopWidth: 1,
+          borderTopColor: '#E5E7EB',
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',
-          marginBottom: 5,
+          marginBottom: 6,
         },
-        tabBarIconStyle: {
-          marginTop: 5,
-        },
-
-        // --- 4. CONFIGURE THE HEADERS ---
-        headerShown: false, // Default to false, enable on screens that need it
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <Feather name="home" size={24} color={color} />,
+          title: "Home",
+          headerShown: false,
+          tabBarIcon: ({color, size}) => <Feather name="home" color={color} size={size}/>
+        }}
+      />
+      <Tabs.Screen 
+        name="waiting-room"
+        options={{
+          title: "Waiting Room",
+          tabBarIcon: ({color, size}) => <Feather name="clock" color={color} size={size}/>
         }}
       />
       <Tabs.Screen
-        name="appointments"
+        name="transactions"
         options={{
-          title: 'Appointments',
-          headerShown: true, // We want a header on this screen
-          tabBarIcon: ({ color }) => <Feather name="calendar" size={24} color={color} />,
+          title: "Transactions",
+          tabBarIcon: ({color, size}) => <Feather name="credit-card" color={color} size={size}/>
         }}
       />
       <Tabs.Screen
-        name="history"
+        name="issues"
         options={{
-          title: 'History',
-          headerShown: true, // And on this one
-          tabBarIcon: ({ color }) => <Feather name="clock" size={24} color={color} />,
+          title: "Issues",
+          tabBarIcon: ({color, size}) => <Feather name="user" color={color} size={size}/>
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          headerShown: true, // And this one
-          tabBarIcon: ({ color }) => <Feather name="user" size={24} color={color} />,
+          title: "Profile",
+          tabBarIcon: ({color, size}) => <Feather name="user" color={color} size={size}/>
         }}
       />
     </Tabs>

@@ -1,8 +1,8 @@
 // In app/_layout.tsx
-
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '../context/AuthContext'; // 1. Import AuthProvider and useAuth
 import './globals.css';
 
