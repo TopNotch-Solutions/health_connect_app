@@ -1,7 +1,18 @@
 import { Feather } from "@expo/vector-icons";
-import { HeaderTitle } from "@react-navigation/elements";
 import { Tabs, useRouter } from "expo-router";
-import { TouchableOpacity, View } from "react-native";
+import { Image, TouchableOpacity, View } from "react-native";
+
+
+const HeaderLogo = () => (
+  <Image
+    source={require('../../assets/images/logo.jpeg')} // Make sure this path is correct
+    style={{ 
+      width: 180, // Adjust the width as needed
+      height: 40,  // Adjust the height as needed
+      resizeMode: 'contain',
+    }}
+  />
+);
 
 export default function TabsLayout(){
     const router = useRouter();
@@ -9,7 +20,14 @@ export default function TabsLayout(){
     return (
         <Tabs
             screenOptions={{
-                headerTitle: "Health Connect",
+                headerTitle: () => <HeaderLogo />,
+                 // --- 2. ADDED padding and height to the header style ---
+                headerStyle: {
+                    height: 90, // Give the header more vertical space
+                },
+                headerTitleContainerStyle: {
+                    paddingLeft: 24, // Add padding to the left of the logo
+                },
                 tabBarShowLabel: true,
                 tabBarStyle: { height: 64, paddingTop: 6},
                 tabBarLabelStyle: {fontSize: 12, marginBottom: 6},
