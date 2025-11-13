@@ -3,33 +3,45 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import 'react-native-gesture-handler';
-import { AuthProvider, useAuth } from '../context/AuthContext'; // 1. Import AuthProvider and useAuth
+import { AuthProvider, useAuth } from '../context/AuthContext';
 import './globals.css';
 
-// This is the protected layout component that will decide which screen to show.
-// It contains both the route protection logic AND your original Stack navigator.
 const ProtectedLayout = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) return; // Don't run logic until session check is complete
+    if (isLoading) return;
 
-    const inApp = segments[0] === '(patient)'; // Are we trying to access the main patient app?
+    const inAuth = segments[0] === '(auth)';
+    const inVerification = segments[0] === '(verification)';
+    const inRoot = segments[0] === '(root)';
+    const inApp = segments[0] === '(app)';
 
-    if (!isAuthenticated && inApp) {
-      // If the user is NOT authenticated but is trying to access the patient screens,
-      // redirect them to the sign-in page.
-      router.replace('/selection'); 
-    } else if (isAuthenticated && !inApp) {
-      // If the user IS authenticated but is currently outside the patient screens 
-      // (e.g., on the sign-in or onboarding page), send them to the patient home.
-      router.replace('/(patient)/home');
+    if (!isAuthenticated) {
+      // User is not authenticated
+      if (inApp) {
+        // Trying to access protected app routes, redirect to selection
+        router.replace('/(root)/selection');
+      }
+    } else {
+      // User is authenticated
+      if (inAuth || inVerification || inRoot) {
+        // User is logged in but on auth/verification/root screens
+        // Redirect based on user role
+        if (user?.role === 'patient') {
+          router.replace('/(app)/(patient)/home');
+        } else if (user?.role === 'doctor') {
+          router.replace('/(app)/(provider)/home');
+        } else {
+          // Fallback if role is not set
+          router.replace('/(root)/selection');
+        }
+      }
     }
-  }, [isAuthenticated, isLoading, segments, router]);
+  }, [isAuthenticated, isLoading, segments, router, user]);
 
-  // While we are checking if a user is logged in, show a loading spinner.
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E9F7EF' }}>
@@ -38,22 +50,19 @@ const ProtectedLayout = () => {
     );
   }
 
-  // If loading is complete, render the navigation stack.
-  // The useEffect hook above will handle the redirection.
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="(root)" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(verification)" />
-      <Stack.Screen name="(patient)" />
+      <Stack.Screen name="(app)" />
     </Stack>
   );
 };
 
-// This remains the root layout component for your app.
 export default function RootLayout() {
   return (
-    // We wrap our entire navigation structure with the AuthProvider.
     <AuthProvider>
       <ProtectedLayout />
     </AuthProvider>

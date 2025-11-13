@@ -31,7 +31,7 @@ const SignInScreen = () => {
       const displayName = user.fullname || displayNameFromEmail(user.email);
       if (user.role === 'patient'){
         router.replace({
-          pathname: '/(patient)/home',
+          pathname: '/(app)/(patient)/home',
           params: {name: displayName},
         });
       } else if(
@@ -40,7 +40,7 @@ const SignInScreen = () => {
         user.role === 'physiotherapist' || 
         user.role === 'socialworker'
       ){
-        router.replace('/(provider)/home')
+        router.replace('/(app)/(provider)/home')
       } else {
         Alert.alert('Login Error',`Unsported user role: ${user.role}`);
       }
