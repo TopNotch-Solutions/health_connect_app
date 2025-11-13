@@ -9,7 +9,7 @@ interface User {
   _id: string;
   fullname: string;
   email: string;
-  role: 'patient' | 'provider';
+  role: 'patient' | 'doctor' | 'nurse' | 'physiotherapist' | 'socialworker';
   // Add any other user properties you need from the backend response
 }
 
@@ -17,8 +17,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<User>;
+  logout: () => Promise<void>;
 }
 
 // Create the context with a default value
@@ -56,6 +56,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(userData);
         // Securely store the user data on the device
         await SecureStore.setItemAsync('user', JSON.stringify(userData));
+        return userData;
       } else {
         // This handles cases where the API might return a 200 but no user data
         throw new Error('Login failed: Invalid response from server.');
@@ -68,14 +69,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   // The logout function
-  const logout = async () => {
+  const logout = async (): Promise<void> => {
     setUser(null);
     // Remove the user data from secure storage
     await SecureStore.deleteItemAsync('user');
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout }}>
+    <AuthContext.Provider 
+      value={{ 
+        user, 
+        isAuthenticated: !!user, 
+        isLoading, 
+        login, 
+        logout 
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -19,19 +19,38 @@ const SignInScreen = () => {
       .replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please enter both email and password.');
       return;
     }
 
+    try {
+      setIsLoading(true);
+      const user = await login(email, password);
+      const displayName = user.fullname || displayNameFromEmail(user.email);
+      if (user.role === 'patient'){
+        router.replace({
+          pathname: '/(patient)/home',
+          params: {name: displayName},
+        });
+      } else if(
+        user.role === 'doctor' || 
+        user.role === 'nurse' || 
+        user.role === 'physiotherapist' || 
+        user.role === 'socialworker'
+      ){
+        router.replace('/(provider)/home')
+      } else {
+        Alert.alert('Login Error',`Unsported user role: ${user.role}`);
+      }
+    } catch(error: any){
+      const message = error?.response?.data?.message || error?.message || 'Failed to sign in. Please check your credentials and try again.';
+      Alert.alert('Login Failed', message);
+    } finally {
+      setIsLoading(false);
+    }
     console.log('Attempting to sign in with:', { email, password });
-    Alert.alert('Success (Simulated)', 'You are now signed in!');
-
-    router.replace({
-      pathname: "/(tabs)/home",
-      params: { name: displayNameFromEmail(email) },
-    });
   };
 
   return (

@@ -1,16 +1,153 @@
-import React from "react";
-import { View, Text } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../../../context/AuthContext";
 
 export default function ProviderHome() {
+  const [requests, setRequests] = useState([
+    { id: 1, name: "Linda Robertson", condition: "Fever", distance: "1.9 km" },
+    { id: 2, name: "Dennis Wheeler", condition: "Cold", distance: "3.7 km" },
+    { id: 3, name: "Jennifer Chavez", condition: "Headache", distance: "1.4 km" },
+    { id: 4, name: "Carl Bradley", condition: "Back pain", distance: "3.7 km" },
+  ]);
+
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleAccept = (id: number, name: string) => {
+    setRequests((prev) => prev.filter((req) => req.id !== id));
+    alert(`Accepted consultation request from ${name}`);
+  };
+
+  const handleDecline = (id: number, name: string) => {
+    setRequests((prev) => prev.filter((req) => req.id !== id));
+    alert(`Declined consultation request from ${name}`);
+  };
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      router.replace("/sign-in"); // back to the sign-in screen
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <View className="flex-1 p-6">
-        <Text className="text-2xl font-semibold">Provider Home</Text>
-        <Text className="text-gray-600 mt-2">
-          Quick overview of your sessions, requests, and tasks.
-        </Text>
-      </View>
+    <SafeAreaView className="flex-1 bg-gray-50">
+      <ScrollView className="flex-1">
+        {/* Header with provider name + logout */}
+        <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
+          <View>
+            <Text className="text-sm text-gray-500">Welcome back</Text>
+            <Text className="text-xl font-bold text-gray-900">
+              {user?.fullname || "Provider"}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={handleLogout}
+            disabled={isLoggingOut}
+            className="flex-row items-center"
+          >
+            <Feather name="log-out" size={20} color="#EF4444" />
+            <Text className="ml-2 text-sm font-semibold text-red-500">
+              {isLoggingOut ? "Logging out..." : "Logout"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Approval Banner */}
+        <View className="bg-blue-100 rounded-lg p-6 mx-4 mt-2 mb-4">
+          <Text className="text-lg font-semibold text-gray-800">
+            Your account is approved.
+          </Text>
+          <Text className="text-lg text-gray-800">
+            You are now ready to accept requests.
+          </Text>
+        </View>
+
+        {/* Stats Cards */}
+        <View className="flex-row gap-3 px-4 mb-6">
+          <View className="flex-1 bg-white rounded-lg border-2 border-gray-200 p-4">
+            <Text className="text-sm text-gray-600 mb-2">Today's Consultations</Text>
+            <Text className="text-4xl font-bold">{requests.length}</Text>
+          </View>
+          <View className="flex-1 bg-white rounded-lg border-2 border-gray-200 p-4">
+            <Text className="text-sm text-gray-600 mb-2">Earnings</Text>
+            <Text className="text-4xl font-bold">$435.00</Text>
+          </View>
+          <View className="flex-1 bg-white rounded-lg border-2 border-gray-200 p-4">
+            <Text className="text-sm text-gray-600 mb-2">Availability</Text>
+            <Text className="text-4xl font-bold text-blue-600">Online</Text>
+          </View>
+        </View>
+
+        {/* Incoming Consultation Requests */}
+        <View className="px-4 mb-6">
+          <Text className="text-2xl font-bold mb-4">Incoming Consultation Requests</Text>
+
+          {requests.length === 0 ? (
+            <View className="bg-white rounded-lg border-2 border-gray-200 p-8 items-center">
+              <Feather name="check-circle" size={48} color="#10B981" />
+              <Text className="text-gray-600 mt-3 text-center">
+                No pending consultation requests
+              </Text>
+            </View>
+          ) : (
+            requests.map((request) => (
+              <View
+                key={request.id}
+                className="bg-white rounded-lg border-2 border-gray-200 p-5 mb-3"
+              >
+                <View className="flex-row items-start justify-between mb-3">
+                  <View className="flex-1">
+                    <Text className="text-lg font-bold mb-1">{request.name}</Text>
+                    <Text className="text-gray-700 mb-1">{request.condition}</Text>
+                    <Text className="text-gray-600 text-sm">{request.distance}</Text>
+                  </View>
+                  <View className="bg-blue-100 px-3 py-1 rounded-full">
+                    <Text className="text-blue-600 text-xs font-semibold">
+                      Consultation
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="flex-row gap-2 mt-3">
+                  <TouchableOpacity
+                    onPress={() => handleDecline(request.id, request.name)}
+                    className="flex-1 bg-gray-200 py-3 rounded-lg"
+                  >
+                    <Text className="text-gray-700 font-semibold text-center">
+                      Decline
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleAccept(request.id, request.name)}
+                    className="flex-1 bg-blue-600 py-3 rounded-lg"
+                  >
+                    <Text className="text-white font-semibold text-center">
+                      Accept
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Map Placeholder */}
+        <View className="px-4 mb-8">
+          <View className="bg-gray-200 rounded-lg h-80 items-center justify-center">
+            <Feather name="map-pin" size={48} color="#9CA3AF" />
+            <Text className="text-gray-500 mt-2">Map View</Text>
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

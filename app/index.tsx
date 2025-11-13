@@ -3,7 +3,6 @@ import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 const OnboardingScreen = () => {
   // useRouter is a hook from expo-router to navigate between screens
   const router = useRouter();
@@ -36,7 +35,7 @@ const OnboardingScreen = () => {
         {/* Action Button */}
         <TouchableOpacity
           className="w-full bg-primary p-4 rounded-xl"
-          onPress={() => router.push('./selection')} // Navigates to the sign-in screen
+          onPress={() => router.push('./(root)/selection')} // Navigates to the sign-in screen
         >
           <Text className="text-white text-center text-lg font-semibold">
             Get Started

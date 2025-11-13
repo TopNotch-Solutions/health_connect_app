@@ -1,119 +1,169 @@
-// In app/(patient)/home.tsx
-
 import { Feather } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { FlatList, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import BookingModal from '../../../components/(patient)/BookingModal';
+import { useAuth } from '../../../context/AuthContext';
 
-
-const DUMMY_AILMENTS: AilmentCategory[] = [
-  { _id: '1', title: 'Fever & Flu', description: 'Consult for high temperature.', estimatedCost: 'N$ 250', color: '#ef4444', icon: 'thermometer' },
-  { _id: '2', title: 'Injuries', description: 'Care for cuts, sprains, and bruises.', estimatedCost: 'N$ 400', color: '#f97316', icon: 'medkit' },
-  { _id: '3', title: 'Check-ups', description: 'Routine health assessments.', estimatedCost: 'N$ 500', color: '#22c55e', icon: 'clipboard' },
-  { _id: '4', title: 'Skin Issues', description: 'Rashes, acne, and infections.', estimatedCost: 'N$ 350', color: '#eab308', icon: 'eye' },
+// --- Dummy Data (for UI development, replace with API data later) ---
+const healthTips = [
+  { id: '1', title: 'Stay Hydrated', content: 'Drink 8 glasses of water a day.', bgColor: 'bg-blue-100' },
+  { id: '2', title: 'Get Enough Sleep', content: 'Aim for 7-9 hours per night.', bgColor: 'bg-purple-100' },
+  { id: '3', title: 'Eat a Balanced Diet', content: 'Include fruits and vegetables.', bgColor: 'bg-green-100' },
 ];
 
-// Define the type for an ailment category, based on your old code
-interface AilmentCategory {
-  _id: string;
-  title: string;
-  icon: string; // We'll handle icons more flexibly
-  description: string;
-  estimatedCost: string;
-  color: string;
-}
+const ailmentCategories = [
+  { id: '1', title: 'Flu, Cold & Cough', provider: 'Doctor', icon: 'thermometer' },
+  { id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'mic' },
+  { id: '3', title: 'Skin Rash', provider: 'Nurse', icon: 'aperture' },
+  { id: '4', title: 'Headache or Migraine', provider: 'Doctor', icon: 'zap' },
+  { id: '5', title: 'Elderly Wellness Check', provider: 'Social Worker', icon: 'heart' },
+  { id: '6', title: 'Sports Injury', provider: 'Physiotherapist', icon: 'activity' },
+];
 
-// TODO: Replace this with your actual authentication context/state management
-const DUMMY_USER = {
-  _id: '12345',
-  fullname: 'John Doe',
-};
+const appointmentHistory = [
+  { id: '1', ailment: 'Fever & Flu', status: 'Completed', date: 'Oct 26, 2023' },
+  { id: '2', ailment: 'Sports Injury', status: 'Upcoming', date: 'Nov 15, 2023' },
+];
 
-// A reusable card component for each ailment
-const AilmentCard = ({ item, onPress }: { item: AilmentCategory, onPress: () => void }) => (
-  <TouchableOpacity
-    onPress={onPress}
-    className="w-[48%] bg-white rounded-xl p-4 mb-4 border border-gray-100 shadow-sm"
-    activeOpacity={0.7}
-  >
-    <View className="items-center">
-      <View style={{ backgroundColor: item.color || '#E9F7EF' }} className="p-3 rounded-full mb-3">
-        <Feather name="activity" size={24} color="#007BFF" />
-      </View>
-      <Text className="text-center font-semibold text-text-main mb-2">{item.title}</Text>
-      <Text className="text-xs text-gray-500 text-center mb-3">{item.description}</Text>
-      <Text className="text-sm font-semibold text-secondary">{item.estimatedCost}</Text>
-    </View>
+// --- Reusable Components for this Screen ---
+const HealthTipCard = ({ item }: { item: typeof healthTips[0] }) => (
+  <View className={`w-64 rounded-xl p-4 mr-4 ${item.bgColor}`}>
+    <Text className="font-bold text-base text-text-main">{item.title}</Text>
+    <Text className="text-sm text-gray-600 mt-1">{item.content}</Text>
+  </View>
+);
+
+const AilmentCard = ({ item }: { item: typeof ailmentCategories[0] }) => (
+  <TouchableOpacity className="w-[48%] bg-white rounded-2xl p-4 mb-4 border border-gray-200 shadow-sm">
+    <Feather name={item.icon as any} size={28} color="#007BFF" />
+    <Text className="text-base font-bold text-text-main mt-3">{item.title}</Text>
+    <Text className="text-sm text-gray-500 mt-1">{item.provider}</Text>
   </TouchableOpacity>
 );
 
-export default function HomeScreen() {
-  const [ailmentCategories, setAilmentCategories] = useState<AilmentCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // Can change this to false with dummy data
-  const [selectedCategory, setSelectedCategory] = useState<AilmentCategory | null>(null);
+const HistoryCard = ({ item }: { item: typeof appointmentHistory[0] }) => (
+  <View className="bg-white p-4 rounded-xl border border-gray-200 flex-1">
+    <Text className="text-base font-semibold text-text-main">{item.ailment}</Text>
+    <Text
+      className={`text-sm font-bold ${
+        item.status === 'Completed' ? 'text-secondary' : 'text-primary'
+      }`}
+    >
+      {item.status}
+    </Text>
+    <Text className="text-xs text-gray-500 mt-1">{item.date}</Text>
+  </View>
+);
 
-  // --- 2. REPLACE the fetchAilments and useFocusEffect with this simpler version ---
-  useFocusEffect(
-    useCallback(() => {
-      // We are now just setting our dummy data instead of fetching
-      setAilmentCategories(DUMMY_AILMENTS);
-      setIsLoading(false);
-    }, [])
-  );
+export default function PatientHomeScreen() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      router.replace('/sign-in'); // goes back to the sign-in screen
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-background-light">
-      {/* Custom Header */}
-      <View className="bg-white px-6 py-4 shadow-sm">
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-2xl font-bold text-text-main">Health Connect</Text>
-            <Text className="text-sm text-gray-500 mt-1">Hello, {DUMMY_USER.fullname}!</Text>
+    <SafeAreaView className="flex-1">
+      <View className="flex-1">
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Custom Header */}
+          <View className="px-6 pt-4 flex-row items-center justify-between">
+            <View>
+              <Text className="text-sm text-gray-500">Welcome back</Text>
+              <Text className="text-xl font-bold text-text-main">
+                {user?.fullname || 'Patient'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={handleLogout}
+              disabled={isLoggingOut}
+              className="flex-row items-center"
+            >
+              <Feather name="log-out" size={20} color="#EF4444" />
+              <Text className="ml-2 text-sm font-semibold text-red-500">
+                {isLoggingOut ? 'Logging out...' : 'Logout'}
+              </Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity className="p-2">
-            <Feather name="bell" size={24} color="#6C757D" />
+
+          {/* Health Tips Section */}
+          <View className="mt-6">
+            <Text className="text-xl font-bold text-text-main mb-3 px-6">Health Tips</Text>
+            <FlatList
+              data={healthTips}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 24 }}
+              renderItem={({ item }) => <HealthTipCard item={item} />}
+            />
+          </View>
+
+          {/* Main Content Area */}
+          <View className="px-6 mt-8">
+            <Text className="text-3xl font-bold text-text-main mb-4">
+              What do you need help with today?
+            </Text>
+
+            {/* Search Bar */}
+            <View className="flex-row items-center bg-white border border-gray-200 rounded-xl p-3 mb-6">
+              <Feather name="search" size={20} color="#6C757D" />
+              <TextInput
+                placeholder="Search or select ailment"
+                className="flex-1 ml-3 text-base"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+
+            {/* Ailment Grid */}
+            <FlatList
+              data={ailmentCategories}
+              keyExtractor={(item) => item.id}
+              numColumns={2}
+              scrollEnabled={false} // Disable scrolling for this nested list
+              columnWrapperStyle={{ justifyContent: 'space-between' }}
+              renderItem={({ item }) => <AilmentCard item={item} />}
+            />
+          </View>
+
+          {/* History Appointments Section */}
+          <View className="mt-8 px-6">
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className="text-xl font-bold text-text-main">Recent Activity</Text>
+              <TouchableOpacity>
+                <Text className="font-semibold text-primary">See all</Text>
+              </TouchableOpacity>
+            </View>
+            <View className="flex-row" style={{ gap: 16 }}>
+              {appointmentHistory.map((item) => (
+                <HistoryCard key={item.id} item={item} />
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Sticky Call Now Button */}
+        <View className="absolute bottom-0 left-0 right-0 p-6 bg-background-light border-t border-t-gray-200">
+          <TouchableOpacity className="w-full bg-primary p-4 rounded-xl">
+            <Text className="text-white text-center text-lg font-semibold">Call Now</Text>
           </TouchableOpacity>
         </View>
       </View>
-
-      {isLoading ? (
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#007BFF" />
-        </View>
-      ) : (
-        <FlatList
-          data={ailmentCategories}
-          keyExtractor={(item) => item._id}
-          numColumns={2}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 16 }}
-          columnWrapperStyle={{ justifyContent: 'space-between' }}
-          ListHeaderComponent={
-            <Text className="text-lg font-bold text-text-main mb-4 px-3">
-              What do you need help with?
-            </Text>
-          }
-          renderItem={({ item }) => (
-            <AilmentCard item={item} onPress={() => setSelectedCategory(item)} />
-          )}
-        />
-      )}
-      
-      {/* TODO: We will create and import the Booking Modal component next */}
-      {/* <BookingModal 
-        visible={!!selectedCategory} 
-        category={selectedCategory}
-        onClose={() => setSelectedCategory(null)}
-        userId={DUMMY_USER._id}
-      /> */}
-      <BookingModal 
-    visible={!!selectedCategory} 
-    category={selectedCategory}
-    onClose={() => setSelectedCategory(null)}
-    userId={DUMMY_USER._id}
-  />
-
     </SafeAreaView>
   );
 }
