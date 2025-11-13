@@ -46,7 +46,6 @@ const ProtectedLayout = () => {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(verification)" />
       <Stack.Screen name="(patient)" />
-      <Stack.Screen name="(provider)" />
     </Stack>
   );
 };
