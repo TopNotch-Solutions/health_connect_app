@@ -1,16 +1,23 @@
-// In context/AuthContext.tsx
-
 import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import apiClient from '../lib/api'; // Our Axios client
+import apiClient from '../lib/api';
 
-// Define the shape of our user object and context
-interface User {
-  _id: string;
+// --- The corrected and expanded User interface ---
+export interface User { // Exporting the interface so other files can use it
+  userId: string;
   fullname: string;
   email: string;
-  role: 'patient' | 'doctor' | 'nurse' | 'physiotherapist' | 'socialworker';
-  // Add any other user properties you need from the backend response
+  role: 'patient' | 'provider' | 'doctor' | 'nurse' | 'physiotherapist' | 'socialworker';
+  cellphoneNumber?: string;
+  walletID?: string;
+  gender?: 'Male' | 'Female' | 'Other';
+  dateOfBirth?: string;
+  balance?: number;
+  profileImage?: string;
+  address?: string;
+  region?: string;
+  town?: string;
+  isAccountVerified?: boolean;
 }
 
 interface AuthContextType {
@@ -18,18 +25,17 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  logout: () => Promise<void>;
+  logout: () => void;
+  updateUser: (updatedUserData: Partial<User>) => Promise<void>; // New function to update user state
 }
 
-// Create the context with a default value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Create the AuthProvider component
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // Start as true to check for stored session
+  const [isLoading, setIsLoading] = useState(true);
 
-  // This effect runs when the app starts to check for a saved user session
+  // This effect runs on app startup to load a saved session
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -46,51 +52,53 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loadUser();
   }, []);
 
-  // The login function that calls our backend
-  const login = async (email: string, password: string) => {
+  // Login function
+  const login = async (email: string, password: string): Promise<User> => {
     try {
-      const response = await apiClient.post('/app/auth/login', { email, password });
+      // Corrected: Removed all fcmToken logic
+      const response = await apiClient.post('/app/auth/login', { 
+        email, 
+        password,
+      });
       
       if (response.data && response.data.user) {
         const userData: User = response.data.user;
         setUser(userData);
-        // Securely store the user data on the device
         await SecureStore.setItemAsync('user', JSON.stringify(userData));
         return userData;
       } else {
-        // This handles cases where the API might return a 200 but no user data
         throw new Error('Login failed: Invalid response from server.');
       }
     } catch (error: any) {
-      // Re-throw the error so the UI can catch it and show an alert
       console.error("Login failed:", error.response?.data?.message || error.message);
       throw error;
     }
   };
 
-  // The logout function
-  const logout = async (): Promise<void> => {
+  // Logout function
+  const logout = async () => {
     setUser(null);
-    // Remove the user data from secure storage
     await SecureStore.deleteItemAsync('user');
+  };
+  
+  // --- NEW: Function to update the user's state after actions like a transaction ---
+  const updateUser = async (updatedUserData: Partial<User>) => {
+    // Only proceed if there is a current user
+    if (!user) return; 
+
+    const newUser = { ...user, ...updatedUserData };
+    setUser(newUser);
+    await SecureStore.setItemAsync('user', JSON.stringify(newUser));
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
-        isAuthenticated: !!user, 
-        isLoading, 
-        login, 
-        logout 
-      }}
-    >
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Create a custom hook to easily use the AuthContext in other components
+// Custom hook to use the context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
