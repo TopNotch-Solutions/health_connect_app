@@ -49,7 +49,7 @@ export default function ProviderTabsLayout() {
 
       {/* Profile tab now shown as Wallet with a wallet-like icon */}
       <Tabs.Screen
-        name="profile" // keep this if your file is profile.tsx
+        name="wallet" // keep this if your file is profile.tsx
         options={{
           title: "Wallet",
           tabBarIcon: ({ color, size }) => (
@@ -58,7 +58,18 @@ export default function ProviderTabsLayout() {
         }}
       />
 
-      {/* Settings already uses a settings icon */}
+      {/* Profile tab now shown as Wallet with a wallet-like icon */}
+      <Tabs.Screen
+        name="profile" // keep this if your file is profile.tsx
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="user" color={color} size={size} />
+          ),
+        }}
+      />
+
+            {/* Settings already uses a settings icon */}
       <Tabs.Screen
         name="settings"
         options={{

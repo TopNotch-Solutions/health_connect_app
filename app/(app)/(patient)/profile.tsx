@@ -46,7 +46,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background-light">
+    <SafeAreaView className="flex-1">
       <View className="flex-1 p-6">
         {/* Profile Header */}
         <View className="items-center mb-10">
@@ -80,7 +80,7 @@ export default function ProfileScreen() {
 
         {/* Logout Button */}
         <TouchableOpacity
-          className="bg-red-500/10 p-4 rounded-xl flex-row justify-center items-center"
+          className="bg-red-500 p-4 rounded-xl flex-row justify-center items-center"
           onPress={handleLogout}
           disabled={isLoading}
         >
@@ -88,8 +88,8 @@ export default function ProfileScreen() {
             <ActivityIndicator color="#EF4444" />
           ) : (
             <>
-              <Feather name="log-out" size={20} color="#EF4444" />
-              <Text className="text-red-500 text-center text-lg font-semibold ml-2">Log Out</Text>
+              <Feather name="log-out" size={20} color="white" />
+              <Text className="text-white text-center text-lg font-semibold ml-2">Log Out</Text>
             </>
           )}
         </TouchableOpacity>

@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs, useRouter } from "expo-router";
 import React from "react";
+import { TouchableOpacity, View } from "react-native";
 
 export default function PatientTabLayout() {
   const router = useRouter();
@@ -17,6 +18,13 @@ export default function PatientTabLayout() {
           fontSize: 12,
           marginBottom: 6,
         },
+        headerRight: () => (
+          <View style={{ flexDirection: "row", gap: 16, marginRight: 16 }}>
+            <TouchableOpacity onPress={() => router.push("/notifications")}>
+              <Feather name="bell" size={22} />
+            </TouchableOpacity>
+          </View>
+        )
       }}
     >
       <Tabs.Screen

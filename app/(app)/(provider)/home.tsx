@@ -91,7 +91,7 @@ export default function ProviderHome() {
     <SafeAreaView className="flex-1">
       <ScrollView className="flex-1">
         {/* Header with provider name + logout */}
-        <View className="px-4 flex-row items-center justify-between">
+        <View className="pt-4 px-4 flex-row items-center justify-between">
           <View>
             <Text className="text-2xl font-bold">
               {greeting}, {""}

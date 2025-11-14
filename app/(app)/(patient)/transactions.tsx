@@ -118,7 +118,7 @@ export default function TransactionsScreen() {
     };
 
     return (
-        <View className="flex-1 bg-background-light">
+        <View className="flex-1">
             <SafeAreaView className="flex-1">
                 {isLoading ? (
                     <ActivityIndicator size="large" className="mt-10"/>

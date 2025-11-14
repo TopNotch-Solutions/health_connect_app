@@ -34,7 +34,7 @@ const ResetPasswordScreen = () => {
 
             if (response.status === 200) {
                 Alert.alert('Success', 'Your password has been reset successfully. Please log in.');
-                router.replace('/(auth)/sign-in');
+                router.replace('/(root)/sign-in');
             }
         } catch (error: any) {
             const errorMessage = error.response?.data?.message || 'An error occurred.';
@@ -45,7 +45,7 @@ const ResetPasswordScreen = () => {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-background-light">
+        <SafeAreaView className="flex-1">
             <View className="flex-1 justify-center p-6">
                 <View className="mb-10">
                     <Text className="text-4xl font-bold text-text-main">Set New Password</Text>
