@@ -12,7 +12,7 @@ const OTPScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
-  // Normalize params
+  // Normalize params to ensure they are always strings
   const role: 'provider' | 'patient' =
     typeof params.role === 'string' && params.role === 'provider' ? 'provider' : 'patient';
 
@@ -35,7 +35,8 @@ const OTPScreen = () => {
     }
   };
 
-  const handleVerifyOtp = async () => {
+  const handleVerifyOtp = () => { 
+    console.log("Current flow parameter:", params.flow);// Removed 'async' to use .then/.catch for better debugging
     const finalOtp = otp.join('');
     if (finalOtp.length < 6) {
       return Alert.alert('Invalid Code', 'Please enter the complete 6-digit code.');
@@ -45,66 +46,63 @@ const OTPScreen = () => {
     }
 
     setIsLoading(true);
-    try {
-      // Forgot password flow: params.flow === 'resetPassword'
-      if (typeof params.flow === 'string' && params.flow === 'resetPassword') {
-        const response = await apiClient.post('/app/auth/forgot-password-verify-otp', {
-          cellphoneNumber,
-          otp: finalOtp,
+
+    let promise;
+    let isResetFlow = typeof params.flow === 'string' && params.flow === 'resetPassword';
+
+    if (isResetFlow) {
+        promise = apiClient.post('/app/auth/forgot-password-verify-otp', {
+            cellphoneNumber,
+            otp: finalOtp,
         });
-
-        if (response.status === 200 && response.data?.userId) {
-          Alert.alert('Success', 'OTP verified. Please set your new password.');
-          router.replace({
-            pathname: '/(auth)/reset-password',
-            params: { userId: String(response.data.userId) },
-          });
-        } else {
-          const msg = response.data?.message || 'Verification failed.';
-          throw new Error(msg);
-        }
-      } else {
-        // Normal verify flow (new/existing user)
-        const response = await apiClient.post('/auth/verify-otp', {
-          cellphoneNumber,
-          otp: finalOtp,
+    } else {
+        promise = apiClient.post('/auth/verify-otp', {
+            cellphoneNumber,
+            otp: finalOtp,
         });
-
-        if (response.status === 200) {
-          const { activeUser } = response.data || {};
-          Alert.alert('Success', 'Phone number verified successfully!');
-
-          if (activeUser) {
-            // Existing user → sign in
-            router.replace('/(auth)/sign-in');
-          } else {
-            // New user → pick next step by role
-            if (role === 'provider') {
-              router.replace({
-                pathname: '/(auth)/provider-type',
-                params: { cellphoneNumber },
-              });
-            } else {
-              router.replace({
-                pathname: '/(auth)/registration',
-                params: { cellphoneNumber },
-              });
-            }
-          }
-        } else {
-          const msg = response.data?.message || 'Verification failed.';
-          throw new Error(msg);
-        }
-      }
-    } catch (error: any) {
-      const errorMessage =
-        error?.response?.data?.message ||
-        error?.message ||
-        'An error occurred. Please try again.';
-      Alert.alert('Verification Failed', errorMessage);
-    } finally {
-      setIsLoading(false);
     }
+
+    promise.then(response => {
+        setIsLoading(false);
+        console.log("Backend Response:", JSON.stringify(response.data, null, 2));
+
+        if (isResetFlow) {
+            if (response.status === 200 && response.data?.userId) {
+                Alert.alert('Success', 'OTP verified. Please set your new password.');
+                router.replace({
+                    pathname: '/(auth)/reset-password',
+                    params: { userId: String(response.data.userId) },
+                });
+            } else {
+                Alert.alert('Verification Failed', response.data?.message || 'User ID not found in response.');
+            }
+        } else {
+            const { activeUser } = response.data || {};
+            Alert.alert('Success', 'Phone number verified successfully!');
+            if (activeUser) {
+                router.replace('/(root)/sign-in');
+            } else {
+                if (role === 'provider') {
+                    router.replace({ pathname: '/(auth)/(provider)/provider-type', params: { cellphoneNumber } });
+                } else {
+                    router.replace({ pathname: '/(auth)/(patient)/registration', params: { cellphoneNumber } });
+                }
+            }
+        }
+    }).catch(error => {
+        setIsLoading(false);
+        console.error("--- DETAILED API ERROR ---");
+        if (error.response) {
+            console.error("Response Data:", error.response.data);
+            console.error("Response Status:", error.response.status);
+        } else if (error.request) {
+            console.error("No response received:", error.request);
+        } else {
+            console.error('Error Message:', error.message);
+        }
+        const errorMessage = error.response?.data?.message || 'A network error occurred. Please check your connection and the API endpoint.';
+        Alert.alert('Verification Failed', errorMessage);
+    });
   };
 
   const handleResendOtp = async () => {
@@ -124,10 +122,10 @@ const OTPScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1">
+    <SafeAreaView className="flex-1 bg-background-light">
       <View className="flex-1 p-6 justify-center">
         <View className="text-center items-center mb-10">
-          <Text className="text-3xl font-bold">Enter Code</Text>
+          <Text className="text-3xl font-bold text-text-main">Enter Code</Text>
           <Text className="text-base text-text-main mt-3 text-center">
             A 6-digit code was sent to {cellphoneNumber || 'your number'}.
           </Text>
@@ -153,21 +151,13 @@ const OTPScreen = () => {
           onPress={handleVerifyOtp}
           disabled={isLoading}
         >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text className="text-white text-center text-lg font-semibold">Verify & Continue</Text>
-          )}
+          {isLoading ? ( <ActivityIndicator color="#fff" /> ) : ( <Text className="text-white text-center text-lg font-semibold">Verify & Continue</Text> )}
         </TouchableOpacity>
 
         <View className="flex-row justify-center mt-6">
           <Text className="text-text-main">Didn&apos;t receive code? </Text>
           <TouchableOpacity onPress={handleResendOtp} disabled={isResending}>
-            {isResending ? (
-              <ActivityIndicator size="small" />
-            ) : (
-              <Text className="text-primary font-bold">Resend</Text>
-            )}
+            {isResending ? ( <ActivityIndicator size="small" color="#007BFF"/> ) : ( <Text className="text-primary font-bold">Resend</Text> )}
           </TouchableOpacity>
         </View>
       </View>
