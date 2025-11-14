@@ -25,14 +25,12 @@ type PickedImage = ImagePicker.ImagePickerAsset | null;
 type DocFile = DocumentPicker.DocumentPickerAsset | null;
 type Step = 1 | 2 | 3 | 4;
 
-// fixed specialization options
-const SPECIALIZATION_OPTIONS = [
-  'General Practitioner (GP)',
-  'Pediatrician',
-  'Geriatrician',
-  'Dermatologist',
-  'Internal Medicine Specialist',
-];
+interface Specialization {
+  _id: string;
+  title: string;
+  role: string;
+  description?: string;
+}
 
 // --- Helper Functions for File Handling ---
 const getExt = (file?: PickedImage | DocFile | null) => {
@@ -99,7 +97,13 @@ const UploadBox = ({
   </TouchableOpacity>
 );
 
-const ReviewRow = ({ label, value }: { label: string; value: string | number | undefined }) => (
+const ReviewRow = ({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number | undefined;
+}) => (
   <View className="mb-3">
     <Text className="text-sm text-gray-500">{label}</Text>
     <Text className="text-base text-text-main font-semibold">
@@ -146,9 +150,7 @@ const DocRow = ({
         <Text className="text-text-main font-medium">{label}</Text>
         <Text className="text-gray-500 text-xs" numberOfLines={1}>
           {file
-            ? (file as any)?.name ||
-              (file as any)?.fileName ||
-              (file as any)?.uri
+            ? (file as any)?.name || (file as any)?.fileName || (file as any)?.uri
             : 'Not uploaded'}
         </Text>
       </View>
@@ -168,11 +170,15 @@ const DocRow = ({
 export default function ProviderRegistrationScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-
   const [step, setStep] = useState<Step>(1);
   const [isLoading, setIsLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [expirationDate, setExpirationDate] = useState<Date>(new Date());
+
+  // Specializations from API
+  const [allSpecializations, setAllSpecializations] = useState<Specialization[]>([]);
+  const [filteredSpecializations, setFilteredSpecializations] = useState<Specialization[]>([]);
+  const [loadingSpecializations, setLoadingSpecializations] = useState(true);
 
   // --- State Management for Form Data ---
   const [accountInfo, setAccountInfo] = useState({
@@ -184,6 +190,7 @@ export default function ProviderRegistrationScreen() {
     nationalId: '',
     gender: '',
   });
+
   const [documents, setDocuments] = useState({
     profileImage: null as PickedImage,
     idDocumentFront: null as DocFile,
@@ -191,9 +198,9 @@ export default function ProviderRegistrationScreen() {
     primaryQualification: null as DocFile,
     annualQualification: null as DocFile,
   });
+
   const [professionalDetails, setProfessionalDetails] = useState({
     governingCouncil: 'Health Professionals Council of Namibia',
-    registrationCategory: '',
     hpcnaNumber: '',
     bio: '',
     specializations: [] as string[],
@@ -211,6 +218,55 @@ export default function ProviderRegistrationScreen() {
     }
   }, [params.cellphoneNumber]);
 
+  // Fetch specializations from API
+  useEffect(() => {
+    const fetchSpecializations = async () => {
+      try {
+        setLoadingSpecializations(true);
+        const response = await apiClient.get('/app/specialization/all-specializations');
+
+        // backend: res.status(200).json({ specializations })
+        const list = response?.data?.specializations;
+        if (Array.isArray(list)) {
+          setAllSpecializations(list as Specialization[]);
+        } else {
+          setAllSpecializations([]);
+        }
+      } catch (error) {
+        console.error('Error fetching specializations:', error);
+        Alert.alert('Error', 'Failed to load specializations. Please try again.');
+        setAllSpecializations([]);
+      } finally {
+        setLoadingSpecializations(false);
+      }
+    };
+
+    fetchSpecializations();
+  }, []);
+
+  // Filter specializations based on provider type
+  useEffect(() => {
+    if (!allSpecializations.length) {
+      setFilteredSpecializations([]);
+      return;
+    }
+
+    if (!params.providerType) {
+      setFilteredSpecializations(allSpecializations);
+      return;
+    }
+
+    const providerType = String(params.providerType).toLowerCase();
+
+    const filtered = allSpecializations.filter(
+      (spec) =>
+        typeof spec.role === 'string' &&
+        spec.role.toLowerCase() === providerType
+    );
+
+    setFilteredSpecializations(filtered);
+  }, [allSpecializations, params.providerType]);
+
   // --- Picker Handlers ---
   const pickImage = async (field: keyof typeof documents) => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -221,7 +277,7 @@ export default function ProviderRegistrationScreen() {
     if (!result.canceled)
       setDocuments((prev) => ({ ...prev, [field]: result.assets[0] }));
   };
-  
+
   const pickDocument = async (field: keyof typeof documents) => {
     const result = await DocumentPicker.getDocumentAsync({
       type: ['image/*', 'application/pdf'],
@@ -239,14 +295,14 @@ export default function ProviderRegistrationScreen() {
   };
 
   // --- specialization toggle ---
-  const toggleSpecialization = (spec: string) => {
+  const toggleSpecialization = (specTitle: string) => {
     setProfessionalDetails((prev) => {
-      const already = prev.specializations.includes(spec);
+      const already = prev.specializations.includes(specTitle);
       return {
         ...prev,
         specializations: already
-          ? prev.specializations.filter((s) => s !== spec)
-          : [...prev.specializations, spec],
+          ? prev.specializations.filter((s) => s !== specTitle)
+          : [...prev.specializations, specTitle],
       };
     });
   };
@@ -259,7 +315,8 @@ export default function ProviderRegistrationScreen() {
   const normalizeCell = (raw: string) => {
     const digits = String(raw).replace(/\D/g, '');
     if (digits.startsWith('264') && digits.length === 12) return digits;
-    if (digits.startsWith('0') && digits.length === 10) return '264' + digits.slice(1);
+    if (digits.startsWith('0') && digits.length === 10)
+      return '264' + digits.slice(1);
     if (digits.startsWith('81') && digits.length === 9) return '264' + digits;
     return digits;
   };
@@ -289,14 +346,28 @@ export default function ProviderRegistrationScreen() {
       ['operationalZone', professionalDetails.operationalZone || ''],
       ['specializations', professionalDetails.specializations.join(', ')],
     ];
-    pairs.forEach(([k, v]) => { if (v) fd.append(k, v); });
+
+    pairs.forEach(([k, v]) => {
+      if (v) fd.append(k, v);
+    });
 
     // files
     const toFile = (asset: any, fallback: string) => {
       if (!asset) return null;
       const uri = asset.uri;
-      const name = asset.name || asset.fileName || (fallback + (uri && uri.includes('.') ? uri.slice(uri.lastIndexOf('.')) : '.jpg'));
-      const type = asset.mimeType || asset.type || (name.endsWith('.png') ? 'image/png' : name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+      const name =
+        asset.name ||
+        asset.fileName ||
+        (fallback +
+          (uri && uri.includes('.') ? uri.slice(uri.lastIndexOf('.')) : '.jpg'));
+      const type =
+        asset.mimeType ||
+        asset.type ||
+        (name.endsWith('.png')
+          ? 'image/png'
+          : name.endsWith('.pdf')
+          ? 'application/pdf'
+          : 'image/jpeg');
       return { uri, name, type } as any;
     };
 
@@ -307,7 +378,11 @@ export default function ProviderRegistrationScreen() {
       [documents.primaryQualification, 'primaryQualification'],
       [documents.annualQualification, 'annualQualification'],
     ];
-    files.forEach(([f, key]) => { const file = toFile(f, key); if (file) fd.append(key, file); });
+
+    files.forEach(([f, key]) => {
+      const file = toFile(f, key);
+      if (file) fd.append(key, file);
+    });
 
     return fd;
   };
@@ -322,14 +397,17 @@ export default function ProviderRegistrationScreen() {
     if (!accountInfo.password) missing.push('Password');
     if (!accountInfo.nationalId) missing.push('National ID Number');
     if (!accountInfo.gender) missing.push('Gender');
-    if (!professionalDetails.hpcnaNumber) missing.push('HPCNA Registration Number');
-    if (!professionalDetails.yearsOfExperience) missing.push('Years of Experience');
+    if (!professionalDetails.hpcnaNumber)
+      missing.push('HPCNA Registration Number');
+    if (!professionalDetails.yearsOfExperience)
+      missing.push('Years of Experience');
     if (!professionalDetails.operationalZone) missing.push('Operational Zone');
     if (!documents.idDocumentFront) missing.push('ID Front');
     if (!documents.idDocumentBack) missing.push('ID Back');
     if (!documents.profileImage) missing.push('Photo');
     if (!documents.primaryQualification) missing.push('Primary Qualification');
-    if (!documents.annualQualification) missing.push('Annual Practicing Certificate');
+    if (!documents.annualQualification)
+      missing.push('Annual Practicing Certificate');
 
     if (missing.length) {
       Alert.alert('Missing info', 'Please provide:\n• ' + missing.join('\n• '));
@@ -339,7 +417,6 @@ export default function ProviderRegistrationScreen() {
     try {
       setIsLoading(true);
       const formData = buildFormData();
-
       const res = await apiClient.post(
         '/app/auth/register-health-provider',
         formData,
@@ -348,12 +425,15 @@ export default function ProviderRegistrationScreen() {
 
       if (res && (res.status === 201 || res.status === 200)) {
         Alert.alert('Success', 'Registration complete.');
-        router.replace('/(provider)/home');
+        router.replace('/(app)/(provider)/home');
       } else {
         Alert.alert('Error', res?.data?.message ?? 'Unable to register.');
       }
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message ?? e?.message ?? 'Upload failed.');
+      Alert.alert(
+        'Error',
+        e?.response?.data?.message ?? e?.message ?? 'Upload failed.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -382,6 +462,7 @@ export default function ProviderRegistrationScreen() {
               <Text className="text-2xl font-bold text-text-main mb-6">
                 Account Information
               </Text>
+
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Full Name
               </Text>
@@ -392,6 +473,7 @@ export default function ProviderRegistrationScreen() {
                 }
                 className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
               />
+
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Email
               </Text>
@@ -404,6 +486,7 @@ export default function ProviderRegistrationScreen() {
                 autoCapitalize="none"
                 keyboardType="email-address"
               />
+
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Mobile
               </Text>
@@ -412,6 +495,7 @@ export default function ProviderRegistrationScreen() {
                   {accountInfo.cellphoneNumber}
                 </Text>
               </View>
+
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Password
               </Text>
@@ -429,7 +513,9 @@ export default function ProviderRegistrationScreen() {
               </Text>
               <TextInput
                 value={accountInfo.nationalId}
-                onChangeText={(t) => setAccountInfo((p) => ({ ...p, nationalId: t }))}
+                onChangeText={(t) =>
+                  setAccountInfo((p) => ({ ...p, nationalId: t }))
+                }
                 className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
               />
 
@@ -441,7 +527,9 @@ export default function ProviderRegistrationScreen() {
                 style={{ height: 56, justifyContent: 'center' }}
               >
                 <RNPickerSelect
-                  onValueChange={(v) => setAccountInfo((p) => ({ ...p, gender: String(v || '') }))}
+                  onValueChange={(v) =>
+                    setAccountInfo((p) => ({ ...p, gender: String(v || '') }))
+                  }
                   value={accountInfo.gender}
                   items={[
                     { label: 'Male', value: 'Male' },
@@ -475,6 +563,7 @@ export default function ProviderRegistrationScreen() {
                   </Text>
                 </Text>
               </View>
+
               <View className="flex-row" style={{ gap: 16 }}>
                 <UploadBox
                   label="Upload Identification (front)"
@@ -498,6 +587,7 @@ export default function ProviderRegistrationScreen() {
               <Text className="text-2xl font-bold text-text-main mb-6">
                 Documents & Qualifications
               </Text>
+
               <UploadBox
                 label="Upload Photo"
                 file={documents.profileImage}
@@ -527,40 +617,69 @@ export default function ProviderRegistrationScreen() {
               <Text className="text-2xl font-bold text-text-main mb-6">
                 Professional Details
               </Text>
+
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Medical Council
               </Text>
               <View className="bg-white p-4 rounded-xl mb-4 border border-gray-200">
                 <Text>{professionalDetails.governingCouncil}</Text>
               </View>
+
+              {/* Specializations - Dynamic from API */}
               <Text className="text-base text-text-main mb-2 font-semibold">
-                Registration Category
+                Specializations
               </Text>
-              <View
-                className="bg-white border border-gray-200 rounded-xl px-3 mb-4"
-                style={{ height: 56, justifyContent: 'center' }}
-              >
-                <RNPickerSelect
-                  onValueChange={(v) =>
-                    setProfessionalDetails((p) => ({
-                      ...p,
-                      registrationCategory: v,
-                    }))
-                  }
-                  items={[
-                    { label: 'Specialist', value: 'Specialist' },
-                    { label: 'General Practitioner', value: 'General Practitioner' },
-                  ]}
-                  placeholder={{ label: 'Select category…', value: '' }}
-                  Icon={() => null}
-                  useNativeAndroidPickerStyle={false}
-                  style={{
-                    inputAndroid: { fontSize: 16, color: '#111' },
-                    inputIOS: { fontSize: 16, color: '#111' },
-                    placeholder: { color: '#888' },
-                  }}
-                />
-              </View>
+              <TextInput
+                value={professionalDetails.specializations.join(', ')}
+                editable={false}
+                placeholder="Select specialization(s) below"
+                className="bg-white p-4 rounded-xl mb-3 border border-gray-200"
+              />
+
+              {loadingSpecializations ? (
+                <View className="py-4">
+                  <ActivityIndicator size="small" color="#007BFF" />
+                  <Text className="text-center text-gray-500 mt-2">
+                    Loading specializations...
+                  </Text>
+                </View>
+              ) : filteredSpecializations.length > 0 ? (
+                <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+                  {filteredSpecializations.map((spec) => {
+                    const selected = professionalDetails.specializations.includes(
+                      spec.title
+                    );
+                    return (
+                      <TouchableOpacity
+                        key={spec._id}
+                        onPress={() => toggleSpecialization(spec.title)}
+                      >
+                        <View
+                          className={`px-3 py-1 rounded-full ${
+                            selected ? 'bg-primary' : 'bg-gray-200'
+                          }`}
+                        >
+                          <Text
+                            className={`${
+                              selected ? 'text-white' : 'text-text-main'
+                            } font-semibold`}
+                          >
+                            {spec.title}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View className="bg-gray-100 p-4 rounded-xl">
+                  <Text className="text-gray-600 text-center">
+                    No specializations available for{' '}
+                    {params.providerType || 'this provider type'}
+                  </Text>
+                </View>
+              )}
+
               <Text className="text-base text-text-main mb-2 font-semibold">
                 HPCNA Registration Number
               </Text>
@@ -577,7 +696,12 @@ export default function ProviderRegistrationScreen() {
               </Text>
               <TextInput
                 value={professionalDetails.yearsOfExperience}
-                onChangeText={(t) => setProfessionalDetails((p) => ({ ...p, yearsOfExperience: t }))}
+                onChangeText={(t) =>
+                  setProfessionalDetails((p) => ({
+                    ...p,
+                    yearsOfExperience: t,
+                  }))
+                }
                 keyboardType="number-pad"
                 className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
               />
@@ -587,7 +711,12 @@ export default function ProviderRegistrationScreen() {
               </Text>
               <TextInput
                 value={professionalDetails.operationalZone}
-                onChangeText={(t) => setProfessionalDetails((p) => ({ ...p, operationalZone: t }))}
+                onChangeText={(t) =>
+                  setProfessionalDetails((p) => ({
+                    ...p,
+                    operationalZone: t,
+                  }))
+                }
                 className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
               />
 
@@ -625,42 +754,6 @@ export default function ProviderRegistrationScreen() {
                 multiline
                 textAlignVertical="top"
               />
-
-              {/* Specializations */}
-              <Text className="text-base text-text-main mb-2 font-semibold">
-                Specializations
-              </Text>
-              <TextInput
-                value={professionalDetails.specializations.join(', ')}
-                editable={false}
-                placeholder="Select specialization(s) below"
-                className="bg-white p-4 rounded-xl mb-3 border border-gray-200"
-              />
-              <View className="flex-row flex-wrap" style={{ gap: 8 }}>
-                {SPECIALIZATION_OPTIONS.map((spec) => {
-                  const selected = professionalDetails.specializations.includes(spec);
-                  return (
-                    <TouchableOpacity
-                      key={spec}
-                      onPress={() => toggleSpecialization(spec)}
-                    >
-                      <View
-                        className={`px-3 py-1 rounded-full ${
-                          selected ? 'bg-primary' : 'bg-gray-200'
-                        }`}
-                      >
-                        <Text
-                          className={`${
-                            selected ? 'text-white' : 'text-text-main'
-                          } font-semibold`}
-                        >
-                          {spec}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
             </View>
           )}
 
@@ -681,7 +774,10 @@ export default function ProviderRegistrationScreen() {
               <View className="w-full bg-white p-5 rounded-xl border border-gray-200">
                 <ReviewRow label="Full Name" value={accountInfo.fullname} />
                 <ReviewRow label="Email" value={accountInfo.email} />
-                <ReviewRow label="Mobile" value={accountInfo.cellphoneNumber} />
+                <ReviewRow
+                  label="Mobile"
+                  value={accountInfo.cellphoneNumber}
+                />
                 <ReviewRow label="National ID" value={accountInfo.nationalId} />
                 <ReviewRow label="Gender" value={accountInfo.gender} />
 
@@ -690,10 +786,6 @@ export default function ProviderRegistrationScreen() {
                 <ReviewRow
                   label="Medical Council"
                   value={professionalDetails.governingCouncil}
-                />
-                <ReviewRow
-                  label="Registration Category"
-                  value={professionalDetails.registrationCategory}
                 />
                 <ReviewRow
                   label="HPCNA Registration Number"
@@ -740,7 +832,6 @@ export default function ProviderRegistrationScreen() {
                 <Text className="text-lg font-semibold text-text-main mb-2">
                   Uploaded Files
                 </Text>
-
                 <DocRow label="Profile Photo" file={documents.profileImage} />
                 <DocRow label="ID (Front)" file={documents.idDocumentFront} />
                 <DocRow label="ID (Back)" file={documents.idDocumentBack} />
@@ -772,6 +863,7 @@ export default function ProviderRegistrationScreen() {
               </Text>
             </TouchableOpacity>
           )}
+
           {step < 4 ? (
             <TouchableOpacity
               onPress={handleNext}

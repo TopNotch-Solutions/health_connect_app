@@ -32,21 +32,36 @@ export default function ProviderTabsLayout() {
           ),
         }}
       />
+
+      {/* Map tab changed to Requests */}
       <Tabs.Screen
-        name="map"
+        name="requests" // make sure you have app/(provider)/req.tsx (or a folder named req/)
         options={{
-          title: "Map",
-          tabBarIcon: ({color, size}) => (
-            <Feather name="map" color={color} size={size}/>
-          )
+          title: "Requests",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="inbox" color={color} size={size} />
+          ),
         }}
       />
+
+      {/* Profile tab now shown as Wallet with a wallet-like icon */}
       <Tabs.Screen
-        name="profile"
+        name="profile" // keep this if your file is profile.tsx
         options={{
-          title: "Profile",
+          title: "Wallet",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="user" color={color} size={size} />
+            <Feather name="credit-card" color={color} size={size} />
+          ),
+        }}
+      />
+
+      {/* Settings already uses a settings icon */}
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Settings",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="settings" color={color} size={size} />
           ),
         }}
       />

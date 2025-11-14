@@ -1,9 +1,25 @@
+// app/(provider)/home.tsx
+
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React, { useState, useRef, useCallback } from "react";
+import {
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+  StyleSheet,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
 import { useAuth } from "../../../context/AuthContext";
+
+const INITIAL_REGION: Region = {
+  latitude: -22,
+  longitude: 16,
+  latitudeDelta: 2,
+  longitudeDelta: 2,
+};
 
 export default function ProviderHome() {
   const [requests, setRequests] = useState([
@@ -16,6 +32,26 @@ export default function ProviderHome() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Map refs + helpers
+  const mapRef = useRef<MapView | null>(null);
+
+  const focusMap = useCallback(() => {
+    const greenBayStadium: Region = {
+      latitude: 44.5013,
+      longitude: -88.0622,
+      latitudeDelta: 0.1,
+      longitudeDelta: 0.1,
+    };
+
+    mapRef.current?.animateToRegion(greenBayStadium);
+    // Or with camera:
+    // mapRef.current?.animateCamera({ center: greenBayStadium, zoom: 10 }, { duration: 2000 });
+  }, []);
+
+  const onRegionChange = (region: Region) => {
+    console.log("Region changed:", region);
+  };
 
   const handleAccept = (id: number, name: string) => {
     setRequests((prev) => prev.filter((req) => req.id !== id));
@@ -89,7 +125,9 @@ export default function ProviderHome() {
 
         {/* Incoming Consultation Requests */}
         <View className="px-4 mb-6">
-          <Text className="text-2xl font-bold mb-4">Incoming Consultation Requests</Text>
+          <Text className="text-2xl font-bold mb-4">
+            Incoming Consultation Requests
+          </Text>
 
           {requests.length === 0 ? (
             <View className="bg-white rounded-lg border-2 border-gray-200 p-8 items-center">
@@ -106,9 +144,15 @@ export default function ProviderHome() {
               >
                 <View className="flex-row items-start justify-between mb-3">
                   <View className="flex-1">
-                    <Text className="text-lg font-bold mb-1">{request.name}</Text>
-                    <Text className="text-gray-700 mb-1">{request.condition}</Text>
-                    <Text className="text-gray-600 text-sm">{request.distance}</Text>
+                    <Text className="text-lg font-bold mb-1">
+                      {request.name}
+                    </Text>
+                    <Text className="text-gray-700 mb-1">
+                      {request.condition}
+                    </Text>
+                    <Text className="text-gray-600 text-sm">
+                      {request.distance}
+                    </Text>
                   </View>
                   <View className="bg-blue-100 px-3 py-1 rounded-full">
                     <Text className="text-blue-600 text-xs font-semibold">
@@ -119,7 +163,9 @@ export default function ProviderHome() {
 
                 <View className="flex-row gap-2 mt-3">
                   <TouchableOpacity
-                    onPress={() => handleDecline(request.id, request.name)}
+                    onPress={() =>
+                      handleDecline(request.id, request.name)
+                    }
                     className="flex-1 bg-red-200 py-3 rounded-lg"
                   >
                     <Text className="text-black font-semibold text-center">
@@ -127,7 +173,9 @@ export default function ProviderHome() {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => handleAccept(request.id, request.name)}
+                    onPress={() =>
+                      handleAccept(request.id, request.name)
+                    }
                     className="flex-1 bg-blue-600 py-3 rounded-lg"
                   >
                     <Text className="text-white font-semibold text-center">
@@ -140,11 +188,29 @@ export default function ProviderHome() {
           )}
         </View>
 
-        {/* Map Placeholder */}
+        {/* Map Section */}
         <View className="px-4 mb-8">
-          <View className="bg-gray-200 rounded-lg h-80 items-center justify-center">
-            <Feather name="map-pin" size={48} color="#9CA3AF" />
-            <Text className="text-gray-500 mt-2">Map View</Text>
+          <View className="flex-row items-center justify-between mb-2">
+            <Text className="text-lg font-semibold">Map View</Text>
+
+            <TouchableOpacity
+              onPress={focusMap}
+              className="px-3 py-1 rounded-full bg-blue-600"
+            >
+              <Text className="text-xs font-semibold text-white">Focus</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View className="rounded-lg overflow-hidden h-80 bg-gray-200">
+            <MapView
+              ref={mapRef}
+              style={StyleSheet.absoluteFillObject}
+              initialRegion={INITIAL_REGION}
+              provider={PROVIDER_GOOGLE}
+              showsUserLocation
+              showsMyLocationButton
+              onRegionChangeComplete={onRegionChange}
+            />
           </View>
         </View>
       </ScrollView>
