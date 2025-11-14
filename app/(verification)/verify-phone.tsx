@@ -51,6 +51,7 @@ const VerifyPhoneScreen = () => {
           pathname: '/verify-otp', 
           params: { 
             phoneNumber: fullPhoneNumber, 
+             flow: params.flow ,
             role: params.role // Pass the role we received
           },
         });

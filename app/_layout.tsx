@@ -2,9 +2,10 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import './globals.css';
+
 
 const ProtectedLayout = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -68,8 +69,10 @@ const ProtectedLayout = () => {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <ProtectedLayout />
-    </AuthProvider>
+     <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <ProtectedLayout />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
