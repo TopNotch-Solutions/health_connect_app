@@ -8,7 +8,7 @@ export default function ProviderRequests() {
       <View className="flex-1 p-6">
         <Text className="text-2xl font-semibold">Your Requests</Text>
         <Text className="text-gray-600 mt-2">
-          Manage your requests
+          No requests yet
         </Text>
       </View>
     </SafeAreaView>

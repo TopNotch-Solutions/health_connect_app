@@ -60,7 +60,7 @@ export default function PatientTabLayout() {
         options={{
           title: "Issues",
           tabBarIcon: ({color, size}) => (
-            <Feather name="user" color={color} size={size}/>
+            <Feather name="book" color={color} size={size}/>
           )
         }}
       />
