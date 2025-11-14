@@ -9,7 +9,7 @@ interface User {
   _id: string;
   fullname: string;
   email: string;
-  role: 'patient' | 'doctor' | 'nurse' | 'physiotherapist' | 'socialworker';
+  role: 'patient' | 'doctor' | 'nurse' | 'physiotherapist' | 'socialworker' | 'provider';
   // Add any other user properties you need from the backend response
 }
 

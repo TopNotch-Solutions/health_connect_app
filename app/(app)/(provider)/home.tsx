@@ -43,8 +43,8 @@ export default function ProviderHome() {
         {/* Header with provider name + logout */}
         <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
           <View>
-            <Text className="text-sm text-gray-500">Welcome back</Text>
-            <Text className="text-xl font-bold text-gray-900">
+            <Text className="text-4xl font-bold">Welcome back</Text>
+            <Text className="text-sm font-bold text-gray-900">
               {user?.fullname || "Provider"}
             </Text>
           </View>
@@ -74,16 +74,16 @@ export default function ProviderHome() {
         {/* Stats Cards */}
         <View className="flex-row gap-3 px-4 mb-6">
           <View className="flex-1 bg-white rounded-lg border-2 border-gray-200 p-4">
-            <Text className="text-sm text-gray-600 mb-2">Today's Consultations</Text>
-            <Text className="text-4xl font-bold">{requests.length}</Text>
+            <Text className="text-sm text-gray-600 mb-2">Consultations</Text>
+            <Text className="text-xl font-bold">{requests.length}</Text>
           </View>
           <View className="flex-1 bg-white rounded-lg border-2 border-gray-200 p-4">
             <Text className="text-sm text-gray-600 mb-2">Earnings</Text>
-            <Text className="text-4xl font-bold">$435.00</Text>
+            <Text className="text-xl font-bold">N$435.00</Text>
           </View>
           <View className="flex-1 bg-white rounded-lg border-2 border-gray-200 p-4">
             <Text className="text-sm text-gray-600 mb-2">Availability</Text>
-            <Text className="text-4xl font-bold text-blue-600">Online</Text>
+            <Text className="text-xl font-bold text-blue-600">Online</Text>
           </View>
         </View>
 
@@ -120,9 +120,9 @@ export default function ProviderHome() {
                 <View className="flex-row gap-2 mt-3">
                   <TouchableOpacity
                     onPress={() => handleDecline(request.id, request.name)}
-                    className="flex-1 bg-gray-200 py-3 rounded-lg"
+                    className="flex-1 bg-red-200 py-3 rounded-lg"
                   >
-                    <Text className="text-gray-700 font-semibold text-center">
+                    <Text className="text-black font-semibold text-center">
                       Decline
                     </Text>
                   </TouchableOpacity>

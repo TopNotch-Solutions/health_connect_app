@@ -8,7 +8,6 @@ export default function ProviderTabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerTitle: "Health Connect (Provider)",
         tabBarShowLabel: true,
         tabBarStyle: { height: 64, paddingTop: 6 },
         tabBarLabelStyle: { fontSize: 12, marginBottom: 6 },
@@ -31,6 +30,15 @@ export default function ProviderTabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Feather name="home" color={color} size={size} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="map"
+        options={{
+          title: "Map",
+          tabBarIcon: ({color, size}) => (
+            <Feather name="map" color={color} size={size}/>
+          )
         }}
       />
       <Tabs.Screen
