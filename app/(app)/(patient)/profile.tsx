@@ -24,7 +24,7 @@ export default function ProfileScreen() {
     // This is the base URL where your backend serves images.
     // YOU MUST CONFIRM THIS from your backend's `server.js` or `app.js` file.
     // It's often where you see a line like `app.use(express.static('public'))`.
-    const IMAGE_BASE_URL = 'http://YOUR_COMPUTER_IP:4000/images/';
+    const IMAGE_BASE_URL = 'http://192.168.11.138:4000/images/';
 
     const handleLogout = () => {
         Alert.alert("Log Out", "Are you sure you want to log out?", [
