@@ -21,6 +21,18 @@ const INITIAL_REGION: Region = {
   longitudeDelta: 2,
 };
 
+const getGreeting = () => {
+  const hour = new Date().getHours();
+
+  if (hour < 12) {
+    return "Good morning"
+  } else if (hour < 18) {
+    return "Good Afternoon"
+  } else {
+    return "Good Evening"
+  }
+}
+
 export default function ProviderHome() {
   const [requests, setRequests] = useState([
     { id: 1, name: "Linda Robertson", condition: "Fever", distance: "1.9 km" },
@@ -73,14 +85,16 @@ export default function ProviderHome() {
     }
   };
 
+  const greeting = getGreeting();
+
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1">
       <ScrollView className="flex-1">
         {/* Header with provider name + logout */}
-        <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
+        <View className="px-4 flex-row items-center justify-between">
           <View>
-            <Text className="text-4xl font-bold">Welcome back</Text>
-            <Text className="text-sm font-bold text-gray-900">
+            <Text className="text-2xl font-bold">
+              {greeting}, {""}
               {user?.fullname || "Provider"}
             </Text>
           </View>
@@ -88,10 +102,10 @@ export default function ProviderHome() {
           <TouchableOpacity
             onPress={handleLogout}
             disabled={isLoggingOut}
-            className="flex-row items-center"
+            className="flex-row items-center justify-center bg-red-500 px-4 py-2 rounded-lg"
           >
-            <Feather name="log-out" size={20} color="#EF4444" />
-            <Text className="ml-2 text-sm font-semibold text-red-500">
+            <Feather name="log-out" size={20} color="#ffffffff" />
+            <Text className="ml-2 text-sm font-semibold text-white">
               {isLoggingOut ? "Logging out..." : "Logout"}
             </Text>
           </TouchableOpacity>
@@ -114,7 +128,7 @@ export default function ProviderHome() {
             <Text className="text-xl font-bold">{requests.length}</Text>
           </View>
           <View className="flex-1 bg-white rounded-lg border-2 border-gray-200 p-4">
-            <Text className="text-sm text-gray-600 mb-2">Earnings</Text>
+            <Text className="text-sm text-gray-600 mb-2">Earnings Per Month</Text>
             <Text className="text-xl font-bold">N$435.00</Text>
           </View>
           <View className="flex-1 bg-white rounded-lg border-2 border-gray-200 p-4">

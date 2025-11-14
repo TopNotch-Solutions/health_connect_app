@@ -158,7 +158,7 @@ export default function PatientHomeScreen() {
         </ScrollView>
 
         {/* Sticky Call Now Button */}
-        <View className="absolute bottom-0 left-0 right-0 p-6 bg-background-light border-t border-t-gray-200">
+        <View className="absolute bottom-0 left-0 right-0 p-6 border-t border-t-gray-200">
           <TouchableOpacity className="w-full bg-primary p-4 rounded-xl">
             <Text className="text-white text-center text-lg font-semibold">Call Now</Text>
           </TouchableOpacity>

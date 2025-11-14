@@ -73,7 +73,7 @@ export default function NotificationsScreen() {
     
     return (
         // Use edges to avoid the top notch, since this is a root screen
-        <SafeAreaView className="flex-1 bg-background-light" edges={['top', 'left', 'right']}>
+        <SafeAreaView className="flex-1" edges={['top', 'left', 'right']}>
             {isLoading ? (
                 <View className="flex-1 justify-center items-center">
                     <ActivityIndicator size="large" color="#007BFF" />

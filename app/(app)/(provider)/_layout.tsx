@@ -9,13 +9,16 @@ export default function ProviderTabsLayout() {
     <Tabs
       screenOptions={{
         tabBarShowLabel: true,
-        tabBarStyle: { height: 64, paddingTop: 6 },
-        tabBarLabelStyle: { fontSize: 12, marginBottom: 6 },
+        tabBarStyle: { 
+          height: 64, 
+          paddingTop: 6 
+        },
+        tabBarLabelStyle: { 
+          fontSize: 12, 
+          marginBottom: 6 
+        },
         headerRight: () => (
           <View style={{ flexDirection: "row", gap: 16, marginRight: 16 }}>
-            <TouchableOpacity onPress={() => router.push("/wallet")}>
-              <Feather name="credit-card" size={22} />
-            </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push("/notifications")}>
               <Feather name="bell" size={22} />
             </TouchableOpacity>
