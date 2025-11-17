@@ -1,7 +1,8 @@
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 
@@ -11,13 +12,8 @@ const SignInScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const displayNameFromEmail = (e: string) => {
-    const base = (e || "").split("@")[0] || "Patient";
-    return base
-      .replace(/[._-]+/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  };
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSignIn = async () => {
     if (!email || !password) {
@@ -28,83 +24,102 @@ const SignInScreen = () => {
     try {
       setIsLoading(true);
       const user = await login(email, password);
-      const displayName = user.fullname || displayNameFromEmail(user.email);
-      if (user.role === 'patient'){
-        router.replace({
-          pathname: '/(app)/(patient)/home',
-          params: {name: displayName},
-        });
-      } else if(
-        user.role === 'doctor' || 
-        user.role === 'nurse' || 
-        user.role === 'physiotherapist' || 
-        user.role === 'socialworker'
-      ){
-        router.replace('/(app)/(provider)/home')
-      } else {
-        Alert.alert('Login Error',`Unsported user role: ${user.role}`);
-      }
+      // Don't manually navigate - let the root layout handle it automatically
+      // The _layout.tsx will detect the authentication change and redirect to the correct home screen
+      console.log('Login successful for user:', user.email, 'Role:', user.role);
     } catch(error: any){
       const message = error?.response?.data?.message || error?.message || 'Failed to sign in. Please check your credentials and try again.';
       Alert.alert('Login Failed', message);
     } finally {
       setIsLoading(false);
     }
-    console.log('Attempting to sign in with:', { email, password });
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <View className="flex-1 px-6 pt-8">
+    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
+      <View className="flex-1 px-6 justify-center">
         
-        {/* Header Section */}
-        <View className="mb-10">
-          <Text className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</Text>
-          <Text className="text-base text-gray-600">Sign in to your account</Text>
+        {/* Logo/Icon Section */}
+        <View className="items-center mb-8">
+          <Image 
+            source={require('../../assets/images/healthconnectlogo.png')}
+            style={{ width: 200, height: 200, marginBottom: 24 }}
+            resizeMode="contain"
+          />
+          <Text className="text-4xl font-bold text-gray-900 mb-2">Welcome to HealthConnect</Text>
         </View>
 
         {/* Form Section */}
-        <View className="space-y-5">
-          <View>
-            <Text className="text-sm font-medium text-gray-700 mb-2">Email Address</Text>
-            <TextInput
-              className="w-full bg-white px-4 py-3.5 rounded-lg text-base border border-gray-300 text-gray-900"
-              placeholder="youremail@example.com"
-              placeholderTextColor="#9CA3AF"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+        <View className="mb-6">
+          {/* Email Input */}
+          <View className="mb-5">
+            <Text className="text-base text-gray-700 mb-2 font-medium">Email</Text>
+            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-green-300">
+              <Feather name="mail" size={20} color="#10B981" />
+              <TextInput
+                className="flex-1 ml-3 text-base text-gray-900"
+                placeholder="Enter your email"
+                placeholderTextColor="#9CA3AF"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
           </View>
 
-          <View>
-            <Text className="text-sm font-medium text-gray-700 mb-2">Password</Text>
-            <TextInput
-              className="w-full bg-white px-4 py-3.5 rounded-lg text-base border border-gray-300 text-gray-900"
-              placeholder="Enter your password"
-              placeholderTextColor="#9CA3AF"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
+          {/* Password Input */}
+          <View className="mb-5">
+            <Text className="text-base text-gray-700 mb-2 font-medium">Password</Text>
+            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-green-300">
+              <Feather name="lock" size={20} color="#10B981" />
+              <TextInput
+                className="flex-1 ml-3 text-base text-gray-900"
+                placeholder="Enter your Password"
+                placeholderTextColor="#9CA3AF"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Forgot Password Link */}
-          <View className="w-full items-end pt-1">
+          {/* Remember Me & Forgot Password */}
+          <View className="flex-row items-center justify-between mb-6">
+            <TouchableOpacity 
+              onPress={() => setRememberMe(!rememberMe)}
+              className="flex-row items-center"
+            >
+              <View className={`w-6 h-6 rounded border-2 mr-2 items-center justify-center ${rememberMe ? 'bg-green-600 border-green-600' : 'border-gray-400'}`}>
+                {rememberMe && <Feather name="check" size={16} color="#FFFFFF" />}
+              </View>
+              <Text className="text-base text-gray-700">Remember me</Text>
+            </TouchableOpacity>
+            
             <TouchableOpacity 
               onPress={() => router.push({ 
                 pathname: '/(verification)/verify-phone', 
                 params: { flow: 'resetPassword' } 
               })}
             >
-              <Text className="text-blue-600 font-semibold text-sm">Forgot Password?</Text>
+              <Text className="text-base text-green-600 font-medium">Forgot Password?</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Sign In Button */}
+          {/* Sign In Button with Green Gradient */}
           <TouchableOpacity
-            className={`w-full py-4 rounded-lg mt-4 ${isLoading ? 'bg-gray-400' : 'bg-blue-600'}`}
+            className={`w-full py-5 rounded-2xl items-center justify-center ${isLoading ? 'bg-gray-400' : 'bg-gradient-to-r from-green-500 to-emerald-600'}`}
+            style={{
+              backgroundColor: isLoading ? '#9CA3AF' : '#10B981',
+              shadowColor: '#10B981',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 6,
+            }}
             onPress={handleSignIn}
             disabled={isLoading}
             activeOpacity={0.8}
@@ -112,23 +127,23 @@ const SignInScreen = () => {
             {isLoading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text className="text-white text-center text-base font-semibold">Sign In</Text>
+              <Text className="text-white text-center text-xl font-semibold">Log In</Text>
             )}
           </TouchableOpacity>
         </View>
 
         {/* Sign Up Link */}
-        <View className="flex-row justify-center items-center mt-8">
-          <Text className="text-gray-600 text-sm">Don't have an account? </Text>
+        <View className="flex-row justify-center items-center mt-6">
+          <Text className="text-gray-600 text-base">Don&apos;t have an account? </Text>
           <TouchableOpacity 
             onPress={() => router.push({pathname: '/selection', params: {mode: 'signup'}})}
           >
-            <Text className="text-blue-600 font-semibold text-sm">Sign Up</Text>
+            <Text className="text-green-600 font-semibold text-base">Sign Up</Text>
           </TouchableOpacity>
         </View>
 
       </View>
-      <StatusBar backgroundColor="#F9FAFB" style="dark" />
+      <StatusBar backgroundColor="#EFF6FF" style="dark" />
     </SafeAreaView>
   );
 };

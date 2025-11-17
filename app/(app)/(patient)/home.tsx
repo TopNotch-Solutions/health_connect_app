@@ -1,13 +1,12 @@
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  FlatList,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    FlatList,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
@@ -81,14 +80,15 @@ const HistoryCard = ({ item }: { item: (typeof appointmentHistory)[0] }) => (
 export default function PatientHomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const { user, logout } = useAuth();
-  const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
     try {
       setIsLoggingOut(true);
       await logout();
-      router.replace('/sign-in'); // goes back to the sign-in screen
+      // Don't manually navigate - let the root layout handle it
+    } catch (error) {
+      console.error("Logout error:", error);
     } finally {
       setIsLoggingOut(false);
     }

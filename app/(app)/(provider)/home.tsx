@@ -11,8 +11,8 @@ import {
   Modal,
   TouchableWithoutFeedback, // Correct import from 'react-native'
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
 
 const INITIAL_REGION: Region = {
@@ -36,7 +36,6 @@ export default function ProviderHome() {
     { id: 3, name: "Jennifer Chavez", condition: "Headache", distance: "1.4 km", fee: "N$ 120", commission: "N$ 12" },
     { id: 4, name: "Carl Bradley", condition: "Back pain", distance: "3.7 km", fee: "N$ 180", commission: "N$ 18" },
   ]);
-
   const { user } = useAuth();
 
   // Online/Offline toggle
@@ -68,7 +67,6 @@ export default function ProviderHome() {
     setSelectedRequest(null); // Close modal on decline
     alert(`Declined consultation request from ${name}`);
   };
-
   const greeting = getGreeting();
 
   return (

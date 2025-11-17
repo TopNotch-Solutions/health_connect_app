@@ -1,6 +1,7 @@
+import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import apiClient from '../../lib/api';
 
@@ -68,7 +69,7 @@ const OTPScreen = () => {
 
         if (isResetFlow) {
             if (response.status === 200 && response.data?.userId) {
-                Alert.alert('Success', 'OTP verified. Please set your new password.');
+                // Navigate directly without success message
                 router.replace({
                     pathname: '/(auth)/reset-password',
                     params: { userId: String(response.data.userId) },
@@ -78,7 +79,7 @@ const OTPScreen = () => {
             }
         } else {
             const { activeUser } = response.data || {};
-            Alert.alert('Success', 'Phone number verified successfully!');
+            // Navigate directly without success message
             if (activeUser) {
                 router.replace('/(root)/sign-in');
             } else {
@@ -122,42 +123,93 @@ const OTPScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background-light">
-      <View className="flex-1 p-6 justify-center">
-        <View className="text-center items-center mb-10">
-          <Text className="text-3xl font-bold text-text-main">Enter Code</Text>
-          <Text className="text-base text-text-main mt-3 text-center">
-            A 6-digit code was sent to {cellphoneNumber || 'your number'}.
+    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
+      <View className="flex-1 px-6 justify-center">
+        
+        {/* Logo Section */}
+        <View className="items-center mb-12">
+          <Image 
+            source={require('../../assets/images/healthconnectlogo.png')}
+            style={{ width: 180, height: 180, marginBottom: 24 }}
+            resizeMode="contain"
+          />
+          <View className="bg-green-100 w-20 h-20 rounded-full items-center justify-center mb-6"
+            style={{
+              shadowColor: '#10B981',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 4,
+            }}
+          >
+            <Feather name="shield" size={40} color="#10B981" />
+          </View>
+          <Text className="text-3xl font-bold text-gray-900 text-center mb-3">Verify Your Code</Text>
+          <Text className="text-base text-gray-600 text-center px-4">
+            Enter the 6-digit code sent to {'\n'}
+            <Text className="font-semibold text-gray-900">{cellphoneNumber || 'your number'}</Text>
           </Text>
         </View>
 
-        <View className="flex-row justify-between w-full mb-8">
-          {otp.map((digit, index) => (
-            <TextInput
-              key={index}
-              ref={(ref) => { inputs.current[index] = ref; }}
-              className="w-14 h-16 bg-white rounded-xl border border-gray-200 text-center text-2xl font-bold"
-              keyboardType="number-pad"
-              maxLength={1}
-              value={digit}
-              onChangeText={(text) => handleOtpChange(text, index)}
-              onKeyPress={(e) => handleKeyPress(e, index)}
-            />
-          ))}
+        {/* OTP Input Section */}
+        <View className="mb-8">
+          <View className="flex-row justify-between w-full mb-8">
+            {otp.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={(ref) => { inputs.current[index] = ref; }}
+                className="w-14 h-16 bg-white rounded-2xl border-2 border-green-300 text-center text-2xl font-bold text-gray-900"
+                style={{
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 4,
+                  elevation: 2,
+                }}
+                keyboardType="number-pad"
+                maxLength={1}
+                value={digit}
+                onChangeText={(text) => handleOtpChange(text, index)}
+                onKeyPress={(e) => handleKeyPress(e, index)}
+              />
+            ))}
+          </View>
+
+          {/* Verify Button */}
+          <TouchableOpacity
+            className={`w-full py-5 rounded-2xl items-center justify-center flex-row ${isLoading ? 'bg-gray-400' : 'bg-green-600'}`}
+            style={{
+              backgroundColor: isLoading ? '#9CA3AF' : '#10B981',
+              shadowColor: '#10B981',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 6,
+            }}
+            onPress={handleVerifyOtp}
+            disabled={isLoading}
+            activeOpacity={0.8}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Text className="text-white text-center text-xl font-semibold mr-2">Verify & Continue</Text>
+                <Feather name="arrow-right" size={20} color="#FFFFFF" />
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          className={`w-full p-4 rounded-xl ${isLoading ? 'bg-gray-400' : 'bg-primary'}`}
-          onPress={handleVerifyOtp}
-          disabled={isLoading}
-        >
-          {isLoading ? ( <ActivityIndicator color="#fff" /> ) : ( <Text className="text-white text-center text-lg font-semibold">Verify & Continue</Text> )}
-        </TouchableOpacity>
-
-        <View className="flex-row justify-center mt-6">
-          <Text className="text-text-main">Didn&apos;t receive code? </Text>
+        {/* Resend Section */}
+        <View className="flex-row justify-center items-center mt-4">
+          <Text className="text-gray-600 text-base">Didn&apos;t receive code? </Text>
           <TouchableOpacity onPress={handleResendOtp} disabled={isResending}>
-            {isResending ? ( <ActivityIndicator size="small" color="#007BFF"/> ) : ( <Text className="text-primary font-bold">Resend</Text> )}
+            {isResending ? (
+              <ActivityIndicator size="small" color="#10B981"/>
+            ) : (
+              <Text className="text-green-600 font-semibold text-base">Resend</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>

@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Login function
   const login = async (email: string, password: string): Promise<User> => {
     try {
-      // Corrected: Removed all fcmToken logic
+      // Make the API call first
       const response = await apiClient.post('/app/auth/login', { 
         email, 
         password,
@@ -63,22 +63,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (response.data && response.data.user) {
         const userData: User = response.data.user;
-        setUser(userData);
+        
+        // Clear old data and set new user atomically to avoid race conditions
+        await SecureStore.deleteItemAsync('user');
         await SecureStore.setItemAsync('user', JSON.stringify(userData));
+        setUser(userData);
+        
         return userData;
       } else {
         throw new Error('Login failed: Invalid response from server.');
       }
     } catch (error: any) {
       console.error("Login failed:", error.response?.data?.message || error.message);
+      // Clear any partial state on error
+      setUser(null);
+      await SecureStore.deleteItemAsync('user').catch(() => {});
       throw error;
     }
   };
 
   // Logout function
   const logout = async () => {
-    setUser(null);
-    await SecureStore.deleteItemAsync('user');
+    try {
+      setUser(null);
+      await SecureStore.deleteItemAsync('user');
+    } catch (error) {
+      console.error("Failed to logout:", error);
+      // Even if storage deletion fails, clear the user state
+      setUser(null);
+    }
   };
   
   // --- NEW: Function to update the user's state after actions like a transaction ---
