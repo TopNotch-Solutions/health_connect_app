@@ -54,8 +54,8 @@ const SignInScreen = () => {
           {/* Email Input */}
           <View className="mb-5">
             <Text className="text-base text-gray-700 mb-2 font-medium">Email</Text>
-            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-gray-300">
-              <Feather name="mail" size={20} color="#3B82F6" />
+            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-green-300">
+              <Feather name="mail" size={20} color="#10B981" />
               <TextInput
                 className="flex-1 ml-3 text-base text-gray-900"
                 placeholder="Enter your email"
@@ -71,8 +71,8 @@ const SignInScreen = () => {
           {/* Password Input */}
           <View className="mb-5">
             <Text className="text-base text-gray-700 mb-2 font-medium">Password</Text>
-            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-gray-300">
-              <Feather name="lock" size={20} color="#3B82F6" />
+            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-green-300">
+              <Feather name="lock" size={20} color="#10B981" />
               <TextInput
                 className="flex-1 ml-3 text-base text-gray-900"
                 placeholder="Enter your Password"
@@ -93,7 +93,7 @@ const SignInScreen = () => {
               onPress={() => setRememberMe(!rememberMe)}
               className="flex-row items-center"
             >
-              <View className={`w-6 h-6 rounded border-2 mr-2 items-center justify-center ${rememberMe ? 'bg-blue-600 border-blue-600' : 'border-gray-400'}`}>
+              <View className={`w-6 h-6 rounded border-2 mr-2 items-center justify-center ${rememberMe ? 'bg-green-600 border-green-600' : 'border-gray-400'}`}>
                 {rememberMe && <Feather name="check" size={16} color="#FFFFFF" />}
               </View>
               <Text className="text-base text-gray-700">Remember me</Text>
@@ -105,20 +105,20 @@ const SignInScreen = () => {
                 params: { flow: 'resetPassword' } 
               })}
             >
-              <Text className="text-base text-gray-700">Forgot Password?</Text>
+              <Text className="text-base text-green-600 font-medium">Forgot Password?</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Sign In Button with Gradient Effect */}
+          {/* Sign In Button with Green Gradient */}
           <TouchableOpacity
-            className={`w-full py-5 rounded-2xl items-center justify-center ${isLoading ? 'bg-gray-400' : 'bg-gradient-to-r from-blue-500 to-purple-600'}`}
+            className={`w-full py-5 rounded-2xl items-center justify-center ${isLoading ? 'bg-gray-400' : 'bg-gradient-to-r from-green-500 to-emerald-600'}`}
             style={{
-              backgroundColor: isLoading ? '#9CA3AF' : '#3B82F6',
-              shadowColor: '#000',
+              backgroundColor: isLoading ? '#9CA3AF' : '#10B981',
+              shadowColor: '#10B981',
               shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
+              shadowOpacity: 0.3,
               shadowRadius: 8,
-              elevation: 4,
+              elevation: 6,
             }}
             onPress={handleSignIn}
             disabled={isLoading}
@@ -138,7 +138,7 @@ const SignInScreen = () => {
           <TouchableOpacity 
             onPress={() => router.push({pathname: '/selection', params: {mode: 'signup'}})}
           >
-            <Text className="text-blue-600 font-semibold text-base">Sign Up</Text>
+            <Text className="text-green-600 font-semibold text-base">Sign Up</Text>
           </TouchableOpacity>
         </View>
 
