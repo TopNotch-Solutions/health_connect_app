@@ -1,26 +1,58 @@
+import { useAuth } from "@/context/AuthContext";
 import { Feather } from "@expo/vector-icons";
 import { Tabs, useRouter } from "expo-router";
-import { TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import { TouchableOpacity, View, Text, StyleSheet } from "react-native";
 
 export default function ProviderTabsLayout() {
+  const { logout } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      router.replace("/sign-in"); // back to the sign-in screen
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <Tabs
       screenOptions={{
         tabBarShowLabel: true,
-        tabBarStyle: { 
-          height: 64, 
-          paddingTop: 6 
+        tabBarStyle: {
+          height: 64,
+          paddingTop: 6,
         },
-        tabBarLabelStyle: { 
-          fontSize: 12, 
-          marginBottom: 6 
+        tabBarLabelStyle: {
+          fontSize: 12,
+          marginBottom: 6,
         },
         headerRight: () => (
-          <View style={{ flexDirection: "row", gap: 16, marginRight: 16 }}>
-            <TouchableOpacity onPress={() => router.push("/notifications")}>
+          <View style={styles.headerContainer}>
+            {/* Notification button */}
+            <TouchableOpacity
+              onPress={() => router.push("/notifications")}
+              style={styles.iconButton}
+              accessibilityRole="button"
+              accessibilityLabel="Open notifications"
+            >
               <Feather name="bell" size={22} />
+            </TouchableOpacity>
+
+            {/* Logout button */}
+            <TouchableOpacity
+              onPress={handleLogout}
+              disabled={isLoggingOut}
+              style={styles.logoutButton}
+              accessibilityRole="button"
+              accessibilityLabel="Logout"
+            >
+              <Feather name="log-out" size={20} color="#fff" />
+              
             </TouchableOpacity>
           </View>
         ),
@@ -36,9 +68,8 @@ export default function ProviderTabsLayout() {
         }}
       />
 
-      {/* Map tab changed to Requests */}
       <Tabs.Screen
-        name="requests" // make sure you have app/(provider)/req.tsx (or a folder named req/)
+        name="requests"
         options={{
           title: "Requests",
           tabBarIcon: ({ color, size }) => (
@@ -47,9 +78,8 @@ export default function ProviderTabsLayout() {
         }}
       />
 
-      {/* Profile tab now shown as Wallet with a wallet-like icon */}
       <Tabs.Screen
-        name="wallet" // keep this if your file is profile.tsx
+        name="wallet"
         options={{
           title: "Wallet",
           tabBarIcon: ({ color, size }) => (
@@ -58,9 +88,8 @@ export default function ProviderTabsLayout() {
         }}
       />
 
-      {/* Profile tab now shown as Wallet with a wallet-like icon */}
       <Tabs.Screen
-        name="profile" // keep this if your file is profile.tsx
+        name="profile"
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size }) => (
@@ -68,17 +97,32 @@ export default function ProviderTabsLayout() {
           ),
         }}
       />
-
-            {/* Settings already uses a settings icon */}
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="settings" color={color} size={size} />
-          ),
-        }}
-      />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  iconButton: {
+    padding: 8,
+    marginRight: 12,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  logoutText: {
+    color: "#fff",
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+});
