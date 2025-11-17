@@ -15,33 +15,62 @@ const ProtectedLayout = () => {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuth = segments[0] === '(auth)';
-    const inVerification = segments[0] === '(verification)';
-    const inRoot = segments[0] === '(root)';
-    const inApp = segments[0] === '(app)';
+    // Use setTimeout to ensure state updates have completed
+    const timeout = setTimeout(() => {
+      const inAuth = segments[0] === '(auth)';
+      const inVerification = segments[0] === '(verification)';
+      const inRoot = segments[0] === '(root)';
+      const inApp = segments[0] === '(app)';
 
-    if (!isAuthenticated) {
-      // User is not authenticated
-      if (inApp) {
-        // Trying to access protected app routes, redirect to selection
-        router.replace('/(root)/selection');
-      }
-    } else {
-      // User is authenticated
-      if (inAuth || inVerification || inRoot) {
-        // User is logged in but on auth/verification/root screens
-        // Redirect based on user role
-        if (user?.role === 'patient') {
-          router.replace('/(app)/(patient)/home');
-        } else if (user?.role === 'doctor') {
-          router.replace('/(app)/(provider)/home');
-        } else {
-          // Fallback if role is not set
+      if (!isAuthenticated) {
+        // User is not authenticated
+        if (inApp) {
+          // Trying to access protected app routes, redirect to selection
           router.replace('/(root)/selection');
         }
+      } else {
+        // User is authenticated
+        if (inAuth || inVerification || inRoot) {
+          // User is logged in but on auth/verification/root screens
+          // Redirect based on user role
+          if (user?.role === 'patient') {
+            router.replace('/(app)/(patient)/home');
+          } else if (
+            user?.role === 'doctor' || 
+            user?.role === 'nurse' || 
+            user?.role === 'physiotherapist' || 
+            user?.role === 'socialworker'
+          ) {
+            router.replace('/(app)/(provider)/home');
+          } else {
+            // Fallback if role is not set
+            console.warn('User has unknown role:', user?.role);
+            router.replace('/(root)/selection');
+          }
+        } else if (inApp) {
+          // User is in app section, verify they're in the correct role section
+          const inPatient = segments[1] === '(patient)';
+          const inProvider = segments[1] === '(provider)';
+          
+          if (user?.role === 'patient' && inProvider) {
+            // Patient trying to access provider area
+            router.replace('/(app)/(patient)/home');
+          } else if (
+            (user?.role === 'doctor' || 
+             user?.role === 'nurse' || 
+             user?.role === 'physiotherapist' || 
+             user?.role === 'socialworker') && 
+            inPatient
+          ) {
+            // Provider trying to access patient area
+            router.replace('/(app)/(provider)/home');
+          }
+        }
       }
-    }
-  }, [isAuthenticated, isLoading, segments, router, user]);
+    }, 100);
+
+    return () => clearTimeout(timeout);
+  }, [isAuthenticated, isLoading, segments, router, user?.role]);
 
   if (isLoading) {
     return (

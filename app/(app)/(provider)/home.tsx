@@ -1,17 +1,16 @@
 // app/(provider)/home.tsx
 
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState, useRef, useCallback } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-  StyleSheet,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
 
 const INITIAL_REGION: Region = {
@@ -42,7 +41,6 @@ export default function ProviderHome() {
   ]);
 
   const { user, logout } = useAuth();
-  const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Map refs + helpers
@@ -79,7 +77,9 @@ export default function ProviderHome() {
     try {
       setIsLoggingOut(true);
       await logout();
-      router.replace("/sign-in"); // back to the sign-in screen
+      // Don't manually navigate - let the root layout handle it
+    } catch (error) {
+      console.error("Logout error:", error);
     } finally {
       setIsLoggingOut(false);
     }
