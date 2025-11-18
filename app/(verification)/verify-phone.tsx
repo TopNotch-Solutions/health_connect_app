@@ -87,7 +87,7 @@ const VerifyPhoneScreen = () => {
           {/* Logo Section */}
           <View className="items-center mb-12">
             <Image
-              source={require('../../assets/images/healthconnectlogo.png')}
+              source={require('../../assets/images/healthconnectlogo-cropped.png')}
               style={{ width: 220, height: 220, marginBottom: 32 }}
               resizeMode="contain"
             />

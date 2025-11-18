@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import apiClient from '../lib/api';
 
 // --- The corrected and expanded User interface ---
@@ -20,6 +21,10 @@ export interface User { // Exporting the interface so other files can use it
   isAccountVerified?: boolean;
 }
 
+// Session timeout duration: 5 minutes in milliseconds
+const SESSION_TIMEOUT = 5 * 60 * 1000;
+const LAST_ACTIVITY_KEY = 'lastActivityTime';
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -34,6 +39,46 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const appState = useRef(AppState.currentState);
+
+  // Update last activity timestamp
+  const updateLastActivity = useCallback(async () => {
+    const timestamp = Date.now().toString();
+    await SecureStore.setItemAsync(LAST_ACTIVITY_KEY, timestamp);
+  }, []);
+
+  // Logout function
+  const logout = useCallback(async () => {
+    try {
+      setUser(null);
+      await SecureStore.deleteItemAsync('user');
+      await SecureStore.deleteItemAsync(LAST_ACTIVITY_KEY);
+    } catch (error) {
+      console.error("Failed to logout:", error);
+      // Even if storage deletion fails, clear the user state
+      setUser(null);
+    }
+  }, []);
+
+  // Check if session has expired
+  const checkSessionTimeout = useCallback(async () => {
+    try {
+      const lastActivity = await SecureStore.getItemAsync(LAST_ACTIVITY_KEY);
+      if (lastActivity) {
+        const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
+        if (timeSinceLastActivity > SESSION_TIMEOUT) {
+          // Session expired, log out user
+          console.log('Session expired after 5 minutes of inactivity');
+          await logout();
+          return true; // Session expired
+        }
+      }
+      return false; // Session still valid
+    } catch (e) {
+      console.error("Failed to check session timeout", e);
+      return false;
+    }
+  }, [logout]);
 
   // This effect runs on app startup to load a saved session
   useEffect(() => {
@@ -41,7 +86,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         const storedUser = await SecureStore.getItemAsync('user');
         if (storedUser) {
-          setUser(JSON.parse(storedUser));
+          // Check if session has expired
+          const expired = await checkSessionTimeout();
+          if (!expired) {
+            setUser(JSON.parse(storedUser));
+            // Update activity timestamp on app start
+            await updateLastActivity();
+          }
         }
       } catch (e) {
         console.error("Failed to load user from storage", e);
@@ -50,7 +101,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
     loadUser();
-  }, []);
+  }, [checkSessionTimeout, updateLastActivity]);
+
+  // Monitor app state changes (foreground/background)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active' &&
+        user // Only check if user is logged in
+      ) {
+        // App has come to the foreground
+        const expired = await checkSessionTimeout();
+        if (!expired) {
+          // Session still valid, update timestamp
+          await updateLastActivity();
+        }
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [user, checkSessionTimeout, updateLastActivity]);
 
   // Login function
   const login = async (email: string, password: string): Promise<User> => {
@@ -67,6 +141,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Clear old data and set new user atomically to avoid race conditions
         await SecureStore.deleteItemAsync('user');
         await SecureStore.setItemAsync('user', JSON.stringify(userData));
+        
+        // Set initial activity timestamp
+        await updateLastActivity();
+        
         setUser(userData);
         
         return userData;
@@ -79,18 +157,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(null);
       await SecureStore.deleteItemAsync('user').catch(() => {});
       throw error;
-    }
-  };
-
-  // Logout function
-  const logout = async () => {
-    try {
-      setUser(null);
-      await SecureStore.deleteItemAsync('user');
-    } catch (error) {
-      console.error("Failed to logout:", error);
-      // Even if storage deletion fails, clear the user state
-      setUser(null);
     }
   };
   

@@ -50,7 +50,7 @@ const SignInScreen = () => {
         {/* Logo/Icon Section */}
         <View className="items-center mt-8 mb-6">
           <Image 
-            source={require('../../assets/images/healthconnectlogo.png')}
+            source={require('../../assets/images/healthconnectlogo-cropped.png')}
             style={{ width: 200, height: 200, marginBottom: 24 }}
             resizeMode="contain"
           />

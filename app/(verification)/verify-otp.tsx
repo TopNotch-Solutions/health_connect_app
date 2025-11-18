@@ -137,7 +137,7 @@ const OTPScreen = () => {
         {/* Logo Section */}
         <View className="items-center mb-12">
           <Image 
-            source={require('../../assets/images/healthconnectlogo.png')}
+            source={require('../../assets/images/healthconnectlogo-cropped.png')}
             style={{ width: 180, height: 180, marginBottom: 24 }}
             resizeMode="contain"
           />

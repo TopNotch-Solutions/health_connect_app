@@ -66,7 +66,7 @@ export default function ProviderTypeScreen() {
           {/* Logo Section */}
           <View className="items-center mb-6">
             <Image
-              source={require("../../../assets/images/healthconnectlogo.png")}
+              source={require("../../../assets/images/healthconnectlogo-cropped.png")}
               style={{ width: 160, height: 160, marginBottom: 20 }}
               resizeMode="contain"
             />
