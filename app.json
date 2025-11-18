@@ -12,6 +12,11 @@
       "supportsTablet": true
     },
     "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -20,7 +25,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.owenator3k.projecthealthconnect"
+      "package": "com.talo_n1.projecthealthconnect"
     },
     "web": {
       "output": "static",
@@ -49,7 +54,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "67d7c490-dc31-4a9f-b07c-370becb911bb"
+        "projectId": "d0f37ffa-941d-4292-987d-286deb2c310f"
       }
     }
   }
