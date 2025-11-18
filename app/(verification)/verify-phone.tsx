@@ -6,13 +6,12 @@ import {
     ActivityIndicator,
     Alert,
     Image,
-    KeyboardAvoidingView,
-    Platform,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import apiClient from '../../lib/api';
 
@@ -75,12 +74,15 @@ const VerifyPhoneScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white" edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
+    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={150}
       >
-        <View className="flex-1 px-6 justify-center">
           
           {/* Logo Section */}
           <View className="items-center mb-12">
@@ -161,8 +163,8 @@ const VerifyPhoneScreen = () => {
               </View>
             )}
           </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+        
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 };
