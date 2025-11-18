@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 
@@ -37,12 +38,19 @@ const SignInScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
-      <View className="flex-1 px-6 justify-center">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={150}
+      >
         
         {/* Logo/Icon Section */}
-        <View className="items-center mb-8">
+        <View className="items-center mt-8 mb-6">
           <Image 
-            source={require('../../assets/images/healthconnectlogo.png')}
+            source={require('../../assets/images/healthconnectlogo-cropped.png')}
             style={{ width: 200, height: 200, marginBottom: 24 }}
             resizeMode="contain"
           />
@@ -142,7 +150,7 @@ const SignInScreen = () => {
           </TouchableOpacity>
         </View>
 
-      </View>
+      </KeyboardAwareScrollView>
       <StatusBar backgroundColor="#EFF6FF" style="dark" />
     </SafeAreaView>
   );

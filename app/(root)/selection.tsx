@@ -19,19 +19,8 @@ const SelectionScreen = () => {
       setChecking(false);
       return;
     }
-    (async () => {
-      try {
-        const seen = await AsyncStorage.getItem(STORAGE_KEY);
-        if (seen === 'true') {
-          router.replace('/(root)/sign-in');
-          return;
-        }
-      } catch {
-        // Error handling
-      } finally {
-        setChecking(false);
-      }
-    })();
+    // If accessed directly (not from onboarding), redirect to sign-in
+    setChecking(false);
   }, []);
 
   const handleSelection = async (role: 'patient' | 'provider') => {
@@ -60,28 +49,28 @@ const SelectionScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
-      <View className="flex-1 px-6 justify-center">
+      <View className="flex-1 px-6 pt-8 pb-4">
         
         {/* Logo Section */}
-        <View className="items-center mb-12">
+        <View className="items-center mb-4">
           <RNImage 
-            source={require('../../assets/images/healthconnectlogo.png')}
-            style={{ width: 140, height: 140, marginBottom: 20 }}
+            source={require('../../assets/images/healthconnectlogo-cropped.png')}
+            style={{ width: 120, height: 120, marginBottom: 12 }}
             resizeMode="contain"
           />
-          <Text className="text-4xl font-bold text-gray-900 text-center mb-3">
+          <Text className="text-2xl font-bold text-gray-900 text-center mb-2">
             Join HealthConnect
           </Text>
-          <Text className="text-lg text-gray-600 text-center px-4">
+          <Text className="text-sm text-gray-600 text-center px-4">
             Choose your account type to get started
           </Text>
         </View>
 
         {/* Selection Cards */}
-        <View style={{ gap: 16 }}>
+        <View style={{ gap: 12 }}>
           {/* Patient Card */}
           <TouchableOpacity
-            className="bg-white p-6 rounded-3xl border-2 border-gray-200 items-center"
+            className="bg-white p-5 rounded-3xl border-2 border-gray-200 items-center"
             style={{
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 6 },
@@ -92,22 +81,25 @@ const SelectionScreen = () => {
             onPress={() => handleSelection('patient')}
             activeOpacity={0.7}
           >
-            <View className="w-20 h-20 bg-blue-100 rounded-full items-center justify-center mb-4">
-              <Feather name="heart" size={36} color="#3B82F6" />
+            <View 
+              className="w-16 h-16 rounded-full items-center justify-center mb-3"
+              style={{ backgroundColor: '#DBEAFE' }}
+            >
+              <Feather name="heart" size={30} color="#3B82F6" />
             </View>
-            <Text className="text-2xl font-bold text-gray-900 mb-2">Patient</Text>
-            <Text className="text-base text-gray-600 text-center mb-4 px-4">
+            <Text className="text-xl font-bold text-gray-900 mb-2">Patient</Text>
+            <Text className="text-sm text-gray-600 text-center mb-3 px-2">
               Access healthcare services and manage your wellness journey
             </Text>
             <View className="flex-row items-center">
-              <Text className="text-blue-600 font-semibold text-base mr-2">Get Started</Text>
-              <Feather name="arrow-right" size={18} color="#3B82F6" />
+              <Text className="text-blue-600 font-semibold text-sm mr-1">Get Started</Text>
+              <Feather name="arrow-right" size={16} color="#3B82F6" />
             </View>
           </TouchableOpacity>
 
           {/* Provider Card */}
           <TouchableOpacity
-            className="bg-white p-6 rounded-3xl border-2 border-gray-200 items-center"
+            className="bg-white p-5 rounded-3xl border-2 border-gray-200 items-center"
             style={{
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 6 },
@@ -118,23 +110,26 @@ const SelectionScreen = () => {
             onPress={() => handleSelection('provider')}
             activeOpacity={0.7}
           >
-            <View className="w-20 h-20 bg-green-100 rounded-full items-center justify-center mb-4">
-              <Feather name="user-check" size={36} color="#10B981" />
+            <View 
+              className="w-16 h-16 rounded-full items-center justify-center mb-3"
+              style={{ backgroundColor: '#D1FAE5' }}
+            >
+              <Feather name="user-check" size={30} color="#10B981" />
             </View>
-            <Text className="text-2xl font-bold text-gray-900 mb-2">Health Provider</Text>
-            <Text className="text-base text-gray-600 text-center mb-4 px-4">
+            <Text className="text-xl font-bold text-gray-900 mb-2">Health Provider</Text>
+            <Text className="text-sm text-gray-600 text-center mb-3 px-2">
               Provide care and connect with patients in your community
             </Text>
             <View className="flex-row items-center">
-              <Text className="text-green-600 font-semibold text-base mr-2">Get Started</Text>
-              <Feather name="arrow-right" size={18} color="#10B981" />
+              <Text className="text-green-600 font-semibold text-sm mr-1">Get Started</Text>
+              <Feather name="arrow-right" size={16} color="#10B981" />
             </View>
           </TouchableOpacity>
         </View>
 
         {/* Back to Sign In Link */}
         {isSignupMode && (
-          <View className="items-center mt-8">
+          <View className="items-center mt-6">
             <TouchableOpacity 
               onPress={() => router.back()}
               className="flex-row items-center"

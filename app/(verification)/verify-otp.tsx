@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import apiClient from '../../lib/api';
 
@@ -124,12 +125,19 @@ const OTPScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
-      <View className="flex-1 px-6 justify-center">
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={150}
+      >
         
         {/* Logo Section */}
         <View className="items-center mb-12">
           <Image 
-            source={require('../../assets/images/healthconnectlogo.png')}
+            source={require('../../assets/images/healthconnectlogo-cropped.png')}
             style={{ width: 180, height: 180, marginBottom: 24 }}
             resizeMode="contain"
           />
@@ -212,7 +220,8 @@ const OTPScreen = () => {
             )}
           </TouchableOpacity>
         </View>
-      </View>
+        
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 };

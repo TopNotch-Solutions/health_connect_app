@@ -88,6 +88,7 @@ const ProtectedLayout = () => {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="(onboarding)" />
       <Stack.Screen name="(root)" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(verification)" />
