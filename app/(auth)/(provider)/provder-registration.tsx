@@ -6,15 +6,15 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Linking,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Linking,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -174,6 +174,7 @@ export default function ProviderRegistrationScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [expirationDate, setExpirationDate] = useState<Date>(new Date());
+  const [showPassword, setShowPassword] = useState(false);
 
   // Specializations from API
   const [allSpecializations, setAllSpecializations] = useState<Specialization[]>([]);
@@ -499,14 +500,27 @@ export default function ProviderRegistrationScreen() {
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Password
               </Text>
-              <TextInput
-                value={accountInfo.password}
-                onChangeText={(t) =>
-                  setAccountInfo((p) => ({ ...p, password: t }))
-                }
-                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
-                secureTextEntry
-              />
+              <View className="relative">
+                <TextInput
+                  value={accountInfo.password}
+                  onChangeText={(t) =>
+                    setAccountInfo((p) => ({ ...p, password: t }))
+                  }
+                  className="bg-white p-4 rounded-xl mb-4 border border-gray-200 pr-12"
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-4"
+                  style={{ width: 24, height: 24 }}
+                >
+                  <Feather
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#6B7280"
+                  />
+                </TouchableOpacity>
+              </View>
 
               <Text className="text-base text-text-main mb-2 font-semibold">
                 National ID Number
