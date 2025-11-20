@@ -1,6 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from "@react-native-community/datetimepicker";
-import Checkbox from 'expo-checkbox';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -218,6 +217,17 @@ export default function ProviderRegistrationScreen() {
       }));
     }
   }, [params.cellphoneNumber]);
+
+  // Set up callback for terms and conditions acceptance
+  useEffect(() => {
+    global.acceptProviderTermsCallback = (accepted: boolean) => {
+      setAccountInfo((p) => ({ ...p, agreeToTerms: accepted }));
+    };
+
+    return () => {
+      delete global.acceptProviderTermsCallback;
+    };
+  }, []);
 
   // Fetch specializations from API
   useEffect(() => {
@@ -561,23 +571,6 @@ export default function ProviderRegistrationScreen() {
                 />
               </View>
 
-              <View className="flex-row items-center mb-6">
-                <Checkbox
-                  value={accountInfo.agreeToTerms}
-                  onValueChange={(v) =>
-                    setAccountInfo((p) => ({ ...p, agreeToTerms: v }))
-                  }
-                  color={accountInfo.agreeToTerms ? '#007BFF' : undefined}
-                  className="w-6 h-6 rounded"
-                />
-                <Text className="text-base text-text-main ml-3">
-                  I agree to the{' '}
-                  <Text className="text-primary font-bold">
-                    Subscriber Agreement
-                  </Text>
-                </Text>
-              </View>
-
               <View className="flex-row" style={{ gap: 16 }}>
                 <UploadBox
                   label="Upload Identification (front)"
@@ -592,6 +585,28 @@ export default function ProviderRegistrationScreen() {
                   icon="file-text"
                 />
               </View>
+
+              {/* Terms and Conditions Checkbox */}
+              <TouchableOpacity 
+                onPress={() => setAccountInfo((p) => ({ ...p, agreeToTerms: !p.agreeToTerms }))} 
+                className="flex-row items-start p-4 bg-gray-50 rounded-xl border-2 border-gray-200 mb-6 mt-4"
+                activeOpacity={0.7}
+              >
+                <View className={`w-6 h-6 rounded-md mr-3 items-center justify-center border-2 ${accountInfo.agreeToTerms ? 'bg-green-600 border-green-600' : 'bg-white border-gray-300'}`}>
+                  {accountInfo.agreeToTerms && <Feather name="check" size={16} color="white" />}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-gray-700 text-sm leading-5">
+                    I agree to the{' '}
+                    <Text 
+                      className="text-green-600 font-semibold underline" 
+                      onPress={() => router.push('/(auth)/(provider)/terms-conditions')}
+                    >
+                      Terms and Conditions
+                    </Text>
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -881,8 +896,10 @@ export default function ProviderRegistrationScreen() {
           {step < 4 ? (
             <TouchableOpacity
               onPress={handleNext}
-              disabled={isLoading}
-              className="bg-primary p-4 rounded-xl flex-1"
+              disabled={isLoading || (step === 1 && !accountInfo.agreeToTerms)}
+              className={`p-4 rounded-xl flex-1 ${
+                isLoading || (step === 1 && !accountInfo.agreeToTerms) ? 'bg-gray-300' : 'bg-primary'
+              }`}
             >
               <Text className="text-white text-center text-lg font-semibold">
                 Next

@@ -16,6 +16,7 @@ interface Faq { _id: string; question: string; answer: string; }
 
 // --- Predefined Data ---
 const issueTypes = [
+  { label: 'Report Malpractice of Health Provider', value: 'Report Malpractice of Health Provider' },
   { label: 'Login Problem', value: 'Login Problem' },
   { label: 'Payment Issue', value: 'Payment Issue' },
   { label: 'Bug or Glitch', value: 'Bug or Glitch' },

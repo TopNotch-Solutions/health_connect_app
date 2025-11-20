@@ -1,8 +1,10 @@
 // app/(provider)/home.tsx
 
 import { Feather } from "@expo/vector-icons";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -11,16 +13,10 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
-
-const INITIAL_REGION: Region = {
-  latitude: -22,
-  longitude: 16,
-  latitudeDelta: 2,
-  longitudeDelta: 2,
-};
+import socketService from "../../../lib/socket";
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -30,173 +26,259 @@ const getGreeting = () => {
 };
 
 export default function ProviderHome() {
-  const [requests, setRequests] = useState([
-    { id: 1, name: "Linda Robertson", condition: "Fever", distance: "1.9 km", fee: "N$ 100", commission: "N$ 10" },
-    { id: 2, name: "Dennis Wheeler", condition: "Cold", distance: "3.7 km", fee: "N$ 150", commission: "N$ 15" },
-    { id: 3, name: "Jennifer Chavez", condition: "Headache", distance: "1.4 km", fee: "N$ 120", commission: "N$ 12" },
-    { id: 4, name: "Carl Bradley", condition: "Back pain", distance: "3.7 km", fee: "N$ 180", commission: "N$ 18" },
-  ]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const { user } = useAuth();
 
   // Online/Offline toggle
   const [isOnline, setIsOnline] = useState(true);
   const toggleOnline = () => setIsOnline((prev) => !prev);
 
-  // Map refs + helpers
-  const mapRef = useRef<MapView | null>(null);
-  const focusMap = useCallback(() => {
-    const greenBayStadium: Region = {
-      latitude: 44.5013,
-      longitude: -88.0622,
-      latitudeDelta: 0.1,
-      longitudeDelta: 0.1,
+  const [selectedRequest, setSelectedRequest] = useState<null | any>(null);
+
+  // Define loadAvailableRequests before using it in useEffect
+  const loadAvailableRequests = useCallback(async () => {
+    if (!user?.userId) {
+      console.log('⚠️ No userId, skipping request load');
+      return;
+    }
+
+    console.log('📥 Starting to load available requests for provider:', user.userId);
+    const socket = socketService.getSocket();
+    console.log('📡 Socket connected status:', socket?.connected);
+
+    try {
+      setIsLoadingRequests(true);
+      const availableRequests = await socketService.getAvailableRequests(user.userId);
+      console.log('✅ Available requests received:', availableRequests);
+      setRequests(Array.isArray(availableRequests) ? availableRequests : []);
+    } catch (error: any) {
+      console.error('❌ Error loading requests:', error);
+      Alert.alert('Error', 'Failed to load available requests: ' + error.message);
+    } finally {
+      setIsLoadingRequests(false);
+      console.log('✅ Loading complete, isLoadingRequests set to false');
+    }
+  }, [user?.userId]);
+
+  // Connect socket and fetch available requests
+  useEffect(() => {
+    if (user?.userId) {
+      console.log('🔌 Connecting socket for provider:', user.userId);
+      // Default to doctor role, but should ideally use user.role if available
+      socketService.connect(user.userId, user.role as any || 'doctor');
+      
+      const socket = socketService.getSocket();
+      
+      // Listen for connect event
+      const handleConnect = () => {
+        console.log('✅ Socket connected, loading requests...');
+        loadAvailableRequests();
+      };
+      
+      // If already connected, load immediately
+      if (socket?.connected) {
+        console.log('✅ Socket already connected, loading requests...');
+        loadAvailableRequests();
+      } else {
+        socket?.on('connect', handleConnect);
+      }
+
+      return () => {
+        socket?.off('connect', handleConnect);
+        socketService.disconnect();
+      };
+    }
+  }, [user?.userId, user?.role, loadAvailableRequests]);
+
+  // Listen for new request notifications
+  useEffect(() => {
+    const handleNewRequest = (request: any) => {
+      console.log('New request received:', request);
+      setRequests((prev) => [request, ...prev]);
     };
-    mapRef.current?.animateToRegion(greenBayStadium);
+
+    socketService.getSocket()?.on('newRequest', handleNewRequest);
+
+    return () => {
+      socketService.getSocket()?.off('newRequest', handleNewRequest);
+    };
   }, []);
-  const onRegionChange = (region: Region) => console.log("Region changed:", region);
 
-  const [selectedRequest, setSelectedRequest] = useState<null | typeof requests[0]>(null);
+  const handleAccept = async (requestId: string, patientName: string) => {
+    if (!user?.userId) return;
 
-  const handleAccept = (id: number, name: string) => {
-    setRequests((prev) => prev.filter((req) => req.id !== id));
-    setSelectedRequest(null); // Close modal on accept
-    alert(`Accepted consultation request from ${name}`);
+    try {
+      await socketService.acceptRequest(requestId, user.userId);
+      setRequests((prev) => prev.filter((req) => req._id !== requestId));
+      setSelectedRequest(null);
+      Alert.alert('Success', `Accepted consultation request from ${patientName}`);
+    } catch (error: any) {
+      console.error('Error accepting request:', error);
+      Alert.alert('Error', error.message || 'Failed to accept request');
+    }
   };
-  const handleDecline = (id: number, name: string) => {
-    setRequests((prev) => prev.filter((req) => req.id !== id));
-    setSelectedRequest(null); // Close modal on decline
-    alert(`Declined consultation request from ${name}`);
+
+  const handleDecline = async (requestId: string, patientName: string) => {
+    if (!user?.userId) return;
+
+    try {
+      await socketService.rejectRequest(requestId, user.userId);
+      setRequests((prev) => prev.filter((req) => req._id !== requestId));
+      setSelectedRequest(null);
+      Alert.alert('Declined', `Declined consultation request from ${patientName}`);
+    } catch (error: any) {
+      console.error('Error declining request:', error);
+      Alert.alert('Error', error.message || 'Failed to decline request');
+    }
   };
   const greeting = getGreeting();
 
   return (
-    <SafeAreaView className="flex-1">
+    <SafeAreaView className="flex-1 bg-gray-50">
       <ScrollView className="flex-1">
         {/* Header with provider name + Online/Offline toggle */}
-        <View className="pt-4 px-4 flex-row items-center justify-between">
-          <View>
-            <Text className="text-2xl font-bold">
-              {greeting}, {user?.fullname || "Provider"}
-            </Text>
-          </View>
+        <View className="bg-white pt-6 pb-4 px-6 border-b border-gray-200">
+          <View className="flex-row items-center justify-between">
+            <View>
+              <Text className="text-sm text-gray-500">{greeting}</Text>
+              <Text className="text-2xl font-bold text-gray-900 mt-1">
+                {user?.fullname || "Provider"}
+              </Text>
+            </View>
 
-          {/* Online/Offline toggle button */}
-          <TouchableOpacity
-            onPress={toggleOnline}
-            className={`px-4 py-2 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-400"
+            {/* Online/Offline toggle button */}
+            <TouchableOpacity
+              onPress={toggleOnline}
+              className={`flex-row items-center px-5 py-2.5 rounded-full ${
+                isOnline ? "bg-green-500" : "bg-gray-400"
               }`}
-          >
-            <Text className="text-white font-semibold text-sm">{isOnline ? "Online" : "Offline"}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Approval Banner */}
-        <View className="bg-blue-100 rounded-lg p-6 mx-4 mt-2 mb-4">
-          <Text className="text-lg font-semibold text-gray-800">
-            Your account is approved.
-          </Text>
-          <Text className="text-lg text-gray-800">
-            You are now ready to accept requests.
-          </Text>
+            >
+              <View className={`w-2 h-2 rounded-full mr-2 ${
+                isOnline ? "bg-white" : "bg-gray-200"
+              }`} />
+              <Text className="text-white font-bold text-sm">
+                {isOnline ? "Online" : "Offline"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Stats Cards */}
-        <View className="flex-row gap-3 px-4 mb-6">
-          <View className="flex-1 bg-white rounded-lg border-2 border-gray-200 p-4">
-            <Text className="text-sm text-gray-600 mb-2">Consultations</Text>
-            <Text className="text-xl font-bold">{requests.length}</Text>
-          </View>
-          <View className="flex-1 bg-white rounded-lg border-2 border-gray-200 p-4">
-            <Text className="text-sm text-gray-600 mb-2">Earnings Per Month</Text>
-            <Text className="text-xl font-bold">N$435.00</Text>
+        <View className="px-6 py-6">
+          <View className="flex-row" style={{ gap: 12 }}>
+            <View className="flex-1 bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-xs text-gray-500 uppercase font-bold tracking-wide">Requests</Text>
+                <View className="w-8 h-8 bg-blue-50 rounded-full items-center justify-center">
+                  <Feather name="users" size={16} color="#3B82F6" />
+                </View>
+              </View>
+              <Text className="text-3xl font-bold text-gray-900">{requests.length}</Text>
+              <Text className="text-xs text-gray-500 mt-1">Pending</Text>
+            </View>
+            <View className="flex-1 bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-xs text-gray-500 uppercase font-bold tracking-wide">Earnings</Text>
+                <View className="w-8 h-8 bg-green-50 rounded-full items-center justify-center">
+                  <Feather name="dollar-sign" size={16} color="#10B981" />
+                </View>
+              </View>
+              <Text className="text-3xl font-bold text-gray-900">N$435</Text>
+              <Text className="text-xs text-gray-500 mt-1">This Month</Text>
+            </View>
           </View>
         </View>
 
         {/* Incoming Consultation Requests */}
-        <View className="px-4 mb-6">
-          <Text className="text-2xl font-bold mb-4">
-            Incoming Consultation Requests
+        <View className="px-6 pb-6">
+          <Text className="text-lg font-bold text-gray-900 mb-4">
+            Incoming Requests
           </Text>
 
-          {requests.length === 0 ? (
-            <View className="bg-white rounded-lg border-2 border-gray-200 p-8 items-center">
-              <Feather name="check-circle" size={48} color="#10B981" />
-              <Text className="text-gray-600 mt-3 text-center">
+          {isLoadingRequests ? (
+            <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
+              <ActivityIndicator size="large" color="#3B82F6" />
+              <Text className="text-sm text-gray-500 mt-4">Loading requests...</Text>
+            </View>
+          ) : requests.length === 0 ? (
+            <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
+              <View className="w-16 h-16 bg-green-50 rounded-full items-center justify-center mb-4">
+                <Feather name="check-circle" size={32} color="#10B981" />
+              </View>
+              <Text className="text-lg font-semibold text-gray-900 mb-1">
+                All Caught Up!
+              </Text>
+              <Text className="text-sm text-gray-500 text-center">
                 No pending consultation requests
               </Text>
             </View>
           ) : (
-            requests.map((request) => (
-              <TouchableOpacity
-                key={request.id}
-                onPress={() => setSelectedRequest(request)}
-                className="bg-white rounded-lg border-2 border-gray-200 p-5 mb-3"
-              >
-                <View className="flex-row items-start justify-between mb-3">
-                  <View className="flex-1 space-y-1">
-                    <Text className="text-lg font-bold">{request.name}</Text>
-                    <Text className="text-gray-700">{request.condition}</Text>
-                    <Text className="text-gray-600 text-sm">{request.distance}</Text>
-                    {/* Added labels for clarity */}
-                    <View className="flex-row justify-between pr-4 mt-2">
-                      <Text className="text-gray-600 text-sm font-semibold">Fee: {request.fee}</Text>
-                      <Text className="text-gray-600 text-sm font-semibold">Commission: {request.commission}</Text>
+            requests.map((request) => {
+              const patientName = request.patientId?.fullname || 'Unknown Patient';
+              const ailment = request.ailmentCategory || 'Consultation';
+              const fee = `N$ ${request.estimatedCost || 0}`;
+              const commission = `N$ ${Math.round((request.estimatedCost || 0) * 0.1)}`; // 10% commission
+              const distance = '-- km'; // Calculate distance if coordinates available
+              
+              return (
+                <TouchableOpacity
+                  key={request._id}
+                  onPress={() => setSelectedRequest(request)}
+                  className="bg-white rounded-xl border border-gray-200 p-4 mb-3 shadow-sm"
+                >
+                  <View className="flex-row items-start justify-between mb-3">
+                    <View className="flex-1">
+                      <Text className="text-lg font-bold text-gray-900 mb-1">{patientName}</Text>
+                      <View className="flex-row items-center mb-2">
+                        <Feather name="alert-circle" size={14} color="#6B7280" />
+                        <Text className="text-sm text-gray-600 ml-1.5">{ailment}</Text>
+                      </View>
+                      <View className="flex-row items-center">
+                        <Feather name="map-pin" size={14} color="#6B7280" />
+                        <Text className="text-sm text-gray-500 ml-1.5">{distance}</Text>
+                      </View>
+                    </View>
+                    <View className="bg-blue-50 px-3 py-1.5 rounded-full">
+                      <Text className="text-blue-600 text-xs font-bold">NEW</Text>
                     </View>
                   </View>
-                  <View className="bg-blue-100 px-3 py-1 rounded-full">
-                    <Text className="text-blue-600 text-xs font-semibold">
-                      Consultation
-                    </Text>
+
+                  <View className="flex-row bg-gray-50 rounded-lg p-3 mb-3">
+                    <View className="flex-1">
+                      <Text className="text-xs text-gray-500 mb-0.5">Fee</Text>
+                      <Text className="text-base font-bold text-gray-900">{fee}</Text>
+                    </View>
+                    <View className="flex-1 border-l border-gray-200 pl-4">
+                      <Text className="text-xs text-gray-500 mb-0.5">Commission</Text>
+                      <Text className="text-base font-bold text-gray-900">{commission}</Text>
+                    </View>
                   </View>
-                </View>
 
-                <View className="flex-row gap-2 mt-3">
-                  <TouchableOpacity
-                    onPress={(e) => { e.stopPropagation(); handleDecline(request.id, request.name); }}
-                    className="flex-1 bg-red-200 py-3 rounded-lg"
-                  >
-                    <Text className="text-black font-semibold text-center">
-                      Decline
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={(e) => { e.stopPropagation(); handleAccept(request.id, request.name); }}
-                    className="flex-1 bg-blue-600 py-3 rounded-lg"
-                  >
-                    <Text className="text-white font-semibold text-center">
-                      Accept
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            ))
+                  <View className="flex-row" style={{ gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDecline(request._id, patientName);
+                      }}
+                      className="flex-1 bg-gray-100 py-3 rounded-lg border border-gray-200"
+                    >
+                      <Text className="text-gray-700 font-bold text-center">Decline</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleAccept(request._id, patientName);
+                      }}
+                      className="flex-1 bg-blue-600 py-3 rounded-lg"
+                    >
+                      <Text className="text-white font-bold text-center">Accept</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
           )}
-        </View>
-
-        {/* Map Section */}
-        <View className="px-4 mb-8">
-          <View className="flex-row items-center justify-between mb-2">
-            <Text className="text-lg font-semibold">Map View</Text>
-
-            <TouchableOpacity
-              onPress={focusMap}
-              className="px-3 py-1 rounded-full bg-blue-600"
-            >
-              <Text className="text-xs font-semibold text-white">Focus</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View className="rounded-lg overflow-hidden h-80 bg-gray-200">
-            <MapView
-              ref={mapRef}
-              style={styles.map}
-              initialRegion={INITIAL_REGION}
-              provider={PROVIDER_GOOGLE}
-              showsUserLocation
-              showsMyLocationButton
-              onRegionChangeComplete={onRegionChange}
-            />
-          </View>
         </View>
       </ScrollView>
 
@@ -208,70 +290,124 @@ export default function ProviderHome() {
           visible={!!selectedRequest}
           onRequestClose={() => setSelectedRequest(null)}
         >
-          {/* This wrapper handles the tap on the background */}
           <TouchableWithoutFeedback onPress={() => setSelectedRequest(null)}>
             <View style={styles.modalOverlay}>
-              {/* This wrapper prevents the modal content from closing when tapped */}
               <TouchableWithoutFeedback>
-                <View className="bg-white rounded-lg p-6 w-11/12">
-                  <Text className="text-xl font-bold mb-2">{selectedRequest.name}</Text>
-                  <Text className="text-gray-700 mb-2">{selectedRequest.condition}</Text>
-                  <Text className="text-gray-600 mb-4">{selectedRequest.distance}</Text>
+                <View className="bg-white rounded-2xl p-6 w-11/12 max-w-lg">
+                  {/* Header */}
+                  <View className="flex-row items-center justify-between mb-4">
+                    <Text className="text-xl font-bold text-gray-900">
+                      Request Details
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setSelectedRequest(null)}
+                      className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+                    >
+                      <Feather name="x" size={18} color="#6B7280" />
+                    </TouchableOpacity>
+                  </View>
 
-                  {/* Added labels for clarity in the modal */}
-                  <View className="bg-gray-100 p-3 rounded-lg mb-4">
-                    <View className="flex-row justify-between mb-2">
-                      <Text className="text-gray-800 font-semibold">Consultation Fee:</Text>
-                      <Text className="text-gray-800">{selectedRequest.fee}</Text>
+                  {/* Patient Info */}
+                  <View className="bg-gray-50 rounded-xl p-4 mb-4">
+                    <Text className="text-lg font-bold text-gray-900 mb-2">
+                      {selectedRequest.patientId?.fullname || 'Unknown Patient'}
+                    </Text>
+                    <View className="flex-row items-center mb-2">
+                      <Feather name="alert-circle" size={14} color="#6B7280" />
+                      <Text className="text-sm text-gray-600 ml-2">
+                        {selectedRequest.ailmentCategory}
+                      </Text>
+                    </View>
+                    {selectedRequest.symptoms && (
+                      <View className="mt-2">
+                        <Text className="text-xs text-gray-500 mb-1">Symptoms:</Text>
+                        <Text className="text-sm text-gray-700">{selectedRequest.symptoms}</Text>
+                      </View>
+                    )}
+                    <View className="flex-row items-center mt-2">
+                      <Feather name="map-pin" size={14} color="#6B7280" />
+                      <Text className="text-sm text-gray-600 ml-2">
+                        {selectedRequest.address?.locality || 'Unknown location'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Fee Breakdown */}
+                  <View className="bg-blue-50 rounded-xl p-4 mb-4">
+                    <View className="flex-row justify-between mb-3">
+                      <Text className="text-sm text-gray-700">Consultation Fee:</Text>
+                      <Text className="text-base font-bold text-gray-900">
+                        N$ {selectedRequest.estimatedCost || 0}
+                      </Text>
                     </View>
                     <View className="flex-row justify-between">
-                      <Text className="text-gray-800 font-semibold">Our Commission:</Text>
-                      <Text className="text-gray-800">{selectedRequest.commission}</Text>
+                      <Text className="text-sm text-gray-700">Platform Commission:</Text>
+                      <Text className="text-base font-bold text-gray-900">
+                        N$ {Math.round((selectedRequest.estimatedCost || 0) * 0.1)}
+                      </Text>
+                    </View>
+                    <View className="flex-row justify-between mt-3 pt-3 border-t border-blue-100">
+                      <Text className="text-sm font-bold text-gray-900">Your Earnings:</Text>
+                      <Text className="text-base font-bold text-blue-600">
+                        N$ {Math.round((selectedRequest.estimatedCost || 0) * 0.9)}
+                      </Text>
                     </View>
                   </View>
 
-                  <View className="flex-row items-center justify-between mb-2">
-                    <Text className="text-lg font-semibold">Map View</Text>
+                  {/* Map */}
+                  {selectedRequest.address?.coordinates && (
+                    <View className="mb-4">
+                      <View className="flex-row items-center justify-between mb-3">
+                        <Text className="text-base font-bold text-gray-900">Location</Text>
+                      </View>
+
+                      <View className="rounded-xl overflow-hidden h-48 bg-gray-100 border border-gray-200">
+                        <MapView
+                          style={styles.map}
+                          initialRegion={{
+                            latitude: selectedRequest.address.coordinates.latitude,
+                            longitude: selectedRequest.address.coordinates.longitude,
+                            latitudeDelta: 0.01,
+                            longitudeDelta: 0.01,
+                          }}
+                          provider={PROVIDER_GOOGLE}
+                        >
+                          <Marker
+                            coordinate={{
+                              latitude: selectedRequest.address.coordinates.latitude,
+                              longitude: selectedRequest.address.coordinates.longitude,
+                            }}
+                            title={selectedRequest.patientId?.fullname}
+                            description={selectedRequest.ailmentCategory}
+                          />
+                        </MapView>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Actions */}
+                  <View className="flex-row" style={{ gap: 10 }}>
                     <TouchableOpacity
-                      onPress={focusMap}
-                      className="px-3 py-1 rounded-full bg-blue-600"
+                      onPress={() =>
+                        handleDecline(selectedRequest._id, selectedRequest.patientId?.fullname || 'Unknown')
+                      }
+                      className="flex-1 bg-gray-100 py-3.5 rounded-xl border border-gray-200"
                     >
-                      <Text className="text-xs font-semibold text-white">Focus</Text>
+                      <Text className="text-gray-700 font-bold text-center">
+                        Decline
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() =>
+                        handleAccept(selectedRequest._id, selectedRequest.patientId?.fullname || 'Unknown')
+                      }
+                      className="flex-1 bg-blue-600 py-3.5 rounded-xl"
+                    >
+                      <Text className="text-white font-bold text-center">
+                        Accept Request
+                      </Text>
                     </TouchableOpacity>
                   </View>
-
-                  <View className="rounded-lg overflow-hidden h-80 bg-gray-200">
-                    <MapView
-                      ref={mapRef}
-                      style={styles.map}
-                      initialRegion={INITIAL_REGION}
-                      provider={PROVIDER_GOOGLE}
-                      showsUserLocation
-                      showsMyLocationButton
-                    />
-                  </View>
-
-                  <View className="flex-row gap-2 mt-4">
-                    <TouchableOpacity
-                      onPress={() => handleDecline(selectedRequest.id, selectedRequest.name)}
-                      className="flex-1 bg-red-200 py-3 rounded-lg"
-                    >
-                      <Text className="text-black font-semibold text-center">Decline</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleAccept(selectedRequest.id, selectedRequest.name)}
-                      className="flex-1 bg-blue-600 py-3 rounded-lg"
-                    >
-                      <Text className="text-white font-semibold text-center">Accept</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <TouchableOpacity
-                    onPress={() => setSelectedRequest(null)}
-                    className="mt-4 py-2"
-                  >
-                    <Text className="text-center text-blue-600 font-semibold">Cancel</Text>
-                  </TouchableOpacity>
                 </View>
               </TouchableWithoutFeedback>
             </View>

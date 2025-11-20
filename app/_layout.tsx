@@ -25,8 +25,8 @@ const ProtectedLayout = () => {
       if (!isAuthenticated) {
         // User is not authenticated
         if (inApp) {
-          // Trying to access protected app routes, redirect to selection
-          router.replace('/(root)/selection');
+          // Trying to access protected app routes, redirect to sign-in
+          router.replace('/(root)/sign-in');
         }
       } else {
         // User is authenticated

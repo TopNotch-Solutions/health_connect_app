@@ -1,15 +1,19 @@
 import { Feather } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-    FlatList,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  FlatList,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import CreateRequestModal from '../../../components/(patient)/CreateRequestModal';
 import { useAuth } from '../../../context/AuthContext';
+import socketService from '../../../lib/socket';
 
 // --- Dummy Data (for UI development, replace with API data later) ---
 const healthTips = [
@@ -34,12 +38,12 @@ const healthTips = [
 ];
 
 const ailmentCategories = [
-  { id: '1', title: 'Flu, Cold & Cough', provider: 'Doctor', icon: 'thermometer' },
-  { id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'mic' },
-  { id: '3', title: 'Skin Rash', provider: 'Nurse', icon: 'aperture' },
-  { id: '4', title: 'Headache or Migraine', provider: 'Doctor', icon: 'zap' },
+  { id: '1', title: 'Flu, Cold & Cough', provider: 'Doctor', icon: 'wind' },
+  { id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'alert-circle' },
+  { id: '3', title: 'Skin Rash', provider: 'Nurse', icon: 'alert-octagon' },
+  { id: '4', title: 'Headache or Migraine', provider: 'Doctor', icon: 'activity' },
   { id: '5', title: 'Elderly Wellness Check', provider: 'Social Worker', icon: 'heart' },
-  { id: '6', title: 'Sports Injury', provider: 'Physiotherapist', icon: 'activity' },
+  { id: '6', title: 'Sports Injury', provider: 'Physiotherapist', icon: 'target' },
 ];
 
 const appointmentHistory = [
@@ -49,14 +53,23 @@ const appointmentHistory = [
 
 // --- Reusable Components for this Screen ---
 const HealthTipCard = ({ item }: { item: (typeof healthTips)[0] }) => (
-  <View className={`w-64 rounded-lg p-4 mr-3 ${item.bgColor}`}>
-    <Text className="font-bold text-base text-gray-800">{item.title}</Text>
-    <Text className="text-sm text-gray-700 mt-1">{item.content}</Text>
+  <View className={`rounded-lg p-6 ${item.bgColor}`} style={{ width: '100%' }}>
+    <Text className="font-bold text-lg text-gray-800">{item.title}</Text>
+    <Text className="text-base text-gray-700 mt-2">{item.content}</Text>
   </View>
 );
 
-const AilmentCard = ({ item }: { item: (typeof ailmentCategories)[0] }) => (
-  <TouchableOpacity className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200">
+const AilmentCard = ({ 
+  item, 
+  onPress 
+}: { 
+  item: (typeof ailmentCategories)[0]; 
+  onPress: () => void;
+}) => (
+  <TouchableOpacity 
+    onPress={onPress}
+    className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200"
+  >
     <Feather name={item.icon as any} size={24} color="#2563EB" />
     <Text className="text-base font-bold text-gray-800 mt-3">{item.title}</Text>
     <Text className="text-sm text-gray-600 mt-1">{item.provider}</Text>
@@ -78,19 +91,153 @@ const HistoryCard = ({ item }: { item: (typeof appointmentHistory)[0] }) => (
 );
 
 export default function PatientHomeScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const { user, logout } = useAuth();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { user } = useAuth();
+  const router = useRouter();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedAilment, setSelectedAilment] = useState('');
+  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [currentTipIndex, setCurrentTipIndex] = useState(0);
 
-  const handleLogout = async () => {
+  // Auto-scroll health tips
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTipIndex((prev) => (prev + 1) % healthTips.length);
+    }, 4000); // Change every 4 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Connect socket on mount
+  useEffect(() => {
+    if (user?.userId) {
+      // Connect with patient role
+      socketService.connect(user.userId, 'patient');
+    }
+
+    return () => {
+      socketService.disconnect();
+    };
+  }, [user?.userId]);
+
+  // Request location permissions on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission Required',
+            'Location permission is needed to send requests to nearby healthcare providers.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  // Set a default location for development (Johannesburg)
+                  setLocation({ latitude: -22.557840, longitude: 17.072891 });
+                  console.log('Location permission denied - using default location');
+                }
+              }
+            ]
+          );
+          return;
+        }
+
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setLocation({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+        });
+      } catch (error: any) {
+        console.error('Location error:', error);
+        // Set default location for emulator/testing
+        const defaultLocation = { latitude: -26.2041, longitude: 28.0473 };
+        setLocation(defaultLocation);
+        
+        Alert.alert(
+          'Location Unavailable',
+          'Could not get your current location. Using default location for testing. On a real device, please enable location services.',
+          [
+            {
+              text: 'Try Again',
+              onPress: async () => {
+                try {
+                  const currentLocation = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Low,
+                  });
+                  setLocation({
+                    latitude: currentLocation.coords.latitude,
+                    longitude: currentLocation.coords.longitude,
+                  });
+                } catch (retryError) {
+                  console.error('Retry failed:', retryError);
+                  // Keep using default location
+                }
+              }
+            },
+            { text: 'Use Default', style: 'cancel' }
+          ]
+        );
+      }
+    })();
+  }, []);
+
+  const handleAilmentSelect = (ailment: string) => {
+    setSelectedAilment(ailment);
+    setModalVisible(true);
+  };
+
+  const handleCreateRequest = async (requestData: {
+    ailmentCategory: string;
+    symptoms: string;
+    urgencyLevel: 'low' | 'medium' | 'high';
+    paymentMethod: 'wallet' | 'cash';
+    estimatedCost: number;
+  }) => {
+    // Check if location is available, if not try to get it again
+    let currentLocation = location;
+    
+    if (!currentLocation) {
+      try {
+        Alert.alert('Getting Location', 'Fetching your current location...');
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        currentLocation = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        };
+        setLocation(currentLocation);
+      } catch {
+        throw new Error('Location is required to create a request. Please enable location services and try again.');
+      }
+    }
+
+    if (!user?.userId) {
+      throw new Error('User not authenticated');
+    }
+
     try {
-      setIsLoggingOut(true);
-      await logout();
-      // Don't manually navigate - let the root layout handle it
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      setIsLoggingOut(false);
+      const request = await socketService.createRequest({
+        patientId: user.userId,
+        location: currentLocation,
+        ailmentCategory: requestData.ailmentCategory,
+        urgencyLevel: requestData.urgencyLevel,
+        paymentMethod: requestData.paymentMethod,
+        symptoms: requestData.symptoms,
+        estimatedCost: requestData.estimatedCost,
+      });
+
+      Alert.alert(
+        'Request Created',
+        'Your request has been sent to nearby healthcare providers. You will be notified when a provider accepts.',
+        [{ text: 'OK' }]
+      );
+
+      console.log('Request created:', request);
+    } catch (error: any) {
+      throw new Error(error.message || 'Failed to create request');
     }
   };
 
@@ -120,17 +267,6 @@ export default function PatientHomeScreen() {
                 {user?.fullname || 'Patient'}
               </Text>
             </View>
-
-            <TouchableOpacity
-              onPress={handleLogout}
-              disabled={isLoggingOut}
-              className="flex-row items-center justify-center bg-red-500 px-4 py-2 rounded-lg"
-            >
-              <Feather name="log-out" size={20} color="#FFFFFFFF" />
-              <Text className="ml-2 text-sm font-semibold text-white">
-                {isLoggingOut ? 'Logging out...' : 'Logout'}
-              </Text>
-            </TouchableOpacity>
           </View>
 
           {/* Info Banner (styled like Provider approval banner) */}
@@ -143,36 +279,23 @@ export default function PatientHomeScreen() {
             </Text>
           </View>
 
-          {/* Health Tips Section (with Provider-style padding) */}
-          <View className="px-4 mb-6">
-            <Text className="text-xl font-bold text-gray-800 mb-3">
+          {/* Health Tips Section - Auto Scrolling */}
+          <View className="mb-8 px-4">
+            <Text className="text-xl font-bold text-gray-800 mb-4">
               Health Tips
             </Text>
-            <FlatList
-              data={healthTips}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingRight: 16 }}
-              renderItem={({ item }) => <HealthTipCard item={item} />}
-            />
+            <HealthTipCard item={healthTips[currentTipIndex]} />
           </View>
 
           {/* Main Content Area */}
           <View className="px-4 mb-6">
-            <Text className="text-2xl font-bold text-gray-800 mb-4">
-              What do you need help with today?
-            </Text>
-
-            {/* Search Bar (card-like, similar borders to Provider stats) */}
-            <View className="flex-row items-center bg-white border-2 border-gray-200 rounded-lg px-3 py-2 mb-6">
-              <Feather name="search" size={20} color="#6B7280" />
-              <TextInput
-                placeholder="Search or select ailment"
-                className="flex-1 ml-3 text-base"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-2xl font-bold text-gray-800">
+                What do you need help with today?
+              </Text>
+              <TouchableOpacity onPress={() => router.push('/(app)/(patient)/all_ailments')}>
+                <Text className="font-semibold text-blue-600">See all</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Ailment Grid (cards styled like Provider request cards) */}
@@ -182,7 +305,9 @@ export default function PatientHomeScreen() {
               numColumns={2}
               scrollEnabled={false} // Disable scrolling for this nested list
               columnWrapperStyle={{ justifyContent: 'space-between' }}
-              renderItem={({ item }) => <AilmentCard item={item} />}
+              renderItem={({ item }) => (
+                <AilmentCard item={item} onPress={() => handleAilmentSelect(item.title)} />
+              )}
             />
           </View>
 
@@ -212,19 +337,18 @@ export default function PatientHomeScreen() {
               </View>
             )}
           </View>
-
-          {/* Spacer so content isn't hidden behind sticky button */}
-          <View className="h-24" />
         </ScrollView>
 
-        {/* Sticky Call Now Button (styled like Provider “Accept” button) */}
-        <View className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200">
-          <TouchableOpacity className="w-full bg-blue-600 py-3 rounded-lg">
-            <Text className="text-white text-center text-lg font-semibold">
-              Call Now
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* Create Request Modal */}
+        <CreateRequestModal
+          visible={modalVisible}
+          onClose={() => {
+            setModalVisible(false);
+            setSelectedAilment('');
+          }}
+          onSubmit={handleCreateRequest}
+          selectedAilment={selectedAilment}
+        />
       </View>
     </SafeAreaView>
   );
