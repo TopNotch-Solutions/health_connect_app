@@ -15,12 +15,12 @@ import socketService from '../../../lib/socket';
 import * as Location from 'expo-location';
 
 const ailmentCategories = [
-  { id: '1', title: 'Flu, Cold & Cough', provider: 'Doctor', icon: 'wind' },
-  { id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'alert-circle' },
-  { id: '3', title: 'Skin Rash', provider: 'Nurse', icon: 'alert-octagon' },
-  { id: '4', title: 'Headache or Migraine', provider: 'Doctor', icon: 'activity' },
-  { id: '5', title: 'Elderly Wellness Check', provider: 'Social Worker', icon: 'heart' },
-  { id: '6', title: 'Sports Injury', provider: 'Physiotherapist', icon: 'target' },
+  { _id: '1', title: 'Flu, Cold & Cough Symptoms', provider: 'Doctor', icon: 'wind' },
+  { _id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'alert-circle' },
+  { _id: '3', title: 'New or Worsening Skin Rash', provider: 'Nurse', icon: 'alert-octagon' },
+  { _id: '4', title: 'Headaches or Migraines', provider: 'Doctor', icon: 'activity' },
+  { _id: '5', title: 'Elderly Parent Wellness Check', provider: 'Social Worker', icon: 'heart' },
+  { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist', icon: 'target' },
 ];
 
 const AilmentCard = ({ 
@@ -45,7 +45,7 @@ export default function AllAilmentsScreen() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedAilment, setSelectedAilment] = useState('');
+  const [selectedAilment, setSelectedAilment] = useState<any>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   // Filter ailments based on search
@@ -54,17 +54,21 @@ export default function AllAilmentsScreen() {
     ailment.provider.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleAilmentSelect = (ailment: string) => {
+  const handleAilmentSelect = (ailment: any) => {
     setSelectedAilment(ailment);
     setModalVisible(true);
   };
 
   const handleCreateRequest = async (requestData: {
     ailmentCategory: string;
+    ailmentCategoryId?: string;
     symptoms: string;
-    urgencyLevel: 'low' | 'medium' | 'high';
     paymentMethod: 'wallet' | 'cash';
-    estimatedCost: number;
+    dueCost: number;
+    street: string;
+    locality: string;
+    region: string;
+    preferredTime?: string;
   }) => {
     // Check if location is available, if not try to get it again
     let currentLocation = location;
@@ -93,10 +97,20 @@ export default function AllAilmentsScreen() {
         patientId: user.userId,
         location: currentLocation,
         ailmentCategory: requestData.ailmentCategory,
-        urgencyLevel: requestData.urgencyLevel,
+        ailmentCategoryId: requestData.ailmentCategoryId,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
-        estimatedCost: requestData.estimatedCost,
+        estimatedCost: requestData.dueCost,
+        address: {
+          route: requestData.street,
+          locality: requestData.locality,
+          administrative_area_level_1: requestData.region,
+          coordinates: {
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+          },
+        },
+        preferredTime: requestData.preferredTime,
       });
 
       console.log('Request created:', request);
@@ -132,12 +146,12 @@ export default function AllAilmentsScreen() {
         {/* Ailment Grid */}
         <FlatList
           data={filteredAilments}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item._id}
           numColumns={2}
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}
           columnWrapperStyle={{ justifyContent: 'space-between' }}
           renderItem={({ item }) => (
-            <AilmentCard item={item} onPress={() => handleAilmentSelect(item.title)} />
+            <AilmentCard item={item} onPress={() => handleAilmentSelect(item)} />
           )}
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center py-12">
@@ -155,7 +169,7 @@ export default function AllAilmentsScreen() {
         visible={modalVisible}
         onClose={() => {
           setModalVisible(false);
-          setSelectedAilment('');
+          setSelectedAilment(null);
         }}
         onSubmit={handleCreateRequest}
         selectedAilment={selectedAilment}

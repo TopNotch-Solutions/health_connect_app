@@ -197,6 +197,7 @@ export default function ProviderRegistrationScreen() {
     idDocumentBack: null as DocFile,
     primaryQualification: null as DocFile,
     annualQualification: null as DocFile,
+    prescribingCertificate: null as DocFile,
   });
 
   const [professionalDetails, setProfessionalDetails] = useState({
@@ -388,6 +389,7 @@ export default function ProviderRegistrationScreen() {
       [documents.idDocumentBack, 'idDocumentBack'],
       [documents.primaryQualification, 'primaryQualification'],
       [documents.annualQualification, 'annualQualification'],
+      [documents.prescribingCertificate, 'prescribingCerificate'],
     ];
 
     files.forEach(([f, key]) => {
@@ -419,6 +421,8 @@ export default function ProviderRegistrationScreen() {
     if (!documents.primaryQualification) missing.push('Primary Qualification');
     if (!documents.annualQualification)
       missing.push('Annual Practicing Certificate');
+    if (params?.providerType === 'nurse' && !documents.prescribingCertificate)
+      missing.push('Prescribing Certificate');
 
     if (missing.length) {
       Alert.alert('Missing info', 'Please provide:\n• ' + missing.join('\n• '));
@@ -637,6 +641,17 @@ export default function ProviderRegistrationScreen() {
                 onPick={() => pickDocument('annualQualification')}
                 icon="calendar"
               />
+              {params?.providerType === 'nurse' && (
+                <>
+                  <View className="h-3" />
+                  <UploadBox
+                    label="Upload Prescribing Certificate"
+                    file={documents.prescribingCertificate}
+                    onPick={() => pickDocument('prescribingCertificate')}
+                    icon="file-text"
+                  />
+                </>
+              )}
             </View>
           )}
 
@@ -872,6 +887,12 @@ export default function ProviderRegistrationScreen() {
                   label="Annual Practicing Certificate"
                   file={documents.annualQualification}
                 />
+                {params?.providerType === 'nurse' && (
+                  <DocRow
+                    label="Prescribing Certificate"
+                    file={documents.prescribingCertificate}
+                  />
+                )}
               </View>
             </View>
           )}

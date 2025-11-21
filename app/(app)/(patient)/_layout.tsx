@@ -115,6 +115,12 @@ export default function PatientTabLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="recent-activities"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

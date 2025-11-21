@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Alert,
   FlatList,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import CreateRequestModal from '../../../components/(patient)/CreateRequestModal';
 import { useAuth } from '../../../context/AuthContext';
 import socketService from '../../../lib/socket';
@@ -37,18 +38,14 @@ const healthTips = [
   },
 ];
 
-const ailmentCategories = [
-  { id: '1', title: 'Flu, Cold & Cough', provider: 'Doctor', icon: 'wind' },
-  { id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'alert-circle' },
-  { id: '3', title: 'Skin Rash', provider: 'Nurse', icon: 'alert-octagon' },
-  { id: '4', title: 'Headache or Migraine', provider: 'Doctor', icon: 'activity' },
-  { id: '5', title: 'Elderly Wellness Check', provider: 'Social Worker', icon: 'heart' },
-  { id: '6', title: 'Sports Injury', provider: 'Physiotherapist', icon: 'target' },
-];
-
-const appointmentHistory = [
-  { id: '1', ailment: 'Fever & Flu', status: 'Completed', date: 'Oct 26, 2023' },
-  { id: '2', ailment: 'Sports Injury', status: 'Upcoming', date: 'Nov 15, 2023' },
+// Ailment categories will be fetched from backend
+const defaultAilmentCategories = [
+  { _id: '1', title: 'Flu, Cold & Cough Symptoms', provider: 'Doctor', icon: 'wind' },
+  { _id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'alert-circle' },
+  { _id: '3', title: 'New or Worsening Skin Rash', provider: 'Nurse', icon: 'alert-octagon' },
+  { _id: '4', title: 'Headaches or Migraines', provider: 'Doctor', icon: 'activity' },
+  { _id: '5', title: 'Elderly Parent Wellness Check', provider: 'Social Worker', icon: 'heart' },
+  { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist', icon: 'target' },
 ];
 
 // --- Reusable Components for this Screen ---
@@ -63,7 +60,7 @@ const AilmentCard = ({
   item, 
   onPress 
 }: { 
-  item: (typeof ailmentCategories)[0]; 
+  item: any; 
   onPress: () => void;
 }) => (
   <TouchableOpacity 
@@ -76,17 +73,24 @@ const AilmentCard = ({
   </TouchableOpacity>
 );
 
-const HistoryCard = ({ item }: { item: (typeof appointmentHistory)[0] }) => (
-  <View className="bg-white p-4 rounded-lg border-2 border-gray-200 flex-1">
-    <Text className="text-base font-semibold text-gray-800">{item.ailment}</Text>
+interface HistoryItem {
+  _id: string;
+  ailment: string;
+  status: string;
+  date: string;
+}
+
+const HistoryCard = ({ item }: { item: HistoryItem }) => (
+  <View className="w-[48%] bg-white p-4 rounded-lg mb-4 border-2 border-gray-200">
+    <Text className="text-base font-bold text-gray-800 mb-2">{item.ailment}</Text>
     <Text
-      className={`text-sm font-bold mt-1 ${
-        item.status === 'Completed' ? 'text-green-600' : 'text-blue-600'
+      className={`text-xs font-bold mb-1 ${
+        item.status === 'completed' ? 'text-green-600' : item.status === 'cancelled' ? 'text-red-600' : item.status === 'pending' || item.status === 'searching' ? 'text-yellow-600' : 'text-blue-600'
       }`}
     >
-      {item.status}
+      {item.status.charAt(0).toUpperCase() + item.status.slice(1).replace('_', ' ')}
     </Text>
-    <Text className="text-xs text-gray-500 mt-1">{item.date}</Text>
+    <Text className="text-xs text-gray-500">{item.date}</Text>
   </View>
 );
 
@@ -94,9 +98,134 @@ export default function PatientHomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedAilment, setSelectedAilment] = useState('');
+  const [selectedAilment, setSelectedAilment] = useState<any>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
+  const [recentRequests, setRecentRequests] = useState<HistoryItem[]>([]);
+  const [ailmentCategories, setAilmentCategories] = useState<any[]>([]);
+  const [isLoadingAilments, setIsLoadingAilments] = useState(false);
+
+  // Function to fetch ailment categories from backend
+  const loadAilmentCategories = useCallback(async () => {
+    try {
+      setIsLoadingAilments(true);
+      const socket = socketService.getSocket();
+      
+      if (!socket?.connected) {
+        console.warn('⚠️ Socket not connected, using default ailment categories');
+        setAilmentCategories(defaultAilmentCategories);
+        return;
+      }
+
+      return new Promise<void>((resolve) => {
+        let resolved = false;
+
+        const handleAilmentCategories = (categories: any) => {
+          if (resolved) return;
+          resolved = true;
+          
+          console.log('📋 Received ailment categories from backend:', categories);
+          if (Array.isArray(categories) && categories.length > 0) {
+            setAilmentCategories(categories);
+          } else {
+            console.warn('⚠️ No ailment categories received, using defaults');
+            setAilmentCategories(defaultAilmentCategories);
+          }
+          socket?.off('ailmentCategories', handleAilmentCategories);
+          resolve();
+        };
+
+        const timeout = setTimeout(() => {
+          if (resolved) return;
+          resolved = true;
+          
+          console.warn('⚠️ Ailment categories request timeout, using defaults');
+          socket?.off('ailmentCategories', handleAilmentCategories);
+          setAilmentCategories(defaultAilmentCategories);
+          resolve();
+        }, 5000);
+
+        socket?.on('ailmentCategories', handleAilmentCategories);
+        console.log('📤 Emitting getAilmentCategories request');
+        socket?.emit('getAilmentCategories');
+      });
+    } catch (error) {
+      console.error('Error loading ailment categories:', error);
+      setAilmentCategories(defaultAilmentCategories);
+    } finally {
+      setIsLoadingAilments(false);
+    }
+  }, []);
+
+  // Function to load recent requests
+  const loadRecentRequests = useCallback(async () => {
+    try {
+      // Fetch requests from backend via socket
+      if (user?.userId && socketService.getSocket()?.connected) {
+        const liveRequests = await socketService.getPatientRequests(user.userId);
+        console.log('🔍 Raw requests received:', liveRequests);
+        
+        if (Array.isArray(liveRequests) && liveRequests.length > 0) {
+          console.log('First request full structure:', JSON.stringify(liveRequests[0], null, 2));
+        }
+        
+        if (Array.isArray(liveRequests)) {
+          // Load ailment mappings from local storage
+          const ailmentMappingsStr = await AsyncStorage.getItem(`ailment-mappings-${user.userId}`);
+          const ailmentMappings = ailmentMappingsStr ? JSON.parse(ailmentMappingsStr) : {};
+          console.log('📍 Ailment mappings:', ailmentMappings);
+          
+          // Get the 2 most recent requests
+          const recent = liveRequests
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 2)
+            .map((item: any) => {
+              // Log each item's ailment structure
+              console.log('Item ailmentCategoryId:', item.ailmentCategoryId);
+              console.log('Item ailmentCategoryId type:', typeof item.ailmentCategoryId);
+              
+              // Try to get ailment name from backend data first
+              let ailmentName = 'Unknown';
+              
+              // First, try ailmentCategoryId.title (populated object)
+              if (item.ailmentCategoryId?.title) {
+                ailmentName = item.ailmentCategoryId.title;
+              }
+              // Try ailmentCategory field
+              else if (item.ailmentCategory) {
+                ailmentName = item.ailmentCategory;
+              }
+              // Try ailmentCategoryId.name (alternative field name)
+              else if (item.ailmentCategoryId?.name) {
+                ailmentName = item.ailmentCategoryId.name;
+              }
+              // Fall back to local mapping if available
+              else if (ailmentMappings[item._id]) {
+                ailmentName = ailmentMappings[item._id];
+                console.log('✅ Got ailment from local mapping:', ailmentName);
+              }
+              
+              console.log('Resolved ailment name:', ailmentName);
+              
+              return {
+                _id: item._id,
+                ailment: ailmentName,
+                status: item.status,
+                date: new Date(item.createdAt).toLocaleDateString('en-ZA', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                }),
+              };
+            });
+          console.log('📋 Final recent requests:', recent);
+          setRecentRequests(recent);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading recent requests:', error);
+    }
+  }, [user?.userId]);
 
   // Auto-scroll health tips
   useEffect(() => {
@@ -107,17 +236,31 @@ export default function PatientHomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Connect socket on mount
+  // Connect socket on mount and load ailment categories
   useEffect(() => {
     if (user?.userId) {
       // Connect with patient role
       socketService.connect(user.userId, 'patient');
-    }
+      
+      // Load ailment categories after a brief delay to ensure socket is connected
+      const timer = setTimeout(() => {
+        loadAilmentCategories();
+      }, 1000);
 
-    return () => {
-      socketService.disconnect();
-    };
-  }, [user?.userId]);
+      return () => clearTimeout(timer);
+    }
+  }, [user?.userId, loadAilmentCategories]);
+
+  // Load recent requests on mount and when screen comes into focus
+  useEffect(() => {
+    loadRecentRequests();
+  }, [loadRecentRequests]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadRecentRequests();
+    }, [loadRecentRequests])
+  );
 
   // Request location permissions on mount
   useEffect(() => {
@@ -183,17 +326,21 @@ export default function PatientHomeScreen() {
     })();
   }, []);
 
-  const handleAilmentSelect = (ailment: string) => {
+  const handleAilmentSelect = (ailment: any) => {
     setSelectedAilment(ailment);
     setModalVisible(true);
   };
 
   const handleCreateRequest = async (requestData: {
     ailmentCategory: string;
+    ailmentCategoryId?: string;
     symptoms: string;
-    urgencyLevel: 'low' | 'medium' | 'high';
     paymentMethod: 'wallet' | 'cash';
-    estimatedCost: number;
+    dueCost: number;
+    street: string;
+    locality: string;
+    region: string;
+    preferredTime?: string;
   }) => {
     // Check if location is available, if not try to get it again
     let currentLocation = location;
@@ -223,11 +370,34 @@ export default function PatientHomeScreen() {
         patientId: user.userId,
         location: currentLocation,
         ailmentCategory: requestData.ailmentCategory,
-        urgencyLevel: requestData.urgencyLevel,
+        ailmentCategoryId: requestData.ailmentCategoryId,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
-        estimatedCost: requestData.estimatedCost,
+        estimatedCost: requestData.dueCost,
+        address: {
+          route: requestData.street,
+          locality: requestData.locality,
+          administrative_area_level_1: requestData.region,
+          coordinates: {
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+          },
+        },
+        preferredTime: requestData.preferredTime,
       });
+
+      // Save ailment mapping locally for future reference (since backend stores null)
+      if (request && (request as any)._id) {
+        try {
+          const ailmentMappingsStr = await AsyncStorage.getItem(`ailment-mappings-${user.userId}`);
+          const ailmentMappings = ailmentMappingsStr ? JSON.parse(ailmentMappingsStr) : {};
+          ailmentMappings[(request as any)._id] = requestData.ailmentCategory;
+          await AsyncStorage.setItem(`ailment-mappings-${user.userId}`, JSON.stringify(ailmentMappings));
+          console.log('💾 Saved ailment mapping:', ailmentMappings);
+        } catch (storageError) {
+          console.error('Error saving ailment mapping:', storageError);
+        }
+      }
 
       Alert.alert(
         'Request Created',
@@ -236,6 +406,9 @@ export default function PatientHomeScreen() {
       );
 
       console.log('Request created:', request);
+      
+      // Refresh recent requests to show the newly created request
+      loadRecentRequests();
     } catch (error: any) {
       throw new Error(error.message || 'Failed to create request');
     }
@@ -299,30 +472,36 @@ export default function PatientHomeScreen() {
             </View>
 
             {/* Ailment Grid (cards styled like Provider request cards) */}
-            <FlatList
-              data={ailmentCategories}
-              keyExtractor={(item) => item.id}
-              numColumns={2}
-              scrollEnabled={false} // Disable scrolling for this nested list
-              columnWrapperStyle={{ justifyContent: 'space-between' }}
-              renderItem={({ item }) => (
-                <AilmentCard item={item} onPress={() => handleAilmentSelect(item.title)} />
-              )}
-            />
+            {isLoadingAilments ? (
+              <View className="items-center justify-center py-8">
+                <Text className="text-gray-600">Loading ailments...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={ailmentCategories.length > 0 ? ailmentCategories.slice(0, 6) : defaultAilmentCategories.slice(0, 6)}
+                keyExtractor={(item) => item._id}
+                numColumns={2}
+                scrollEnabled={false} // Disable scrolling for this nested list
+                columnWrapperStyle={{ justifyContent: 'space-between' }}
+                renderItem={({ item }) => (
+                  <AilmentCard item={item} onPress={() => handleAilmentSelect(item)} />
+                )}
+              />
+            )}
           </View>
 
-          {/* Recent Activity / History Section (similar spacing to Incoming Requests) */}
+          {/* Recent Activity / History Section (similar spacing to Ailments) */}
           <View className="px-4 mb-8">
-            <View className="flex-row justify-between items-center mb-3">
+            <View className="flex-row justify-between items-center mb-4">
               <Text className="text-xl font-bold text-gray-800">
                 Recent Activity
               </Text>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/(app)/(patient)/recent-activities')}>
                 <Text className="font-semibold text-blue-600">See all</Text>
               </TouchableOpacity>
             </View>
 
-            {appointmentHistory.length === 0 ? (
+            {recentRequests.length === 0 ? (
               <View className="bg-white rounded-lg border-2 border-gray-200 p-6 items-center">
                 <Feather name="clock" size={40} color="#9CA3AF" />
                 <Text className="text-gray-600 mt-3 text-center">
@@ -330,11 +509,14 @@ export default function PatientHomeScreen() {
                 </Text>
               </View>
             ) : (
-              <View className="flex-row" style={{ gap: 12 }}>
-                {appointmentHistory.map((item) => (
-                  <HistoryCard key={item.id} item={item} />
-                ))}
-              </View>
+              <FlatList
+                data={recentRequests}
+                keyExtractor={(item) => item._id}
+                numColumns={2}
+                scrollEnabled={false}
+                columnWrapperStyle={{ justifyContent: 'space-between' }}
+                renderItem={({ item }) => <HistoryCard item={item} />}
+              />
             )}
           </View>
         </ScrollView>
@@ -344,7 +526,7 @@ export default function PatientHomeScreen() {
           visible={modalVisible}
           onClose={() => {
             setModalVisible(false);
-            setSelectedAilment('');
+            setSelectedAilment(null);
           }}
           onSubmit={handleCreateRequest}
           selectedAilment={selectedAilment}

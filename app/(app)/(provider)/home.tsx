@@ -1,6 +1,7 @@
 // app/(provider)/home.tsx
 
 import { Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -44,11 +45,15 @@ export default function ProviderHome() {
     }
 
     console.log('📥 Starting to load available requests for provider:', user.userId);
-    const socket = socketService.getSocket();
-    console.log('📡 Socket connected status:', socket?.connected);
 
     try {
       setIsLoadingRequests(true);
+      
+      // Wait for socket to be ready
+      console.log('⏳ Waiting for socket to connect...');
+      await socketService.waitForConnection(5000);
+      
+      console.log('📡 Socket is ready, fetching requests');
       const availableRequests = await socketService.getAvailableRequests(user.userId);
       console.log('✅ Available requests received:', availableRequests);
       setRequests(Array.isArray(availableRequests) ? availableRequests : []);
@@ -69,27 +74,38 @@ export default function ProviderHome() {
       socketService.connect(user.userId, user.role as any || 'doctor');
       
       const socket = socketService.getSocket();
+      console.log('📡 Initial socket state:', socket?.connected);
       
       // Listen for connect event
       const handleConnect = () => {
-        console.log('✅ Socket connected, loading requests...');
+        console.log('✅ Socket connected event fired, loading requests...');
         loadAvailableRequests();
       };
       
-      // If already connected, load immediately
+      // If already connected, wait a bit and try loading
       if (socket?.connected) {
         console.log('✅ Socket already connected, loading requests...');
         loadAvailableRequests();
       } else {
+        console.log('⏳ Socket not yet connected, waiting for connect event...');
         socket?.on('connect', handleConnect);
       }
 
       return () => {
         socket?.off('connect', handleConnect);
-        socketService.disconnect();
       };
     }
   }, [user?.userId, user?.role, loadAvailableRequests]);
+
+  // Refresh requests when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 Screen came into focus, refreshing requests');
+      if (user?.userId) {
+        loadAvailableRequests();
+      }
+    }, [user?.userId, loadAvailableRequests])
+  );
 
   // Listen for new request notifications
   useEffect(() => {
@@ -110,9 +126,14 @@ export default function ProviderHome() {
 
     try {
       await socketService.acceptRequest(requestId, user.userId);
+      // Remove from available requests and reload to get updated list
       setRequests((prev) => prev.filter((req) => req._id !== requestId));
       setSelectedRequest(null);
       Alert.alert('Success', `Accepted consultation request from ${patientName}`);
+      // Reload requests to ensure state is synced
+      setTimeout(() => {
+        loadAvailableRequests();
+      }, 500);
     } catch (error: any) {
       console.error('Error accepting request:', error);
       Alert.alert('Error', error.message || 'Failed to accept request');

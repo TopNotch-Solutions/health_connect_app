@@ -342,7 +342,7 @@ const handleRegister = async () => {
                                     className="absolute right-4 top-4"
                                     style={{ height: 24, width: 24, justifyContent: 'center', alignItems: 'center' }}
                                 >
-                                    <Feather name={showPassword ? "eye-off" : "eye"} size={20} color="#6B7280" />
+                                    <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="#6B7280" />
                                 </TouchableOpacity>
                             </View>
                             {errors.password && <Text className="text-red-500 text-sm mb-3">{errors.password}</Text>}
@@ -362,7 +362,7 @@ const handleRegister = async () => {
                                     className="absolute right-4 top-4"
                                     style={{ height: 24, width: 24, justifyContent: 'center', alignItems: 'center' }}
                                 >
-                                    <Feather name={showConfirmPassword ? "eye-off" : "eye"} size={20} color="#6B7280" />
+                                    <Feather name={showConfirmPassword ? "eye" : "eye-off"} size={20} color="#6B7280" />
                                 </TouchableOpacity>
                             </View>
                             {errors.confirmPassword && <Text className="text-red-500 text-sm mb-3">{errors.confirmPassword}</Text>}

@@ -1,17 +1,21 @@
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
+import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
 import socketService from '../../../lib/socket';
+import PatientProviderTracking from '../../../components/(patient)/PatientProviderTracking';
 
 interface RequestStatus {
   _id: string;
@@ -119,13 +123,45 @@ const UrgencyBadge = ({ urgency }: { urgency: string }) => {
   );
 };
 
-const RequestCard = ({ item }: { item: StoredRequest }) => {
+const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest; onCancel?: (requestId: string) => void; patientLocation?: { latitude: number; longitude: number } | null }) => {
   const request = item.request;
   const acceptedAt = item.acceptedAt;
   const expiresAt = acceptedAt + 24 * 60 * 60 * 1000; // 24 hours
   const timeRemaining = expiresAt - Date.now();
   const hoursRemaining = Math.floor(timeRemaining / (60 * 60 * 1000));
   const minutesRemaining = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [trackingModalVisible, setTrackingModalVisible] = useState(false);
+
+  const handleCancel = async () => {
+    Alert.alert(
+      'Cancel Request',
+      'Are you sure you want to cancel this healthcare request?',
+      [
+        {
+          text: 'No',
+          onPress: () => {},
+          style: 'cancel',
+        },
+        {
+          text: 'Yes, Cancel',
+          onPress: async () => {
+            try {
+              setIsCancelling(true);
+              await socketService.cancelRequest(request._id, 'patient', 'Patient cancelled the request');
+              // Remove from UI immediately
+              onCancel?.(request._id);
+              Alert.alert('Cancelled', 'Your request has been cancelled');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to cancel request');
+              setIsCancelling(false);
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
 
   const getStatusDescription = (status: string) => {
     switch (status) {
@@ -224,11 +260,52 @@ const RequestCard = ({ item }: { item: StoredRequest }) => {
 
       {/* Expiration notice for accepted requests */}
       {request.status === 'accepted' && timeRemaining > 0 && (
-        <View className="bg-amber-50 rounded-lg p-2 border border-amber-200">
+        <View className="bg-amber-50 rounded-lg p-2 border border-amber-200 mb-3">
           <Text className="text-xs text-amber-800">
             This entry will expire in <Text className="font-semibold">{hoursRemaining}h {minutesRemaining}m</Text>
           </Text>
         </View>
+      )}
+
+      {/* Track Provider button - show if en_route or arrived */}
+      {['en_route', 'arrived'].includes(request.status) && request.providerId && (
+        <>
+          <TouchableOpacity
+            onPress={() => setTrackingModalVisible(true)}
+            className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3"
+          >
+            <View className="flex-row items-center justify-center">
+              <Feather name="map" size={16} color="#15803d" />
+              <Text className="text-green-600 font-semibold text-sm ml-2">Track Provider on Map</Text>
+            </View>
+          </TouchableOpacity>
+
+          <PatientProviderTracking
+            visible={trackingModalVisible}
+            onClose={() => setTrackingModalVisible(false)}
+            requestId={request._id}
+            patientLocation={patientLocation}
+            providerName={request.providerId.fullname}
+          />
+        </>
+      )}
+
+      {/* Cancel button for active requests */}
+      {['searching', 'pending', 'accepted', 'en_route'].includes(request.status) && (
+        <TouchableOpacity
+          onPress={handleCancel}
+          disabled={isCancelling}
+          className="bg-red-50 border border-red-200 rounded-lg p-3"
+        >
+          {isCancelling ? (
+            <ActivityIndicator size="small" color="#dc2626" />
+          ) : (
+            <View className="flex-row items-center justify-center">
+              <Feather name="x-circle" size={16} color="#dc2626" />
+              <Text className="text-red-600 font-semibold text-sm ml-2">Cancel Request</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -239,6 +316,36 @@ export default function WaitingRoom() {
   const [requests, setRequests] = useState<StoredRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [patientLocation, setPatientLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  const handleRequestCancelled = useCallback((requestId: string) => {
+    setRequests((prev) => prev.filter((item) => item.request._id !== requestId));
+  }, []);
+
+  // Get patient's current location on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('Location permission denied, using default');
+          setPatientLocation({ latitude: -26.2041, longitude: 28.0473 }); // Pretoria default
+          return;
+        }
+
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setPatientLocation({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+        });
+      } catch (error) {
+        console.error('Error getting location:', error);
+        setPatientLocation({ latitude: -26.2041, longitude: 28.0473 }); // Default location
+      }
+    })();
+  }, []);
 
   // Fetch requests from socket and load stored requests
   const loadRequests = useCallback(async () => {
@@ -247,22 +354,17 @@ export default function WaitingRoom() {
       const storedData = await AsyncStorage.getItem(`waiting-room-${user?.userId}`);
       let storedRequests: StoredRequest[] = storedData ? JSON.parse(storedData) : [];
 
-      // Filter out expired requests (older than 24 hours for accepted status)
-      const now = Date.now();
-      storedRequests = storedRequests.filter((item) => {
-        if (item.request.status === 'accepted') {
-          const expiresAt = item.acceptedAt + 24 * 60 * 60 * 1000;
-          return now < expiresAt;
-        }
-        // Keep non-accepted requests
-        return true;
-      });
-
       // Also fetch live requests from socket
       if (user?.userId && socketService.getSocket()?.connected) {
         try {
           const liveRequests = await socketService.getPatientRequests(user.userId);
           if (Array.isArray(liveRequests)) {
+            // Create a set of live request IDs for filtering
+            const liveRequestIds = new Set(liveRequests.map((req: RequestStatus) => req._id));
+
+            // Filter stored requests to only keep those that exist in live data
+            storedRequests = storedRequests.filter((item) => liveRequestIds.has(item.request._id));
+
             // Merge live requests with stored ones, prioritizing live data
             const mergedRequests = new Map<string, StoredRequest>();
 
@@ -270,6 +372,8 @@ export default function WaitingRoom() {
             storedRequests.forEach((item) => {
               mergedRequests.set(item.request._id, item);
             });
+
+            const now = Date.now();
 
             // Override with live requests
             liveRequests.forEach((req: RequestStatus) => {
@@ -287,7 +391,7 @@ export default function WaitingRoom() {
             const merged = Array.from(mergedRequests.values());
             setRequests(merged);
 
-            // Save updated requests to storage
+            // Save updated requests to storage (now only valid ones)
             await AsyncStorage.setItem(`waiting-room-${user?.userId}`, JSON.stringify(merged));
           } else {
             setRequests(storedRequests);
@@ -297,6 +401,17 @@ export default function WaitingRoom() {
           setRequests(storedRequests);
         }
       } else {
+        // If not connected, still validate stored requests against last known state
+        const now = Date.now();
+        storedRequests = storedRequests.filter((item) => {
+          if (item.request.status === 'accepted') {
+            const expiresAt = item.acceptedAt + 24 * 60 * 60 * 1000;
+            return now < expiresAt;
+          }
+          // For non-accepted requests, only keep recent ones (within 6 hours)
+          const age = now - new Date(item.request.createdAt).getTime();
+          return age < 6 * 60 * 60 * 1000;
+        });
         setRequests(storedRequests);
       }
     } catch (error) {
@@ -386,18 +501,23 @@ export default function WaitingRoom() {
   }, [loadRequests]);
 
   // Sort requests: active/current ones first, then past ones
-  const sortedRequests = [...requests].sort((a, b) => {
-    const activeStatuses = ['searching', 'pending', 'accepted', 'en_route', 'arrived', 'in_progress'];
-    const aIsActive = activeStatuses.includes(a.request.status);
-    const bIsActive = activeStatuses.includes(b.request.status);
+  const sortedRequests = [...requests]
+    .filter(
+      (item) =>
+        !['completed', 'cancelled', 'expired', 'rejected'].includes(item.request.status)
+    )
+    .sort((a, b) => {
+      const activeStatuses = ['searching', 'pending', 'accepted', 'en_route', 'arrived', 'in_progress'];
+      const aIsActive = activeStatuses.includes(a.request.status);
+      const bIsActive = activeStatuses.includes(b.request.status);
 
-    // Active requests come first
-    if (aIsActive && !bIsActive) return -1;
-    if (!aIsActive && bIsActive) return 1;
+      // Active requests come first
+      if (aIsActive && !bIsActive) return -1;
+      if (!aIsActive && bIsActive) return 1;
 
-    // Within same category, sort by creation date (newest first)
-    return new Date(b.request.createdAt).getTime() - new Date(a.request.createdAt).getTime();
-  });
+      // Within same category, sort by creation date (newest first)
+      return new Date(b.request.createdAt).getTime() - new Date(a.request.createdAt).getTime();
+    });
 
   if (isLoading) {
     return (
@@ -413,7 +533,7 @@ export default function WaitingRoom() {
       <FlatList
         data={sortedRequests}
         keyExtractor={(item) => item.request._id}
-        renderItem={({ item }) => <RequestCard item={item} />}
+        renderItem={({ item }) => <RequestCard item={item} onCancel={handleRequestCancelled} patientLocation={patientLocation} />}
         contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
         ListHeaderComponent={
           <View className="mb-4">

@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Clipboard, FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
 import apiClient from '../../../lib/api';
@@ -14,6 +14,7 @@ interface Transaction {
     type: 'deposit' | 'transfer' | 'withdrawal' | 'payment';
     status: string;
     time: string;
+    walletID?: string;
 }
 
 // --- Reusable Components ---
@@ -42,8 +43,18 @@ const formatExpiryDate = (value: string) => {
     return cleaned;
 };
 
-const TransactionRow = ({ item }: { item: Transaction }) => {
+const TransactionRow = ({ item, userWalletID }: { item: Transaction; userWalletID?: string }) => {
     const isDeposit = item.type === 'deposit';
+    const isFundedToOthers = isDeposit && item.walletID && userWalletID && item.walletID !== userWalletID;
+    
+    // Determine the transaction label
+    let label = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+    if (isDeposit && isFundedToOthers) {
+        label = 'Funded Wallet';
+    } else if (isDeposit && !isFundedToOthers) {
+        label = 'Deposit';
+    }
+    
     return (
         <View className="flex-row items-center justify-between bg-white p-4 rounded-xl mb-3 border border-gray-100 shadow-sm">
             <View className="flex-row items-center" style={{ gap: 12 }}>
@@ -51,7 +62,7 @@ const TransactionRow = ({ item }: { item: Transaction }) => {
                     <Feather name={isDeposit ? "arrow-down-left" : "arrow-up-right"} size={20} color={isDeposit ? "#28A745" : "#EF4444"} />
                 </View>
                 <View>
-                    <Text className="text-base font-bold text-text-main capitalize">{item.type}</Text>
+                    <Text className="text-base font-bold text-text-main">{label}</Text>
                     <Text className="text-sm text-gray-500">{new Date(item.time).toLocaleString()}</Text>
                 </View>
             </View>
@@ -173,15 +184,30 @@ export default function TransactionsScreen() {
                     <FlatList
                         data={transactions}
                         keyExtractor={(item) => item._id}
-                        renderItem={({ item }) => <TransactionRow item={item} />}
+                        renderItem={({ item }) => <TransactionRow item={item} userWalletID={user?.walletID} />}
                         contentContainerStyle={{ padding: 16 }}
                         onRefresh={fetchTransactions}
                         refreshing={isLoading}
                         ListHeaderComponent={
                             <>
-                                <View className="bg-primary p-6 rounded-2xl mb-6 items-center shadow-md">
-                                    <Text className="text-white text-lg opacity-80">Your Balance</Text>
-                                    <Text className="text-white text-4xl font-bold mt-1">N$ {user?.balance?.toFixed(2) || '0.00'}</Text>
+                                <View className="bg-primary p-6 rounded-2xl mb-6 shadow-md">
+                                    <View className="mb-6">
+                                        <Text className="text-white text-lg opacity-80">Your Balance</Text>
+                                        <Text className="text-white text-4xl font-bold mt-1">N$ {user?.balance?.toFixed(2) || '0.00'}</Text>
+                                    </View>
+                                    {user?.walletID && (
+                                        <TouchableOpacity onPress={() => {
+                                            try {
+                                                Clipboard.setString(user.walletID!);
+                                                Alert.alert("Copied", "Wallet ID copied to clipboard!");
+                                            } catch {
+                                                Alert.alert("Error", "Failed to copy wallet ID");
+                                            }
+                                        }}>
+                                            <Text className="text-white text-sm font-semibold mb-2">Your Wallet ID</Text>
+                                            <Text className="text-white text-base font-bold break-words">{user.walletID}</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                                 <View className="flex-row mb-6" style={{ gap: 16 }}>
                                     <ActionButton icon="plus-circle" label="Fund Wallet" onPress={() => addMoneySheetRef.current?.expand()} />

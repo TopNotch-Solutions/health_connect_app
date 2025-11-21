@@ -54,7 +54,6 @@ const SignInScreen = () => {
             style={{ width: 200, height: 200, marginBottom: 24 }}
             resizeMode="contain"
           />
-          <Text className="text-4xl font-bold text-gray-900 mb-2">Welcome to HealthConnect</Text>
         </View>
 
         {/* Form Section */}
