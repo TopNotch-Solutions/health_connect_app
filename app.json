@@ -25,7 +25,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.owenator3k.projecthealthconnect"
+      "package": "com.owenator3k.projecthealthconnect",
+      "networkSecurityConfig": "@xml/network_security_config"
     },
     "web": {
       "output": "static",

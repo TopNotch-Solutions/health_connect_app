@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   FlatList,
@@ -8,26 +8,28 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import CreateRequestModal from '../../../components/(patient)/CreateRequestModal';
 import { useAuth } from '../../../context/AuthContext';
 import socketService from '../../../lib/socket';
+import apiClient from '../../../lib/api';
 import * as Location from 'expo-location';
 
-const ailmentCategories = [
-  { _id: '1', title: 'Flu, Cold & Cough Symptoms', provider: 'Doctor', icon: 'wind' },
-  { _id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'alert-circle' },
-  { _id: '3', title: 'New or Worsening Skin Rash', provider: 'Nurse', icon: 'alert-octagon' },
-  { _id: '4', title: 'Headaches or Migraines', provider: 'Doctor', icon: 'activity' },
-  { _id: '5', title: 'Elderly Parent Wellness Check', provider: 'Social Worker', icon: 'heart' },
-  { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist', icon: 'target' },
-];
+
+
+interface Ailment {
+  _id: string;
+  title: string;
+  provider: string;
+  icon: string;
+}
 
 const AilmentCard = ({ 
   item, 
   onPress 
 }: { 
-  item: (typeof ailmentCategories)[0]; 
+  item: Ailment; 
   onPress: () => void;
 }) => (
   <TouchableOpacity 
@@ -47,9 +49,31 @@ export default function AllAilmentsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<any>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [ailments, setAilments] = useState<Ailment[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch ailments from API
+  const fetchAilments = async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.get('/app/ailment/all-ailments');
+      console.log('Ailments fetched from API:', response.data);
+      setAilments(response.data.data || []);
+    } catch (error: any) {
+      console.error('Error fetching ailments:', error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchAilments();
+    }, [])
+  );
 
   // Filter ailments based on search
-  const filteredAilments = ailmentCategories.filter((ailment) =>
+  const filteredAilments = ailments.filter((ailment: Ailment) =>
     ailment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     ailment.provider.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -144,6 +168,12 @@ export default function AllAilmentsScreen() {
         </View>
 
         {/* Ailment Grid */}
+        {isLoading ? (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator size="large" color="#2563EB" />
+            <Text className="mt-4 text-gray-600">Loading ailments...</Text>
+          </View>
+        ) : (
         <FlatList
           data={filteredAilments}
           keyExtractor={(item) => item._id}
@@ -162,6 +192,7 @@ export default function AllAilmentsScreen() {
             </View>
           }
         />
+        )}
       </View>
 
       {/* Create Request Modal */}

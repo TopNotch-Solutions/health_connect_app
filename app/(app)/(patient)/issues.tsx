@@ -89,9 +89,13 @@ export default function IssuesScreen() {
     const fetchFaqs = useCallback(async () => {
         setIsLoading(true);
         try {
+            console.log('Fetching FAQs from API...');
             const response = await apiClient.get('/app/faq/all-faq');
-            setFaqs(response.data.data || []);
+            console.log('FAQs Response:', response.data);
+            setFaqs(response.data.faq || response.data.data || []);
+            console.log('FAQs set to state:', response.data.faq || response.data.data || []);
         } catch (error: any) {
+            console.error('Error fetching FAQs:', error.message);
             Alert.alert('Error', 'Could not load FAQs.');
         } finally {
             setIsLoading(false);
