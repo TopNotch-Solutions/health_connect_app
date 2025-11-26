@@ -61,10 +61,14 @@ export default function AilmentsScreen() {
 
   const handleCreateRequest = async (requestData: {
     ailmentCategory: string;
+    ailmentCategoryId?: string;
     symptoms: string;
-    urgencyLevel: 'low' | 'medium' | 'high';
     paymentMethod: 'wallet' | 'cash';
-    estimatedCost: number;
+    dueCost: number;
+    street: string;
+    locality: string;
+    region: string;
+    preferredTime?: string;
   }) => {
     // Check if location is available, if not try to get it again
     let currentLocation = location;
@@ -93,10 +97,20 @@ export default function AilmentsScreen() {
         patientId: user.userId,
         location: currentLocation,
         ailmentCategory: requestData.ailmentCategory,
-        urgencyLevel: requestData.urgencyLevel,
+        ailmentCategoryId: requestData.ailmentCategoryId,
         paymentMethod: requestData.paymentMethod,
-        symptoms: requestData.symptoms,
-        estimatedCost: requestData.estimatedCost,
+        symptoms: requestData.symptoms || 'No symptoms provided',
+        estimatedCost: requestData.dueCost,
+        address: {
+          route: requestData.street,
+          locality: requestData.locality,
+          administrative_area_level_1: requestData.region,
+          coordinates: {
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+          },
+        },
+        preferredTime: requestData.preferredTime,
       });
 
       console.log('Request created:', request);

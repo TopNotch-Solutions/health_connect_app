@@ -18,6 +18,8 @@ import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
 import socketService from "../../../lib/socket";
+import { normalizeCoordinateOrUndefined } from '@/lib/coordinate';
+import ProviderRouteModal from "../../../components/ProviderRouteModal";
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -36,6 +38,10 @@ export default function ProviderHome() {
   const toggleOnline = () => setIsOnline((prev) => !prev);
 
   const [selectedRequest, setSelectedRequest] = useState<null | any>(null);
+  
+  // Route Modal State
+  const [activeRouteRequest, setActiveRouteRequest] = useState<any>(null);
+  const [showRouteModal, setShowRouteModal] = useState(false);
 
   // Define loadAvailableRequests before using it in useEffect
   const loadAvailableRequests = useCallback(async () => {
@@ -121,15 +127,20 @@ export default function ProviderHome() {
     };
   }, []);
 
-  const handleAccept = async (requestId: string, patientName: string) => {
+  const handleAccept = async (request: any) => {
     if (!user?.userId) return;
 
     try {
-      await socketService.acceptRequest(requestId, user.userId);
+      await socketService.acceptRequest(request._id, user.userId);
+      
+      // Prepare data for the route modal
+      setActiveRouteRequest(request);
+      setShowRouteModal(true);
+
       // Remove from available requests and reload to get updated list
-      setRequests((prev) => prev.filter((req) => req._id !== requestId));
+      setRequests((prev) => prev.filter((req) => req._id !== request._id));
       setSelectedRequest(null);
-      Alert.alert('Success', `Accepted consultation request from ${patientName}`);
+      
       // Reload requests to ensure state is synced
       setTimeout(() => {
         loadAvailableRequests();
@@ -156,7 +167,7 @@ export default function ProviderHome() {
   const greeting = getGreeting();
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-gray-50" edges={['bottom', 'left', 'right']}>
       <ScrollView className="flex-1">
         {/* Header with provider name + Online/Offline toggle */}
         <View className="bg-white pt-6 pb-4 px-6 border-b border-gray-200">
@@ -289,7 +300,7 @@ export default function ProviderHome() {
                     <TouchableOpacity
                       onPress={(e) => {
                         e.stopPropagation();
-                        handleAccept(request._id, patientName);
+                        handleAccept(request);
                       }}
                       className="flex-1 bg-blue-600 py-3 rounded-lg"
                     >
@@ -420,7 +431,7 @@ export default function ProviderHome() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() =>
-                        handleAccept(selectedRequest._id, selectedRequest.patientId?.fullname || 'Unknown')
+                        handleAccept(selectedRequest)
                       }
                       className="flex-1 bg-blue-600 py-3.5 rounded-xl"
                     >
@@ -434,6 +445,26 @@ export default function ProviderHome() {
             </View>
           </TouchableWithoutFeedback>
         </Modal>
+      )}
+
+      {/* Route Modal */}
+      {activeRouteRequest && (
+        <ProviderRouteModal
+  visible={showRouteModal}
+  onClose={() => {
+    setShowRouteModal(false);
+    setActiveRouteRequest(null);
+  }}
+  requestId={activeRouteRequest._id}
+  providerId={user?.userId || ''}
+  patientLocation={normalizeCoordinateOrUndefined(activeRouteRequest.address?.coordinates)}
+  patientAddress={`${activeRouteRequest.address?.route || ''}, ${activeRouteRequest.address?.locality || ''}`}
+  patientName={activeRouteRequest.patientId?.fullname}
+  onCompleteRoute={() => {
+    setShowRouteModal(false);
+    setActiveRouteRequest(null);
+  }}
+/>
       )}
     </SafeAreaView>
   );

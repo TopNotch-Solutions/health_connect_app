@@ -157,7 +157,7 @@ export default function IssuesScreen() {
       <SafeAreaView className="flex-1" edges={['bottom', 'left', 'right']}>
         {/* Static Header */}
         <View className="p-6">
-          <Text className="text-3xl font-bold text-text-main">Help & Support</Text>
+          <Text className="text-3xl font-bold ">Help & Support</Text>
           <Text className="text-base text-gray-500 mt-1">Find answers or report an issue.</Text>
         </View>
   

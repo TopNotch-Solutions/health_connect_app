@@ -1,11 +1,12 @@
 // Socket.IO client for real-time communication with backend
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = 'http://13.61.152.64:4000';
+const SOCKET_URL = 'http://10.213.204.238:4000';
 
 class SocketService {
   private socket: Socket | null = null;
   private userRole: string | null = null;
+  private eventListeners: Map<string, Set<Function>> = new Map(); // FIX #5: Track listeners for cleanup
 
   connect(userId: string, role?: 'patient' | 'doctor' | 'nurse' | 'physiotherapist' | 'social worker') {
     if (this.socket?.connected) {
@@ -35,6 +36,8 @@ class SocketService {
 
     this.socket.on('disconnect', (reason) => {
       console.log('❌ Socket disconnected:', reason);
+      // FIX #5: Clean up all registered listeners on disconnect
+      this.setupDisconnectHandler();
     });
 
     this.socket.on('connect_error', (error) => {
@@ -46,6 +49,19 @@ class SocketService {
     });
 
     return this.socket;
+  }
+
+  // FIX #5: Clean up event listeners on disconnect to prevent memory leaks
+  private setupDisconnectHandler() {
+    console.log('🧹 Cleaning up event listeners on disconnect');
+    this.eventListeners.forEach((callbacks, event) => {
+      callbacks.forEach(callback => {
+        if (this.socket) {
+          this.socket.off(event, callback as any);
+        }
+      });
+    });
+    this.eventListeners.clear();
   }
 
   // Join the socket with user role
@@ -62,10 +78,21 @@ class SocketService {
 
   disconnect() {
     if (this.socket) {
+      // FIX #5: Clean up listeners before disconnecting
+      this.setupDisconnectHandler();
       this.socket.disconnect();
       this.socket = null;
       this.userRole = null;
     }
+  }
+
+  // FIX #5: Validate connection before operations
+  ensureConnected(): boolean {
+    if (!this.socket?.connected) {
+      console.error('Socket not connected. Use connect() method first.');
+      return false;
+    }
+    return true;
   }
 
   // Wait for socket to be connected
@@ -119,22 +146,27 @@ class SocketService {
         return;
       }
 
-      // Prepare the data with address structure
+      // Build address object with proper GeoJSON format
+      const addressCoordinates = requestData.address?.coordinates || {
+        latitude: requestData.location.latitude,
+        longitude: requestData.location.longitude,
+      };
+
       const payload = {
         patientId: requestData.patientId,
         ailmentCategory: requestData.ailmentCategory,
-        ailmentCategoryId: requestData.ailmentCategoryId || '67455f1b8c8e9b5c3f2e1d6a', // Use a valid category ID or it will use this default
+        ailmentCategoryId: requestData.ailmentCategoryId || '67455f1b8c8e9b5c3f2e1d6a',
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms || 'No symptoms provided',
         estimatedCost: requestData.estimatedCost,
         preferredTime: requestData.preferredTime,
-        address: requestData.address || {
-          route: 'Patient Location',
-          locality: 'Current City',
-          administrative_area_level_1: 'Current Province',
+        address: {
+          route: requestData.address?.route || 'Patient Location',
+          locality: requestData.address?.locality || 'Current City',
+          administrative_area_level_1: requestData.address?.administrative_area_level_1 || 'Current Province',
           coordinates: {
-            latitude: requestData.location.latitude,
-            longitude: requestData.location.longitude,
+            type: 'Point',
+            coordinates: [addressCoordinates.longitude, addressCoordinates.latitude], // GeoJSON format: [longitude, latitude]
           },
         },
       };
@@ -230,6 +262,11 @@ class SocketService {
   onRequestUpdate(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('requestUpdate', callback);
+      // FIX #5: Track listener for cleanup on disconnect
+      if (!this.eventListeners.has('requestUpdate')) {
+        this.eventListeners.set('requestUpdate', new Set());
+      }
+      this.eventListeners.get('requestUpdate')?.add(callback);
     }
   }
 
@@ -237,6 +274,11 @@ class SocketService {
   onRequestUpdated(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('requestUpdated', callback);
+      // FIX #5: Track listener for cleanup on disconnect
+      if (!this.eventListeners.has('requestUpdated')) {
+        this.eventListeners.set('requestUpdated', new Set());
+      }
+      this.eventListeners.get('requestUpdated')?.add(callback);
     }
   }
 
@@ -244,6 +286,11 @@ class SocketService {
   onNewRequestAvailable(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('newRequestAvailable', callback);
+      // FIX #5: Track listener for cleanup on disconnect
+      if (!this.eventListeners.has('newRequestAvailable')) {
+        this.eventListeners.set('newRequestAvailable', new Set());
+      }
+      this.eventListeners.get('newRequestAvailable')?.add(callback);
     }
   }
 
@@ -251,6 +298,11 @@ class SocketService {
   onRequestStatusChanged(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('requestStatusChanged', callback);
+      // FIX #5: Track listener for cleanup on disconnect
+      if (!this.eventListeners.has('requestStatusChanged')) {
+        this.eventListeners.set('requestStatusChanged', new Set());
+      }
+      this.eventListeners.get('requestStatusChanged')?.add(callback);
     }
   }
 
@@ -258,6 +310,11 @@ class SocketService {
   onProviderUnavailable(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('providerUnavailable', callback);
+      // FIX #5: Track listener for cleanup on disconnect
+      if (!this.eventListeners.has('providerUnavailable')) {
+        this.eventListeners.set('providerUnavailable', new Set());
+      }
+      this.eventListeners.get('providerUnavailable')?.add(callback);
     }
   }
 
@@ -265,6 +322,11 @@ class SocketService {
   onProviderResponse(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('providerResponse', callback);
+      // FIX #5: Track listener for cleanup on disconnect
+      if (!this.eventListeners.has('providerResponse')) {
+        this.eventListeners.set('providerResponse', new Set());
+      }
+      this.eventListeners.get('providerResponse')?.add(callback);
     }
   }
 

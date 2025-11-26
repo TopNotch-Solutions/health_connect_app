@@ -179,7 +179,7 @@ export default function TransactionsScreen() {
 
     return (
         <View className="flex-1">
-            <SafeAreaView className="flex-1">
+            <SafeAreaView className="flex-1" edges={['bottom', 'left', 'right']}>
                 {isLoading ? ( <ActivityIndicator size="large" className="mt-20"/> ) : (
                     <FlatList
                         data={transactions}

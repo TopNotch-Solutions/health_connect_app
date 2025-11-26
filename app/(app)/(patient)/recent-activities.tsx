@@ -43,6 +43,10 @@ interface RequestStatus {
     route: string;
     locality: string;
     administrative_area_level_1: string;
+    coordinates?: {
+      latitude: number;
+      longitude: number;
+    };
   };
 }
 

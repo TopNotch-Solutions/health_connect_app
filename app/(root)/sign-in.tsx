@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
@@ -13,7 +13,6 @@ const SignInScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSignIn = async () => {
@@ -58,11 +57,12 @@ const SignInScreen = () => {
 
         {/* Form Section */}
         <View className="mb-6">
+          <Text className="text-3xl mb-2 font-bold text-gray-500">Welcome</Text>
           {/* Email Input */}
           <View className="mb-5">
             <Text className="text-base text-gray-700 mb-2 font-medium">Email</Text>
-            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-green-300">
-              <Feather name="mail" size={20} color="#10B981" />
+            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-gray-300">
+              <MaterialCommunityIcons name="email" size={20} color="#10B981" />
               <TextInput
                 className="flex-1 ml-3 text-base text-gray-900"
                 placeholder="Enter your email"
@@ -78,8 +78,8 @@ const SignInScreen = () => {
           {/* Password Input */}
           <View className="mb-5">
             <Text className="text-base text-gray-700 mb-2 font-medium">Password</Text>
-            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-green-300">
-              <Feather name="lock" size={20} color="#10B981" />
+            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-gray-300">
+              <MaterialCommunityIcons name="lock" size={20} color="#10B981" />
               <TextInput
                 className="flex-1 ml-3 text-base text-gray-900"
                 placeholder="Enter your Password"
@@ -96,16 +96,6 @@ const SignInScreen = () => {
 
           {/* Remember Me & Forgot Password */}
           <View className="flex-row items-center justify-between mb-6">
-            <TouchableOpacity 
-              onPress={() => setRememberMe(!rememberMe)}
-              className="flex-row items-center"
-            >
-              <View className={`w-6 h-6 rounded border-2 mr-2 items-center justify-center ${rememberMe ? 'bg-green-600 border-green-600' : 'border-gray-400'}`}>
-                {rememberMe && <Feather name="check" size={16} color="#FFFFFF" />}
-              </View>
-              <Text className="text-base text-gray-700">Remember me</Text>
-            </TouchableOpacity>
-            
             <TouchableOpacity 
               onPress={() => router.push({ 
                 pathname: '/(verification)/verify-phone', 

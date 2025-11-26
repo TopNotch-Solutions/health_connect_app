@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -10,6 +10,7 @@ import {
     Alert,
     Image,
     Linking,
+    Modal,
     ScrollView,
     Text,
     TextInput,
@@ -110,6 +111,7 @@ export default function RegistrationScreen() {
     const [isLoading, setIsLoading] = useState(false);
     const [availableTowns, setAvailableTowns] = useState<{ label: string; value: string }[]>([]);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
+    const [showTermsModal, setShowTermsModal] = useState(false);
     const [errors, setErrors] = useState<{[key: string]: string}>({});
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -370,7 +372,13 @@ const handleRegister = async () => {
                             
                             {/* Terms and Conditions Checkbox */}
                             <TouchableOpacity 
-                                onPress={() => setAcceptedTerms(!acceptedTerms)} 
+                                onPress={() => {
+                                    if (acceptedTerms) {
+                                        setAcceptedTerms(false);
+                                    } else {
+                                        setShowTermsModal(true);
+                                    }
+                                }}
                                 className="flex-row items-start p-4 bg-gray-50 rounded-xl border-2 border-gray-200 mt-2"
                                 activeOpacity={0.7}
                             >
@@ -379,20 +387,22 @@ const handleRegister = async () => {
                                 </View>
                                 <View className="flex-1">
                                     <Text className="text-gray-700 text-sm leading-5">
-                                        I agree to the{' '}
-                                        <Text 
-                                            className="text-green-600 font-semibold underline" 
-                                            onPress={() => router.push('/(auth)/(patient)/terms-and-conditions')}
-                                        >
-                                            Terms and Conditions
-                                        </Text>
-                                        {' '}and{' '}
-                                        <Text 
-                                            className="text-green-600 font-semibold underline" 
-                                            onPress={() => Linking.openURL('https://healthconnect.com/privacy')}
-                                        >
-                                            Privacy Policy
-                                        </Text>
+                                        {acceptedTerms ? (
+                                            <Text className="text-green-600 font-semibold">
+                                                ✓ You have agreed to the Terms and Conditions and Privacy Policy (Tap to revoke)
+                                            </Text>
+                                        ) : (
+                                            <Text>
+                                                Tap to read and agree to the{' '}
+                                                <Text className="text-green-600 font-semibold underline">
+                                                    Terms and Conditions
+                                                </Text>
+                                                {' '}and{' '}
+                                                <Text className="text-green-600 font-semibold underline">
+                                                    Privacy Policy
+                                                </Text>
+                                            </Text>
+                                        )}
                                     </Text>
                                 </View>
                             </TouchableOpacity>
@@ -646,6 +656,80 @@ const handleRegister = async () => {
                 </View>
             </View>
             <StatusBar style="dark" />
+
+            {/* Terms and Conditions Modal */}
+            <Modal
+                visible={showTermsModal}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setShowTermsModal(false)}
+            >
+                <SafeAreaView className="flex-1 bg-white">
+                    <View className="flex-1 bg-white">
+                        {/* Header */}
+                        <View className="flex-row items-center justify-between p-6 border-b-2 border-gray-100">
+                            <Text className="text-2xl font-bold text-black flex-1">Terms & Conditions</Text>
+                            <TouchableOpacity 
+                                onPress={() => setShowTermsModal(false)}
+                                className="p-2"
+                            >
+                                <Feather name="x" size={24} color="#374151" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Content */}
+                        <ScrollView className="flex-1 p-6">
+                            <Text className="text-lg font-bold text-red-600 mb-4">Absolute Patient Waiver and Release of Liability</Text>
+                            <Text className="text-sm text-gray-700 mb-4 leading-6">
+                                By clicking &quot;Accept&quot; and using the Health_Connect platform, you (the &quot;User&quot;) confirm and irrevocably agree to the following legally binding terms. Your acceptance constitutes a complete and absolute waiver of your right to sue the platform.
+                            </Text>
+
+                            <Text className="text-base font-bold text-gray-900 mb-3">Technology Platform Status (Not a Healthcare Provider)</Text>
+                            <Text className="text-sm text-gray-700 mb-4 leading-6">
+                                You acknowledge and agree that Kopano-Vertex Trading cc (trading as Health_Connect) is exclusively a technology service provider. The platform provides a logistical connection between you and independent healthcare practitioners. Under no circumstances is Health_Connect, its owners, directors, or employees a provider of medical care, diagnosis, advice, or treatment.
+                            </Text>
+
+                            <Text className="text-base font-bold text-gray-900 mb-3">Absolute Assumption of Risk and Release of Claims</Text>
+                            <Text className="text-sm text-gray-700 mb-4 leading-6">
+                                You understand and agree that the entire responsibility and liability for the clinical services, advice, and outcomes rests solely and exclusively with the independent healthcare provider you select.
+                            </Text>
+
+                            <Text className="text-base font-bold text-gray-900 mb-3">Irrevocable Waiver</Text>
+                            <Text className="text-sm text-gray-700 mb-4 leading-6">
+                                You hereby irrevocably and absolutely release, waive, and forever discharge Kopano-Vertex Trading cc, its affiliates, directors, owners, and employees from any and all claims, demands, liabilities, suits, actions, and causes of action whatsoever, whether in law or equity, which may arise from or relate to the medical care, advice, diagnosis, treatment, or judgment provided by any independent healthcare professional connected through the platform.
+                            </Text>
+
+                            <Text className="text-base font-bold text-gray-900 mb-3">No Recourse Against Platform</Text>
+                            <Text className="text-sm text-gray-700 mb-4 leading-6">
+                                You acknowledge that your sole and exclusive recourse for any claim of malpractice, negligence, misdiagnosis, or professional error is directly against the independent healthcare provider and not against Health_Connect.
+                            </Text>
+
+                            <Text className="text-base font-bold text-gray-900 mb-3">Independent Contractor Status of Providers</Text>
+                            <Text className="text-sm text-gray-700 mb-4 leading-6">
+                                You acknowledge and agree that the healthcare practitioners on this platform are independent contractors and are not employees, agents, partners, or representatives of Health_Connect.
+                            </Text>
+
+                            <Text className="text-base font-bold text-gray-900 mb-3">Emergency Services Exclusion</Text>
+                            <Text className="text-sm text-gray-700 mb-6 leading-6">
+                                You understand that this platform is NOT a substitute for emergency medical care. You warrant that you will not use this platform for any medical emergency, and you accept full liability for any harm resulting from attempting to use this service in an emergency.
+                            </Text>
+                        </ScrollView>
+
+                        {/* Footer with Accept Button */}
+                        <View className="p-6 border-t-2 border-gray-100 bg-white">
+                            <TouchableOpacity 
+                                onPress={() => {
+                                    setAcceptedTerms(true);
+                                    setShowTermsModal(false);
+                                }}
+                                className="bg-green-600 p-4 rounded-xl"
+                            >
+                                <Text className="text-white text-center text-lg font-bold">I Accept</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </SafeAreaView>
+            </Modal>
         </SafeAreaView>
     );
 };

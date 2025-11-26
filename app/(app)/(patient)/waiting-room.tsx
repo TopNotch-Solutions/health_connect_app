@@ -54,6 +54,10 @@ interface RequestStatus {
     route: string;
     locality: string;
     administrative_area_level_1: string;
+    coordinates?: {
+      latitude: number;
+      longitude: number;
+    };
   };
 }
 
@@ -284,8 +288,9 @@ const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest;
             visible={trackingModalVisible}
             onClose={() => setTrackingModalVisible(false)}
             requestId={request._id}
-            patientLocation={patientLocation}
+            patientLocation={patientLocation || request.address?.coordinates}
             providerName={request.providerId.fullname}
+            providerRole={request.providerId.role}
           />
         </>
       )}
@@ -529,7 +534,7 @@ export default function WaitingRoom() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-gray-50" edges={['bottom', 'left', 'right']}>
       <FlatList
         data={sortedRequests}
         keyExtractor={(item) => item.request._id}
@@ -537,7 +542,7 @@ export default function WaitingRoom() {
         contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
         ListHeaderComponent={
           <View className="mb-4">
-            <Text className="text-2xl font-bold mt-1">
+            <Text className="text-2xl font-bold">
               Track your healthcare requests and provider status
             </Text>
           </View>

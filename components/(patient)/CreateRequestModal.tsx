@@ -1,6 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -14,8 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import * as Location from 'expo-location';
-import { reverseGeocode } from '../../lib/geocoding';
+import { getCurrentLocationWithAddress, reverseGeocode } from '../../lib/geocoding';
 
 interface CreateRequestModalProps {
   visible: boolean;
@@ -44,7 +42,6 @@ export default function CreateRequestModal({
   const ailmentCategoryId = selectedAilment?._id;
   
   const [ailmentCategory, setAilmentCategory] = useState(ailmentTitle);
-  const [symptoms, setSymptoms] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'cash'>('wallet');
   const [dueCost, setDueCost] = useState('200');
   const [street, setStreet] = useState('');
@@ -60,15 +57,13 @@ export default function CreateRequestModal({
   } | null>(null);
   const [markerCoord, setMarkerCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [showMap, setShowMap] = useState(false);
-  const [preferredDateTime, setPreferredDateTime] = useState<Date | null>(null);
-  const [showTimePicker, setShowTimePicker] = useState(false);
 
   // Load location when modal opens
   useEffect(() => {
-    if (visible && !mapRegion) {
+    if (visible) {
       loadLocationAndAddress();
     }
-  }, [visible, mapRegion]);
+  }, [visible]);
 
   // Update ailment category when selectedAilment changes
   useEffect(() => {
@@ -81,20 +76,7 @@ export default function CreateRequestModal({
   const loadLocationAndAddress = async () => {
     setIsLoadingLocation(true);
     try {
-      // Request location permissions
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to create a request.');
-        setIsLoadingLocation(false);
-        return;
-      }
-
-      // Get current location
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      const { latitude, longitude } = location.coords;
+      const { latitude, longitude, address } = await getCurrentLocationWithAddress();
       
       // Set map region
       setMapRegion({
@@ -106,14 +88,13 @@ export default function CreateRequestModal({
 
       setMarkerCoord({ latitude, longitude });
 
-      // Reverse geocode to get address
-      const address = await reverseGeocode(latitude, longitude);
+      // Set address fields
       setStreet(address.route || 'Patient Location');
       setLocality(address.locality || 'Current City');
       setRegion(address.administrative_area_level_1 || 'Current Region');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading location:', error);
-      Alert.alert('Error', 'Failed to load your location. Please try again.');
+      Alert.alert('Location Error', error.message || 'Failed to get your location. Please check your location settings and try again.');
     } finally {
       setIsLoadingLocation(false);
     }
@@ -123,11 +104,6 @@ export default function CreateRequestModal({
     // Validation
     if (!ailmentCategory.trim()) {
       Alert.alert('Required', 'Please select or enter an ailment category');
-      return;
-    }
-
-    if (!symptoms.trim()) {
-      Alert.alert('Required', 'Please describe your symptoms');
       return;
     }
 
@@ -157,23 +133,21 @@ export default function CreateRequestModal({
       await onSubmit({
         ailmentCategory: ailmentCategory.trim(),
         ailmentCategoryId: ailmentCategoryId,
-        symptoms: symptoms.trim(),
+        symptoms: '',
         paymentMethod,
         dueCost: cost,
         street: street.trim(),
         locality: locality.trim(),
         region: region.trim(),
-        preferredTime: getTimeISOString(preferredDateTime),
+        preferredTime: undefined,
       });
       
       // Reset form on success
       setAilmentCategory('');
-      setSymptoms('');
       setPaymentMethod('wallet');
       setStreet('');
       setLocality('');
       setRegion('');
-      setPreferredDateTime(null);
       setMapRegion(null);
       setMarkerCoord(null);
       setShowMap(false);
@@ -196,29 +170,7 @@ export default function CreateRequestModal({
     setRegion(address.administrative_area_level_1 || 'Current Region');
   };
 
-  const handleTimeChange = (event: any, selectedDate: Date | undefined) => {
-    if (Platform.OS === 'android') {
-      setShowTimePicker(false);
-    }
-    
-    if (selectedDate) {
-      setPreferredDateTime(selectedDate);
-    }
-  };
 
-  const formatTimeDisplay = (date: Date | null): string => {
-    if (!date) return 'Select Time';
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
-  const getTimeISOString = (date: Date | null): string | undefined => {
-    if (!date) return undefined;
-    return date.toISOString();
-  };
 
   const paymentOptions = [
     { value: 'wallet', label: 'Wallet', icon: 'credit-card' },
@@ -253,23 +205,6 @@ export default function CreateRequestModal({
                 value={ailmentCategory}
                 onChangeText={setAilmentCategory}
                 editable={false}
-              />
-            </View>
-
-            {/* Symptoms */}
-            <View className="mb-6">
-              <Text className="text-base font-semibold text-gray-900 mb-2">
-                Describe Your Symptoms *
-              </Text>
-              <TextInput
-                className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base"
-                placeholder="Please describe what you're experiencing..."
-                value={symptoms}
-                onChangeText={setSymptoms}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                editable={!isLoading}
               />
             </View>
 
@@ -369,65 +304,18 @@ export default function CreateRequestModal({
               />
             </View>
 
-            {/* Preferred Time */}
-            <View className="mb-6">
-              <Text className="text-base font-semibold text-gray-900 mb-2">
-                Preferred Time (Optional)
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowTimePicker(true)}
-                disabled={isLoading}
-                className="bg-gray-50 border border-gray-300 rounded-lg p-4 flex-row items-center justify-between"
-              >
-                <View className="flex-row items-center flex-1">
-                  <Feather name="clock" size={18} color="#3B82F6" />
-                  <Text className={`ml-3 text-base ${preferredDateTime ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
-                    {formatTimeDisplay(preferredDateTime)}
-                  </Text>
-                </View>
-                {preferredDateTime && (
-                  <TouchableOpacity
-                    onPress={() => setPreferredDateTime(null)}
-                    className="ml-2"
-                  >
-                    <Feather name="x" size={18} color="#EF4444" />
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* Time Picker Modal */}
-            {showTimePicker && (
-              <DateTimePicker
-                value={preferredDateTime || new Date()}
-                mode="time"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleTimeChange}
-              />
-            )}
-            {Platform.OS === 'ios' && showTimePicker && (
-              <View className="bg-white p-4 flex-row justify-between border-t border-gray-200">
-                <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                  <Text className="text-blue-600 text-base font-semibold">Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                  <Text className="text-blue-600 text-base font-semibold">Done</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             {/* Due Cost */}
             <View className="mb-6">
               <Text className="text-base font-semibold text-gray-900 mb-2">
                 Due Cost (R) *
               </Text>
               <TextInput
-                className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base"
+                className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-base text-gray-600"
                 placeholder="e.g., 200"
                 value={dueCost}
                 onChangeText={setDueCost}
                 keyboardType="numeric"
-                editable={!isLoading}
+                editable={false}
               />
             </View>
 

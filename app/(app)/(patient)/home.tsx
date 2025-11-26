@@ -1,5 +1,4 @@
-import { Feather } from '@expo/vector-icons';
-import * as Location from 'expo-location';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -9,12 +8,15 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import CreateRequestModal from '../../../components/(patient)/CreateRequestModal';
 import { useAuth } from '../../../context/AuthContext';
 import socketService from '../../../lib/socket';
+import { getLocationCoordinates } from '../../../lib/geocoding';
 
 // --- Dummy Data (for UI development, replace with API data later) ---
 const healthTips = [
@@ -23,18 +25,36 @@ const healthTips = [
     title: 'Stay Hydrated',
     content: 'Drink 8 glasses of water a day.',
     bgColor: 'bg-blue-100',
+    bgGradientColor: '#E0F2FE',
+    icon: 'water',
+    iconColor: '#0284C7',
   },
   {
     id: '2',
     title: 'Get Enough Sleep',
     content: 'Aim for 7-9 hours per night.',
     bgColor: 'bg-purple-100',
+    bgGradientColor: '#F3E8FF',
+    icon: 'sleep',
+    iconColor: '#A855F7',
   },
   {
     id: '3',
     title: 'Eat a Balanced Diet',
     content: 'Include fruits and vegetables.',
     bgColor: 'bg-green-100',
+    bgGradientColor: '#DCFCE7',
+    icon: 'leaf',
+    iconColor: '#22C55E',
+  },
+  {
+    id: '4',
+    title: 'Regular Exercise',
+    content: 'Move for at least 30 minutes daily.',
+    bgColor: 'bg-orange-100',
+    bgGradientColor: '#FED7AA',
+    icon: 'run',
+    iconColor: '#F97316',
   },
 ];
 
@@ -50,9 +70,23 @@ const defaultAilmentCategories = [
 
 // --- Reusable Components for this Screen ---
 const HealthTipCard = ({ item }: { item: (typeof healthTips)[0] }) => (
-  <View className={`rounded-lg p-6 ${item.bgColor}`} style={{ width: '100%' }}>
-    <Text className="font-bold text-lg text-gray-800">{item.title}</Text>
-    <Text className="text-base text-gray-700 mt-2">{item.content}</Text>
+  <View 
+    className={`rounded-lg p-6 ${item.bgColor}`} 
+    style={{ 
+      width: '100%',
+      backgroundColor: item.bgGradientColor,
+      shadowColor: '#000',
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 3,
+    }}
+  >
+    <View className="flex-row items-center mb-3">
+      <MaterialCommunityIcons name={item.icon as any} size={32} color={item.iconColor} />
+      <Text className="font-bold text-xl text-gray-800 ml-3 flex-1">{item.title}</Text>
+    </View>
+    <Text className="text-base text-gray-700 ml-10">{item.content}</Text>
   </View>
 );
 
@@ -104,6 +138,7 @@ export default function PatientHomeScreen() {
   const [recentRequests, setRecentRequests] = useState<HistoryItem[]>([]);
   const [ailmentCategories, setAilmentCategories] = useState<any[]>([]);
   const [isLoadingAilments, setIsLoadingAilments] = useState(false);
+  const slideAnim = React.useRef(new Animated.Value(0)).current;
 
   // Function to fetch ailment categories from backend
   const loadAilmentCategories = useCallback(async () => {
@@ -148,6 +183,8 @@ export default function PatientHomeScreen() {
         socket?.on('ailmentCategories', handleAilmentCategories);
         console.log('📤 Emitting getAilmentCategories request');
         socket?.emit('getAilmentCategories');
+
+        return () => clearTimeout(timeout);
       });
     } catch (error) {
       console.error('Error loading ailment categories:', error);
@@ -227,11 +264,20 @@ export default function PatientHomeScreen() {
     }
   }, [user?.userId]);
 
-  // Auto-scroll health tips
+  // Auto-scroll health tips with animation
+  useEffect(() => {
+    slideAnim.setValue(0);
+    Animated.timing(slideAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [currentTipIndex, slideAnim]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTipIndex((prev) => (prev + 1) % healthTips.length);
-    }, 4000); // Change every 4 seconds
+    }, 5000); // Change every 5 seconds
 
     return () => clearInterval(interval);
   }, []);
@@ -266,54 +312,33 @@ export default function PatientHomeScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert(
-            'Permission Required',
-            'Location permission is needed to send requests to nearby healthcare providers.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  // Set a default location for development (Johannesburg)
-                  setLocation({ latitude: -22.557840, longitude: 17.072891 });
-                  console.log('Location permission denied - using default location');
-                }
-              }
-            ]
-          );
-          return;
-        }
-
-        const currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
+        const coords = await getLocationCoordinates();
         setLocation({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
         });
+        console.log('✅ Location obtained successfully:', coords);
       } catch (error: any) {
         console.error('Location error:', error);
         // Set default location for emulator/testing
-        const defaultLocation = { latitude: -26.2041, longitude: 28.0473 };
+        const defaultLocation = { latitude: -22.557840, longitude: 17.072891 };
         setLocation(defaultLocation);
         
         Alert.alert(
-          'Location Unavailable',
-          'Could not get your current location. Using default location for testing. On a real device, please enable location services.',
+          'Location Error',
+          error.message || 'Could not get your current location. Using default location for testing. On a real device, please enable location services.',
           [
             {
               text: 'Try Again',
               onPress: async () => {
                 try {
-                  const currentLocation = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.Low,
-                  });
+                  const coords = await getLocationCoordinates();
                   setLocation({
-                    latitude: currentLocation.coords.latitude,
-                    longitude: currentLocation.coords.longitude,
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
                   });
-                } catch (retryError) {
+                  console.log('✅ Location retry successful:', coords);
+                } catch (retryError: any) {
                   console.error('Retry failed:', retryError);
                   // Keep using default location
                 }
@@ -429,35 +454,54 @@ export default function PatientHomeScreen() {
   const greeting = getGreeting();
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <View className="flex-1">
+    <SafeAreaView className="flex-1 bg-white" edges={['bottom', 'left', 'right']}>
+      <View className="flex-1 p-2">
         <ScrollView className="flex-1">
-          {/* Header (matched to ProviderHome spacing + style) */}
-          <View className="pt-4 px-4 flex-row items-center justify-between">
+          <View className="px-4 pb-2">
             <View>
               <Text className="text-2xl font-bold">
-                {greeting},{' '}
+                {greeting},
+              </Text>
+              <Text className="text-2xl font-bold">
                 {user?.fullname || 'Patient'}
               </Text>
             </View>
           </View>
 
-          {/* Info Banner (styled like Provider approval banner) */}
-          <View className="bg-blue-100 rounded-lg p-6 mx-4 mt-2 mb-4">
-            <Text className="text-lg font-semibold text-gray-800">
-              Welcome to your health dashboard.
-            </Text>
-            <Text className="text-lg text-gray-800">
-              Quickly find help and track your recent activity.
-            </Text>
-          </View>
-
-          {/* Health Tips Section - Auto Scrolling */}
+          {/* Health Tips Section - Auto Scrolling with Animation */}
           <View className="mb-8 px-4">
-            <Text className="text-xl font-bold text-gray-800 mb-4">
-              Health Tips
-            </Text>
-            <HealthTipCard item={healthTips[currentTipIndex]} />
+            <Animated.View
+              style={[
+                {
+                  opacity: slideAnim,
+                  transform: [
+                    {
+                      translateX: slideAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [50, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <HealthTipCard item={healthTips[currentTipIndex]} />
+            </Animated.View>
+            
+            {/* Tip Indicators */}
+            <View className="flex-row justify-center mt-4 gap-2">
+              {healthTips.map((_, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => setCurrentTipIndex(index)}
+                  className={`rounded-full transition-all ${
+                    index === currentTipIndex
+                      ? 'bg-blue-600 w-3 h-3'
+                      : 'bg-gray-300 w-2 h-2'
+                  }`}
+                />
+              ))}
+            </View>
           </View>
 
           {/* Main Content Area */}

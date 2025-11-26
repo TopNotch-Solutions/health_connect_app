@@ -91,10 +91,6 @@ const SelectionScreen = () => {
             <Text className="text-sm text-gray-600 text-center mb-3 px-2">
               Access healthcare services and manage your wellness journey
             </Text>
-            <View className="flex-row items-center">
-              <Text className="text-blue-600 font-semibold text-sm mr-1">Get Started</Text>
-              <Feather name="arrow-right" size={16} color="#3B82F6" />
-            </View>
           </TouchableOpacity>
 
           {/* Provider Card */}
@@ -120,10 +116,6 @@ const SelectionScreen = () => {
             <Text className="text-sm text-gray-600 text-center mb-3 px-2">
               Provide care and connect with patients in your community
             </Text>
-            <View className="flex-row items-center">
-              <Text className="text-green-600 font-semibold text-sm mr-1">Get Started</Text>
-              <Feather name="arrow-right" size={16} color="#10B981" />
-            </View>
           </TouchableOpacity>
         </View>
 

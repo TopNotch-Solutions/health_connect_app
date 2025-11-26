@@ -9,6 +9,7 @@ import {
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import * as Speech from 'expo-speech';
 import socketService from '../../lib/socket';
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg';
@@ -25,6 +26,7 @@ interface PatientProviderTrackingProps {
   requestId: string;
   patientLocation?: { latitude: number; longitude: number } | null;
   providerName: string;
+  providerRole?: string;
 }
 
 // Haversine formula to calculate distance between two coordinates
@@ -107,6 +109,7 @@ export default function PatientProviderTracking({
   requestId,
   patientLocation,
   providerName,
+  providerRole = 'provider',
 }: PatientProviderTrackingProps) {
   const mapViewRef = useRef<MapView>(null);
   const [providerLocation, setProviderLocation] = useState<ProviderLocation | null>(null);
@@ -114,6 +117,17 @@ export default function PatientProviderTracking({
   const [isLoading, setIsLoading] = useState(true);
   const [routeCoordinates, setRouteCoordinates] = useState<ProviderLocation[]>([]);
   const [currentPatientLocation, setCurrentPatientLocation] = useState<ProviderLocation | null>(patientLocation || null);
+  const [lastSpokenDistance, setLastSpokenDistance] = useState<number>(0);
+  const [hasSpokenArrival, setHasSpokenArrival] = useState(false);
+
+  // Speak text
+  const speak = (text: string) => {
+    Speech.speak(text, {
+      language: 'en',
+      pitch: 1.0,
+      rate: 0.9,
+    });
+  };
 
   const initializeTracking = () => {
     if (!requestId) return;
@@ -167,6 +181,11 @@ export default function PatientProviderTracking({
                   location.longitude
                 );
                 setDistance(dist);
+                
+                // Initial announcement
+                const eta = Math.round((dist / 40) * 60);
+                speak(`Provider ${providerName} is on the way. Estimated arrival in ${eta} minutes.`);
+                setLastSpokenDistance(dist);
               }
 
               setIsLoading(false);
@@ -211,6 +230,20 @@ export default function PatientProviderTracking({
               data.location.longitude
             );
             setDistance(dist);
+
+            // Voice updates logic
+            if (dist < 0.1 && !hasSpokenArrival) {
+              // Less than 100 meters
+              speak(`The ${providerRole} has arrived.`);
+              setHasSpokenArrival(true);
+            } else if (dist > 0.1 && !hasSpokenArrival) {
+              // Announce every 1km change or significant progress
+              if (Math.abs(lastSpokenDistance - dist) >= 1.0) {
+                 const eta = Math.round((dist / 40) * 60);
+                 speak(`Provider is ${dist.toFixed(1)} kilometers away. About ${eta} minutes.`);
+                 setLastSpokenDistance(dist);
+              }
+            }
           }
         }
       };    // Listen for provider location updates
@@ -381,15 +414,17 @@ export default function PatientProviderTracking({
               )}
 
               {/* Provider location marker */}
-              <Marker
-                coordinate={providerLocation}
-                title={providerName}
-                description="Provider's current location"
-              >
-                <View className="bg-green-600 rounded-full p-2 border-4 border-white shadow-lg">
-                  <Feather name="navigation" size={20} color="white" />
-                </View>
-              </Marker>
+              {providerLocation && (
+                <Marker
+                  coordinate={providerLocation}
+                  title={providerName}
+                  description="Provider's current location"
+                >
+                  <View className="bg-green-600 rounded-full p-2 border-4 border-white shadow-lg">
+                    <Feather name="navigation" size={20} color="white" />
+                  </View>
+                </Marker>
+              )}
 
               {/* Route polyline - background white for visibility */}
               {routeCoordinates.length > 1 && (

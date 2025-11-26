@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View, Modal, TextInput } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { useAuth } from "../../../context/AuthContext";
@@ -40,10 +40,6 @@ export default function ProviderRequests() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'completed'>('all');
   const [requests, setRequests] = useState<Request[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [estimatedArrivalInput, setEstimatedArrivalInput] = useState('');
-  const [currentAcceptingRequestId, setCurrentAcceptingRequestId] = useState<string | null>(null);
-  const [isSubmittingArrival, setIsSubmittingArrival] = useState(false);
   const [routeModalVisible, setRouteModalVisible] = useState(false);
   const [currentRouteRequest, setCurrentRouteRequest] = useState<Request | null>(null);
   const { user } = useAuth();
@@ -255,83 +251,107 @@ export default function ProviderRequests() {
     }
   };
 
-  // Handle accept request - show modal for estimated arrival
-  const handleAccept = async (requestId: string, patientName: string) => {
-    if (!user?.userId) return;
+  // Calculate distance using Haversine formula
+  const calculateDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ): number => {
+    const R = 6371; // Earth's radius in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  };
+
+  // Handle accept request - automatically open map with calculated ETA
+  const handleAccept = async (request: Request) => {
+    if (!user?.userId || !request.address?.coordinates) {
+      Alert.alert('Error', 'Patient location not available');
+      return;
+    }
 
     try {
-      // Accept the request first
-      const response = (await socketService.acceptRequest(requestId, user.userId)) as any;
+      console.log('✅ Accepting request:', request._id);
       
-      console.log('📥 Response from acceptRequest:', response);
+      // OPEN MAP IMMEDIATELY - synchronously, before any async operations
+      console.log('🗺️ Opening map immediately...');
+      setCurrentRouteRequest({
+        ...request,
+        status: 'accepted' as any,
+      });
+      setRouteModalVisible(true);
       
-      // Store provider info for later use
-      setCurrentAcceptingRequestId(requestId);
-      setEstimatedArrivalInput('');
-      setModalVisible(true);
+      // Update local state
+      setRequests((prev) =>
+        prev.map((req) =>
+          req._id === request._id ? { ...req, status: 'accepted' as any } : req
+        )
+      );
+      
+      // ALL OTHER OPERATIONS HAPPEN IN BACKGROUND (non-blocking, no await)
+      (async () => {
+        try {
+          // Request location permission
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== 'granted') {
+            console.warn('Location permission denied');
+            return;
+          }
+          
+          // Get provider's current location
+          const providerLocation = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          
+          const providerCoords = {
+            latitude: providerLocation.coords.latitude,
+            longitude: providerLocation.coords.longitude,
+          };
+
+          console.log('📍 Provider location obtained:', providerCoords);
+
+          // Calculate distance and ETA
+          if (request.address?.coordinates) {
+            const distance = calculateDistance(
+              providerCoords.latitude,
+              providerCoords.longitude,
+              request.address.coordinates.latitude,
+              request.address.coordinates.longitude
+            );
+
+            const avgSpeed = 40;
+            const estimatedMinutes = Math.round((distance / avgSpeed) * 60);
+            console.log(`📊 Distance: ${distance.toFixed(1)} km, Estimated time: ${estimatedMinutes} minutes`);
+
+            // Accept request
+            await socketService.acceptRequest(request._id, user.userId);
+            console.log('✅ Request accepted by backend');
+            
+            // Send provider response
+            await socketService.updateProviderResponse(
+              request._id,
+              estimatedMinutes.toString(),
+              providerCoords
+            );
+            console.log('✅ Provider response sent successfully');
+          }
+        } catch (error) {
+          console.error('❌ Background error:', error);
+          // User already has map open, errors are silently handled
+        }
+      })();
       
     } catch (error: any) {
       console.error('Error accepting request:', error);
       Alert.alert('Error', error.message || 'Failed to accept request');
-    }
-  };
-
-  // Handle submitting estimated arrival
-  const handleSubmitArrival = async () => {
-    if (!estimatedArrivalInput.trim() || !currentAcceptingRequestId || !user?.userId) {
-      Alert.alert('Error', 'Please enter estimated arrival time');
-      return;
-    }
-
-    setIsSubmittingArrival(true);
-
-    try {
-      // Get provider's current location
-      console.log('📍 Requesting provider location...');
-      const providerLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      
-      const providerCoords = {
-        latitude: providerLocation.coords.latitude,
-        longitude: providerLocation.coords.longitude,
-      };
-      
-      console.log('📍 Provider location obtained:', providerCoords);
-      
-      // Send provider response with estimated arrival and location
-      console.log('📤 Sending provider response with estimated arrival...');
-      await socketService.updateProviderResponse(
-        currentAcceptingRequestId, 
-        estimatedArrivalInput, 
-        providerCoords
-      );
-      console.log('✅ Provider response sent successfully');
-      
-      // Update UI
-      const requestInState = requests.find(r => r._id === currentAcceptingRequestId);
-      
-      if (requestInState) {
-        const updatedRequest = { ...requestInState, status: 'accepted' as any };
-        setRequests((prev) =>
-          prev.map((req) =>
-            req._id === currentAcceptingRequestId ? updatedRequest : req
-          )
-        );
-
-        // No need to save to AsyncStorage - only use backend as source of truth
-      }
-      
-      setModalVisible(false);
-      setCurrentAcceptingRequestId(null);
-      setEstimatedArrivalInput('');
-      
-      Alert.alert('Success', 'Request accepted! Provider notified of estimated arrival.');
-    } catch (error: any) {
-      console.error('Error submitting arrival:', error);
-      Alert.alert('Error', error.message || 'Failed to submit estimated arrival');
-    } finally {
-      setIsSubmittingArrival(false);
     }
   };
 
@@ -450,7 +470,7 @@ export default function ProviderRequests() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-gray-50" edges={['bottom', 'left', 'right']}>
       <ScrollView className="flex-1">
         {/* Header */}
         <View className="bg-white pt-6 pb-4 px-6 border-b border-gray-200">
@@ -570,7 +590,7 @@ export default function ProviderRequests() {
                         <Text className="text-gray-700 font-bold text-center">Decline</Text>
                       </TouchableOpacity>
                       <TouchableOpacity 
-                        onPress={() => handleAccept(request._id, patientName)}
+                        onPress={() => handleAccept(request)}
                         className="flex-1 bg-blue-600 py-3 rounded-lg"
                       >
                         <Text className="text-white font-bold text-center">Accept</Text>
@@ -599,55 +619,6 @@ export default function ProviderRequests() {
           )}
         </View>
       </ScrollView>
-
-      {/* Estimated Arrival Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => !isSubmittingArrival && setModalVisible(false)}
-      >
-        <View className="flex-1 bg-black/50 justify-center items-center p-4">
-          <View className="bg-white rounded-2xl p-6 w-full max-w-sm">
-            <Text className="text-xl font-bold text-gray-900 mb-4">
-              Estimated Arrival Time
-            </Text>
-            
-            <Text className="text-sm text-gray-600 mb-4">
-              Enter how long it will take you to arrive at the patient location
-            </Text>
-            
-            <TextInput
-              className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base mb-6"
-              placeholder="e.g., 15 minutes, 30 mins"
-              value={estimatedArrivalInput}
-              onChangeText={setEstimatedArrivalInput}
-              editable={!isSubmittingArrival}
-              placeholderTextColor="#9CA3AF"
-            />
-            
-            <View className="flex-row gap-3">
-              <TouchableOpacity
-                onPress={() => !isSubmittingArrival && setModalVisible(false)}
-                disabled={isSubmittingArrival}
-                className="flex-1 bg-gray-100 py-3 rounded-lg border border-gray-200"
-              >
-                <Text className="text-gray-700 font-bold text-center">Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                onPress={handleSubmitArrival}
-                disabled={isSubmittingArrival}
-                className={`flex-1 py-3 rounded-lg ${isSubmittingArrival ? 'bg-blue-400' : 'bg-blue-600'}`}
-              >
-                <Text className="text-white font-bold text-center">
-                  {isSubmittingArrival ? 'Submitting...' : 'Submit'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* Provider Route Tracking Modal */}
       <ProviderRouteModal

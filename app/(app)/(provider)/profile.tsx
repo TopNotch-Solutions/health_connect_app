@@ -82,36 +82,8 @@ export default function ProfileScreen() {
         ]);
     };
 
-    const handleRemoveProfileImage = () => {
-        Alert.alert(
-            "Remove Profile Image",
-            "Are you sure you want to remove your profile image?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Remove",
-                    style: "destructive",
-                    onPress: async () => {
-                        setIsLoading(true);
-                        try {
-                            await apiClient.delete(`/app/auth/remove-profile-image/${user?.userId}`);
-                            Alert.alert("Success", "Profile image removed successfully");
-                        } catch (error: any) {
-                            Alert.alert(
-                                "Error",
-                                error.response?.data?.message || "Failed to remove profile image"
-                            );
-                        } finally {
-                            setIsLoading(false);
-                        }
-                    },
-                },
-            ]
-        );
-    };
-
     return (
-        <SafeAreaView className="flex-1 bg-gray-50">
+        <SafeAreaView className="flex-1 bg-gray-50" edges={['bottom', 'left', 'right']}>
             <ScrollView className="flex-1">
                 {/* Profile Header */}
                 <View className="bg-white items-center pt-8 pb-6 px-6 border-b border-gray-200">
@@ -131,15 +103,6 @@ export default function ProfileScreen() {
                         <View className="bg-blue-50 px-4 py-1.5 rounded-full mt-3">
                             <Text className="text-blue-600 font-bold text-sm capitalize">{user.role}</Text>
                         </View>
-                    )}
-                    {user?.profileImage && (
-                        <TouchableOpacity 
-                            onPress={handleRemoveProfileImage} 
-                            disabled={isLoading}
-                            className="mt-4 bg-red-100 px-4 py-2 rounded-lg"
-                        >
-                            <Text className="text-red-600 font-semibold text-sm">Remove Photo</Text>
-                        </TouchableOpacity>
                     )}
                 </View>
 
