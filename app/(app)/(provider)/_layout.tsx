@@ -1,8 +1,8 @@
 import { useAuth } from "@/context/AuthContext";
 import { Feather } from "@expo/vector-icons";
 import { Tabs, useRouter } from "expo-router";
-import React, { useState } from "react";
 import { TouchableOpacity, View, Text, StyleSheet } from "react-native";
+import React, { useState } from "react";
 
 export default function ProviderTabsLayout() {
   const { logout } = useAuth();
