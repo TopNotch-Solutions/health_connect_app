@@ -89,6 +89,16 @@ export default function ProviderTabsLayout() {
       />
 
       <Tabs.Screen
+        name="issues"
+        options={{
+          title: "Issues",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="book" color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",

@@ -25,7 +25,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.talo_n1.projecthealthconnect"
+      "package": "com.owenator3k.projecthealthconnect"
     },
     "web": {
       "output": "static",
@@ -45,7 +45,13 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to connect you with nearby healthcare providers."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

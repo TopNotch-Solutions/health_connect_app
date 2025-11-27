@@ -1,20 +1,20 @@
-import { Feather } from '@expo/vector-icons';
+﻿import { Feather } from '@expo/vector-icons';
 import DateTimePicker from "@react-native-community/datetimepicker";
-import Checkbox from 'expo-checkbox';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Linking,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Linking,
+    Modal,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -174,6 +174,7 @@ export default function ProviderRegistrationScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [expirationDate, setExpirationDate] = useState<Date>(new Date());
+  const [showPassword, setShowPassword] = useState(false);
 
   // Specializations from API
   const [allSpecializations, setAllSpecializations] = useState<Specialization[]>([]);
@@ -191,12 +192,15 @@ export default function ProviderRegistrationScreen() {
     gender: '',
   });
 
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
   const [documents, setDocuments] = useState({
     profileImage: null as PickedImage,
     idDocumentFront: null as DocFile,
     idDocumentBack: null as DocFile,
     primaryQualification: null as DocFile,
     annualQualification: null as DocFile,
+    prescribingCertificate: null as DocFile,
   });
 
   const [professionalDetails, setProfessionalDetails] = useState({
@@ -217,6 +221,17 @@ export default function ProviderRegistrationScreen() {
       }));
     }
   }, [params.cellphoneNumber]);
+
+  // Set up callback for terms and conditions acceptance
+  useEffect(() => {
+    global.acceptProviderTermsCallback = (accepted: boolean) => {
+      setAccountInfo((p) => ({ ...p, agreeToTerms: accepted }));
+    };
+
+    return () => {
+      delete global.acceptProviderTermsCallback;
+    };
+  }, []);
 
   // Fetch specializations from API
   useEffect(() => {
@@ -377,6 +392,7 @@ export default function ProviderRegistrationScreen() {
       [documents.idDocumentBack, 'idDocumentBack'],
       [documents.primaryQualification, 'primaryQualification'],
       [documents.annualQualification, 'annualQualification'],
+      [documents.prescribingCertificate, 'prescribingCerificate'],
     ];
 
     files.forEach(([f, key]) => {
@@ -408,6 +424,8 @@ export default function ProviderRegistrationScreen() {
     if (!documents.primaryQualification) missing.push('Primary Qualification');
     if (!documents.annualQualification)
       missing.push('Annual Practicing Certificate');
+    if (params?.providerType === 'nurse' && !documents.prescribingCertificate)
+      missing.push('Prescribing Certificate');
 
     if (missing.length) {
       Alert.alert('Missing info', 'Please provide:\n• ' + missing.join('\n• '));
@@ -440,7 +458,8 @@ export default function ProviderRegistrationScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1">
+    <>
+      <SafeAreaView className="flex-1">
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
         <View className="p-6">
           {/* Progress Bar */}
@@ -499,14 +518,27 @@ export default function ProviderRegistrationScreen() {
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Password
               </Text>
-              <TextInput
-                value={accountInfo.password}
-                onChangeText={(t) =>
-                  setAccountInfo((p) => ({ ...p, password: t }))
-                }
-                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
-                secureTextEntry
-              />
+              <View className="relative">
+                <TextInput
+                  value={accountInfo.password}
+                  onChangeText={(t) =>
+                    setAccountInfo((p) => ({ ...p, password: t }))
+                  }
+                  className="bg-white p-4 rounded-xl mb-4 border border-gray-200 pr-12"
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-4"
+                  style={{ width: 24, height: 24 }}
+                >
+                  <Feather
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#6B7280"
+                  />
+                </TouchableOpacity>
+              </View>
 
               <Text className="text-base text-text-main mb-2 font-semibold">
                 National ID Number
@@ -547,23 +579,6 @@ export default function ProviderRegistrationScreen() {
                 />
               </View>
 
-              <View className="flex-row items-center mb-6">
-                <Checkbox
-                  value={accountInfo.agreeToTerms}
-                  onValueChange={(v) =>
-                    setAccountInfo((p) => ({ ...p, agreeToTerms: v }))
-                  }
-                  color={accountInfo.agreeToTerms ? '#007BFF' : undefined}
-                  className="w-6 h-6 rounded"
-                />
-                <Text className="text-base text-text-main ml-3">
-                  I agree to the{' '}
-                  <Text className="text-primary font-bold">
-                    Subscriber Agreement
-                  </Text>
-                </Text>
-              </View>
-
               <View className="flex-row" style={{ gap: 16 }}>
                 <UploadBox
                   label="Upload Identification (front)"
@@ -578,6 +593,43 @@ export default function ProviderRegistrationScreen() {
                   icon="file-text"
                 />
               </View>
+
+              {/* Terms and Conditions Checkbox */}
+              <TouchableOpacity 
+                onPress={() => {
+                  if (accountInfo.agreeToTerms) {
+                    setAccountInfo((p) => ({ ...p, agreeToTerms: false }));
+                  } else {
+                    setShowTermsModal(true);
+                  }
+                }}
+                className="flex-row items-start p-4 bg-gray-50 rounded-xl border-2 border-gray-200 mb-6 mt-4"
+                activeOpacity={0.7}
+              >
+                <View className={`w-6 h-6 rounded-md mr-3 items-center justify-center border-2 ${accountInfo.agreeToTerms ? 'bg-green-600 border-green-600' : 'bg-white border-gray-300'}`}>
+                  {accountInfo.agreeToTerms && <Feather name="check" size={16} color="white" />}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-gray-700 text-sm leading-5">
+                    {accountInfo.agreeToTerms ? (
+                      <Text className="text-green-600 font-semibold">
+                        ✓ You have agreed to the Terms and Conditions and Privacy Policy (Tap to revoke)
+                      </Text>
+                    ) : (
+                      <Text>
+                        Tap to read and agree to the{' '}
+                        <Text className="text-green-600 font-semibold underline">
+                          Terms and Conditions
+                        </Text>
+                        {' '}and{' '}
+                        <Text className="text-green-600 font-semibold underline">
+                          Privacy Policy
+                        </Text>
+                      </Text>
+                    )}
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -608,6 +660,17 @@ export default function ProviderRegistrationScreen() {
                 onPick={() => pickDocument('annualQualification')}
                 icon="calendar"
               />
+              {params?.providerType === 'nurse' && (
+                <>
+                  <View className="h-3" />
+                  <UploadBox
+                    label="Upload Prescribing Certificate"
+                    file={documents.prescribingCertificate}
+                    onPick={() => pickDocument('prescribingCertificate')}
+                    icon="file-text"
+                  />
+                </>
+              )}
             </View>
           )}
 
@@ -843,6 +906,12 @@ export default function ProviderRegistrationScreen() {
                   label="Annual Practicing Certificate"
                   file={documents.annualQualification}
                 />
+                {params?.providerType === 'nurse' && (
+                  <DocRow
+                    label="Prescribing Certificate"
+                    file={documents.prescribingCertificate}
+                  />
+                )}
               </View>
             </View>
           )}
@@ -867,8 +936,10 @@ export default function ProviderRegistrationScreen() {
           {step < 4 ? (
             <TouchableOpacity
               onPress={handleNext}
-              disabled={isLoading}
-              className="bg-primary p-4 rounded-xl flex-1"
+              disabled={isLoading || (step === 1 && !accountInfo.agreeToTerms)}
+              className={`p-4 rounded-xl flex-1 ${
+                isLoading || (step === 1 && !accountInfo.agreeToTerms) ? 'bg-gray-300' : 'bg-primary'
+              }`}
             >
               <Text className="text-white text-center text-lg font-semibold">
                 Next
@@ -894,5 +965,73 @@ export default function ProviderRegistrationScreen() {
         </View>
       </View>
     </SafeAreaView>
+
+    {/* Terms and Conditions Modal */}
+    <Modal
+      visible={showTermsModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowTermsModal(false)}
+    >
+      <SafeAreaView className="flex-1 bg-white">
+        <View className="flex-1 bg-white">
+          {/* Header */}
+          <View className="flex-row items-center justify-between p-6 border-b-2 border-gray-100">
+            <Text className="text-2xl font-bold text-black flex-1">Terms & Conditions</Text>
+            <TouchableOpacity 
+              onPress={() => setShowTermsModal(false)}
+              className="p-2"
+            >
+              <Feather name="x" size={24} color="#374151" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Content */}
+          <ScrollView className="flex-1 p-6">
+            <Text className="text-lg font-bold text-red-600 mb-4"> Absolute Provider Liability and Indemnification Agreement</Text>
+            <Text className="text-sm text-gray-700 mb-4 leading-6">
+              By accepting these terms and providing services through the Health_Connect platform, I (the &quot;Provider&quot;) irrevocably agree to the following:
+            </Text>
+
+            <Text className="text-base font-bold text-gray-900 mb-3">Status and Sole Responsibility</Text>
+            <Text className="text-sm text-gray-700 mb-4 leading-6">
+              I confirm that my engagement with Kopano-Vertex Trading cc (trading as Health_Connect) is strictly and exclusively that of an independent contractor. I acknowledge that I am not, and shall not be deemed, an employee, agent, partner, joint venturer, or representative of Health_Connect for any purpose whatsoever.
+            </Text>
+
+            <Text className="text-base font-bold text-gray-900 mb-3">Absolute Clinical Liability</Text>
+            <Text className="text-sm text-gray-700 mb-4 leading-6">
+              I accept full, absolute, and unreserved personal and professional liability for any and all acts, omissions, negligence, error, or breach arising from the healthcare services I provide. This absolute liability expressly includes, but is not limited to, all medical advice, clinical diagnoses, treatment plans, prescriptions, professional conduct, patient outcomes, and adherence to professional standards, as strictly governed by the Health Professions Councils of Namibia (HPCNA).
+            </Text>
+
+            <Text className="text-base font-bold text-gray-900 mb-3">Duty to Defend and Maximum Indemnification</Text>
+            <Text className="text-sm text-gray-700 mb-4 leading-6">
+              I shall defend, indemnify, and hold completely harmless Kopano-Vertex Trading cc, its owners, directors, employees, successors, and assigns (collectively, the &quot;Indemnified Parties&quot;) against any and all losses, claims, demands, liabilities, lawsuits, judgments, fines, damages, expenses, and costs (including, but not limited to, reasonable legal and attorney fees, regardless of the merit of the claim) that may arise, directly or indirectly, from or relate to:
+            </Text>
+            <Text className="text-sm text-gray-700 mb-4 ml-3 leading-6">
+              • My professional services or clinical decisions on or off the platform.{'\n'}• Any breach of my professional duties or this Agreement.{'\n'}• Any claim brought by a patient or third party regarding my medical practice.
+            </Text>
+
+            <Text className="text-base font-bold text-gray-900 mb-3">Insurance Obligation</Text>
+            <Text className="text-sm text-gray-700 mb-6 leading-6">
+              I confirm and warrant that I possess and shall maintain, at my sole expense, adequate and current professional liability insurance (malpractice insurance) required by the HPCNA, with coverage limits sufficient to cover my indemnification obligations under this Agreement.
+            </Text>
+          </ScrollView>
+
+          {/* Footer with Accept Button */}
+          <View className="p-6 border-t-2 border-gray-100 bg-white">
+            <TouchableOpacity 
+              onPress={() => {
+                setAccountInfo((p) => ({ ...p, agreeToTerms: true }));
+                setShowTermsModal(false);
+              }}
+              className="bg-green-600 p-4 rounded-xl"
+            >
+              <Text className="text-white text-center text-lg font-bold">I Accept</Text>
+            </TouchableOpacity>
+          </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
+    </>
   );
 }

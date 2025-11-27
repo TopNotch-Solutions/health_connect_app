@@ -16,6 +16,7 @@ interface Faq { _id: string; question: string; answer: string; }
 
 // --- Predefined Data ---
 const issueTypes = [
+  { label: 'Report Malpractice of Health Provider', value: 'Report Malpractice of Health Provider' },
   { label: 'Login Problem', value: 'Login Problem' },
   { label: 'Payment Issue', value: 'Payment Issue' },
   { label: 'Bug or Glitch', value: 'Bug or Glitch' },
@@ -88,9 +89,13 @@ export default function IssuesScreen() {
     const fetchFaqs = useCallback(async () => {
         setIsLoading(true);
         try {
+            console.log('Fetching FAQs from API...');
             const response = await apiClient.get('/app/faq/all-faq');
-            setFaqs(response.data.data || []);
+            console.log('FAQs Response:', response.data);
+            setFaqs(response.data.faq || response.data.data || []);
+            console.log('FAQs set to state:', response.data.faq || response.data.data || []);
         } catch (error: any) {
+            console.error('Error fetching FAQs:', error.message);
             Alert.alert('Error', 'Could not load FAQs.');
         } finally {
             setIsLoading(false);
@@ -152,7 +157,7 @@ export default function IssuesScreen() {
       <SafeAreaView className="flex-1" edges={['bottom', 'left', 'right']}>
         {/* Static Header */}
         <View className="p-6">
-          <Text className="text-3xl font-bold text-text-main">Help & Support</Text>
+          <Text className="text-3xl font-bold ">Help & Support</Text>
           <Text className="text-base text-gray-500 mt-1">Find answers or report an issue.</Text>
         </View>
   

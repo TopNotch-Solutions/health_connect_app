@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Clipboard, FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
 import apiClient from '../../../lib/api';
@@ -14,6 +14,7 @@ interface Transaction {
     type: 'deposit' | 'transfer' | 'withdrawal' | 'payment';
     status: string;
     time: string;
+    walletID?: string;
 }
 
 // --- Reusable Components ---
@@ -24,8 +25,36 @@ const ActionButton = ({ icon, label, onPress }: { icon: any; label: string; onPr
     </TouchableOpacity>
 );
 
-const TransactionRow = ({ item }: { item: Transaction }) => {
+// Format expiry date to MM/YY format
+const formatExpiryDate = (value: string) => {
+    // Remove non-digits
+    const cleaned = value.replace(/\D/g, '');
+    
+    // Limit to 4 digits
+    if (cleaned.length > 4) {
+        return cleaned.slice(0, 4);
+    }
+    
+    // Add slash after 2 digits (but only if there are more digits after)
+    if (cleaned.length > 2) {
+        return cleaned.slice(0, 2) + '/' + cleaned.slice(2);
+    }
+    
+    return cleaned;
+};
+
+const TransactionRow = ({ item, userWalletID }: { item: Transaction; userWalletID?: string }) => {
     const isDeposit = item.type === 'deposit';
+    const isFundedToOthers = isDeposit && item.walletID && userWalletID && item.walletID !== userWalletID;
+    
+    // Determine the transaction label
+    let label = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+    if (isDeposit && isFundedToOthers) {
+        label = 'Funded Wallet';
+    } else if (isDeposit && !isFundedToOthers) {
+        label = 'Deposit';
+    }
+    
     return (
         <View className="flex-row items-center justify-between bg-white p-4 rounded-xl mb-3 border border-gray-100 shadow-sm">
             <View className="flex-row items-center" style={{ gap: 12 }}>
@@ -33,7 +62,7 @@ const TransactionRow = ({ item }: { item: Transaction }) => {
                     <Feather name={isDeposit ? "arrow-down-left" : "arrow-up-right"} size={20} color={isDeposit ? "#28A745" : "#EF4444"} />
                 </View>
                 <View>
-                    <Text className="text-base font-bold text-text-main capitalize">{item.type}</Text>
+                    <Text className="text-base font-bold text-text-main">{label}</Text>
                     <Text className="text-sm text-gray-500">{new Date(item.time).toLocaleString()}</Text>
                 </View>
             </View>
@@ -51,11 +80,13 @@ export default function TransactionsScreen() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const addMoneySheetRef = useRef<BottomSheet>(null);
-    const sendMoneySheetRef = useRef<BottomSheet>(null);
+    const fundOthersSheetRef = useRef<BottomSheet>(null);
+    const withdrawSheetRef = useRef<BottomSheet>(null);
     const snapPoints = useMemo(() => ['75%'], []);
 
     const [addMoneyForm, setAddMoneyForm] = useState({ amount: '', cardNumber: '', expiryDate: '', cvv: '', cardHolder: '' });
-    const [sendMoneyForm, setSendMoneyForm] = useState({ amount: '', walletID: '' });
+    const [fundOthersForm, setFundOthersForm] = useState({ amount: '', walletID: '', cardNumber: '', expiryDate: '', cvv: '', cardHolder: '' });
+    const [withdrawForm, setWithdrawForm] = useState({ amount: '' });
 
     const fetchTransactions = useCallback(async () => {
         if (!user?.userId) {
@@ -105,21 +136,18 @@ export default function TransactionsScreen() {
         }
     };
 
-    // --- FULLY IMPLEMENTED handleSendMoney ---
-    const handleSendMoney = async () => {
-        if (!sendMoneyForm.amount || !sendMoneyForm.walletID) {
-            return Alert.alert("Missing Fields", "Please provide a Wallet ID and amount.");
+    // --- FULLY IMPLEMENTED handleSendMoney (Fund Someone's Wallet with Card) ---
+    const handleFundOthers = async () => {
+        if (!fundOthersForm.amount || !fundOthersForm.walletID || !fundOthersForm.cardNumber || !fundOthersForm.expiryDate || !fundOthersForm.cvv || !fundOthersForm.cardHolder) {
+            return Alert.alert("Missing Fields", "Please fill in all card details and wallet ID.");
         }
         setIsSubmitting(true);
         try {
-            const response = await apiClient.post(`/app/transaction/wallet-wallet-transfer/${user?.userId}`, sendMoneyForm);
+            const response = await apiClient.post(`/app/transaction/fund-other-wallet/${user?.userId}`, fundOthersForm);
             Alert.alert("Success", response.data.message);
-            if (response.data.user) {
-                updateUser(response.data.user);
-            }
             fetchTransactions();
-            sendMoneySheetRef.current?.close();
-            setSendMoneyForm({ amount: '', walletID: '' });
+            fundOthersSheetRef.current?.close();
+            setFundOthersForm({ amount: '', walletID: '', cardNumber: '', expiryDate: '', cvv: '', cardHolder: '' });
         } catch (error: any) {
             Alert.alert("Transfer Failed", error.response?.data?.message || "An error occurred.");
         } finally {
@@ -127,26 +155,66 @@ export default function TransactionsScreen() {
         }
     };
 
+    // --- FULLY IMPLEMENTED handleWithdraw ---
+    const handleWithdraw = async () => {
+        if (!withdrawForm.amount) {
+            return Alert.alert("Missing Fields", "Please enter an amount to withdraw.");
+        }
+        setIsSubmitting(true);
+        try {
+            const response = await apiClient.post(`/app/transaction/withdraw-wallet-funds/${user?.userId}`, withdrawForm);
+            Alert.alert("Success", response.data.message);
+            if (response.data.user) {
+                updateUser(response.data.user);
+            }
+            fetchTransactions();
+            withdrawSheetRef.current?.close();
+            setWithdrawForm({ amount: '' });
+        } catch (error: any) {
+            Alert.alert("Withdrawal Failed", error.response?.data?.message || "An error occurred.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     return (
         <View className="flex-1">
-            <SafeAreaView className="flex-1">
+            <SafeAreaView className="flex-1" edges={['bottom', 'left', 'right']}>
                 {isLoading ? ( <ActivityIndicator size="large" className="mt-20"/> ) : (
                     <FlatList
                         data={transactions}
                         keyExtractor={(item) => item._id}
-                        renderItem={({ item }) => <TransactionRow item={item} />}
+                        renderItem={({ item }) => <TransactionRow item={item} userWalletID={user?.walletID} />}
                         contentContainerStyle={{ padding: 16 }}
                         onRefresh={fetchTransactions}
                         refreshing={isLoading}
                         ListHeaderComponent={
                             <>
-                                <View className="bg-primary p-6 rounded-2xl mb-6 items-center shadow-md">
-                                    <Text className="text-white text-lg opacity-80">Your Balance</Text>
-                                    <Text className="text-white text-4xl font-bold mt-1">N$ {user?.balance?.toFixed(2) || '0.00'}</Text>
+                                <View className="bg-primary p-6 rounded-2xl mb-6 shadow-md">
+                                    <View className="mb-6">
+                                        <Text className="text-white text-lg opacity-80">Your Balance</Text>
+                                        <Text className="text-white text-4xl font-bold mt-1">N$ {user?.balance?.toFixed(2) || '0.00'}</Text>
+                                    </View>
+                                    {user?.walletID && (
+                                        <TouchableOpacity onPress={() => {
+                                            try {
+                                                Clipboard.setString(user.walletID!);
+                                                Alert.alert("Copied", "Wallet ID copied to clipboard!");
+                                            } catch {
+                                                Alert.alert("Error", "Failed to copy wallet ID");
+                                            }
+                                        }}>
+                                            <Text className="text-white text-sm font-semibold mb-2">Your Wallet ID</Text>
+                                            <Text className="text-white text-base font-bold break-words">{user.walletID}</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                                 <View className="flex-row mb-6" style={{ gap: 16 }}>
-                                    <ActionButton icon="plus-circle" label="Add Money" onPress={() => addMoneySheetRef.current?.expand()} />
-                                    <ActionButton icon="send" label="Send Money" onPress={() => sendMoneySheetRef.current?.expand()} />
+                                    <ActionButton icon="plus-circle" label="Fund Wallet" onPress={() => addMoneySheetRef.current?.expand()} />
+                                    <ActionButton icon="send" label="Send Funds" onPress={() => fundOthersSheetRef.current?.expand()} />
+                                </View>
+                                <View className="flex-row mb-6" style={{ gap: 16 }}>
+                                    <ActionButton icon="arrow-up-right" label="Withdraw" onPress={() => withdrawSheetRef.current?.expand()} />
                                 </View>
                                 <Text className="text-xl font-bold text-text-main mb-4">Recent Activity</Text>
                             </>
@@ -163,12 +231,17 @@ export default function TransactionsScreen() {
 
             <BottomSheet ref={addMoneySheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backgroundStyle={{ backgroundColor: '#F9FAFB' }}>
                 <BottomSheetView className="p-6">
-                    <Text className="text-2xl font-bold text-text-main mb-4">Add Money to Wallet</Text>
+                    <View className="flex-row justify-between items-center mb-4">
+                        <Text className="text-2xl font-bold text-text-main">Add Money to Wallet</Text>
+                        <TouchableOpacity onPress={() => addMoneySheetRef.current?.close()}>
+                            <Feather name="x" size={24} color="#374151" />
+                        </TouchableOpacity>
+                    </View>
                     <TextInput value={addMoneyForm.amount} onChangeText={v => setAddMoneyForm(p => ({ ...p, amount: v }))} placeholder="Amount (N$)" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" keyboardType="numeric"/>
                     <TextInput value={addMoneyForm.cardHolder} onChangeText={v => setAddMoneyForm(p => ({ ...p, cardHolder: v }))} placeholder="Cardholder Name" className="bg-white p-4 rounded-xl mb-3 border border-gray-200"/>
                     <TextInput value={addMoneyForm.cardNumber} onChangeText={v => setAddMoneyForm(p => ({ ...p, cardNumber: v }))} placeholder="Card Number" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" keyboardType="numeric"/>
                     <View className="flex-row" style={{ gap: 12 }}>
-                        <TextInput value={addMoneyForm.expiryDate} onChangeText={v => setAddMoneyForm(p => ({ ...p, expiryDate: v }))} placeholder="Expiry (MM/YY)" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200"/>
+                        <TextInput value={addMoneyForm.expiryDate} onChangeText={v => setAddMoneyForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }))} placeholder="Expiry (MM/YY)" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" maxLength={5}/>
                         <TextInput value={addMoneyForm.cvv} onChangeText={v => setAddMoneyForm(p => ({ ...p, cvv: v }))} placeholder="CVV" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" keyboardType="numeric" secureTextEntry/>
                     </View>
                     <TouchableOpacity onPress={handleAddMoney} disabled={isSubmitting} className={`bg-primary p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
@@ -177,13 +250,39 @@ export default function TransactionsScreen() {
                 </BottomSheetView>
             </BottomSheet>
 
-            <BottomSheet ref={sendMoneySheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backgroundStyle={{ backgroundColor: '#F9FAFB' }}>
+            <BottomSheet ref={fundOthersSheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backgroundStyle={{ backgroundColor: '#F9FAFB' }}>
                 <BottomSheetView className="p-6">
-                    <Text className="text-2xl font-bold text-text-main mb-4">Send Money (Wallet-to-Wallet)</Text>
-                    <TextInput value={sendMoneyForm.walletID} onChangeText={v => setSendMoneyForm(p => ({ ...p, walletID: v }))} placeholder="Recipient's Wallet ID" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" />
-                    <TextInput value={sendMoneyForm.amount} onChangeText={v => setSendMoneyForm(p => ({ ...p, amount: v }))} placeholder="Amount (N$)" className="bg-white p-4 rounded-xl mb-4 border border-gray-200" keyboardType="numeric"/>
-                    <TouchableOpacity onPress={handleSendMoney} disabled={isSubmitting} className={`bg-primary p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
+                    <View className="flex-row justify-between items-center mb-4">
+                        <Text className="text-2xl font-bold text-text-main">Send Funds</Text>
+                        <TouchableOpacity onPress={() => fundOthersSheetRef.current?.close()}>
+                            <Feather name="x" size={24} color="#374151" />
+                        </TouchableOpacity>
+                    </View>
+                    <TextInput value={fundOthersForm.walletID} onChangeText={v => setFundOthersForm(p => ({ ...p, walletID: v }))} placeholder="Recipient's Wallet ID" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" />
+                    <TextInput value={fundOthersForm.amount} onChangeText={v => setFundOthersForm(p => ({ ...p, amount: v }))} placeholder="Amount (N$)" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" keyboardType="numeric"/>
+                    <TextInput value={fundOthersForm.cardHolder} onChangeText={v => setFundOthersForm(p => ({ ...p, cardHolder: v }))} placeholder="Cardholder Name" className="bg-white p-4 rounded-xl mb-3 border border-gray-200"/>
+                    <TextInput value={fundOthersForm.cardNumber} onChangeText={v => setFundOthersForm(p => ({ ...p, cardNumber: v }))} placeholder="Card Number" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" keyboardType="numeric"/>
+                    <View className="flex-row" style={{ gap: 12 }}>
+                        <TextInput value={fundOthersForm.expiryDate} onChangeText={v => setFundOthersForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }))} placeholder="Expiry (MM/YY)" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" maxLength={5}/>
+                        <TextInput value={fundOthersForm.cvv} onChangeText={v => setFundOthersForm(p => ({ ...p, cvv: v }))} placeholder="CVV" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" keyboardType="numeric" secureTextEntry/>
+                    </View>
+                    <TouchableOpacity onPress={handleFundOthers} disabled={isSubmitting} className={`bg-primary p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
                         {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Send Money</Text>}
+                    </TouchableOpacity>
+                </BottomSheetView>
+            </BottomSheet>
+
+            <BottomSheet ref={withdrawSheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backgroundStyle={{ backgroundColor: '#F9FAFB' }}>
+                <BottomSheetView className="p-6">
+                    <View className="flex-row justify-between items-center mb-4">
+                        <Text className="text-2xl font-bold text-text-main">Withdraw to Card</Text>
+                        <TouchableOpacity onPress={() => withdrawSheetRef.current?.close()}>
+                            <Feather name="x" size={24} color="#374151" />
+                        </TouchableOpacity>
+                    </View>
+                    <TextInput value={withdrawForm.amount} onChangeText={v => setWithdrawForm(p => ({ ...p, amount: v }))} placeholder="Amount to Withdraw (N$)" className="bg-white p-4 rounded-xl mb-4 border border-gray-200" keyboardType="numeric"/>
+                    <TouchableOpacity onPress={handleWithdraw} disabled={isSubmitting} className={`bg-primary p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
+                        {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Confirm Withdrawal</Text>}
                     </TouchableOpacity>
                 </BottomSheetView>
             </BottomSheet>

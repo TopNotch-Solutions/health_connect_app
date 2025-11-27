@@ -5,12 +5,15 @@ import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import './globals.css';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 
 const ProtectedLayout = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  
+  usePushNotifications();
 
   useEffect(() => {
     if (isLoading) return;
@@ -25,8 +28,8 @@ const ProtectedLayout = () => {
       if (!isAuthenticated) {
         // User is not authenticated
         if (inApp) {
-          // Trying to access protected app routes, redirect to selection
-          router.replace('/(root)/selection');
+          // Trying to access protected app routes, redirect to sign-in
+          router.replace('/(root)/sign-in');
         }
       } else {
         // User is authenticated
