@@ -5,7 +5,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import ProviderMap from '../../../components/(patient)/ProviderMap';
 import {
   ActivityIndicator,
   Alert,
@@ -20,6 +19,7 @@ import {
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
+import { useRoute } from '../../../context/RouteContext';
 import socketService from "../../../lib/socket";
 import { normalizeCoordinateOrUndefined } from '@/lib/coordinate';
 
@@ -43,10 +43,7 @@ export default function ProviderHome() {
   const [selectedRequest, setSelectedRequest] = useState<null | any>(null);
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const locationWatcherRef = useRef<any>(null);
-  const routeWatcherRef = useRef<any>(null);
-  // Route Modal State
-  const [activeRouteRequest, setActiveRouteRequest] = useState<any>(null);
-  const [showRouteModal, setShowRouteModal] = useState(false);
+  const { startRoute } = useRoute();
 
   // Define loadAvailableRequests before using it in useEffect
   const loadAvailableRequests = useCallback(async () => {
@@ -171,155 +168,41 @@ export default function ProviderHome() {
     };
   }, []);
 
-  // Start/stop route tracking when route modal opens/closes
-  useEffect(() => {
-    let mounted = true;
-
-    const startRouteWatch = async () => {
-      if (!activeRouteRequest || !showRouteModal) return;
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission Denied', 'Location permission is required to share your route');
-          return;
-        }
-
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-        if (!mounted) return;
-        const initial = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-        setProviderLocation(initial);
-
-        // Start watching and emit to server
-        routeWatcherRef.current = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.High, distanceInterval: 25, timeInterval: 5000 },
-          (position) => {
-            if (!mounted) return;
-            const coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
-            setProviderLocation(coords);
-            try {
-              if (activeRouteRequest?._id && user?.userId) {
-                socketService.updateProviderLocation(activeRouteRequest._id, user.userId, coords);
-              }
-            } catch (e) {
-              console.warn('Failed to emit provider location', e);
-            }
-          }
-        );
-      } catch (e) {
-        console.error('Error starting route watch', e);
-      }
-    };
-
-    const stopRouteWatch = () => {
-      mounted = false;
-      if (routeWatcherRef.current) {
-        try { routeWatcherRef.current.remove(); } catch (e) { /* ignore */ }
-        routeWatcherRef.current = null;
-      }
-    };
-
-    if (showRouteModal) startRouteWatch();
-
-    return () => stopRouteWatch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showRouteModal, activeRouteRequest]);
-
-  // Route modal handling removed from provider home. Route/modal flows occur on the Requests screen.
-  const handleArrived = async () => {
-    try {
-      if (!activeRouteRequest?._id) return;
-      if (!providerLocation) {
-        Alert.alert('Error', 'Current location not available');
-        return;
-      }
-
-      // Stop watcher
-      if (routeWatcherRef.current) {
-        try { routeWatcherRef.current.remove(); } catch (e) { /* ignore */ }
-        routeWatcherRef.current = null;
-      }
-
-      await socketService.updateRequestStatus(activeRouteRequest._id, user.userId, 'arrived', providerLocation);
-      Alert.alert('Success', "You've arrived at the patient's location!");
-      setShowRouteModal(false);
-      setActiveRouteRequest(null);
-      // Refresh available requests
-      setTimeout(() => loadAvailableRequests(), 500);
-    } catch (error: any) {
-      console.error('Error marking as arrived:', error);
-      Alert.alert('Error', error.message || 'Failed to mark as arrived');
-    }
-  };
-
-  const handleCancelRoute = async () => {
-    try {
-      if (!activeRouteRequest?._id) return;
-      // Stop watcher
-      if (routeWatcherRef.current) {
-        try { routeWatcherRef.current.remove(); } catch (e) { /* ignore */ }
-        routeWatcherRef.current = null;
-      }
-
-      await socketService.cancelRequest(activeRouteRequest._id, 'provider', 'Provider cancelled the request');
-      Alert.alert('Cancelled', 'Request has been cancelled');
-      setShowRouteModal(false);
-      setActiveRouteRequest(null);
-      setTimeout(() => loadAvailableRequests(), 500);
-    } catch (error: any) {
-      console.error('Error cancelling route:', error);
-      Alert.alert('Error', error.message || 'Failed to cancel request');
-    }
-  };
+  // Route modal handling moved to GlobalRouteModal via RouteContext.
+  // Route arrival/cancel handlers moved to GlobalRouteModal via RouteContext.
 
   const handleAccept = async (request: any) => {
-    if (!user?.userId) return Alert.alert("Authentication Error", "You are not logged in.");
-
-    // Show a loading state or disable the button immediately
-    // For simplicity, we can just proceed.
-
+    if (!user?.userId) return;
     try {
-      // --- STEP 1: AWAIT ACCEPTANCE ---
-      // First, we MUST wait for the backend to confirm that we are the provider.
-      console.log('Step 1: Emitting acceptRequest and waiting...');
-      await socketService.acceptRequest(request._id, user.userId);
-      console.log('Step 1 SUCCESS: Backend has processed acceptRequest.');
+        // 1) Accept on backend (assign provider)
+        await socketService.acceptRequest(request._id, user.userId);
 
-      // --- STEP 2: OPEN THE MAP MODAL ---
-      // Now that we are assigned, we can open the map.
-      setActiveRouteRequest({ ...request, status: 'en_route' });
-      setShowRouteModal(true);
-      console.log('Step 2: Opening map modal.');
+        // 2) Open global route modal immediately for fast UX
+        startRoute(request);
 
-      // --- STEP 3: UPDATE STATUS (in the background) ---
-      // This can happen after the map is already open for a fast UX.
-      (async () => {
-        try {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== 'granted') throw new Error("Location permission denied.");
-          
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-          const providerCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        // 3) In background, request location and send en_route with coords (backend requires location)
+        (async () => {
+          try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+              console.warn('Location permission not granted; cannot send en_route with coordinates');
+              return;
+            }
 
-          console.log("Step 3: Emitting updateRequestStatus to 'en_route'...");
-          await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
-          console.log("Step 3 SUCCESS: Backend has processed updateRequestStatus.");
-        } catch (backgroundError: any) {
-            console.error("Error during background status update:", backgroundError.message);
-            // Optionally alert the user if this background task fails
-            // Alert.alert("Sync Error", "Could not update your route status. Please try again.");
-        }
-      })();
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+            const providerCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
 
-      // --- STEP 4: CLEAN UP LOCAL UI ---
-      setRequests((prev) => prev.filter((req) => req._id !== request._id));
-      setSelectedRequest(null);
+            await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
+            console.log('✅ Sent en_route with provider coordinates');
+          } catch (bgError: any) {
+            console.warn('Failed to send en_route with coords:', bgError?.message || bgError);
+          }
+        })();
 
+        // 4) Remove request locally from home list
+        setRequests((prev) => prev.filter((req) => req._id !== request._id));
     } catch (error: any) {
-      console.error('CRITICAL ERROR in handleAccept:', error);
-      Alert.alert('Failed to Accept', error.message || 'An unknown error occurred.');
-      // Ensure modal is closed if any primary step fails
-      setShowRouteModal(false);
-      setActiveRouteRequest(null);
+        Alert.alert('Error', error.message || 'Failed to accept request');
     }
   };
 
@@ -621,57 +504,7 @@ export default function ProviderHome() {
         </Modal>
       )}
 
-      {/* Route Modal replaced by ProviderMap-based modal */}
-      {activeRouteRequest && (
-        <Modal visible={showRouteModal} animationType="slide" onRequestClose={() => { setShowRouteModal(false); setActiveRouteRequest(null); }}>
-          <View style={{ flex: 1 }}>
-            {/* Top bar */}
-            <View style={{ paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' }}>
-              <View>
-                <Text style={{ fontSize: 18, fontWeight: '700' }}>Route to Patient</Text>
-                <Text style={{ color: '#6B7280' }}>{activeRouteRequest.patientId?.fullname || ''}</Text>
-              </View>
-              <TouchableOpacity onPress={() => { setShowRouteModal(false); setActiveRouteRequest(null); }} style={{ padding: 8 }}>
-                <Feather name="x" size={22} color="#374151" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Map */}
-            <View style={{ flex: 1 }}>
-              {providerLocation ? (
-                <ProviderMap
-                  userLatitude={providerLocation.latitude}
-                  userLongitude={providerLocation.longitude}
-                  destinationLatitude={normalizeCoordinateOrUndefined(activeRouteRequest.address?.coordinates)?.latitude}
-                  destinationLongitude={normalizeCoordinateOrUndefined(activeRouteRequest.address?.coordinates)?.longitude}
-                  providers={[{
-                    _id: activeRouteRequest._id,
-                    firstname: activeRouteRequest.patientId?.fullname || 'Patient',
-                    location: normalizeCoordinateOrUndefined(activeRouteRequest.address?.coordinates) || undefined,
-                  }]}
-                />
-              ) : (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f3f4f6' }}>
-                  <ActivityIndicator size="large" color="#3B82F6" />
-                  <Text style={{ marginTop: 12, color: '#6B7280' }}>Locating you...</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Bottom actions */}
-            <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', backgroundColor: '#fff' }}>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity onPress={handleCancelRoute} style={{ flex: 1, backgroundColor: '#fee2e2', paddingVertical: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: '#ef4444', fontWeight: '700' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleArrived} style={{ flex: 1, backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>Mark as Arrived</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
+      {/* Route handling moved to GlobalRouteModal via RouteContext */}
     </SafeAreaView>
   );
 }

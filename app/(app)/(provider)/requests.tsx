@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { useAuth } from "../../../context/AuthContext";
 import socketService from "../../../lib/socket";
-import ProviderRouteModal from "../../../components/ProviderRouteModal";
+import { useRoute } from "../../../context/RouteContext";
 
 interface Request {
   _id: string;
@@ -40,8 +40,7 @@ export default function ProviderRequests() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'completed'>('all');
   const [requests, setRequests] = useState<Request[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [routeModalVisible, setRouteModalVisible] = useState(false);
-  const [currentRouteRequest, setCurrentRouteRequest] = useState<Request | null>(null);
+  const { startRoute } = useRoute();
   const { user } = useAuth();
   const loadRequests = useCallback(async () => {
     if (!user?.userId) {
@@ -389,9 +388,8 @@ export default function ProviderRequests() {
         setRequests(prev => prev.map(req => req._id === request._id ? { ...req, status: 'en_route' as any } : req));
       }
 
-      // Open route modal
-      setCurrentRouteRequest(request);
-      setRouteModalVisible(true);
+      // Start global route modal via context
+      startRoute(request);
     } catch (error: any) {
       console.error('Error marking route:', error);
       Alert.alert('Error', error.message || 'Failed to mark route');
@@ -402,9 +400,6 @@ export default function ProviderRequests() {
   const handleRouteComplete = useCallback(() => {
     console.log('✅ Route completed');
     try {
-      setRouteModalVisible(false);
-      setCurrentRouteRequest(null);
-      
       // Reload requests after a small delay to ensure modal is closed first
       setTimeout(() => {
         console.log('🔄 Reloading requests after route completion');
@@ -603,15 +598,7 @@ export default function ProviderRequests() {
       </ScrollView>
 
       {/* Provider Route Tracking Modal */}
-      <ProviderRouteModal
-        visible={routeModalVisible}
-        onClose={() => setRouteModalVisible(false)}
-        requestId={currentRouteRequest?._id || ''}
-        providerId={user?.userId || ''}
-        patientLocation={currentRouteRequest?.address?.coordinates}
-        patientName={currentRouteRequest?.patientId?.fullname || 'Patient'}
-        onCompleteRoute={handleRouteComplete}
-      />
+      {/* GlobalRouteModal is used at the root via RouteProvider; ProviderRouteModal removed */}
     </SafeAreaView>
   );
 }
