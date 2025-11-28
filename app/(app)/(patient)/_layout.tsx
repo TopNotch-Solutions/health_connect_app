@@ -107,6 +107,12 @@ export default function PatientTabLayout() {
         name="all_ailments"
         options={{
           href: null,
+          title: '',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }} accessibilityRole="button" accessibilityLabel="Go back">
+              <Feather name="arrow-left" size={30} />
+            </TouchableOpacity>
+          ),
         }}
       />
       <Tabs.Screen

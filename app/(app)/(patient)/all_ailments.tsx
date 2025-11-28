@@ -1,9 +1,9 @@
 import { Feather } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  FlatList,
   SafeAreaView,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -43,7 +43,6 @@ const AilmentCard = ({
 );
 
 export default function AllAilmentsScreen() {
-  const router = useRouter();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
@@ -243,31 +242,32 @@ export default function AllAilmentsScreen() {
             </Text>
           </View>
         ) : (
-          <FlatList
-            data={filteredAilments}
-            keyExtractor={(item) => item._id}
-            numColumns={2}
+          <ScrollView
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}
-            columnWrapperStyle={{ justifyContent: 'space-between' }}
-            renderItem={({ item, index }) => {
-              // Check if this is the first item or if provider changed
-              const isFirstItem = index === 0;
-              const prevItem = index > 0 ? filteredAilments[index - 1] : null;
-              const providerChanged = prevItem && prevItem.provider !== item.provider;
-              
-              return (
-                <>
-                  {(isFirstItem || providerChanged) && (
-                    <View className="w-full mb-">
-                      <Text className="text-lg font-bold text-blue-600">{item.provider}</Text>
-                      <View className="h-1 bg-blue-600 rounded-full mt-1" style={{ width: '30%' }} />
-                    </View>
-                  )}
-                  <AilmentCard item={item} onPress={() => handleAilmentSelect(item)} />
-                </>
-              );
-            }}
-          />
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/** Group ailments by provider so headers can span full width and cards can wrap underneath */}
+            {Object.entries(filteredAilments.reduce((acc: Record<string, Ailment[]>, ailment) => {
+              const key = ailment.provider || 'Other';
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(ailment);
+              return acc;
+            }, {})).map(([provider, items]) => (
+              <View key={provider} className="mb-6">
+                <View className="w-full px-2 py-1">
+                  <Text className="text-lg font-bold text-blue-600">{provider}</Text>
+                  <View className="h-1 bg-blue-600 rounded-full mt-1" style={{ width: '30%' }} />
+                </View>
+
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 12 }}>
+                  {items.map((item) => (
+                    <AilmentCard key={item._id} item={item} onPress={() => handleAilmentSelect(item)} />
+                  ))}
+                </View>
+              </View>
+            ))}
+          </ScrollView>
         )}
       </View>
 
