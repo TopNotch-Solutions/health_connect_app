@@ -52,33 +52,12 @@ export default function ProviderRequests() {
 
     try {
       setIsLoading(true);
-      console.log('📥 Fetching available requests for provider:', user.userId);
-      
-      // Fetch both available requests (searching) AND provider's own requests (accepted/active)
-      const [availableRequests, providerRequests] = await Promise.all([
-        socketService.getAvailableRequests(user.userId),
-        socketService.getProviderRequests(user.userId)
-      ]);
-      
-      console.log('✅ Available requests received:', availableRequests);
-      console.log('📊 Available requests count:', Array.isArray(availableRequests) ? availableRequests.length : 0);
-      console.log('✅ Provider requests received:', providerRequests);
-      console.log('📊 Provider requests count:', Array.isArray(providerRequests) ? providerRequests.length : 0);
-      
-      // Clear old AsyncStorage cache as it can contain stale requests
-      // Only use requests from the live backend database
-      await AsyncStorage.removeItem(`provider-requests-${user.userId}`);
-      console.log('🧹 Cleared stale cached requests from AsyncStorage');
-      
-      // Combine both lists: provider's active requests + available requests
-      const available = Array.isArray(availableRequests) ? availableRequests : [];
-      const assigned = Array.isArray(providerRequests) ? providerRequests : [];
-      const allRequests = [...assigned, ...available];
-      
-      console.log('✅ Total requests from backend:', allRequests.length);
-      console.log('✅ All requests:', allRequests.map(r => ({ id: r._id, status: r.status })));
-      
-      setRequests(allRequests);
+      console.log('📥 Fetching provider requests for:', user.userId);
+
+      // This screen is authoritative for provider requests
+      const providerRequests = await socketService.getProviderRequests(user.userId);
+      console.log('✅ Fetched provider requests:', providerRequests);
+      setRequests(Array.isArray(providerRequests) ? providerRequests : []);
     } catch (error: any) {
       console.error('❌ Error loading requests:', error);
       Alert.alert('Error', 'Failed to load requests: ' + error.message);
@@ -166,40 +145,9 @@ export default function ProviderRequests() {
         return updated;
       });
       
-      // Update stored requests with new status - IMPORTANT for persistence
-      if (user?.userId) {
-        try {
-          const storedRequestsJson = await AsyncStorage.getItem(`provider-requests-${user.userId}`);
-          const storedRequests = storedRequestsJson ? JSON.parse(storedRequestsJson) : [];
-          console.log('📦 Current stored requests before update:', storedRequests.length);
-          
-          let updatedStored = storedRequests.map((req: Request) =>
-            req._id === data.requestId 
-              ? { ...req, ...data.request, status: correctStatus } 
-              : req
-          );
-          
-          // Add if not in stored - this is critical for accepted requests
-          if (!updatedStored.some((r: Request) => r._id === data.requestId)) {
-            console.log('📌 Adding new request to AsyncStorage:', data.requestId, 'status:', correctStatus);
-            if (data.request) {
-              updatedStored.push({ ...data.request, status: correctStatus });
-            } else {
-              // If request object isn't provided, we need to find it in current state
-              const requestToStore = requests.find(r => r._id === data.requestId);
-              if (requestToStore) {
-                updatedStored.push({ ...requestToStore, status: correctStatus });
-              }
-            }
-          }
-          
-          console.log('💾 Saving to AsyncStorage - total requests after update:', updatedStored.length);
-          await AsyncStorage.setItem(`provider-requests-${user.userId}`, JSON.stringify(updatedStored));
-          console.log('✅ Successfully saved to AsyncStorage');
-        } catch (error) {
-          console.error('❌ Error saving to AsyncStorage:', error);
-        }
-      }
+      // Note: persistence to AsyncStorage intentionally removed for Requests tab.
+      // The Requests screen uses live data from the server (getProviderRequests)
+      // so we only update local state here and avoid writing cached copies.
     };
 
     socketService.getSocket()?.on('newRequestAvailable', handleNewRequest);
@@ -290,11 +238,23 @@ export default function ProviderRequests() {
       setRouteModalVisible(true);
 
       // Update local state immediately to reflect that provider started routing
-      setRequests((prev) =>
-        prev.map((req) =>
-          req._id === request._id ? { ...req, status: 'en_route' as any } : req
-        )
-      );
+      setRequests((prev) => {
+        const updated = prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req));
+
+        // Persist to AsyncStorage so other screens/refreshes see en_route immediately
+        (async () => {
+          try {
+            if (user?.userId) {
+              await AsyncStorage.setItem(`provider-requests-${user.userId}`, JSON.stringify(updated));
+              console.log('💾 Persisted en_route to AsyncStorage for request', request._id);
+            }
+          } catch (e) {
+            console.warn('⚠️ Failed to persist requests to AsyncStorage', e);
+          }
+        })();
+
+        return updated;
+      });
       
       // ALL OTHER OPERATIONS HAPPEN IN BACKGROUND (non-blocking, no await)
       (async () => {
@@ -305,12 +265,12 @@ export default function ProviderRequests() {
             console.warn('Location permission denied');
             return;
           }
-          
+
           // Get provider's current location
           const providerLocation = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.High,
           });
-          
+
           const providerCoords = {
             latitude: providerLocation.coords.latitude,
             longitude: providerLocation.coords.longitude,
@@ -331,43 +291,55 @@ export default function ProviderRequests() {
             const estimatedMinutes = Math.round((distance / avgSpeed) * 60);
             console.log(`📊 Distance: ${distance.toFixed(1)} km, Estimated time: ${estimatedMinutes} minutes`);
 
-            // Accept request
-            await socketService.acceptRequest(request._id, user.userId);
-            console.log('✅ Request accepted by backend');
+            // Prepare handshake listener BEFORE accepting so we don't miss server event
+            const sock = socketService.getSocket();
+            let handled = false;
 
-            // Immediately set request status to en_route since provider opened the map
-            try {
-              // Small delay to avoid race with backend accept handler
-              await new Promise((res) => setTimeout(res, 700));
-              await socketService.updateRequestStatus(request._id, 'en_route', providerCoords);
-              console.log('✅ Request status updated to en_route');
-              // Update local state so requests list shows 'en_route' / route started
-              setRequests((prev) =>
-                prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req))
-              );
-            } catch (err: any) {
-              console.warn('⚠️ Failed to update request status to en_route (first attempt):', err?.message || err);
-              // Retry once if backend reports provider not assigned (likely race)
-              if (err?.message && err.message.includes('not assigned')) {
-                try {
-                  await new Promise((res) => setTimeout(res, 800));
-                  await socketService.updateRequestStatus(request._id, 'en_route', providerCoords);
-                  console.log('✅ Request status updated to en_route (retry)');
-                  setRequests((prev) =>
-                    prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req))
-                  );
-                } catch (err2) {
-                  console.warn('⚠️ Retry to set en_route failed:', err2?.message || err2);
-                }
+            const onConfirm = async (data: any) => {
+              if (!data || data.requestId !== request._id) return;
+              if (handled) return;
+              handled = true;
+              try {
+                sock?.off('acceptConfirmed', onConfirm);
+                await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
+                console.log('✅ Request status updated to en_route after acceptConfirmed');
+                setRequests((prev) => prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req)));
+              } catch (err) {
+                console.warn('⚠️ Failed to update request status to en_route after acceptConfirmed:', err);
               }
-            }
+            };
+
+            sock?.on('acceptConfirmed', onConfirm);
+
+            // Accept request (now that listener is in place)
+            await socketService.acceptRequest(request._id, user.userId);
+            console.log('✅ Request accepted by backend (acceptRequest returned)');
+
+            // Fallback: if no acceptConfirmed within 10s, attempt update with retry
+            setTimeout(async () => {
+              if (handled) return;
+              handled = true;
+              sock?.off('acceptConfirmed', onConfirm);
+              try {
+                await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
+                console.log('✅ Request status updated to en_route via fallback');
+                setRequests((prev) => prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req)));
+              } catch (err) {
+                console.warn('⚠️ Fallback: failed to set en_route, will retry once', err);
+                setTimeout(async () => {
+                  try {
+                    await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
+                    console.log('✅ Request status updated to en_route via fallback retry');
+                    setRequests((prev) => prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req)));
+                  } catch (e) {
+                    console.warn('⚠️ Fallback retry failed', e);
+                  }
+                }, 2000);
+              }
+            }, 10000);
 
             // Send provider response (ETA and location)
-            await socketService.updateProviderResponse(
-              request._id,
-              estimatedMinutes.toString(),
-              providerCoords
-            );
+            await socketService.updateProviderResponse(request._id, estimatedMinutes.toString(), providerCoords);
             console.log('✅ Provider response sent successfully');
           }
         } catch (error) {
@@ -384,6 +356,16 @@ export default function ProviderRequests() {
 
   // Handle mark route - open route tracking modal
   const handleMarkRoute = async (request: Request) => {
+    // 1. Double-check assignment to current user to avoid backend 'not assigned' errors
+    const providerIdStr = request.providerId?._id ? String(request.providerId._id) : String(request.providerId || '');
+    if (providerIdStr !== String(user?.userId)) {
+      console.error('State mismatch detected!');
+      console.error('Request providerId:', request.providerId);
+      console.error('Current userId:', user?.userId);
+      Alert.alert('Sync Error', 'This request is no longer assigned to you. Refreshing the list.', [{ text: 'OK', onPress: loadRequests }]);
+      return;
+    }
+
     if (!user?.userId || !request.address?.coordinates) {
       Alert.alert('Error', 'Patient location not available');
       return;
@@ -391,52 +373,25 @@ export default function ProviderRequests() {
 
     try {
       console.log('🚗 Opening route modal for request:', request._id);
-      console.log('🚗 Request status:', request.status);
-      console.log('🚗 Is resuming:', request.status === 'en_route');
-      
-      // Request location permission first
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to mark route');
-        return;
+        return Alert.alert('Permission Denied', 'Location permission is required.');
       }
-      console.log('✅ Location permission granted');
-      
-      // Get provider's current location first
-      console.log('📍 Requesting current location from device...');
-      const providerLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      
-      const providerCoords = {
-        latitude: providerLocation.coords.latitude,
-        longitude: providerLocation.coords.longitude,
-      };
-      
-      console.log('📍 Provider location retrieved:', providerCoords);
-      
-      // Only update status to en_route if it's currently 'accepted'
-      // If it's already 'en_route', skip the status update (resuming route)
+
+      const providerLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const providerCoords = { latitude: providerLocation.coords.latitude, longitude: providerLocation.coords.longitude };
+
+      // Only update status if it's the first time marking the route
       if (request.status === 'accepted') {
-        console.log('📤 First time marking route - updating status to en_route');
-        await socketService.updateRequestStatus(request._id, 'en_route', providerCoords);
-        
-        // Update local state
-        setRequests((prev) =>
-          prev.map((req) =>
-            req._id === request._id ? { ...req, status: 'en_route' as any } : req
-          )
-        );
-      } else if (request.status === 'en_route') {
-        console.log('🚗 Resuming existing route - skipping status update');
-        // Just open the modal, don't update status
+      await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
+        // Optimistically update the local state for immediate UI feedback
+        setRequests(prev => prev.map(req => req._id === request._id ? { ...req, status: 'en_route' as any } : req));
       }
 
       // Open route modal
       setCurrentRouteRequest(request);
       setRouteModalVisible(true);
-      
-      console.log('✅ Route modal opened');
     } catch (error: any) {
       console.error('Error marking route:', error);
       Alert.alert('Error', error.message || 'Failed to mark route');
@@ -466,7 +421,7 @@ export default function ProviderRequests() {
 
     try {
       console.log('✅ Completing request:', requestId);
-      await socketService.updateRequestStatus(requestId, 'completed', undefined);
+      await socketService.updateRequestStatus(requestId, user.userId, 'completed', undefined);
       
       // Update local state
       setRequests((prev) =>

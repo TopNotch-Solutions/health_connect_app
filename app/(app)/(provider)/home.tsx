@@ -1,8 +1,9 @@
 // app/(provider)/home.tsx
 
 import { Feather } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState, useRef } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import ProviderMap from '../../../components/(patient)/ProviderMap';
 import {
@@ -33,6 +34,7 @@ export default function ProviderHome() {
   const [requests, setRequests] = useState<any[]>([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const { user } = useAuth();
+  const router = useRouter();
 
   // Online/Offline toggle
   const [isOnline, setIsOnline] = useState(true);
@@ -42,7 +44,6 @@ export default function ProviderHome() {
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const locationWatcherRef = useRef<any>(null);
   const routeWatcherRef = useRef<any>(null);
-  
   // Route Modal State
   const [activeRouteRequest, setActiveRouteRequest] = useState<any>(null);
   const [showRouteModal, setShowRouteModal] = useState(false);
@@ -223,6 +224,7 @@ export default function ProviderHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showRouteModal, activeRouteRequest]);
 
+  // Route modal handling removed from provider home. Route/modal flows occur on the Requests screen.
   const handleArrived = async () => {
     try {
       if (!activeRouteRequest?._id) return;
@@ -237,7 +239,7 @@ export default function ProviderHome() {
         routeWatcherRef.current = null;
       }
 
-      await socketService.updateRequestStatus(activeRouteRequest._id, 'arrived', providerLocation);
+      await socketService.updateRequestStatus(activeRouteRequest._id, user.userId, 'arrived', providerLocation);
       Alert.alert('Success', "You've arrived at the patient's location!");
       setShowRouteModal(false);
       setActiveRouteRequest(null);
@@ -270,74 +272,54 @@ export default function ProviderHome() {
   };
 
   const handleAccept = async (request: any) => {
-    if (!user?.userId) return;
+    if (!user?.userId) return Alert.alert("Authentication Error", "You are not logged in.");
+
+    // Show a loading state or disable the button immediately
+    // For simplicity, we can just proceed.
 
     try {
+      // --- STEP 1: AWAIT ACCEPTANCE ---
+      // First, we MUST wait for the backend to confirm that we are the provider.
+      console.log('Step 1: Emitting acceptRequest and waiting...');
       await socketService.acceptRequest(request._id, user.userId);
-      
-      // Prepare data for the route modal and mark route locally as started
+      console.log('Step 1 SUCCESS: Backend has processed acceptRequest.');
+
+      // --- STEP 2: OPEN THE MAP MODAL ---
+      // Now that we are assigned, we can open the map.
       setActiveRouteRequest({ ...request, status: 'en_route' });
       setShowRouteModal(true);
+      console.log('Step 2: Opening map modal.');
 
-      // Remove from available requests and update local state to reflect route started
-      setRequests((prev) => prev.filter((req) => req._id !== request._id));
-      setSelectedRequest(null);
-      
-      // Background: attempt to set status to en_route and send provider response (ETA)
+      // --- STEP 3: UPDATE STATUS (in the background) ---
+      // This can happen after the map is already open for a fast UX.
       (async () => {
         try {
           const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== 'granted') {
-            console.warn('Location permission not granted - skipping en_route update');
-            return;
-          }
-
+          if (status !== 'granted') throw new Error("Location permission denied.");
+          
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
           const providerCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
 
-          // Update status to en_route on backend (delay + retry to avoid race)
-          try {
-            await new Promise((res) => setTimeout(res, 700));
-            await socketService.updateRequestStatus(request._id, 'en_route', providerCoords);
-            console.log('✅ Request status updated to en_route from provider home');
-          } catch (err: any) {
-            console.warn('⚠️ Failed to update request status to en_route from provider home (first):', err?.message || err);
-            if (err?.message && err.message.includes('not assigned')) {
-              try {
-                await new Promise((res) => setTimeout(res, 800));
-                await socketService.updateRequestStatus(request._id, 'en_route', providerCoords);
-                console.log('✅ Request status updated to en_route from provider home (retry)');
-              } catch (err2) {
-                console.warn('⚠️ Retry failed for en_route update from provider home:', err2?.message || err2);
-              }
-            }
-          }
-
-          // Calculate ETA and send provider response if patient coords available
-          if (request.address?.coordinates) {
-            const distance = calculateDistance(
-              providerCoords.latitude,
-              providerCoords.longitude,
-              request.address.coordinates.latitude,
-              request.address.coordinates.longitude
-            );
-            const avgSpeed = 40;
-            const estimatedMinutes = Math.round((distance / avgSpeed) * 60);
-            await socketService.updateProviderResponse(request._id, estimatedMinutes.toString(), providerCoords);
-            console.log('✅ Provider response sent (ETA) from provider home');
-          }
-        } catch (bgErr) {
-          console.warn('⚠️ Background en_route/ETA update failed:', bgErr);
+          console.log("Step 3: Emitting updateRequestStatus to 'en_route'...");
+          await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
+          console.log("Step 3 SUCCESS: Backend has processed updateRequestStatus.");
+        } catch (backgroundError: any) {
+            console.error("Error during background status update:", backgroundError.message);
+            // Optionally alert the user if this background task fails
+            // Alert.alert("Sync Error", "Could not update your route status. Please try again.");
         }
       })();
 
-      // Reload requests to ensure state is synced
-      setTimeout(() => {
-        loadAvailableRequests();
-      }, 500);
+      // --- STEP 4: CLEAN UP LOCAL UI ---
+      setRequests((prev) => prev.filter((req) => req._id !== request._id));
+      setSelectedRequest(null);
+
     } catch (error: any) {
-      console.error('Error accepting request:', error);
-      Alert.alert('Error', error.message || 'Failed to accept request');
+      console.error('CRITICAL ERROR in handleAccept:', error);
+      Alert.alert('Failed to Accept', error.message || 'An unknown error occurred.');
+      // Ensure modal is closed if any primary step fails
+      setShowRouteModal(false);
+      setActiveRouteRequest(null);
     }
   };
 
