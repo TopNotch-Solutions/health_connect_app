@@ -190,22 +190,26 @@ export default function TransactionsScreen() {
                         refreshing={isLoading}
                         ListHeaderComponent={
                             <>
-                                <View className="bg-primary p-6 rounded-2xl mb-6 shadow-md">
+                                <View className="p-6 mb-6 border border-blue-200 rounded-2xl">
                                     <View className="mb-6">
-                                        <Text className="text-white text-lg opacity-80">Your Balance</Text>
-                                        <Text className="text-white text-4xl font-bold mt-1">N$ {user?.balance?.toFixed(2) || '0.00'}</Text>
+                                        <Text className="text-gray-600 text-lg">Your Balance</Text>
+                                        <Text className="text-gray-900 text-4xl font-bold mt-1">
+                                            N$ {user?.balance?.toFixed(2) || '0.00'}
+                                        </Text>
                                     </View>
                                     {user?.walletID && (
-                                        <TouchableOpacity onPress={() => {
-                                            try {
-                                                Clipboard.setString(user.walletID!);
-                                                Alert.alert("Copied", "Wallet ID copied to clipboard!");
-                                            } catch {
-                                                Alert.alert("Error", "Failed to copy wallet ID");
-                                            }
-                                        }}>
-                                            <Text className="text-white text-sm font-semibold mb-2">Your Wallet ID</Text>
-                                            <Text className="text-white text-base font-bold break-words">{user.walletID}</Text>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                try {
+                                                    Clipboard.setString(user.walletID!);
+                                                    Alert.alert("Copied", "Wallet ID copied to clipboard!");
+                                                } catch {
+                                                    Alert.alert("Error", "Failed to copy wallet ID");
+                                                }
+                                            }}
+                                        >
+                                            <Text className="text-gray-600 text-sm font-semibold mb-2">Your Wallet ID</Text>
+                                            <Text className="text-gray-900 text-base font-bold break-words">{user.walletID}</Text>
                                         </TouchableOpacity>
                                     )}
                                 </View>

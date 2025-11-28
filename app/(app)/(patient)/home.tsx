@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
   Animated,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +19,54 @@ import { useAuth } from '../../../context/AuthContext';
 import socketService from '../../../lib/socket';
 import { getLocationCoordinates } from '../../../lib/geocoding';
 
+// Import ailment icons directly
+const bacteriaIcon = require('../../../assets/icons/bacteria.png');
+const painIcon = require('../../../assets/icons/pain.png');
+const mosquitoIcon = require('../../../assets/icons/mosquito (1).png');
+const bloodPressureIcon = require('../../../assets/icons/blood-pressure-check.png');
+const careIcon = require('../../../assets/icons/care.png');
+const woundCareIcon = require('../../../assets/icons/wound-care.png');
+const ailmentIcons = [
+  bacteriaIcon,
+  painIcon,
+  mosquitoIcon,
+  bloodPressureIcon,
+  careIcon,
+  woundCareIcon,
+];
+
+const assignAilmentIcons = (categories: any[] = []) => {
+  const mapped = categories.map((category = {}, index: number) => {
+    const fallbackIcon = ailmentIcons[index % ailmentIcons.length];
+    const rawIcon = category?.icon;
+    let resolvedIcon = fallbackIcon;
+
+    if (rawIcon) {
+      if (typeof rawIcon === 'string') {
+        const trimmed = rawIcon.trim();
+        const looksLikeUrl = /^https?:\/\//i.test(trimmed) || trimmed.includes('.') || trimmed.includes('/');
+
+        if (trimmed && looksLikeUrl) {
+          resolvedIcon = { uri: trimmed };
+        } else {
+          resolvedIcon = fallbackIcon;
+        }
+      } else {
+        resolvedIcon = rawIcon;
+      }
+    }
+
+    return {
+      ...category,
+      icon: resolvedIcon,
+    };
+  });
+
+  console.log('🧩 assignAilmentIcons -> input count:', categories?.length ?? 0);
+  console.log('🧩 assignAilmentIcons -> first mapped item:', mapped[0]);
+
+  return mapped;
+};
 // --- Dummy Data (for UI development, replace with API data later) ---
 const healthTips = [
   {
@@ -59,14 +108,14 @@ const healthTips = [
 ];
 
 // Ailment categories will be fetched from backend
-const defaultAilmentCategories = [
-  { _id: '1', title: 'Flu, Cold & Cough Symptoms', provider: 'Doctor', icon: 'wind' },
-  { _id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'alert-circle' },
-  { _id: '3', title: 'New or Worsening Skin Rash', provider: 'Nurse', icon: 'alert-octagon' },
-  { _id: '4', title: 'Headaches or Migraines', provider: 'Doctor', icon: 'activity' },
-  { _id: '5', title: 'Elderly Parent Wellness Check', provider: 'Social Worker', icon: 'heart' },
-  { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist', icon: 'target' },
-];
+const defaultAilmentCategories = assignAilmentIcons([
+  { _id: '1', title: 'Flu, Cold & Cough Symptoms', provider: 'Doctor', icon: bacteriaIcon },
+  { _id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: painIcon },
+  { _id: '3', title: 'New or Worsening Skin Rash', provider: 'Nurse', icon: mosquitoIcon },
+  { _id: '4', title: 'Headaches or Migraines', provider: 'Doctor', icon: bloodPressureIcon },
+  { _id: '5', title: 'Elderly Parent Wellness Check', provider: 'Social Worker', icon: careIcon },
+  { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist', icon: woundCareIcon },
+]);
 
 // --- Reusable Components for this Screen ---
 const HealthTipCard = ({ item }: { item: (typeof healthTips)[0] }) => (
@@ -96,16 +145,25 @@ const AilmentCard = ({
 }: { 
   item: any; 
   onPress: () => void;
-}) => (
-  <TouchableOpacity 
-    onPress={onPress}
-    className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200"
-  >
-    <Feather name={item.icon as any} size={24} color="#2563EB" />
-    <Text className="text-base font-bold text-gray-800 mt-3">{item.title}</Text>
-    <Text className="text-sm text-gray-600 mt-1">{item.provider}</Text>
-  </TouchableOpacity>
-);
+}) => {
+  return (
+    <TouchableOpacity 
+      onPress={onPress}
+      className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200"
+      activeOpacity={0.7}
+    >
+      {item.icon && (
+        <Image 
+          source={item.icon} 
+          style={{ width: 40, height: 40, marginBottom: 8 }} 
+          resizeMode="contain"
+        />
+      )}
+      <Text className="text-base font-bold text-gray-800 mt-3">{item.title}</Text>
+      <Text className="text-sm text-gray-600 mt-1">{item.provider}</Text>
+    </TouchableOpacity>
+  );
+};
 
 interface HistoryItem {
   _id: string;
@@ -148,6 +206,7 @@ export default function PatientHomeScreen() {
       
       if (!socket?.connected) {
         console.warn('⚠️ Socket not connected, using default ailment categories');
+        console.log('ℹ️ Using default ailment categories (socket disconnected).');
         setAilmentCategories(defaultAilmentCategories);
         return;
       }
@@ -161,7 +220,10 @@ export default function PatientHomeScreen() {
           
           console.log('📋 Received ailment categories from backend:', categories);
           if (Array.isArray(categories) && categories.length > 0) {
-            setAilmentCategories(categories);
+            const mappedCategories = assignAilmentIcons(categories);
+            console.log('✅ Setting backend ailment categories. Count:', mappedCategories.length);
+            console.log('✅ First backend category after mapping:', mappedCategories[0]);
+            setAilmentCategories(mappedCategories);
           } else {
             console.warn('⚠️ No ailment categories received, using defaults');
             setAilmentCategories(defaultAilmentCategories);
@@ -176,6 +238,7 @@ export default function PatientHomeScreen() {
           
           console.warn('⚠️ Ailment categories request timeout, using defaults');
           socket?.off('ailmentCategories', handleAilmentCategories);
+          console.warn('⚠️ Timeout: falling back to defaults');
           setAilmentCategories(defaultAilmentCategories);
           resolve();
         }, 5000);
@@ -188,6 +251,7 @@ export default function PatientHomeScreen() {
       });
     } catch (error) {
       console.error('Error loading ailment categories:', error);
+      console.log('ℹ️ Error loading categories, using defaults');
       setAilmentCategories(defaultAilmentCategories);
     } finally {
       setIsLoadingAilments(false);

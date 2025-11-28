@@ -19,6 +19,7 @@ import {
 import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import apiClient from '../../../lib/api';
+import { namibianRegions } from '../../../constants/locations';
 
 // --- Type Definitions ---
 type PickedImage = ImagePicker.ImagePickerAsset | null;
@@ -175,6 +176,7 @@ export default function ProviderRegistrationScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [expirationDate, setExpirationDate] = useState<Date>(new Date());
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Specializations from API
   const [allSpecializations, setAllSpecializations] = useState<Specialization[]>([]);
@@ -187,6 +189,7 @@ export default function ProviderRegistrationScreen() {
     email: '',
     cellphoneNumber: '',
     password: '',
+    confirmPassword: '',
     agreeToTerms: false,
     nationalId: '',
     gender: '',
@@ -198,9 +201,9 @@ export default function ProviderRegistrationScreen() {
     profileImage: null as PickedImage,
     idDocumentFront: null as DocFile,
     idDocumentBack: null as DocFile,
-    primaryQualification: null as DocFile,
-    annualQualification: null as DocFile,
-    prescribingCertificate: null as DocFile,
+    finalQualification: null as DocFile,
+    HPCNAQualification: null as DocFile,
+    dispensingCertificateLicence: null as DocFile,
   });
 
   const [professionalDetails, setProfessionalDetails] = useState({
@@ -390,9 +393,9 @@ export default function ProviderRegistrationScreen() {
       [documents.profileImage, 'profileImage'],
       [documents.idDocumentFront, 'idDocumentFront'],
       [documents.idDocumentBack, 'idDocumentBack'],
-      [documents.primaryQualification, 'primaryQualification'],
-      [documents.annualQualification, 'annualQualification'],
-      [documents.prescribingCertificate, 'prescribingCerificate'],
+      [documents.finalQualification, 'finalQualification'],
+      [documents.HPCNAQualification, 'HPCNAQualification'],
+      [documents.dispensingCertificateLicence, 'dispensingCertificateLicence'],
     ];
 
     files.forEach(([f, key]) => {
@@ -411,6 +414,11 @@ export default function ProviderRegistrationScreen() {
     if (!accountInfo.email) missing.push('Email');
     if (!accountInfo.cellphoneNumber) missing.push('Cellphone');
     if (!accountInfo.password) missing.push('Password');
+    if (!accountInfo.confirmPassword) missing.push('Confirm Password');
+    if (accountInfo.password && accountInfo.confirmPassword && accountInfo.password !== accountInfo.confirmPassword) {
+      Alert.alert('Password Mismatch', 'Password and Confirm Password do not match');
+      return;
+    }
     if (!accountInfo.nationalId) missing.push('National ID Number');
     if (!accountInfo.gender) missing.push('Gender');
     if (!professionalDetails.hpcnaNumber)
@@ -421,11 +429,11 @@ export default function ProviderRegistrationScreen() {
     if (!documents.idDocumentFront) missing.push('ID Front');
     if (!documents.idDocumentBack) missing.push('ID Back');
     if (!documents.profileImage) missing.push('Photo');
-    if (!documents.primaryQualification) missing.push('Primary Qualification');
-    if (!documents.annualQualification)
-      missing.push('Annual Practicing Certificate');
-    if (params?.providerType === 'nurse' && !documents.prescribingCertificate)
-      missing.push('Prescribing Certificate');
+    if (!documents.finalQualification) missing.push('Final Qualification');
+    if (!documents.HPCNAQualification)
+      missing.push('HPCNA Practicing Certificate');
+    if (params?.providerType === 'nurse' && !documents.dispensingCertificateLicence)
+      missing.push('Dispensing Certification Licence');
 
     if (missing.length) {
       Alert.alert('Missing info', 'Please provide:\n• ' + missing.join('\n• '));
@@ -470,7 +478,7 @@ export default function ProviderRegistrationScreen() {
             <View className="flex-1 h-2 bg-gray-200 rounded-full">
               <View
                 style={{ width: `${(step / 4) * 100}%` }}
-                className="h-2 bg-primary rounded-full"
+                className="h-2 bg-primary rounded-full "
               />
             </View>
           </View>
@@ -490,7 +498,8 @@ export default function ProviderRegistrationScreen() {
                 onChangeText={(t) =>
                   setAccountInfo((p) => ({ ...p, fullname: t }))
                 }
-                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                placeholder="Enter your full name"
+                className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300"
               />
 
               <Text className="text-base text-text-main mb-2 font-semibold">
@@ -501,19 +510,11 @@ export default function ProviderRegistrationScreen() {
                 onChangeText={(t) =>
                   setAccountInfo((p) => ({ ...p, email: t }))
                 }
-                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                placeholder="youremail@example.com"
+                className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300"
                 autoCapitalize="none"
                 keyboardType="email-address"
               />
-
-              <Text className="text-base text-text-main mb-2 font-semibold">
-                Mobile
-              </Text>
-              <View className="bg-gray-100 p-4 rounded-xl mb-4 border border-gray-200">
-                <Text className="text-base text-gray-500">
-                  {accountInfo.cellphoneNumber}
-                </Text>
-              </View>
 
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Password
@@ -524,7 +525,8 @@ export default function ProviderRegistrationScreen() {
                   onChangeText={(t) =>
                     setAccountInfo((p) => ({ ...p, password: t }))
                   }
-                  className="bg-white p-4 rounded-xl mb-4 border border-gray-200 pr-12"
+                  placeholder="Create a strong password"
+                  className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300 pr-12"
                   secureTextEntry={!showPassword}
                 />
                 <TouchableOpacity
@@ -541,6 +543,32 @@ export default function ProviderRegistrationScreen() {
               </View>
 
               <Text className="text-base text-text-main mb-2 font-semibold">
+                Confirm Password
+              </Text>
+              <View className="relative">
+                <TextInput
+                  value={accountInfo.confirmPassword}
+                  onChangeText={(t) =>
+                    setAccountInfo((p) => ({ ...p, confirmPassword: t }))
+                  }
+                  placeholder="Confirm your password"
+                  className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300 pr-12"
+                  secureTextEntry={!showConfirmPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-4"
+                  style={{ width: 24, height: 24 }}
+                >
+                  <Feather
+                    name={showConfirmPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#6B7280"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text className="text-base text-text-main mb-2 font-semibold">
                 National ID Number
               </Text>
               <TextInput
@@ -548,14 +576,15 @@ export default function ProviderRegistrationScreen() {
                 onChangeText={(t) =>
                   setAccountInfo((p) => ({ ...p, nationalId: t }))
                 }
-                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                placeholder="Enter your 11-digit National ID"
+                className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300"
               />
 
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Gender
               </Text>
               <View
-                className="bg-white border border-gray-200 rounded-xl px-3 mb-4"
+                className="bg-white border-2 border-green-300 rounded-xl px-3 mb-4"
                 style={{ height: 56, justifyContent: 'center' }}
               >
                 <RNPickerSelect
@@ -565,8 +594,7 @@ export default function ProviderRegistrationScreen() {
                   value={accountInfo.gender}
                   items={[
                     { label: 'Male', value: 'Male' },
-                    { label: 'Female', value: 'Female' },
-                    { label: 'Other', value: 'Other' },
+                    { label: 'Female', value: 'Female' }
                   ]}
                   placeholder={{ label: 'Select gender…', value: '' }}
                   Icon={() => null}
@@ -648,25 +676,25 @@ export default function ProviderRegistrationScreen() {
               />
               <View className="h-3" />
               <UploadBox
-                label="Upload Primary Qualification"
-                file={documents.primaryQualification}
-                onPick={() => pickDocument('primaryQualification')}
+                label="Upload Final Qualification (e.g. Degree/Diploma)"
+                file={documents.finalQualification}
+                onPick={() => pickDocument('finalQualification')}
                 icon="award"
               />
               <View className="h-3" />
               <UploadBox
-                label="Upload Annual Practicing Certificate"
-                file={documents.annualQualification}
-                onPick={() => pickDocument('annualQualification')}
+                label="Upload HPCNA Practicing Certificate"
+                file={documents.HPCNAQualification}
+                onPick={() => pickDocument('HPCNAQualification')}
                 icon="calendar"
               />
               {params?.providerType === 'nurse' && (
                 <>
                   <View className="h-3" />
                   <UploadBox
-                    label="Upload Prescribing Certificate"
-                    file={documents.prescribingCertificate}
-                    onPick={() => pickDocument('prescribingCertificate')}
+                    label="Upload Dispensing Licence (Optional)"
+                    file={documents.dispensingCertificateLicence}
+                    onPick={() => pickDocument('dispensingCertificateLicence')}
                     icon="file-text"
                   />
                 </>
@@ -684,7 +712,7 @@ export default function ProviderRegistrationScreen() {
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Medical Council
               </Text>
-              <View className="bg-white p-4 rounded-xl mb-4 border border-gray-200">
+              <View className="bg-white p-4 rounded-xl mb-4 border-2 border-green-200">
                 <Text>{professionalDetails.governingCouncil}</Text>
               </View>
 
@@ -696,7 +724,7 @@ export default function ProviderRegistrationScreen() {
                 value={professionalDetails.specializations.join(', ')}
                 editable={false}
                 placeholder="Select specialization(s) below"
-                className="bg-white p-4 rounded-xl mb-3 border border-gray-200"
+                className="bg-white p-4 rounded-xl mb-3 border-2 border-green-300"
               />
 
               {loadingSpecializations ? (
@@ -751,7 +779,8 @@ export default function ProviderRegistrationScreen() {
                 onChangeText={(t) =>
                   setProfessionalDetails((p) => ({ ...p, hpcnaNumber: t }))
                 }
-                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                placeholder="Enter your HPCNA registration number"
+                className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300"
               />
 
               <Text className="text-base text-text-main mb-2 font-semibold">
@@ -765,23 +794,37 @@ export default function ProviderRegistrationScreen() {
                     yearsOfExperience: t,
                   }))
                 }
+                placeholder="Enter years of experience"
                 keyboardType="number-pad"
-                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300"
               />
 
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Operational Zone
               </Text>
-              <TextInput
-                value={professionalDetails.operationalZone}
-                onChangeText={(t) =>
-                  setProfessionalDetails((p) => ({
-                    ...p,
-                    operationalZone: t,
-                  }))
-                }
-                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
-              />
+              <View
+                className="bg-white border-2 border-green-300 rounded-xl px-3 mb-4"
+                style={{ height: 56, justifyContent: 'center' }}
+              >
+                <RNPickerSelect
+                  onValueChange={(v) =>
+                    setProfessionalDetails((p) => ({
+                      ...p,
+                      operationalZone: String(v || ''),
+                    }))
+                  }
+                  value={professionalDetails.operationalZone}
+                  items={namibianRegions}
+                  placeholder={{ label: 'Select region…', value: '' }}
+                  Icon={() => null}
+                  useNativeAndroidPickerStyle={false}
+                  style={{
+                    inputAndroid: { fontSize: 16, color: '#111' },
+                    inputIOS: { fontSize: 16, color: '#111' },
+                    placeholder: { color: '#888' },
+                  }}
+                />
+              </View>
 
               {/* Date of Expiration */}
               <Text className="text-base text-text-main mb-2 font-semibold">
@@ -789,7 +832,7 @@ export default function ProviderRegistrationScreen() {
               </Text>
               <TouchableOpacity
                 onPress={() => setShowDatePicker(true)}
-                className="bg-white p-4 rounded-xl mb-4 border border-gray-200"
+                className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300"
               >
                 <Text className="text-base text-text-main">
                   {expirationDate.toLocaleDateString()}
@@ -813,7 +856,8 @@ export default function ProviderRegistrationScreen() {
                 onChangeText={(t) =>
                   setProfessionalDetails((p) => ({ ...p, bio: t }))
                 }
-                className="bg-white p-4 rounded-xl mb-4 border border-gray-200 h-24"
+                placeholder="Tell us about your professional experience and expertise"
+                className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300 h-24"
                 multiline
                 textAlignVertical="top"
               />
@@ -899,17 +943,17 @@ export default function ProviderRegistrationScreen() {
                 <DocRow label="ID (Front)" file={documents.idDocumentFront} />
                 <DocRow label="ID (Back)" file={documents.idDocumentBack} />
                 <DocRow
-                  label="Primary Qualification"
-                  file={documents.primaryQualification}
+                  label="Final Qualification"
+                  file={documents.finalQualification}
                 />
                 <DocRow
-                  label="Annual Practicing Certificate"
-                  file={documents.annualQualification}
+                  label="HPCNA Practicing Certificate"
+                  file={documents.HPCNAQualification}
                 />
                 {params?.providerType === 'nurse' && (
                   <DocRow
-                    label="Prescribing Certificate"
-                    file={documents.prescribingCertificate}
+                    label="Dispensing Certification Licence"
+                    file={documents.dispensingCertificateLicence}
                   />
                 )}
               </View>
