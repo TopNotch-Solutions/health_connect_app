@@ -1,4 +1,4 @@
-package com.talo_n1.projecthealthconnect
+package com.owenator3k.projecthealthconnect
 
 import android.app.Application
 import android.content.res.Configuration

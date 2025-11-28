@@ -1,4 +1,4 @@
-package com.talo_n1.projecthealthconnect
+package com.owenator3k.projecthealthconnect
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

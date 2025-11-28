@@ -19,10 +19,10 @@ import * as Location from 'expo-location';
 
 interface Ailment {
   _id: string;
-  title: string;
-  provider: string;
+  ailment: string;
+  category: string;
   description?: string;
-  linkedSpecializations?: string[];
+  linked_specializations?: string[];
 }
 
 const AilmentCard = ({ 
@@ -37,8 +37,8 @@ const AilmentCard = ({
     className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200"
   >
     <Feather name="alert-circle" size={24} color="#2563EB" />
-    <Text className="text-base font-bold text-gray-800 mt-3">{item.title}</Text>
-    <Text className="text-sm text-gray-600 mt-1">{item.provider}</Text>
+    <Text className="text-base font-bold text-gray-800 mt-3">{item.ailment}</Text>
+    <Text className="text-sm text-gray-600 mt-1">{item.category}</Text>
   </TouchableOpacity>
 );
 
@@ -125,19 +125,19 @@ export default function AllAilmentsScreen() {
 
   const filteredAilments = ailments
     .filter((ailment: Ailment) =>
-      ailment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ailment.provider.toLowerCase().includes(searchQuery.toLowerCase())
+      ailment.ailment.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ailment.category.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a: Ailment, b: Ailment) => {
-      const orderA = providerOrder[a.provider] || 999;
-      const orderB = providerOrder[b.provider] || 999;
+      const orderA = providerOrder[a.category] || 999;
+      const orderB = providerOrder[b.category] || 999;
       
       if (orderA !== orderB) {
         return orderA - orderB;
       }
       
-      // If same provider, sort by title alphabetically
-      return a.title.localeCompare(b.title);
+      // If same provider, sort by ailment alphabetically
+      return a.ailment.localeCompare(b.ailment);
     });
 
   const handleAilmentSelect = (ailment: any) => {
@@ -253,13 +253,13 @@ export default function AllAilmentsScreen() {
               // Check if this is the first item or if provider changed
               const isFirstItem = index === 0;
               const prevItem = index > 0 ? filteredAilments[index - 1] : null;
-              const providerChanged = prevItem && prevItem.provider !== item.provider;
+              const providerChanged = prevItem && prevItem.category !== item.category;
               
               return (
                 <>
                   {(isFirstItem || providerChanged) && (
                     <View className="w-full mb-">
-                      <Text className="text-lg font-bold text-blue-600">{item.provider}</Text>
+                      <Text className="text-lg font-bold text-blue-600">{item.category}</Text>
                       <View className="h-1 bg-blue-600 rounded-full mt-1" style={{ width: '30%' }} />
                     </View>
                   )}

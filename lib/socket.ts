@@ -1,7 +1,7 @@
 // Socket.IO client for real-time communication with backend
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = 'http://10.213.204.238:4000';
+const SOCKET_URL = 'http://192.168.178.64:4000';
 
 class SocketService {
   private socket: Socket | null = null;
