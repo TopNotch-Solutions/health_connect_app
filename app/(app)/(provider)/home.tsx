@@ -2,7 +2,9 @@
 
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
+import * as Location from 'expo-location';
+import ProviderMap from '../../../components/(patient)/ProviderMap';
 import {
   ActivityIndicator,
   Alert,
@@ -19,7 +21,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
 import socketService from "../../../lib/socket";
 import { normalizeCoordinateOrUndefined } from '@/lib/coordinate';
-import ProviderRouteModal from "../../../components/ProviderRouteModal";
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -38,6 +39,9 @@ export default function ProviderHome() {
   const toggleOnline = () => setIsOnline((prev) => !prev);
 
   const [selectedRequest, setSelectedRequest] = useState<null | any>(null);
+  const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const locationWatcherRef = useRef<any>(null);
+  const routeWatcherRef = useRef<any>(null);
   
   // Route Modal State
   const [activeRouteRequest, setActiveRouteRequest] = useState<any>(null);
@@ -103,6 +107,45 @@ export default function ProviderHome() {
     }
   }, [user?.userId, user?.role, loadAvailableRequests]);
 
+  // Get provider device location and watch while provider is online
+  useEffect(() => {
+    let mounted = true;
+    const startWatch = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('Location permission not granted for provider map');
+          return;
+        }
+
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        if (!mounted) return;
+        setProviderLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+
+        // Start watching position but do not spam server here; ProviderRouteModal handles emitting during active route
+        locationWatcherRef.current = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, distanceInterval: 25, timeInterval: 10000 },
+          (position) => {
+            if (!mounted) return;
+            setProviderLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+          }
+        );
+      } catch (e) {
+        console.error('Error initializing provider location watch', e);
+      }
+    };
+
+    if (isOnline) startWatch();
+
+    return () => {
+      mounted = false;
+      if (locationWatcherRef.current) {
+        try { locationWatcherRef.current.remove(); } catch (e) { /* ignore */ }
+        locationWatcherRef.current = null;
+      }
+    };
+  }, [isOnline]);
+
   // Refresh requests when screen comes into focus
   useFocusEffect(
     useCallback(() => {
@@ -126,6 +169,105 @@ export default function ProviderHome() {
       socketService.getSocket()?.off('newRequest', handleNewRequest);
     };
   }, []);
+
+  // Start/stop route tracking when route modal opens/closes
+  useEffect(() => {
+    let mounted = true;
+
+    const startRouteWatch = async () => {
+      if (!activeRouteRequest || !showRouteModal) return;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Denied', 'Location permission is required to share your route');
+          return;
+        }
+
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        if (!mounted) return;
+        const initial = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        setProviderLocation(initial);
+
+        // Start watching and emit to server
+        routeWatcherRef.current = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, distanceInterval: 25, timeInterval: 5000 },
+          (position) => {
+            if (!mounted) return;
+            const coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+            setProviderLocation(coords);
+            try {
+              if (activeRouteRequest?._id && user?.userId) {
+                socketService.updateProviderLocation(activeRouteRequest._id, user.userId, coords);
+              }
+            } catch (e) {
+              console.warn('Failed to emit provider location', e);
+            }
+          }
+        );
+      } catch (e) {
+        console.error('Error starting route watch', e);
+      }
+    };
+
+    const stopRouteWatch = () => {
+      mounted = false;
+      if (routeWatcherRef.current) {
+        try { routeWatcherRef.current.remove(); } catch (e) { /* ignore */ }
+        routeWatcherRef.current = null;
+      }
+    };
+
+    if (showRouteModal) startRouteWatch();
+
+    return () => stopRouteWatch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRouteModal, activeRouteRequest]);
+
+  const handleArrived = async () => {
+    try {
+      if (!activeRouteRequest?._id) return;
+      if (!providerLocation) {
+        Alert.alert('Error', 'Current location not available');
+        return;
+      }
+
+      // Stop watcher
+      if (routeWatcherRef.current) {
+        try { routeWatcherRef.current.remove(); } catch (e) { /* ignore */ }
+        routeWatcherRef.current = null;
+      }
+
+      await socketService.updateRequestStatus(activeRouteRequest._id, 'arrived', providerLocation);
+      Alert.alert('Success', "You've arrived at the patient's location!");
+      setShowRouteModal(false);
+      setActiveRouteRequest(null);
+      // Refresh available requests
+      setTimeout(() => loadAvailableRequests(), 500);
+    } catch (error: any) {
+      console.error('Error marking as arrived:', error);
+      Alert.alert('Error', error.message || 'Failed to mark as arrived');
+    }
+  };
+
+  const handleCancelRoute = async () => {
+    try {
+      if (!activeRouteRequest?._id) return;
+      // Stop watcher
+      if (routeWatcherRef.current) {
+        try { routeWatcherRef.current.remove(); } catch (e) { /* ignore */ }
+        routeWatcherRef.current = null;
+      }
+
+      await socketService.cancelRequest(activeRouteRequest._id, 'provider', 'Provider cancelled the request');
+      Alert.alert('Cancelled', 'Request has been cancelled');
+      setShowRouteModal(false);
+      setActiveRouteRequest(null);
+      setTimeout(() => loadAvailableRequests(), 500);
+    } catch (error: any) {
+      console.error('Error cancelling route:', error);
+      Alert.alert('Error', error.message || 'Failed to cancel request');
+    }
+  };
 
   const handleAccept = async (request: any) => {
     if (!user?.userId) return;
@@ -221,6 +363,29 @@ export default function ProviderHome() {
             </View>
           </View>
         </View>
+
+        {/* Provider map when online - shows provider location and available requests as markers */}
+        {isOnline && providerLocation && (
+          <View className="px-6 pb-4">
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text className="text-lg font-bold text-gray-900">Map</Text>
+              <Text className="text-sm text-gray-500">Showing nearby requests</Text>
+            </View>
+            <View style={{ height: 220 }} className="rounded-xl overflow-hidden border border-gray-200">
+              <ProviderMap
+                userLatitude={providerLocation.latitude}
+                userLongitude={providerLocation.longitude}
+                providers={requests
+                  .filter((r) => r.address?.coordinates)
+                  .map((r) => ({
+                    _id: r._id,
+                    firstname: r.patientId?.fullname || 'Patient',
+                    location: r.address?.coordinates,
+                  }))}
+              />
+            </View>
+          </View>
+        )}
 
         {/* Incoming Consultation Requests */}
         <View className="px-6 pb-6">
@@ -447,24 +612,56 @@ export default function ProviderHome() {
         </Modal>
       )}
 
-      {/* Route Modal */}
+      {/* Route Modal replaced by ProviderMap-based modal */}
       {activeRouteRequest && (
-        <ProviderRouteModal
-  visible={showRouteModal}
-  onClose={() => {
-    setShowRouteModal(false);
-    setActiveRouteRequest(null);
-  }}
-  requestId={activeRouteRequest._id}
-  providerId={user?.userId || ''}
-  patientLocation={normalizeCoordinateOrUndefined(activeRouteRequest.address?.coordinates)}
-  patientAddress={`${activeRouteRequest.address?.route || ''}, ${activeRouteRequest.address?.locality || ''}`}
-  patientName={activeRouteRequest.patientId?.fullname}
-  onCompleteRoute={() => {
-    setShowRouteModal(false);
-    setActiveRouteRequest(null);
-  }}
-/>
+        <Modal visible={showRouteModal} animationType="slide" onRequestClose={() => { setShowRouteModal(false); setActiveRouteRequest(null); }}>
+          <View style={{ flex: 1 }}>
+            {/* Top bar */}
+            <View style={{ paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: '700' }}>Route to Patient</Text>
+                <Text style={{ color: '#6B7280' }}>{activeRouteRequest.patientId?.fullname || ''}</Text>
+              </View>
+              <TouchableOpacity onPress={() => { setShowRouteModal(false); setActiveRouteRequest(null); }} style={{ padding: 8 }}>
+                <Feather name="x" size={22} color="#374151" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Map */}
+            <View style={{ flex: 1 }}>
+              {providerLocation ? (
+                <ProviderMap
+                  userLatitude={providerLocation.latitude}
+                  userLongitude={providerLocation.longitude}
+                  destinationLatitude={normalizeCoordinateOrUndefined(activeRouteRequest.address?.coordinates)?.latitude}
+                  destinationLongitude={normalizeCoordinateOrUndefined(activeRouteRequest.address?.coordinates)?.longitude}
+                  providers={[{
+                    _id: activeRouteRequest._id,
+                    firstname: activeRouteRequest.patientId?.fullname || 'Patient',
+                    location: normalizeCoordinateOrUndefined(activeRouteRequest.address?.coordinates) || undefined,
+                  }]}
+                />
+              ) : (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f3f4f6' }}>
+                  <ActivityIndicator size="large" color="#3B82F6" />
+                  <Text style={{ marginTop: 12, color: '#6B7280' }}>Locating you...</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Bottom actions */}
+            <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', backgroundColor: '#fff' }}>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity onPress={handleCancelRoute} style={{ flex: 1, backgroundColor: '#fee2e2', paddingVertical: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#ef4444', fontWeight: '700' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleArrived} style={{ flex: 1, backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>Mark as Arrived</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       )}
     </SafeAreaView>
   );
