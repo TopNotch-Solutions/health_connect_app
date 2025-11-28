@@ -275,14 +275,62 @@ export default function ProviderHome() {
     try {
       await socketService.acceptRequest(request._id, user.userId);
       
-      // Prepare data for the route modal
-      setActiveRouteRequest(request);
+      // Prepare data for the route modal and mark route locally as started
+      setActiveRouteRequest({ ...request, status: 'en_route' });
       setShowRouteModal(true);
 
-      // Remove from available requests and reload to get updated list
+      // Remove from available requests and update local state to reflect route started
       setRequests((prev) => prev.filter((req) => req._id !== request._id));
       setSelectedRequest(null);
       
+      // Background: attempt to set status to en_route and send provider response (ETA)
+      (async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== 'granted') {
+            console.warn('Location permission not granted - skipping en_route update');
+            return;
+          }
+
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+          const providerCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+
+          // Update status to en_route on backend (delay + retry to avoid race)
+          try {
+            await new Promise((res) => setTimeout(res, 700));
+            await socketService.updateRequestStatus(request._id, 'en_route', providerCoords);
+            console.log('✅ Request status updated to en_route from provider home');
+          } catch (err: any) {
+            console.warn('⚠️ Failed to update request status to en_route from provider home (first):', err?.message || err);
+            if (err?.message && err.message.includes('not assigned')) {
+              try {
+                await new Promise((res) => setTimeout(res, 800));
+                await socketService.updateRequestStatus(request._id, 'en_route', providerCoords);
+                console.log('✅ Request status updated to en_route from provider home (retry)');
+              } catch (err2) {
+                console.warn('⚠️ Retry failed for en_route update from provider home:', err2?.message || err2);
+              }
+            }
+          }
+
+          // Calculate ETA and send provider response if patient coords available
+          if (request.address?.coordinates) {
+            const distance = calculateDistance(
+              providerCoords.latitude,
+              providerCoords.longitude,
+              request.address.coordinates.latitude,
+              request.address.coordinates.longitude
+            );
+            const avgSpeed = 40;
+            const estimatedMinutes = Math.round((distance / avgSpeed) * 60);
+            await socketService.updateProviderResponse(request._id, estimatedMinutes.toString(), providerCoords);
+            console.log('✅ Provider response sent (ETA) from provider home');
+          }
+        } catch (bgErr) {
+          console.warn('⚠️ Background en_route/ETA update failed:', bgErr);
+        }
+      })();
+
       // Reload requests to ensure state is synced
       setTimeout(() => {
         loadAvailableRequests();
@@ -364,28 +412,7 @@ export default function ProviderHome() {
           </View>
         </View>
 
-        {/* Provider map when online - shows provider location and available requests as markers */}
-        {isOnline && providerLocation && (
-          <View className="px-6 pb-4">
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="text-lg font-bold text-gray-900">Map</Text>
-              <Text className="text-sm text-gray-500">Showing nearby requests</Text>
-            </View>
-            <View style={{ height: 220 }} className="rounded-xl overflow-hidden border border-gray-200">
-              <ProviderMap
-                userLatitude={providerLocation.latitude}
-                userLongitude={providerLocation.longitude}
-                providers={requests
-                  .filter((r) => r.address?.coordinates)
-                  .map((r) => ({
-                    _id: r._id,
-                    firstname: r.patientId?.fullname || 'Patient',
-                    location: r.address?.coordinates,
-                  }))}
-              />
-            </View>
-          </View>
-        )}
+        {/* Provider map removed from home screen: map only appears in Route modal after Accept */}
 
         {/* Incoming Consultation Requests */}
         <View className="px-6 pb-6">
