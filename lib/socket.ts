@@ -529,70 +529,29 @@ class SocketService {
     });
   }
 
-  updateRequestStatus(
-    requestId: string,
-    status: 'en_route' | 'arrived' | 'in_progress' | 'completed',
-    location?: { latitude: number; longitude: number }
-  ) {
+  updateRequestStatus(requestId: string, providerId: string, status: string, location?: { latitude: number; longitude: number }) {
     return new Promise((resolve, reject) => {
-      if (!this.socket?.connected) {
-        reject(new Error('Socket not connected'));
-        return;
-      }
+        if (!this.socket) return reject(new Error('Socket not connected'));
+        
+        const payload = {
+            requestId,
+            providerId, // This is the crucial addition
+            status,
+            providerLocation: location,
+            hasLocation: !!location,
+        };
 
-      let resolved = false;
+        console.log('📤 Emitting updateRequestStatus with new payload:', payload);
 
-      const handleRequestUpdated = (response: any) => {
-        if (!resolved) {
-          resolved = true;
-          this.socket?.off('requestUpdated', handleRequestUpdated);
-          this.socket?.off('requestError', handleError);
-          clearTimeout(timeout);
-          console.log('✅ Request status updated successfully:', response);
-          resolve(response);
-        }
-      };
-
-      const handleError = (error: any) => {
-        if (!resolved) {
-          resolved = true;
-          this.socket?.off('requestUpdated', handleRequestUpdated);
-          this.socket?.off('requestError', handleError);
-          clearTimeout(timeout);
-          console.error('❌ Error updating request status:', error);
-          reject(new Error(error.error || error.message || 'Failed to update request status'));
-        }
-      };
-
-      const timeout = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          this.socket?.off('requestUpdated', handleRequestUpdated);
-          this.socket?.off('requestError', handleError);
-          reject(new Error('Request timeout - backend did not respond'));
-        }
-      }, 10000);
-
-      this.socket.on('requestUpdated', handleRequestUpdated);
-      this.socket.on('requestError', handleError);
-
-      const payload = {
-        requestId,
-        status,
-        providerLocation: location ? {
-          latitude: location.latitude,
-          longitude: location.longitude,
-        } : undefined,
-      };
-      
-      console.log('📤 Emitting updateRequestStatus:', {
-        ...payload,
-        hasLocation: !!location,
-        locationLatitude: location?.latitude,
-        locationLongitude: location?.longitude,
-      });
-      
-      this.socket.emit('updateRequestStatus', payload);
+        this.socket.emit('updateRequestStatus', payload, (response: any) => {
+            if (response?.error) {
+                console.error('❌ Socket error from updateRequestStatus:', response.error);
+                reject(new Error(response.error));
+            } else {
+                console.log('✅ updateRequestStatus acknowledged by server:', response);
+                resolve(response);
+            }
+        });
     });
   }
 

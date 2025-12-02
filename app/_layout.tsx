@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import { RouteProvider } from '../context/RouteContext';
+import GlobalRouteModal from '../components/(provider)/GlobalRouteModal';
 import './globals.css';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
@@ -104,7 +106,10 @@ export default function RootLayout() {
   return (
      <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <ProtectedLayout />
+        <RouteProvider>
+          <ProtectedLayout />
+          <GlobalRouteModal />
+        </RouteProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );
