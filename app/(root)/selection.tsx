@@ -51,8 +51,8 @@ const SelectionScreen = () => {
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
       <View className="flex-1 px-6 pt-8 pb-4">
         
-        {/* Logo Section */}
-        <View className="items-center mb-4">
+        {/* Logo Section - 1/4 of screen */}
+        <View className="items-center justify-center" style={{ flex: 1 }}>
           <RNImage 
             source={require('../../assets/images/healthconnectlogo-cropped.png')}
             style={{ width: 120, height: 120, marginBottom: 12 }}
@@ -66,8 +66,8 @@ const SelectionScreen = () => {
           </Text>
         </View>
 
-        {/* Selection Cards */}
-        <View style={{ gap: 12 }}>
+        {/* Selection Cards - 3/4 of screen */}
+        <View style={{ gap: 12, flex: 3, justifyContent: 'center' }}>
           {/* Patient Card */}
           <TouchableOpacity
             className="bg-white p-5 rounded-3xl border-2 border-gray-200 items-center"

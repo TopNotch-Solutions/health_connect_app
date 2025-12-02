@@ -5,21 +5,21 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Linking,
-    Modal,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import apiClient from '../../../lib/api';
 import { namibianRegions } from '../../../constants/locations';
+import apiClient from '../../../lib/api';
 
 // --- Type Definitions ---
 type PickedImage = ImagePicker.ImagePickerAsset | null;
@@ -963,17 +963,25 @@ export default function ProviderRegistrationScreen() {
       </ScrollView>
 
       {/* Sticky Next/Back/Submit Button */}
-      <View className="absolute bottom-0 left-0 right-0 p-6 border-t border-t-gray-200 bg-white">
-        <View className="flex-row" style={{ gap: 8 }}>
+      <SafeAreaView edges={['bottom']} className="absolute bottom-0 left-0 right-0 border-t border-t-gray-200 bg-white">
+        <View className="flex-row px-6 pt-4 pb-4" style={{ gap: 12 }}>
           {step > 1 && (
             <TouchableOpacity
               onPress={handleBack}
               disabled={isLoading}
-              className="bg-gray-200 p-4 rounded-xl flex-1"
+              className="py-5 rounded-2xl flex-1 items-center justify-center border-2"
+              style={{
+                backgroundColor: '#F3F4F6',
+                borderColor: '#D1D5DB',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+              activeOpacity={0.8}
             >
-              <Text className="text-center text-lg font-semibold text-text-main">
-                Back
-              </Text>
+              <Text className="text-gray-700 text-xl font-semibold">Back</Text>
             </TouchableOpacity>
           )}
 
@@ -981,34 +989,50 @@ export default function ProviderRegistrationScreen() {
             <TouchableOpacity
               onPress={handleNext}
               disabled={isLoading || (step === 1 && !accountInfo.agreeToTerms)}
-              className={`p-4 rounded-xl flex-1 ${
-                isLoading || (step === 1 && !accountInfo.agreeToTerms) ? 'bg-gray-300' : 'bg-primary'
-              }`}
+              className="py-5 rounded-2xl flex-1 items-center justify-center"
+              style={{
+                backgroundColor: (isLoading || (step === 1 && !accountInfo.agreeToTerms)) ? '#9CA3AF' : '#10B981',
+                shadowColor: '#10B981',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 6,
+              }}
+              activeOpacity={0.8}
             >
-              <Text className="text-white text-center text-lg font-semibold">
-                Next
-              </Text>
+              <View className="flex-row items-center">
+                <Text className="text-white text-xl font-semibold mr-2">Next</Text>
+                <Feather name="arrow-right" size={20} color="#FFFFFF" />
+              </View>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
               onPress={handleSubmit}
               disabled={isLoading}
-              className={`p-4 rounded-xl flex-1 ${
-                isLoading ? 'bg-gray-400' : 'bg-primary'
-              }`}
+              className="py-5 rounded-2xl flex-1 items-center justify-center"
+              style={{
+                backgroundColor: isLoading ? '#9CA3AF' : '#10B981',
+                shadowColor: '#10B981',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 6,
+              }}
+              activeOpacity={0.8}
             >
               {isLoading ? (
-                <ActivityIndicator color="white" />
+                <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text className="text-white text-center text-lg font-semibold">
-                  Submit
-                </Text>
+                <View className="flex-row items-center">
+                  <Text className="text-white text-xl font-semibold mr-2">Submit</Text>
+                  <Feather name="arrow-right" size={20} color="#FFFFFF" />
+                </View>
               )}
             </TouchableOpacity>
           )}
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+      </SafeAreaView>
 
     {/* Terms and Conditions Modal */}
     <Modal

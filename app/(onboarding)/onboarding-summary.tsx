@@ -5,11 +5,11 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const OnboardingPatientScreen = () => {
+const OnboardingSummaryScreen = () => {
   const router = useRouter();
 
-  const handleNext = () => {
-    router.push('/onboarding-provider');
+  const handleGetStarted = () => {
+    router.push('/selection');
   };
 
   const handleSkip = () => {
@@ -17,9 +17,8 @@ const OnboardingPatientScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
+    <SafeAreaView className="flex-1 bg-gradient-to-b from-indigo-50 to-white">
       <View className="flex-1">
-        
         {/* Skip Button */}
         <View className="items-end px-6 pt-4">
           <TouchableOpacity onPress={handleSkip} className="py-2 px-4">
@@ -29,21 +28,21 @@ const OnboardingPatientScreen = () => {
 
         {/* Content */}
         <View className="flex-1 px-6 justify-center items-center">
-          
           {/* Illustration */}
           <View className="items-center mb-6">
-            <View 
-              className="w-56 h-56 bg-blue-100 rounded-full items-center justify-center mb-4"
+            <View
+              className="w-56 h-56 bg-indigo-100 rounded-full items-center justify-center mb-4"
               style={{
-                shadowColor: '#3B82F6',
+                shadowColor: '#4F46E5',
                 shadowOffset: { width: 0, height: 8 },
                 shadowOpacity: 0.2,
                 shadowRadius: 16,
                 elevation: 8,
               }}
             >
-              <Feather name="heart" size={90} color="#3B82F6" />
-              <View className="absolute bottom-12 right-12 w-14 h-14 bg-white rounded-full items-center justify-center"
+              <Feather name="globe" size={90} color="#4F46E5" />
+              <View
+                className="absolute bottom-12 right-12 w-14 h-14 bg-white rounded-full items-center justify-center"
                 style={{
                   shadowColor: '#000',
                   shadowOffset: { width: 0, height: 4 },
@@ -52,9 +51,10 @@ const OnboardingPatientScreen = () => {
                   elevation: 4,
                 }}
               >
-                <Feather name="phone" size={20} color="#10B981" />
+                <Feather name="bell" size={20} color="#F59E0B" />
               </View>
-              <View className="absolute top-10 left-12 w-12 h-12 bg-white rounded-full items-center justify-center"
+              <View
+                className="absolute top-10 left-12 w-12 h-12 bg-white rounded-full items-center justify-center"
                 style={{
                   shadowColor: '#000',
                   shadowOffset: { width: 0, height: 4 },
@@ -63,7 +63,7 @@ const OnboardingPatientScreen = () => {
                   elevation: 4,
                 }}
               >
-                <Feather name="activity" size={18} color="#EF4444" />
+                <Feather name="shield" size={18} color="#10B981" />
               </View>
             </View>
           </View>
@@ -71,68 +71,69 @@ const OnboardingPatientScreen = () => {
           {/* Text Content */}
           <View className="items-center mb-6">
             <Text className="text-3xl font-bold text-gray-900 text-center mb-3">
-              Your Health, On Demand
+              Stay Connected & In Control
             </Text>
             <Text className="text-base text-gray-600 text-center px-6 leading-6">
-              Connect with healthcare providers instantly. Book appointments, manage prescriptions, and track your wellness journey—all in one place.
+              Get real-time updates, reminders, and secure access to your health journey wherever you are.
             </Text>
           </View>
 
           {/* Features */}
           <View className="w-full mb-4" style={{ gap: 10 }}>
             <View className="flex-row items-center">
-              <View className="w-10 h-10 bg-green-100 rounded-full items-center justify-center mr-3">
-                <Feather name="check" size={20} color="#10B981" />
+              <View className="w-10 h-10 bg-indigo-100 rounded-full items-center justify-center mr-3">
+                <Feather name="check" size={20} color="#4F46E5" />
               </View>
-              <Text className="text-base text-gray-700 flex-1">24/7 Access to healthcare professionals</Text>
+              <Text className="text-base text-gray-700 flex-1">Real-time notifications and updates</Text>
             </View>
             <View className="flex-row items-center">
-              <View className="w-10 h-10 bg-green-100 rounded-full items-center justify-center mr-3">
-                <Feather name="check" size={20} color="#10B981" />
+              <View className="w-10 h-10 bg-indigo-100 rounded-full items-center justify-center mr-3">
+                <Feather name="check" size={20} color="#4F46E5" />
               </View>
-              <Text className="text-base text-gray-700 flex-1">Secure digital health records</Text>
+              <Text className="text-base text-gray-700 flex-1">Secure and encrypted data protection</Text>
             </View>
             <View className="flex-row items-center">
-              <View className="w-10 h-10 bg-green-100 rounded-full items-center justify-center mr-3">
-                <Feather name="check" size={20} color="#10B981" />
+              <View className="w-10 h-10 bg-indigo-100 rounded-full items-center justify-center mr-3">
+                <Feather name="check" size={20} color="#4F46E5" />
               </View>
-              <Text className="text-base text-gray-700 flex-1">Easy appointment scheduling</Text>
+              <Text className="text-base text-gray-700 flex-1">Access your health records anywhere</Text>
             </View>
           </View>
-
         </View>
 
         {/* Bottom Navigation */}
         <View className="px-6 pb-6">
-          {/* Next Button */}
+          {/* Get Started Button */}
           <TouchableOpacity
-            className="w-full py-4 rounded-2xl items-center justify-center flex-row bg-blue-600 mb-3"
+            className="w-full py-4 rounded-2xl items-center justify-center flex-row bg-indigo-600 mb-3"
             style={{
-              shadowColor: '#3B82F6',
+              shadowColor: '#4F46E5',
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.3,
               shadowRadius: 8,
               elevation: 6,
             }}
-            onPress={handleNext}
+            onPress={handleGetStarted}
             activeOpacity={0.8}
           >
-            <Text className="text-white text-center text-xl font-semibold mr-2">Next</Text>
+            <Text className="text-white text-center text-xl font-semibold mr-2">Get Started</Text>
             <Feather name="arrow-right" size={20} color="#FFFFFF" />
           </TouchableOpacity>
 
           {/* Pagination Dots */}
           <View className="flex-row justify-center items-center" style={{ gap: 8 }}>
-            <View className="w-8 h-2 bg-blue-600 rounded-full" />
             <View className="w-2 h-2 bg-gray-300 rounded-full" />
             <View className="w-2 h-2 bg-gray-300 rounded-full" />
+            <View className="w-8 h-2 bg-indigo-600 rounded-full" />
           </View>
         </View>
 
       </View>
-      <StatusBar backgroundColor="#EFF6FF" style="dark" />
+      <StatusBar backgroundColor="#E0E7FF" style="dark" />
     </SafeAreaView>
   );
 };
 
-export default OnboardingPatientScreen;
+export default OnboardingSummaryScreen;
+
+
