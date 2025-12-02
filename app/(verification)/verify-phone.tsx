@@ -73,64 +73,66 @@ const VerifyPhoneScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
-      <View className="flex-1">
-        {/* Top Content Container */}
-        <KeyboardAwareScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          enableOnAndroid={true}
-          enableAutomaticScroll={true}
-          extraScrollHeight={150}
-        >
-          <View>
-            <Text className="text-3xl font-bold text-gray-900 text-center mb-3">
-              Verify Your Phone
-            </Text>
-            <Text className="text-base text-gray-600 text-center px-4 mb-8">
-              We&apos;ll send you a verification code to confirm your number
-            </Text>
-
-            {/* Phone Input Section */}
-            <View>
-              <Text className="text-base font-medium text-gray-700 mb-2">
-                Phone Number
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20, justifyContent: 'space-between' }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={150}
+      >
+          
+          {/* Content Section - Title, Description, and Phone Input */}
+          <View className="mt-20">
+            {/* Title and Description Section - Centered */}
+            <View className="items-center mb-2">
+              <Text className="text-3xl font-bold text-gray-900 text-center mb-1">
+                Verify Your Phone
               </Text>
-              <View className="w-full bg-white rounded-2xl border-2 border-gray-300 flex-row items-center px-5 py-4"
-                style={{
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 2,
-                }}
-              >
-                <View className="mr-3">
-                  <Text className="text-2xl">🇳🇦</Text>
-                </View>
-                <View className="w-16 mr-3">
-                  <Text className="text-base font-semibold text-gray-700">
-                    +264
-                  </Text>
-                </View>
-                <View className="w-px h-8 bg-gray-300 mr-3" />
-                <Feather name="phone" size={20} color="#3B82F6" />
-                <TextInput
-                  className="flex-1 text-base text-gray-900 ml-3"
-                  placeholder="81 234 5678"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="phone-pad"
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  maxLength={12}
-                />
-              </View>
-              <Text className="text-sm text-gray-500 mt-2 ml-1">
-                Enter your 9-digit Namibian phone number
+              <Text className="text-base text-gray-600 text-center px-4">
+                We&apos;ll send you a verification code to confirm your number
               </Text>
             </View>
+
+            {/* Phone Input Section */}
+            <View className="mb-6">
+            <Text className="text-base font-medium text-gray-700 mb-2">
+              Phone Number
+            </Text>
+            <View className="w-full bg-white rounded-2xl border-2 border-gray-300 flex-row items-center px-5 py-4"
+              style={{
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+            >
+              <View className="mr-3">
+                <Text className="text-2xl">🇳🇦</Text>
+              </View>
+              <View className="w-16 mr-3">
+                <Text className="text-base font-semibold text-gray-700">
+                  +264
+                </Text>
+              </View>
+              <View className="w-px h-8 bg-gray-300 mr-3" />
+              <Feather name="phone" size={20} color="#3B82F6" />
+              <TextInput
+                className="flex-1 text-base text-gray-900 ml-3"
+                placeholder="81 234 5678"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="phone-pad"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                maxLength={12}
+              />
+            </View>
+            <Text className="text-sm text-gray-500 mt-2 ml-1">
+              Enter your 9-digit Namibian phone number
+            </Text>
+            </View>
           </View>
-        </KeyboardAwareScrollView>
 
         {/* Bottom Button - Fixed at bottom with safe area */}
         <SafeAreaView edges={['bottom']} className="px-6 pb-4">
@@ -160,7 +162,7 @@ const VerifyPhoneScreen = () => {
             )}
           </TouchableOpacity>
         </SafeAreaView>
-      </View>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 };

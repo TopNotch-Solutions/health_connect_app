@@ -61,8 +61,8 @@ export default function GlobalRouteModal() {
         if (!user?.userId) return;
         try {
             await socketService.updateRequestStatus(activeRoute._id, user.userId, 'arrived', providerLocation!);
-            Alert.alert('Success', "You've arrived at the patient's location!");
             clearRoute();
+            Alert.alert('Success', "You've arrived at the patient's location!");
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to mark as arrived');
         }

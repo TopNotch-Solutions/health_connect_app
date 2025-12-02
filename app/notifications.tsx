@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router'; // Import useRouter
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext'; // Corrected path for root level
@@ -33,42 +33,46 @@ export default function NotificationsScreen() {
     const { user } = useAuth();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const hasMarkedAsRead = useRef(false);
 
     const fetchNotifications = useCallback(async () => {
         if (!user?.userId) return;
         setIsLoading(true);
         try {
-            // NOTE: You need to confirm the API path for notifications from your backend router
-            const response = await apiClient.get(`/notification/all/${user.userId}`);
+            console.log(`Fetching notifications for userId: ${user.userId}`);
+            const response = await apiClient.get(`/app/notification/all-user-notification/${user.userId}`);
+            console.log("Notifications Response:", response.data);
             setNotifications(response.data.data || []);
         } catch (error: any) {
-            Alert.alert("Error", "Could not fetch notifications.");
+            console.error("Fetch Notifications Error:", {
+                message: error.message,
+                status: error.response?.status,
+                data: error.response?.data,
+                url: error.config?.url,
+            });
+            // Don't show alert on initial load if empty
+            setNotifications([]);
         } finally {
             setIsLoading(false);
         }
     }, [user]);
 
     const markAllAsRead = useCallback(async () => {
-        if (!user?.userId || notifications.every(n => n.status === 'read')) return;
+        if (!user?.userId) return;
         try {
-            // NOTE: You need to confirm the API path
-            await apiClient.patch(`/notification/mark-as-read/${user.userId}`);
+            await apiClient.patch(`/app/notification/mark-as-read/${user.userId}`);
             setNotifications(prev => prev.map(n => ({ ...n, status: 'read' })));
         } catch (error: any) {
-            Alert.alert("Error", "Could not mark notifications as read.");
+            console.error("Mark as read error:", error.message);
+            // Silently fail without alerting
         }
-    }, [user, notifications]);
+    }, [user]);
 
     useFocusEffect(
         useCallback(() => {
+            hasMarkedAsRead.current = false;
             fetchNotifications();
-            // When the user enters this screen, mark all as read after a delay
-            const timer = setTimeout(() => {
-                markAllAsRead();
-            }, 2000);
-
-            return () => clearTimeout(timer);
-        }, [fetchNotifications, markAllAsRead])
+        }, [fetchNotifications])
     );
     
     return (

@@ -1,7 +1,7 @@
 // Socket.IO client for real-time communication with backend
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = 'http://13.61.152.64:4000';
+const SOCKET_URL = 'http://192.168.11.138:4000';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -543,15 +543,40 @@ class SocketService {
 
         console.log('📤 Emitting updateRequestStatus with new payload:', payload);
 
-        this.socket.emit('updateRequestStatus', payload, (response: any) => {
-            if (response?.error) {
-                console.error('❌ Socket error from updateRequestStatus:', response.error);
-                reject(new Error(response.error));
-            } else {
-                console.log('✅ updateRequestStatus acknowledged by server:', response);
-                resolve(response);
+        let resolved = false;
+        const timeout = setTimeout(() => {
+            if (!resolved) {
+                this.socket?.off('requestUpdated', handleSuccess);
+                this.socket?.off('requestError', handleError);
+                resolved = true;
+                reject(new Error('updateRequestStatus timeout - no response from server'));
             }
-        });
+        }, 10000);
+
+        const handleSuccess = (response: any) => {
+            if (resolved) return;
+            resolved = true;
+            clearTimeout(timeout);
+            this.socket?.off('requestUpdated', handleSuccess);
+            this.socket?.off('requestError', handleError);
+            console.log('✅ updateRequestStatus acknowledged by server:', response);
+            resolve(response);
+        };
+
+        const handleError = (error: any) => {
+            if (resolved) return;
+            resolved = true;
+            clearTimeout(timeout);
+            this.socket?.off('requestUpdated', handleSuccess);
+            this.socket?.off('requestError', handleError);
+            console.error('❌ Socket error from updateRequestStatus:', error);
+            reject(new Error(error.error || error.message || 'Failed to update request status'));
+        };
+
+        this.socket.on('requestUpdated', handleSuccess);
+        this.socket.on('requestError', handleError);
+        
+        this.socket.emit('updateRequestStatus', payload);
     });
   }
 

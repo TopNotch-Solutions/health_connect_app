@@ -264,16 +264,20 @@ export default function ProviderHome() {
               <Text className="text-3xl font-bold text-gray-900">{requests.length}</Text>
               <Text className="text-xs text-gray-500 mt-1">Pending</Text>
             </View>
-            <View className="flex-1 bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <TouchableOpacity 
+              onPress={() => router.push('/(app)/(provider)/transactions')}
+              className="flex-1 bg-white rounded-xl border border-gray-200 p-4 shadow-sm"
+              activeOpacity={0.7}
+            >
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-xs text-gray-500 uppercase font-bold tracking-wide">Earnings</Text>
                 <View className="w-8 h-8 bg-green-50 rounded-full items-center justify-center">
                   <Feather name="dollar-sign" size={16} color="#10B981" />
                 </View>
               </View>
-              <Text className="text-3xl font-bold text-gray-900">N$435</Text>
+              <Text className="text-3xl font-bold text-gray-900">N${user?.balance?.toFixed(2) || '0.00'}</Text>
               <Text className="text-xs text-gray-500 mt-1">This Month</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 

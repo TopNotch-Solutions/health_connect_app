@@ -2,7 +2,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Text, TextInput, TouchableOpacity, View, Image } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -113,91 +113,43 @@ const SignInScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
-      <View className="flex-1">
-        {/* Top Content Container */}
-        <KeyboardAwareScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          enableOnAndroid={true}
-          enableAutomaticScroll={true}
-          extraScrollHeight={150}
-        >
-          {/* Section 1: Hospital Animation/Design */}
-          <View className="items-center justify-center pt-8 pb-6">
-            <Animated.View
-              style={{
-                opacity: fadeAnim,
-                transform: [{ scale: scaleAnim }, { rotate }],
-              }}
-            >
-              <View 
-                className="w-32 h-32 rounded-3xl items-center justify-center"
-                style={{
-                  backgroundColor: '#10B981',
-                  shadowColor: '#10B981',
-                  shadowOffset: { width: 0, height: 8 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 16,
-                  elevation: 8,
-                }}
-              >
-                <Feather name="activity" size={60} color="#FFFFFF" />
-              </View>
-            </Animated.View>
-            <Animated.View
-              style={{
-                opacity: fadeAnim,
-                marginTop: 16,
-              }}
-            >
-              <Text className="text-4xl font-extrabold text-gray-900 tracking-wide">
-                Health Connect
-              </Text>
-              <View className="h-1 w-20 bg-green-500 rounded-full mx-auto mt-2" />
-            </Animated.View>
-          </View>
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, justifyContent: 'space-between' }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={150}
+      >
+        
+        {/* Logo/Icon Section */}
+        <View className="items-center mb-4">
+          <Image 
+            source={require('../../assets/images/healthconnectlogo-cropped.png')}
+            style={{ width: 180, height: 180, marginBottom: 16 }}
+            resizeMode="contain"
+          />
+        </View>
 
-          {/* Section 2: Welcome Message */}
-          <View className="mb-6">
-            <Text className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</Text>
-            <Text className="text-base text-gray-600">
-              Sign in to continue to your account
-            </Text>
-          </View>
-
-          {/* Section 3: Input Fields */}
-          <View className="mb-6">
-            {/* Email Input */}
-            <View className="mb-5">
-              <Text className="text-base text-gray-700 mb-2 font-medium">Email</Text>
-              <View 
-                className="flex-row items-center bg-white rounded-2xl px-5 py-4 border-2"
-                style={{
-                  borderColor: emailError ? '#EF4444' : '#D1D5DB',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 2,
-                }}
-              >
-                <MaterialCommunityIcons name="email" size={20} color={emailError ? '#EF4444' : '#10B981'} />
-                <TextInput
-                  className="flex-1 ml-3 text-base text-gray-900"
-                  placeholder="Enter your email"
-                  placeholderTextColor="#9CA3AF"
-                  value={email}
-                  onChangeText={handleEmailChange}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                />
-              </View>
-              {emailError ? (
-                <Text className="text-red-500 text-sm mt-1 ml-1">{emailError}</Text>
-              ) : null}
+        {/* Form Section */}
+        <View className="mb-4">
+          <Text className="text-2xl mb-2 font-bold text-gray-500">Welcome</Text>
+          {/* Email Input */}
+          <View className="mb-5">
+            <Text className="text-base text-gray-700 mb-2 font-medium">Email</Text>
+            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-gray-300">
+              <MaterialCommunityIcons name="email" size={20} color="#10B981" />
+              <TextInput
+                className="flex-1 ml-3 text-base text-gray-900"
+                placeholder="Enter your email"
+                placeholderTextColor="#9CA3AF"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
             </View>
+          </View>
 
             {/* Password Input */}
             <View className="mb-4">
@@ -285,7 +237,6 @@ const SignInScreen = () => {
             )}
           </TouchableOpacity>
         </SafeAreaView>
-      </View>
       <StatusBar backgroundColor="#EFF6FF" style="dark" />
     </SafeAreaView>
   );

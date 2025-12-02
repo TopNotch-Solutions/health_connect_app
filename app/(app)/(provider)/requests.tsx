@@ -388,8 +388,8 @@ export default function ProviderRequests() {
         setRequests(prev => prev.map(req => req._id === request._id ? { ...req, status: 'en_route' as any } : req));
       }
 
-      // Start global route modal via context
-      startRoute(request);
+      // Start global route modal via context with updated request status
+      startRoute({ ...request, status: 'en_route' as any });
     } catch (error: any) {
       console.error('Error marking route:', error);
       Alert.alert('Error', error.message || 'Failed to mark route');

@@ -29,6 +29,15 @@ interface PatientProviderTrackingProps {
   providerRole?: string;
 }
 
+// Helper to normalize and validate coordinates
+const normalizeCoordinate = (loc: any): ProviderLocation | null => {
+  if (!loc) return null;
+  const lat = Number(loc.latitude);
+  const lng = Number(loc.longitude);
+  if (isNaN(lat) || isNaN(lng)) return null;
+  return { latitude: lat, longitude: lng };
+};
+
 // Haversine formula to calculate distance between two coordinates
 const calculateDistance = (
   lat1: number,
@@ -167,18 +176,19 @@ export default function PatientProviderTracking({
             received = true;
             clearTimeout(timeout);
 
-            if (location) {
-              console.log('📍 Initial provider location received:', location);
-              setProviderLocation(location);
-              setRouteCoordinates([location]);
+            const normalizedLocation = normalizeCoordinate(location);
+            if (normalizedLocation) {
+              console.log('📍 Initial provider location received:', normalizedLocation);
+              setProviderLocation(normalizedLocation);
+              setRouteCoordinates([normalizedLocation]);
 
               // Calculate distance
               if (currentPatientLocation) {
                 const dist = calculateDistance(
                   currentPatientLocation.latitude,
                   currentPatientLocation.longitude,
-                  location.latitude,
-                  location.longitude
+                  normalizedLocation.latitude,
+                  normalizedLocation.longitude
                 );
                 setDistance(dist);
                 
@@ -191,7 +201,7 @@ export default function PatientProviderTracking({
               setIsLoading(false);
               resolve();
             } else {
-              console.log('⚠️ No location data received, will retry...');
+              console.log('⚠️ No location data received or invalid coordinates, will retry...');
               retryCount++;
               if (retryCount < maxRetries) {
                 setTimeout(attemptGetLocation, retryDelay);
@@ -214,20 +224,21 @@ export default function PatientProviderTracking({
     console.log('📡 Setting up provider location listener');
 
       const handleProviderLocationUpdate = (data: any) => {
-        if (data.requestId === requestId && data.location) {
-          console.log('📍 Provider location update:', data.location);
-          setProviderLocation(data.location);
+        const normalizedLocation = normalizeCoordinate(data.location);
+        if (data.requestId === requestId && normalizedLocation) {
+          console.log('📍 Provider location update:', normalizedLocation);
+          setProviderLocation(normalizedLocation);
 
-          // Add to route coordinates
-          setRouteCoordinates((prev) => [...prev, data.location]);
+          // Add to route coordinates only if valid
+          setRouteCoordinates((prev) => [...prev, normalizedLocation]);
 
           // Calculate distance
-          if (currentPatientLocation) {
+          if (currentPatientLocation && currentPatientLocation.latitude && currentPatientLocation.longitude) {
             const dist = calculateDistance(
               currentPatientLocation.latitude,
               currentPatientLocation.longitude,
-              data.location.latitude,
-              data.location.longitude
+              normalizedLocation.latitude,
+              normalizedLocation.longitude
             );
             setDistance(dist);
 
@@ -275,9 +286,25 @@ export default function PatientProviderTracking({
   useEffect(() => {
     if (!visible || !mapViewRef.current || !currentPatientLocation || !providerLocation) return;
 
+    // Validate both locations have valid coordinates
+    if (!currentPatientLocation.latitude || !currentPatientLocation.longitude ||
+        !providerLocation.latitude || !providerLocation.longitude) {
+      console.log('⚠️ Invalid coordinates for fitToCoordinates');
+      return;
+    }
+
     setTimeout(() => {
       mapViewRef.current?.fitToCoordinates(
-        [currentPatientLocation, providerLocation],
+        [
+          {
+            latitude: currentPatientLocation.latitude,
+            longitude: currentPatientLocation.longitude,
+          },
+          {
+            latitude: providerLocation.latitude,
+            longitude: providerLocation.longitude,
+          },
+        ],
         {
           edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
           animated: true,
@@ -292,18 +319,36 @@ export default function PatientProviderTracking({
 
     const fetchNavRoute = async () => {
       console.log('🗺️ Fetching navigation route from Google Maps API...');
+      console.log('Current Patient Location:', JSON.stringify(currentPatientLocation));
+      console.log('Provider Location:', JSON.stringify(providerLocation));
+      
+      // Validate locations before fetching
+      const patientLat = currentPatientLocation?.latitude;
+      const patientLng = currentPatientLocation?.longitude;
+      const providerLat = providerLocation?.latitude;
+      const providerLng = providerLocation?.longitude;
+
+      console.log(`Patient coords: lat=${patientLat}, lng=${patientLng}`);
+      console.log(`Provider coords: lat=${providerLat}, lng=${providerLng}`);
+
+      if (!patientLat || !patientLng || !providerLat || !providerLng) {
+        console.log('⚠️ Invalid locations, using direct line');
+        setRouteCoordinates([providerLocation, currentPatientLocation]);
+        return;
+      }
+
       const route = await fetchRoute(
-        providerLocation.latitude,
-        providerLocation.longitude,
-        currentPatientLocation.latitude,
-        currentPatientLocation.longitude
+        providerLat,
+        providerLng,
+        patientLat,
+        patientLng
       );
       
-      if (route.length > 0) {
+      if (route.length > 0 && route.every(point => point.latitude && point.longitude)) {
         console.log('✅ Route received, points:', route.length);
         setRouteCoordinates(route);
       } else {
-        console.log('⚠️ No route found, using direct line');
+        console.log('⚠️ No route found or invalid coordinates, using direct line');
         // Fallback to direct line between two points
         setRouteCoordinates([providerLocation, currentPatientLocation]);
       }
@@ -322,17 +367,22 @@ export default function PatientProviderTracking({
         const currentLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         });
-        const newPatientLocation = {
+        const newPatientLocation = normalizeCoordinate({
           latitude: currentLocation.coords.latitude,
           longitude: currentLocation.coords.longitude,
-        };
+        });
         console.log('✅ Updated patient location:', newPatientLocation);
-        setCurrentPatientLocation(newPatientLocation);
+        if (newPatientLocation) {
+          setCurrentPatientLocation(newPatientLocation);
+        }
       } catch (error) {
         console.error('Error refreshing patient location:', error);
         // Keep using the passed patientLocation if refresh fails
         if (patientLocation) {
-          setCurrentPatientLocation(patientLocation);
+          const normalized = normalizeCoordinate(patientLocation);
+          if (normalized) {
+            setCurrentPatientLocation(normalized);
+          }
         }
       }
     };
@@ -401,9 +451,12 @@ export default function PatientProviderTracking({
               }}
             >
               {/* Patient location marker */}
-              {currentPatientLocation && (
+              {currentPatientLocation && currentPatientLocation.latitude && currentPatientLocation.longitude && (
                 <Marker
-                  coordinate={currentPatientLocation}
+                  coordinate={{
+                    latitude: currentPatientLocation.latitude,
+                    longitude: currentPatientLocation.longitude,
+                  }}
                   title="Your Location"
                   description="Your current location"
                 >
@@ -414,9 +467,12 @@ export default function PatientProviderTracking({
               )}
 
               {/* Provider location marker */}
-              {providerLocation && (
+              {providerLocation && providerLocation.latitude && providerLocation.longitude && (
                 <Marker
-                  coordinate={providerLocation}
+                  coordinate={{
+                    latitude: providerLocation.latitude,
+                    longitude: providerLocation.longitude,
+                  }}
                   title={providerName}
                   description="Provider's current location"
                 >
@@ -427,7 +483,7 @@ export default function PatientProviderTracking({
               )}
 
               {/* Route polyline - background white for visibility */}
-              {routeCoordinates.length > 1 && (
+              {routeCoordinates.length > 1 && routeCoordinates.every(point => point.latitude && point.longitude) && (
                 <>
                   <Polyline
                     coordinates={routeCoordinates}

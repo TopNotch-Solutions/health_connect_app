@@ -107,6 +107,17 @@ export default function ProviderTabsLayout() {
           ),
         }}
       />
+
+      <Tabs.Screen
+        name="transactions"
+        options={{
+          title: "Transaction History",
+          href: null,
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="credit-card" color={color} size={size} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

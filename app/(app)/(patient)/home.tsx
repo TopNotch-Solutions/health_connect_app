@@ -220,7 +220,14 @@ const AilmentCard = ({ item, onPress }: { item: any; onPress: () => void; }) => 
   return (
     <TouchableOpacity 
       onPress={onPress}
-      className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200"
+      className="w-[48%] bg-white rounded-2xl p-4 mb-4 border-2 border-gray-200"
+      style={{
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 4,
+      }}
       activeOpacity={0.7}
     >
       {/* The item.icon property is now a direct `require()` path */}
@@ -245,7 +252,16 @@ interface HistoryItem {
 }
 
 const HistoryCard = ({ item }: { item: HistoryItem }) => (
-  <View className="w-[48%] bg-white p-4 rounded-lg mb-4 border-2 border-gray-200">
+  <View 
+    className="w-[48%] bg-white p-4 rounded-2xl mb-4 border-2 border-gray-200"
+    style={{
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 4,
+    }}
+  >
     <Text className="text-base font-bold text-gray-800 mb-2">{item.ailment}</Text>
     <Text
       className={`text-xs font-bold mb-1 ${
@@ -620,12 +636,12 @@ export default function PatientHomeScreen() {
 
           {/* Main Content Area */}
           <View className="px-4 mb-6">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-2xl font-bold text-gray-800">
+            <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
+              <Text className="text-xl font-bold text-gray-800 flex-shrink">
                 What do you need help with today?
               </Text>
-              <TouchableOpacity onPress={() => router.push('/(app)/(patient)/all_ailments')}>
-                <Text className="font-semibold text-blue-600">See all</Text>
+              <TouchableOpacity onPress={() => router.push('/(app)/(patient)/all_ailments')} className="flex-shrink-0">
+                <Text className="font-semibold text-blue-600 text-sm">See all</Text>
               </TouchableOpacity>
             </View>
 
@@ -650,12 +666,12 @@ export default function PatientHomeScreen() {
 
           {/* Recent Activity / History Section (similar spacing to Ailments) */}
           <View className="px-4 mb-8">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-xl font-bold text-gray-800">
+            <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
+              <Text className="text-lg font-bold text-gray-800 flex-shrink">
                 Recent Activity
               </Text>
-              <TouchableOpacity onPress={() => router.push('/(app)/(patient)/recent-activities')}>
-                <Text className="font-semibold text-blue-600">See all</Text>
+              <TouchableOpacity onPress={() => router.push('/(app)/(patient)/recent-activities')} className="flex-shrink-0">
+                <Text className="font-semibold text-blue-600 text-sm">See all</Text>
               </TouchableOpacity>
             </View>
 

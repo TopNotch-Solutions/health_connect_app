@@ -125,33 +125,23 @@ const OTPScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
-      <View className="flex-1">
-        {/* Top Content Container */}
-        <KeyboardAwareScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          enableOnAndroid={true}
-          enableAutomaticScroll={true}
-          extraScrollHeight={150}
-        >
-          <View>
-            <View className="bg-green-100 w-20 h-20 rounded-full items-center justify-center mb-6 mx-auto"
-              style={{
-                shadowColor: '#10B981',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 4,
-              }}
-            >
-              <Feather name="shield" size={40} color="#10B981" />
-            </View>
-            <Text className="text-3xl font-bold text-gray-900 text-center mb-3">Verify Your Code</Text>
-            <Text className="text-base text-gray-600 text-center px-4 mb-8">
-              Enter the 6-digit code sent to {'\n'}
-              <Text className="font-semibold text-gray-900">{cellphoneNumber || 'your number'}</Text>
-            </Text>
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20, justifyContent: 'space-between' }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={150}
+      >
+        
+        {/* Content Section - Centered */}
+        <View className="items-center mt-12">
+          <Text className="text-3xl font-bold text-gray-900 text-center mb-2">Verify Your Code</Text>
+          <Text className="text-base text-gray-600 text-center px-4">
+            Enter the 6-digit code sent to {'\n'}
+            <Text className="font-semibold text-gray-900">{cellphoneNumber || 'your number'}</Text>
+          </Text>
+        </View>
 
             {/* OTP Input Section */}
             <View className="mb-6">
@@ -189,7 +179,6 @@ const OTPScreen = () => {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
         </KeyboardAwareScrollView>
 
         {/* Bottom Button - Fixed at bottom with safe area */}
@@ -218,7 +207,6 @@ const OTPScreen = () => {
             )}
           </TouchableOpacity>
         </SafeAreaView>
-      </View>
     </SafeAreaView>
   );
 };
