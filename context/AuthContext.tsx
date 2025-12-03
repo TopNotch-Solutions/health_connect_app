@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import apiClient from '../lib/api';
+import socketService from '../lib/socket';
 
 // --- The corrected and expanded User interface ---
 export interface User { // Exporting the interface so other files can use it
@@ -50,6 +51,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Logout function
   const logout = useCallback(async () => {
     try {
+      // Disconnect the socket before logging out
+      socketService.disconnect();
+      
       setUser(null);
       await SecureStore.deleteItemAsync('user');
       await SecureStore.deleteItemAsync(LAST_ACTIVITY_KEY);

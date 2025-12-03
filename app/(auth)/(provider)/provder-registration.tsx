@@ -346,6 +346,8 @@ export default function ProviderRegistrationScreen() {
         ? String(params.providerType).toLowerCase()
         : 'doctor';
 
+    console.log('📝 Building FormData with role:', role);
+
     // text fields
     const pairs: Array<[string, string]> = [
       ['fullname', accountInfo.fullname],
@@ -366,27 +368,40 @@ export default function ProviderRegistrationScreen() {
     ];
 
     pairs.forEach(([k, v]) => {
-      if (v) fd.append(k, v);
+      if (v) {
+        try {
+          fd.append(k, v);
+          console.log(`✅ Added field: ${k}`);
+        } catch (err) {
+          console.error(`❌ Error appending field ${k}:`, err);
+        }
+      }
     });
 
     // files
     const toFile = (asset: any, fallback: string) => {
       if (!asset) return null;
-      const uri = asset.uri;
-      const name =
-        asset.name ||
-        asset.fileName ||
-        (fallback +
-          (uri && uri.includes('.') ? uri.slice(uri.lastIndexOf('.')) : '.jpg'));
-      const type =
-        asset.mimeType ||
-        asset.type ||
-        (name.endsWith('.png')
-          ? 'image/png'
-          : name.endsWith('.pdf')
-          ? 'application/pdf'
-          : 'image/jpeg');
-      return { uri, name, type } as any;
+      try {
+        const uri = asset.uri;
+        const name =
+          asset.name ||
+          asset.fileName ||
+          (fallback +
+            (uri && uri.includes('.') ? uri.slice(uri.lastIndexOf('.')) : '.jpg'));
+        const type =
+          asset.mimeType ||
+          asset.type ||
+          (name.endsWith('.png')
+            ? 'image/png'
+            : name.endsWith('.pdf')
+            ? 'application/pdf'
+            : 'image/jpeg');
+        console.log(`📄 File ${fallback}: name=${name}, type=${type}, uri=${uri}`);
+        return { uri, name, type } as any;
+      } catch (err) {
+        console.error(`❌ Error processing file ${fallback}:`, err);
+        return null;
+      }
     };
 
     const files: Array<[any, string]> = [
@@ -399,10 +414,20 @@ export default function ProviderRegistrationScreen() {
     ];
 
     files.forEach(([f, key]) => {
-      const file = toFile(f, key);
-      if (file) fd.append(key, file);
+      try {
+        const file = toFile(f, key);
+        if (file) {
+          fd.append(key, file);
+          console.log(`✅ Added file: ${key}`);
+        } else {
+          console.log(`⚠️ Skipped file: ${key} (not provided)`);
+        }
+      } catch (err) {
+        console.error(`❌ Error appending file ${key}:`, err);
+      }
     });
 
+    console.log('✅ FormData building complete');
     return fd;
   };
 
@@ -440,26 +465,52 @@ export default function ProviderRegistrationScreen() {
       return;
     }
 
+    setIsLoading(true);
     try {
-      setIsLoading(true);
+      console.log('🔄 Building form data...');
       const formData = buildFormData();
+      
+      console.log('📤 Submitting registration...');
       const res = await apiClient.post(
         '/app/auth/register-health-provider',
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
 
+      console.log('✅ Registration response:', res.status);
+      
       if (res && (res.status === 201 || res.status === 200)) {
         Alert.alert('Success', 'Registration complete.');
         router.replace('/(app)/(provider)/home');
       } else {
-        Alert.alert('Error', res?.data?.message ?? 'Unable to register.');
+        const errorMsg = res?.data?.message ?? 'Unable to register.';
+        console.error('❌ Registration error:', errorMsg);
+        Alert.alert('Error', errorMsg);
       }
     } catch (e: any) {
-      Alert.alert(
-        'Error',
-        e?.response?.data?.message ?? e?.message ?? 'Upload failed.'
-      );
+      console.error('❌ Exception during registration:', {
+        message: e?.message,
+        code: e?.code,
+        status: e?.response?.status,
+        responseData: JSON.stringify(e?.response?.data),
+        config: e?.config?.url,
+        requestError: e?.request ? 'Request sent but no response' : 'No request sent',
+      });
+      
+      // Try to extract error message from various possible locations
+      let errorMsg = 'Upload failed. Please check your internet connection and try again.';
+      
+      if (e?.response?.data?.message) {
+        errorMsg = e.response.data.message;
+      } else if (e?.response?.data?.error) {
+        errorMsg = e.response.data.error;
+      } else if (e?.message) {
+        errorMsg = e.message;
+      } else if (e?.response?.statusText) {
+        errorMsg = `Server error: ${e.response.statusText}`;
+      }
+      
+      Alert.alert('Registration Error', errorMsg);
     } finally {
       setIsLoading(false);
     }
