@@ -282,17 +282,17 @@ export default function ProviderRequests() {
       console.log('✅ Accepting request:', request._id);
       
       // OPEN MAP IMMEDIATELY - synchronously, before any async operations
-      console.log('🗺️ Opening map immediately...');
+      console.log('🗺️ Opening map immediately and marking route locally...');
       setCurrentRouteRequest({
         ...request,
-        status: 'accepted' as any,
+        status: 'en_route' as any,
       });
       setRouteModalVisible(true);
-      
-      // Update local state
+
+      // Update local state immediately to reflect that provider started routing
       setRequests((prev) =>
         prev.map((req) =>
-          req._id === request._id ? { ...req, status: 'accepted' as any } : req
+          req._id === request._id ? { ...req, status: 'en_route' as any } : req
         )
       );
       
@@ -334,8 +334,35 @@ export default function ProviderRequests() {
             // Accept request
             await socketService.acceptRequest(request._id, user.userId);
             console.log('✅ Request accepted by backend');
-            
-            // Send provider response
+
+            // Immediately set request status to en_route since provider opened the map
+            try {
+              // Small delay to avoid race with backend accept handler
+              await new Promise((res) => setTimeout(res, 700));
+              await socketService.updateRequestStatus(request._id, 'en_route', providerCoords);
+              console.log('✅ Request status updated to en_route');
+              // Update local state so requests list shows 'en_route' / route started
+              setRequests((prev) =>
+                prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req))
+              );
+            } catch (err: any) {
+              console.warn('⚠️ Failed to update request status to en_route (first attempt):', err?.message || err);
+              // Retry once if backend reports provider not assigned (likely race)
+              if (err?.message && err.message.includes('not assigned')) {
+                try {
+                  await new Promise((res) => setTimeout(res, 800));
+                  await socketService.updateRequestStatus(request._id, 'en_route', providerCoords);
+                  console.log('✅ Request status updated to en_route (retry)');
+                  setRequests((prev) =>
+                    prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req))
+                  );
+                } catch (err2) {
+                  console.warn('⚠️ Retry to set en_route failed:', err2?.message || err2);
+                }
+              }
+            }
+
+            // Send provider response (ETA and location)
             await socketService.updateProviderResponse(
               request._id,
               estimatedMinutes.toString(),

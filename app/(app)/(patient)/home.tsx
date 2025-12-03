@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
   Animated,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +19,123 @@ import { useAuth } from '../../../context/AuthContext';
 import socketService from '../../../lib/socket';
 import { getLocationCoordinates } from '../../../lib/geocoding';
 
+// Import ailment icons directly
+const bacteriaIcon = require('../../../assets/icons/bacteria.png');
+const painIcon = require('../../../assets/icons/pain.png');
+const mosquitoIcon = require('../../../assets/icons/mosquito (1).png');
+const bloodPressureIcon = require('../../../assets/icons/blood-pressure-check.png');
+const careIcon = require('../../../assets/icons/care.png');
+const woundCareIcon = require('../../../assets/icons/wound-care.png');
+
+const AilmentIconMap: { [key: string]: any } = {
+  // The KEY must EXACTLY match the 'title' from your backend (case-sensitive)
+  'Allergic Reactions or Bites': require('../../../assets/icons/mosquito (1).png'),
+  'Bladder Infection / UTI Symptoms': require('../../../assets/icons/bacteria.png'),
+  'Blood Pressure & Sugar Monitoring': require('../../../assets/icons/blood-pressure-check.png'),
+  'Caregiver Stress & Burnout': require('../../../assets/icons/care.png'),
+  'Assessment of a Sports Injury': require('../../../assets/icons/wound-care.png'), // Assuming 'check' is the right name
+  'Back, Neck, or Shoulder Pain': require('../../../assets/icons/pain.png'),
+};
+
+const ailmentIcons = [
+  bacteriaIcon,
+  painIcon,
+  mosquitoIcon,
+  bloodPressureIcon,
+  careIcon,
+  woundCareIcon,
+];
+
+const assignAilmentIcons = (categories: any[] = []) => {
+  // Mapping keywords -> local asset
+  const keywordMap: { [key: string]: any } = {
+    bacteria: bacteriaIcon,
+    uti: bacteriaIcon,
+    bladder: bacteriaIcon,
+    pain: painIcon,
+    back: painIcon,
+    neck: painIcon,
+    shoulder: painIcon,
+    mosquito: mosquitoIcon,
+    allerg: mosquitoIcon,
+    bite: mosquitoIcon,
+    rash: mosquitoIcon,
+    blood: bloodPressureIcon,
+    pressure: bloodPressureIcon,
+    sugar: bloodPressureIcon,
+    bp: bloodPressureIcon,
+    care: careIcon,
+    caregiver: careIcon,
+    wound: woundCareIcon,
+    sport: woundCareIcon,
+    injury: woundCareIcon,
+    check: woundCareIcon,
+    assessment: woundCareIcon,
+  };
+
+  
+
+  const resolveFromString = (s: string, index: number) => {
+    const trimmed = s.trim();
+    if (!trimmed) return ailmentIcons[index % ailmentIcons.length];
+
+    // URL or data URI
+    const looksLikeUrl = /^https?:\/\//i.test(trimmed) || trimmed.startsWith('data:');
+    if (looksLikeUrl) return { uri: trimmed };
+
+    const lw = trimmed.toLowerCase();
+    // Try keyword map
+    for (const key of Object.keys(keywordMap)) {
+      if (lw.includes(key)) return keywordMap[key];
+    }
+
+    // Fallback: if string looks like a filename (contains png/jpg), try to map by filename
+    if (lw.includes('.png') || lw.includes('.jpg') || lw.includes('.jpeg')) {
+      if (lw.includes('bacteria')) return bacteriaIcon;
+      if (lw.includes('pain')) return painIcon;
+      if (lw.includes('mosquito')) return mosquitoIcon;
+      if (lw.includes('blood')) return bloodPressureIcon;
+      if (lw.includes('care')) return careIcon;
+      if (lw.includes('wound') || lw.includes('sport') || lw.includes('injury')) return woundCareIcon;
+    }
+
+    return ailmentIcons[index % ailmentIcons.length];
+  };
+
+  const mapped = categories.map((category = {}, index: number) => {
+    const fallbackIcon = ailmentIcons[index % ailmentIcons.length];
+    const rawIcon = category?.icon;
+    let resolvedIcon = fallbackIcon;
+
+    if (rawIcon) {
+      if (typeof rawIcon === 'string') {
+        resolvedIcon = resolveFromString(rawIcon, index);
+      } else {
+        // If backend already sent a require/object, use it
+        resolvedIcon = rawIcon;
+      }
+    } else {
+      // No icon provided by backend: infer from title or name
+      const title = (category && (category.title || category.name || '')) as string;
+      resolvedIcon = resolveFromString(title, index);
+    }
+
+    const out = {
+      ...category,
+      icon: resolvedIcon,
+    };
+
+    console.log(`🔧 assignAilmentIcons: resolved icon for [${index}] "${(category as any).title || (category as any).name || ''}" ->`,
+      typeof resolvedIcon === 'object' && (resolvedIcon as any).uri ? (resolvedIcon as any).uri : 'local-asset');
+
+    return out;
+  });
+
+  console.log('🧩 assignAilmentIcons -> input count:', categories?.length ?? 0);
+  console.log('🧩 assignAilmentIcons -> first mapped item:', mapped[0]);
+
+  return mapped;
+};
 // --- Dummy Data (for UI development, replace with API data later) ---
 const healthTips = [
   {
@@ -59,14 +177,22 @@ const healthTips = [
 ];
 
 // Ailment categories will be fetched from backend
-const defaultAilmentCategories = [
-  { _id: '1', title: 'Flu, Cold & Cough Symptoms', provider: 'Doctor', icon: 'wind' },
-  { _id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'alert-circle' },
-  { _id: '3', title: 'New or Worsening Skin Rash', provider: 'Nurse', icon: 'alert-octagon' },
-  { _id: '4', title: 'Headaches or Migraines', provider: 'Doctor', icon: 'activity' },
-  { _id: '5', title: 'Elderly Parent Wellness Check', provider: 'Social Worker', icon: 'heart' },
-  { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist', icon: 'target' },
-];
+// const defaultAilmentCategories = assignAilmentIcons([
+//   { _id: '1', title: 'Flu, Cold & Cough Symptoms', provider: 'Doctor', icon: bacteriaIcon },
+//   { _id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: painIcon },
+//   { _id: '3', title: 'New or Worsening Skin Rash', provider: 'Nurse', icon: mosquitoIcon },
+//   { _id: '4', title: 'Headaches or Migraines', provider: 'Doctor', icon: bloodPressureIcon },
+//   { _id: '5', title: 'Elderly Parent Wellness Check', provider: 'Social Worker', icon: careIcon },
+//   { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist', icon: woundCareIcon },
+// ]);
+const defaultAilmentCategories = assignAilmentIcons([
+  { _id: '1', title: 'Bladder Infection / UTI Symptoms', provider: 'Doctor' },
+  { _id: '2', title: 'Back, Neck or Shoulder Pain', provider: 'Doctor' },
+  { _id: '3', title: 'Allergic Reactions or Bites', provider: 'Nurse' },
+  { _id: '4', title: 'Blood Pressure & Sugar Monitoring', provider: 'Doctor' },
+  { _id: '5', title: 'Caregiver Stress & Burnout', provider: 'Social Worker' },
+  { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist' },
+]);
 
 // --- Reusable Components for this Screen ---
 const HealthTipCard = ({ item }: { item: (typeof healthTips)[0] }) => (
@@ -90,22 +216,26 @@ const HealthTipCard = ({ item }: { item: (typeof healthTips)[0] }) => (
   </View>
 );
 
-const AilmentCard = ({ 
-  item, 
-  onPress 
-}: { 
-  item: any; 
-  onPress: () => void;
-}) => (
-  <TouchableOpacity 
-    onPress={onPress}
-    className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200"
-  >
-    <Feather name={item.icon as any} size={24} color="#2563EB" />
-    <Text className="text-base font-bold text-gray-800 mt-3">{item.title}</Text>
-    <Text className="text-sm text-gray-600 mt-1">{item.provider}</Text>
-  </TouchableOpacity>
-);
+const AilmentCard = ({ item, onPress }: { item: any; onPress: () => void; }) => {
+  return (
+    <TouchableOpacity 
+      onPress={onPress}
+      className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200"
+      activeOpacity={0.7}
+    >
+      {/* The item.icon property is now a direct `require()` path */}
+      {item.icon && (
+        <Image 
+          source={item.icon} 
+          style={{ width: 40, height: 40, marginBottom: 8 }} 
+          resizeMode="contain"
+        />
+      )}
+      <Text className="text-base font-bold text-gray-800 mt-3">{item.title}</Text>
+      <Text className="text-sm text-gray-600 mt-1">{item.provider}</Text>
+    </TouchableOpacity>
+  );
+};
 
 interface HistoryItem {
   _id: string;
@@ -141,54 +271,31 @@ export default function PatientHomeScreen() {
   const slideAnim = React.useRef(new Animated.Value(0)).current;
 
   // Function to fetch ailment categories from backend
-  const loadAilmentCategories = useCallback(async () => {
+   const loadAilmentCategories = useCallback(async () => {
+    setIsLoadingAilments(true);
     try {
-      setIsLoadingAilments(true);
-      const socket = socketService.getSocket();
-      
-      if (!socket?.connected) {
-        console.warn('⚠️ Socket not connected, using default ailment categories');
-        setAilmentCategories(defaultAilmentCategories);
-        return;
-      }
+        // --- This is a placeholder for your actual data fetching (e.g., via Socket.IO or API) ---
+        const backendCategories = [
+            { _id: '1', title: 'Allergic Reactions or Bites', provider: 'Doctor'},
+            { _id: '2', title: 'Back, Neck, or Shoulder Pain', provider: 'Physiotherapist' },
+            { _id: '3',  title: 'Bladder Infection / UTI Symptoms', provider: 'Doctor' },
+            { _id: '4', title: 'Blood Pressure & Sugar Monitoring', provider: 'Nurse' },
+            { _id: '5', title: 'Caregiver Stress & Burnout', provider: 'Social Worker' },
+            { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist' },
+        ];
+        // --------------------------------------------------------------------------------------
 
-      return new Promise<void>((resolve) => {
-        let resolved = false;
+        // Map the backend data to include the correct icon
+        const mappedCategories = backendCategories.map(category => ({
+            ...category,
+            // Look up the icon from our simple map. Use the default if not found.
+            icon: AilmentIconMap[category.title] || AilmentIconMap.default,
+        }));
 
-        const handleAilmentCategories = (categories: any) => {
-          if (resolved) return;
-          resolved = true;
-          
-          console.log('📋 Received ailment categories from backend:', categories);
-          if (Array.isArray(categories) && categories.length > 0) {
-            setAilmentCategories(categories);
-          } else {
-            console.warn('⚠️ No ailment categories received, using defaults');
-            setAilmentCategories(defaultAilmentCategories);
-          }
-          socket?.off('ailmentCategories', handleAilmentCategories);
-          resolve();
-        };
+        setAilmentCategories(mappedCategories);
 
-        const timeout = setTimeout(() => {
-          if (resolved) return;
-          resolved = true;
-          
-          console.warn('⚠️ Ailment categories request timeout, using defaults');
-          socket?.off('ailmentCategories', handleAilmentCategories);
-          setAilmentCategories(defaultAilmentCategories);
-          resolve();
-        }, 5000);
-
-        socket?.on('ailmentCategories', handleAilmentCategories);
-        console.log('📤 Emitting getAilmentCategories request');
-        socket?.emit('getAilmentCategories');
-
-        return () => clearTimeout(timeout);
-      });
     } catch (error) {
       console.error('Error loading ailment categories:', error);
-      setAilmentCategories(defaultAilmentCategories);
     } finally {
       setIsLoadingAilments(false);
     }
@@ -391,11 +498,18 @@ export default function PatientHomeScreen() {
     }
 
     try {
+      // Sanitize ailmentCategoryId: backend expects a MongoDB ObjectId (24 hex chars).
+      // If the selected/default category uses a placeholder id (like '1'), omit it so the
+      // socket service will use its safe fallback. This avoids Mongoose "Cast to ObjectId failed" errors.
+      const safeAilmentCategoryId = requestData.ailmentCategoryId && /^[0-9a-fA-F]{24}$/.test(requestData.ailmentCategoryId)
+        ? requestData.ailmentCategoryId
+        : undefined;
+
       const request = await socketService.createRequest({
         patientId: user.userId,
         location: currentLocation,
         ailmentCategory: requestData.ailmentCategory,
-        ailmentCategoryId: requestData.ailmentCategoryId,
+        ailmentCategoryId: safeAilmentCategoryId,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
         estimatedCost: requestData.dueCost,

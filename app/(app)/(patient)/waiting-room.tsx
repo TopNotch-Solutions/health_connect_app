@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
 import socketService from '../../../lib/socket';
 import PatientProviderTracking from '../../../components/(patient)/PatientProviderTracking';
+import ProviderMap from '../../../components/(patient)/ProviderMap';
 
 interface RequestStatus {
   _id: string;
@@ -322,6 +323,8 @@ export default function WaitingRoom() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [patientLocation, setPatientLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  // Track provider locations keyed by requestId (populated after provider accepts and via realtime updates)
+  const [providerLocations, setProviderLocations] = useState<Record<string, { latitude: number; longitude: number }>>({});
 
   const handleRequestCancelled = useCallback((requestId: string) => {
     setRequests((prev) => prev.filter((item) => item.request._id !== requestId));
@@ -395,6 +398,21 @@ export default function WaitingRoom() {
 
             const merged = Array.from(mergedRequests.values());
             setRequests(merged);
+
+            // For any already-accepted requests, try to fetch initial provider location
+            merged.forEach((item) => {
+              try {
+                if (item.request.status === 'accepted' && item.request._id) {
+                  socketService.getSocket()?.emit('getProviderLocation', { requestId: item.request._id }, (location: any) => {
+                    if (location && location.latitude && location.longitude) {
+                      setProviderLocations((prev) => ({ ...prev, [item.request._id]: location }));
+                    }
+                  });
+                }
+              } catch (e) {
+                console.warn('Could not fetch provider location for stored accepted request', e);
+              }
+            });
 
             // Save updated requests to storage (now only valid ones)
             await AsyncStorage.setItem(`waiting-room-${user?.userId}`, JSON.stringify(merged));
@@ -474,6 +492,19 @@ export default function WaitingRoom() {
           console.error('Failed to save requests:', e)
         );
 
+        // If this request just moved to accepted, try fetching provider's last known location
+        try {
+          if (updatedRequest.status === 'accepted' && updatedRequest._id) {
+            socketService.getSocket()?.emit('getProviderLocation', { requestId: updatedRequest._id }, (location: any) => {
+              if (location && location.latitude && location.longitude) {
+                setProviderLocations((prev) => ({ ...prev, [updatedRequest._id]: location }));
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('Could not fetch provider location on accept:', e);
+        }
+
         return updated;
       });
     };
@@ -494,9 +525,23 @@ export default function WaitingRoom() {
     socketService.onRequestUpdated(handleRequestUpdated);
     socketService.onNewRequestAvailable(handleNewRequestAvailable);
 
+    // Listen for provider location realtime updates and store by requestId
+    const handleProviderLocationUpdate = (data: any) => {
+      try {
+        if (data?.requestId && data.location && data.location.latitude && data.location.longitude) {
+          setProviderLocations((prev) => ({ ...prev, [data.requestId]: data.location }));
+        }
+      } catch (e) {
+        console.warn('Error handling provider location update', e);
+      }
+    };
+
+    socketService.getSocket()?.on('updateProviderLocation', handleProviderLocationUpdate);
+
     return () => {
       socketService.off('requestUpdated', handleRequestUpdated);
       socketService.off('newRequestAvailable', handleNewRequestAvailable);
+      socketService.getSocket()?.off('updateProviderLocation', handleProviderLocationUpdate);
     };
   }, [user?.userId]);
 
@@ -524,6 +569,23 @@ export default function WaitingRoom() {
       return new Date(b.request.createdAt).getTime() - new Date(a.request.createdAt).getTime();
     });
 
+    // Determine first active request (if any) for mapping/visual tracking
+    const activeRequest = requests.find((item) =>
+      ['accepted', 'en_route', 'arrived', 'in_progress'].includes(item.request.status)
+    );
+
+    const showProviderMap = !!patientLocation && !!activeRequest;
+
+    const providersForMap = activeRequest && activeRequest.request.providerId
+      ? [
+          {
+            _id: activeRequest.request.providerId._id || `provider-${activeRequest.request._id}`,
+            firstname: activeRequest.request.providerId.fullname || activeRequest.request.providerId.name,
+            location: providerLocations[activeRequest.request._id],
+          },
+        ]
+      : [];
+
   if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50 items-center justify-center">
@@ -535,6 +597,19 @@ export default function WaitingRoom() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={['bottom', 'left', 'right']}>
+      {/* Map panel: shows provider + route when a provider has accepted and location is available */}
+      {showProviderMap && patientLocation && (
+        <View style={{ height: 220, width: '100%' }} className="px-4 mb-4">
+          <ProviderMap
+            userLatitude={patientLocation.latitude}
+            userLongitude={patientLocation.longitude}
+            destinationLatitude={providerLocations[activeRequest?.request._id!]?.latitude}
+            destinationLongitude={providerLocations[activeRequest?.request._id!]?.longitude}
+            providers={providersForMap}
+            onTimesCalculated={() => { /* can store times if needed */ }}
+          />
+        </View>
+      )}
       <FlatList
         data={sortedRequests}
         keyExtractor={(item) => item.request._id}
