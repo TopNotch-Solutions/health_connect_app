@@ -1,7 +1,7 @@
 // Socket.IO client for real-time communication with backend
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = 'http://192.168.178.60:4000';
+const SOCKET_URL = 'http://192.168.11.138:4000';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -529,70 +529,54 @@ class SocketService {
     });
   }
 
-  updateRequestStatus(
-    requestId: string,
-    status: 'en_route' | 'arrived' | 'in_progress' | 'completed',
-    location?: { latitude: number; longitude: number }
-  ) {
+  updateRequestStatus(requestId: string, providerId: string, status: string, location?: { latitude: number; longitude: number }) {
     return new Promise((resolve, reject) => {
-      if (!this.socket?.connected) {
-        reject(new Error('Socket not connected'));
-        return;
-      }
+        if (!this.socket) return reject(new Error('Socket not connected'));
+        
+        const payload = {
+            requestId,
+            providerId, // This is the crucial addition
+            status,
+            providerLocation: location,
+            hasLocation: !!location,
+        };
 
-      let resolved = false;
+        console.log('📤 Emitting updateRequestStatus with new payload:', payload);
 
-      const handleRequestUpdated = (response: any) => {
-        if (!resolved) {
-          resolved = true;
-          this.socket?.off('requestUpdated', handleRequestUpdated);
-          this.socket?.off('requestError', handleError);
-          clearTimeout(timeout);
-          console.log('✅ Request status updated successfully:', response);
-          resolve(response);
-        }
-      };
+        let resolved = false;
+        const timeout = setTimeout(() => {
+            if (!resolved) {
+                this.socket?.off('requestUpdated', handleSuccess);
+                this.socket?.off('requestError', handleError);
+                resolved = true;
+                reject(new Error('updateRequestStatus timeout - no response from server'));
+            }
+        }, 10000);
 
-      const handleError = (error: any) => {
-        if (!resolved) {
-          resolved = true;
-          this.socket?.off('requestUpdated', handleRequestUpdated);
-          this.socket?.off('requestError', handleError);
-          clearTimeout(timeout);
-          console.error('❌ Error updating request status:', error);
-          reject(new Error(error.error || error.message || 'Failed to update request status'));
-        }
-      };
+        const handleSuccess = (response: any) => {
+            if (resolved) return;
+            resolved = true;
+            clearTimeout(timeout);
+            this.socket?.off('requestUpdated', handleSuccess);
+            this.socket?.off('requestError', handleError);
+            console.log('✅ updateRequestStatus acknowledged by server:', response);
+            resolve(response);
+        };
 
-      const timeout = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          this.socket?.off('requestUpdated', handleRequestUpdated);
-          this.socket?.off('requestError', handleError);
-          reject(new Error('Request timeout - backend did not respond'));
-        }
-      }, 10000);
+        const handleError = (error: any) => {
+            if (resolved) return;
+            resolved = true;
+            clearTimeout(timeout);
+            this.socket?.off('requestUpdated', handleSuccess);
+            this.socket?.off('requestError', handleError);
+            console.error('❌ Socket error from updateRequestStatus:', error);
+            reject(new Error(error.error || error.message || 'Failed to update request status'));
+        };
 
-      this.socket.on('requestUpdated', handleRequestUpdated);
-      this.socket.on('requestError', handleError);
-
-      const payload = {
-        requestId,
-        status,
-        providerLocation: location ? {
-          latitude: location.latitude,
-          longitude: location.longitude,
-        } : undefined,
-      };
-      
-      console.log('📤 Emitting updateRequestStatus:', {
-        ...payload,
-        hasLocation: !!location,
-        locationLatitude: location?.latitude,
-        locationLongitude: location?.longitude,
-      });
-      
-      this.socket.emit('updateRequestStatus', payload);
+        this.socket.on('requestUpdated', handleSuccess);
+        this.socket.on('requestError', handleError);
+        
+        this.socket.emit('updateRequestStatus', payload);
     });
   }
 

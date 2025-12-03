@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import apiClient from '../../lib/api';
@@ -126,7 +126,7 @@ const OTPScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
       <KeyboardAwareScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20 }}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20, justifyContent: 'space-between' }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         enableOnAndroid={true}
@@ -134,58 +134,57 @@ const OTPScreen = () => {
         extraScrollHeight={150}
       >
         
-        {/* Logo Section */}
-        <View className="items-center mb-12">
-          <Image 
-            source={require('../../assets/images/healthconnectlogo-cropped.png')}
-            style={{ width: 180, height: 180, marginBottom: 24 }}
-            resizeMode="contain"
-          />
-          <View className="bg-green-100 w-20 h-20 rounded-full items-center justify-center mb-6"
-            style={{
-              shadowColor: '#10B981',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 4,
-            }}
-          >
-            <Feather name="shield" size={40} color="#10B981" />
-          </View>
-          <Text className="text-3xl font-bold text-gray-900 text-center mb-3">Verify Your Code</Text>
+        {/* Content Section - Centered */}
+        <View className="items-center mt-12">
+          <Text className="text-3xl font-bold text-gray-900 text-center mb-2">Verify Your Code</Text>
           <Text className="text-base text-gray-600 text-center px-4">
             Enter the 6-digit code sent to {'\n'}
             <Text className="font-semibold text-gray-900">{cellphoneNumber || 'your number'}</Text>
           </Text>
         </View>
 
-        {/* OTP Input Section */}
-        <View className="mb-8">
-          <View className="flex-row justify-between w-full mb-8">
-            {otp.map((digit, index) => (
-              <TextInput
-                key={index}
-                ref={(ref) => { inputs.current[index] = ref; }}
-                className="w-14 h-16 bg-white rounded-2xl border-2 border-green-300 text-center text-2xl font-bold text-gray-900"
-                style={{
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 2,
-                }}
-                keyboardType="number-pad"
-                maxLength={1}
-                value={digit}
-                onChangeText={(text) => handleOtpChange(text, index)}
-                onKeyPress={(e) => handleKeyPress(e, index)}
-              />
-            ))}
-          </View>
+            {/* OTP Input Section */}
+            <View className="mb-6">
+              <View className="flex-row justify-between w-full">
+                {otp.map((digit, index) => (
+                  <TextInput
+                    key={index}
+                    ref={(ref) => { inputs.current[index] = ref; }}
+                    className="w-14 h-16 bg-white rounded-2xl border-2 border-green-300 text-center text-2xl font-bold text-gray-900"
+                    style={{
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={1}
+                    value={digit}
+                    onChangeText={(text) => handleOtpChange(text, index)}
+                    onKeyPress={(e) => handleKeyPress(e, index)}
+                  />
+                ))}
+              </View>
+            </View>
 
-          {/* Verify Button */}
+            {/* Resend Section */}
+            <View className="flex-row justify-center items-center">
+              <Text className="text-gray-600 text-base">Didn&apos;t receive code? </Text>
+              <TouchableOpacity onPress={handleResendOtp} disabled={isResending}>
+                {isResending ? (
+                  <ActivityIndicator size="small" color="#10B981"/>
+                ) : (
+                  <Text className="text-green-600 font-semibold text-base">Resend</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+        </KeyboardAwareScrollView>
+
+        {/* Bottom Button - Fixed at bottom with safe area */}
+        <SafeAreaView edges={['bottom']} className="px-6 pb-4">
           <TouchableOpacity
-            className={`w-full py-5 rounded-2xl items-center justify-center flex-row ${isLoading ? 'bg-gray-400' : 'bg-green-600'}`}
+            className="w-full py-5 rounded-2xl items-center justify-center flex-row"
             style={{
               backgroundColor: isLoading ? '#9CA3AF' : '#10B981',
               shadowColor: '#10B981',
@@ -201,27 +200,13 @@ const OTPScreen = () => {
             {isLoading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <>
-                <Text className="text-white text-center text-xl font-semibold mr-2">Verify & Continue</Text>
+              <View className="flex-row items-center">
+                <Text className="text-white text-xl font-semibold mr-2">Verify & Continue</Text>
                 <Feather name="arrow-right" size={20} color="#FFFFFF" />
-              </>
+              </View>
             )}
           </TouchableOpacity>
-        </View>
-
-        {/* Resend Section */}
-        <View className="flex-row justify-center items-center mt-4">
-          <Text className="text-gray-600 text-base">Didn&apos;t receive code? </Text>
-          <TouchableOpacity onPress={handleResendOtp} disabled={isResending}>
-            {isResending ? (
-              <ActivityIndicator size="small" color="#10B981"/>
-            ) : (
-              <Text className="text-green-600 font-semibold text-base">Resend</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-        
-      </KeyboardAwareScrollView>
+        </SafeAreaView>
     </SafeAreaView>
   );
 };

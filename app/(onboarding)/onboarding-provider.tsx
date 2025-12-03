@@ -8,23 +8,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const OnboardingProviderScreen = () => {
   const router = useRouter();
 
-  const handleGetStarted = () => {
-    router.push('/selection');
+  const handleNext = () => {
+    router.push('/onboarding-summary');
   };
 
-  const handleBack = () => {
-    router.back();
+  const handleSkip = () => {
+    router.push('/selection');
   };
 
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-green-50 to-white">
       <View className="flex-1">
         
-        {/* Back Button */}
-        <View className="items-start px-6 pt-4">
-          <TouchableOpacity onPress={handleBack} className="py-2 px-4 flex-row items-center">
-            <Feather name="arrow-left" size={20} color="#6B7280" />
-            <Text className="text-gray-600 font-semibold text-base ml-2">Back</Text>
+        {/* Skip Button */}
+        <View className="items-end px-6 pt-4">
+          <TouchableOpacity onPress={handleSkip} className="py-2 px-4">
+            <Text className="text-gray-600 font-semibold text-base">Skip</Text>
           </TouchableOpacity>
         </View>
 
@@ -105,7 +104,7 @@ const OnboardingProviderScreen = () => {
 
         {/* Bottom Navigation */}
         <View className="px-6 pb-6">
-          {/* Get Started Button */}
+          {/* Next Button */}
           <TouchableOpacity
             className="w-full py-4 rounded-2xl items-center justify-center flex-row bg-green-600 mb-3"
             style={{
@@ -115,10 +114,10 @@ const OnboardingProviderScreen = () => {
               shadowRadius: 8,
               elevation: 6,
             }}
-            onPress={handleGetStarted}
+            onPress={handleNext}
             activeOpacity={0.8}
           >
-            <Text className="text-white text-center text-xl font-semibold mr-2">Get Started</Text>
+            <Text className="text-white text-center text-xl font-semibold mr-2">Next</Text>
             <Feather name="arrow-right" size={20} color="#FFFFFF" />
           </TouchableOpacity>
 
@@ -126,6 +125,7 @@ const OnboardingProviderScreen = () => {
           <View className="flex-row justify-center items-center" style={{ gap: 8 }}>
             <View className="w-2 h-2 bg-gray-300 rounded-full" />
             <View className="w-8 h-2 bg-green-600 rounded-full" />
+            <View className="w-2 h-2 bg-gray-300 rounded-full" />
           </View>
         </View>
 

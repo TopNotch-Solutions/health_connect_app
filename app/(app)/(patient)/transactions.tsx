@@ -19,9 +19,9 @@ interface Transaction {
 
 // --- Reusable Components ---
 const ActionButton = ({ icon, label, onPress }: { icon: any; label: string; onPress: () => void; }) => (
-    <TouchableOpacity onPress={onPress} className="items-center bg-white p-4 rounded-2xl flex-1 border border-gray-200 shadow-sm">
-        <Feather name={icon} size={24} color="#007BFF" />
-        <Text className="text-primary font-semibold mt-2">{label}</Text>
+    <TouchableOpacity onPress={onPress} className="items-center bg-green-600 p-4 rounded-2xl flex-1 border border-green-600 shadow-sm">
+        <Feather name={icon} size={24} color="#FFFFFF" />
+        <Text className="text-white font-semibold mt-2">{label}</Text>
     </TouchableOpacity>
 );
 
@@ -96,15 +96,25 @@ export default function TransactionsScreen() {
         }
         setIsLoading(true);
         try {
+            console.log(`Fetching transactions for userId: ${user.userId}`);
             const response = await apiClient.get(`/app/transaction/transaction-history/${user.userId}`);
+            console.log("Transactions Response:", response.data);
             setTransactions(response.data.data || []);
         } catch (error: any) {
-            console.error("Fetch Transactions Error:", error.message);
-            Alert.alert("Error", "Failed to fetch transactions.");
+            console.error("Fetch Transactions Error:", {
+                message: error.message,
+                status: error.response?.status,
+                data: error.response?.data,
+                url: error.config?.url,
+            });
+            // Don't show alert on initial load, just set empty transactions
+            if (transactions.length === 0) {
+                setTransactions([]);
+            }
         } finally {
             setIsLoading(false);
         }
-    }, [user]);
+    }, [user, transactions.length]);
 
     // --- THIS IS THE CORRECTED useFocusEffect HOOK ---
     useFocusEffect(
@@ -190,7 +200,7 @@ export default function TransactionsScreen() {
                         refreshing={isLoading}
                         ListHeaderComponent={
                             <>
-                                <View className="p-6 mb-6 border border-blue-200 rounded-2xl">
+                                <View className="p-6 mb-6 border-2 border-green-600 rounded-2xl">
                                     <View className="mb-6">
                                         <Text className="text-gray-600 text-lg">Your Balance</Text>
                                         <Text className="text-gray-900 text-4xl font-bold mt-1">
@@ -248,7 +258,7 @@ export default function TransactionsScreen() {
                         <TextInput value={addMoneyForm.expiryDate} onChangeText={v => setAddMoneyForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }))} placeholder="Expiry (MM/YY)" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" maxLength={5}/>
                         <TextInput value={addMoneyForm.cvv} onChangeText={v => setAddMoneyForm(p => ({ ...p, cvv: v }))} placeholder="CVV" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" keyboardType="numeric" secureTextEntry/>
                     </View>
-                    <TouchableOpacity onPress={handleAddMoney} disabled={isSubmitting} className={`bg-primary p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
+                    <TouchableOpacity onPress={handleAddMoney} disabled={isSubmitting} className={`bg-green-600 p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
                         {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Confirm Deposit</Text>}
                     </TouchableOpacity>
                 </BottomSheetView>
@@ -270,7 +280,7 @@ export default function TransactionsScreen() {
                         <TextInput value={fundOthersForm.expiryDate} onChangeText={v => setFundOthersForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }))} placeholder="Expiry (MM/YY)" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" maxLength={5}/>
                         <TextInput value={fundOthersForm.cvv} onChangeText={v => setFundOthersForm(p => ({ ...p, cvv: v }))} placeholder="CVV" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" keyboardType="numeric" secureTextEntry/>
                     </View>
-                    <TouchableOpacity onPress={handleFundOthers} disabled={isSubmitting} className={`bg-primary p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
+                    <TouchableOpacity onPress={handleFundOthers} disabled={isSubmitting} className={`bg-green-600 p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
                         {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Send Money</Text>}
                     </TouchableOpacity>
                 </BottomSheetView>
@@ -285,7 +295,7 @@ export default function TransactionsScreen() {
                         </TouchableOpacity>
                     </View>
                     <TextInput value={withdrawForm.amount} onChangeText={v => setWithdrawForm(p => ({ ...p, amount: v }))} placeholder="Amount to Withdraw (N$)" className="bg-white p-4 rounded-xl mb-4 border border-gray-200" keyboardType="numeric"/>
-                    <TouchableOpacity onPress={handleWithdraw} disabled={isSubmitting} className={`bg-primary p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
+                    <TouchableOpacity onPress={handleWithdraw} disabled={isSubmitting} className={`bg-green-600 p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
                         {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Confirm Withdrawal</Text>}
                     </TouchableOpacity>
                 </BottomSheetView>

@@ -9,7 +9,7 @@ const VerificationLayout = () => {
         <Stack.Screen 
           name="verify-phone" 
           options={{ 
-            headerTitle: 'Verify Phone',
+            headerTitle: 'Back',
             headerShadowVisible: false,
             headerStyle: { 
               backgroundColor: '#F9FAFB',

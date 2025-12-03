@@ -418,7 +418,7 @@ export default function ProviderRouteModal({
       }
 
       console.log('📤 Updating request status to arrived with location:', providerLocation);
-      await socketService.updateRequestStatus(requestId, 'arrived', providerLocation);
+      await socketService.updateRequestStatus(requestId, providerId, 'arrived', providerLocation);
 
       Alert.alert('Success', "You've arrived at the patient's location!");
 

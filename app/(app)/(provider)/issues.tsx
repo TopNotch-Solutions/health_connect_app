@@ -115,7 +115,7 @@ export default function IssuesScreen() {
                     <View>
                         <Text className="text-base text-text-main mb-2 font-semibold">What are you reporting?</Text>
                         <View className="bg-white border border-gray-200 rounded-xl px-3 mb-4" style={{ height: 56, justifyContent: "center" }}>
-                            <RNPickerSelect onValueChange={setIssueTitle} items={issueTypes} placeholder={{ label: "Select an issue type...", value: null }} Icon={() => <Feather name="chevron-down" size={24} color="gray" />}/>
+                            <RNPickerSelect onValueChange={setIssueTitle} items={issueTypes} placeholder={{ label: "Select an issue type...", value: null }} />
                         </View>
                         <Text className="text-base text-text-main mb-2 font-semibold">Description</Text>
                         <TextInput value={issueDescription} onChangeText={setIssueDescription} placeholder="Please describe the issue in detail..." className="bg-white p-4 rounded-xl h-32 border border-gray-200" multiline textAlignVertical="top"/>

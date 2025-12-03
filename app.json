@@ -25,7 +25,11 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.owenator3k.projecthealthconnect"
+      "package": "com.owenator3k.projecthealthconnect",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "output": "static",
@@ -33,6 +37,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withNetworkSecurityConfig",
       [
         "expo-splash-screen",
         {
@@ -60,8 +65,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d0f37ffa-941d-4292-987d-286deb2c310f"
+        "projectId": "37466beb-b202-424c-a1ab-fa3b1a504a68"
       }
-    }
+    },
+    "owner": "paulo_devops"
   }
 }

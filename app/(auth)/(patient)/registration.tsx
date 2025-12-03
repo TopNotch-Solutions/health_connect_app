@@ -622,39 +622,72 @@ const handleRegister = async () => {
             </ScrollView>
 
             {/* --- Sticky Buttons --- */}
-            <View className="absolute bottom-0 left-0 right-0 p-6 bg-white border-t-2 border-gray-100">
-                <View className="flex-row" style={{ gap: 12 }}>
+            <SafeAreaView edges={['bottom']} className="absolute bottom-0 left-0 right-0 bg-white border-t-2 border-gray-100">
+                <View className="flex-row px-6 pt-4 pb-4" style={{ gap: 12 }}>
                     {step > 1 && (
                         <TouchableOpacity 
                             onPress={handleBack} 
-                            className="bg-gray-100 p-4 rounded-xl flex-1 border-2 border-gray-200"
+                            className="py-5 rounded-2xl flex-1 items-center justify-center border-2"
+                            style={{
+                                backgroundColor: '#F3F4F6',
+                                borderColor: '#D1D5DB',
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.1,
+                                shadowRadius: 4,
+                                elevation: 2,
+                            }}
                         >
-                            <Text className="text-center text-lg font-bold text-gray-700">Back</Text>
+                            <Text className="text-gray-700 text-xl font-semibold">Back</Text>
                         </TouchableOpacity>
                     )}
                     {step < 5 ? (
                         <TouchableOpacity 
                             onPress={handleNext} 
                             disabled={step === 1 && !acceptedTerms}
-                            className={`p-4 rounded-xl flex-1 ${step === 1 && !acceptedTerms ? 'bg-gray-300' : 'bg-green-600'}`}
+                            className="py-5 rounded-2xl flex-1 items-center justify-center"
+                            style={{
+                                backgroundColor: (step === 1 && !acceptedTerms) ? '#9CA3AF' : '#10B981',
+                                shadowColor: '#10B981',
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.3,
+                                shadowRadius: 8,
+                                elevation: 6,
+                            }}
+                            activeOpacity={0.8}
                         >
-                            <Text className="text-white text-center text-lg font-bold">Next</Text>
+                            <View className="flex-row items-center">
+                                <Text className="text-white text-xl font-semibold mr-2">Next</Text>
+                                <Feather name="arrow-right" size={20} color="#FFFFFF" />
+                            </View>
                         </TouchableOpacity>
                     ) : (
                         <TouchableOpacity 
                             onPress={handleRegister} 
                             disabled={isLoading} 
-                            className={`p-4 rounded-xl flex-1 ${isLoading ? "bg-gray-300" : "bg-green-500"}`}
+                            className="py-5 rounded-2xl flex-1 items-center justify-center"
+                            style={{
+                                backgroundColor: isLoading ? '#9CA3AF' : '#10B981',
+                                shadowColor: '#10B981',
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.3,
+                                shadowRadius: 8,
+                                elevation: 6,
+                            }}
+                            activeOpacity={0.8}
                         >
                             {isLoading ? (
-                                <ActivityIndicator color="white" />
+                                <ActivityIndicator color="#fff" size="small" />
                             ) : (
-                                <Text className="text-white text-center text-lg font-bold">Submit Registration</Text>
+                                <View className="flex-row items-center">
+                                    <Text className="text-white text-xl font-semibold mr-2">Submit Registration</Text>
+                                    <Feather name="arrow-right" size={20} color="#FFFFFF" />
+                                </View>
                             )}
                         </TouchableOpacity>
                     )}
                 </View>
-            </View>
+            </SafeAreaView>
             <StatusBar style="dark" />
 
             {/* Terms and Conditions Modal */}

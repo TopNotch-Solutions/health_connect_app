@@ -235,16 +235,17 @@ export default function CreateRequestModal({
                   <MapView
                     region={mapRegion}
                     style={{ flex: 1 }}
-                    onPress={handleMapPress}
                     scrollEnabled={false}
                     zoomEnabled={false}
+                    pitchEnabled={false}
+                    rotateEnabled={false}
                   >
                     <Marker coordinate={markerCoord} />
                   </MapView>
                   <View className="bg-blue-50 p-2 flex-row items-center">
                     <Feather name="info" size={14} color="#3B82F6" />
                     <Text className="text-xs text-blue-700 ml-2 flex-1">
-                      Tap on the map to adjust location
+                      Your location
                     </Text>
                   </View>
                 </View>
@@ -256,7 +257,7 @@ export default function CreateRequestModal({
                 <View className="ml-2 flex-1">
                   <Text className="text-sm font-semibold text-blue-900">Auto-populated from location</Text>
                   <Text className="text-xs text-blue-800 mt-1">
-                    Tap show Map to adjust your location pin if needed
+                    Your location is automatically detected and displayed
                   </Text>
                 </View>
               </View>

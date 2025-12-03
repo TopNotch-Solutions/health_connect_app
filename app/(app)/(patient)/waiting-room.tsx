@@ -21,7 +21,6 @@ import ProviderMap from '../../../components/(patient)/ProviderMap';
 interface RequestStatus {
   _id: string;
   status: 'searching' | 'pending' | 'accepted' | 'en_route' | 'arrived' | 'in_progress' | 'completed' | 'cancelled' | 'expired' | 'rejected';
-  urgency: 'low' | 'medium' | 'high' | 'emergency';
   createdAt: string;
   ailmentCategoryId?: {
     _id: string;
@@ -105,29 +104,6 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
-const UrgencyBadge = ({ urgency }: { urgency: string }) => {
-  const getUrgencyColor = () => {
-    switch (urgency) {
-      case 'emergency':
-        return 'bg-red-100';
-      case 'high':
-        return 'bg-orange-100';
-      case 'medium':
-        return 'bg-yellow-100';
-      case 'low':
-        return 'bg-blue-100';
-      default:
-        return 'bg-gray-100';
-    }
-  };
-
-  return (
-    <View className={`${getUrgencyColor()} px-2 py-1 rounded`}>
-      <Text className="text-xs font-semibold capitalize">{urgency}</Text>
-    </View>
-  );
-};
-
 const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest; onCancel?: (requestId: string) => void; patientLocation?: { latitude: number; longitude: number } | null }) => {
   const request = item.request;
   const acceptedAt = item.acceptedAt;
@@ -205,7 +181,6 @@ const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest;
           </Text>
           <View className="flex-row gap-2 items-center">
             <StatusBadge status={request.status} />
-            <UrgencyBadge urgency={request.urgency} />
           </View>
         </View>
       </View>

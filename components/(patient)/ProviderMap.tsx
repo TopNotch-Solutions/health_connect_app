@@ -57,9 +57,19 @@ const ProviderMap = ({ userLatitude, userLongitude, destinationLatitude, destina
           key={(marker as any).id || `${marker.latitude}-${marker.longitude}`}
           coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
           title={marker.title}
-          // image can be set to custom marker assets if available
+          // show provider markers with red color for visibility
+          pinColor="#ef4444"
         />
       ))}
+
+      {/* Add user marker only when no providers are shown (provider view) */}
+      {providers.length === 0 && userLatitude && userLongitude && (
+        <Marker
+          coordinate={{ latitude: userLatitude, longitude: userLongitude }}
+          title="Your Location"
+          pinColor="#ef4444"
+        />
+      )}
 
       {destinationLatitude && destinationLongitude && (
         <>
@@ -67,6 +77,8 @@ const ProviderMap = ({ userLatitude, userLongitude, destinationLatitude, destina
             key="destination"
             coordinate={{ latitude: destinationLatitude, longitude: destinationLongitude }}
             title="Destination"
+            // use a red pin for destination so it's clearly visible
+            pinColor="#ef4444"
           />
           {directionsAPI ? (
             (() => {

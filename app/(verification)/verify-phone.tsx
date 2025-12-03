@@ -3,13 +3,12 @@ import axios from 'axios';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -47,7 +46,6 @@ const VerifyPhoneScreen = () => {
 
       if (response.status === 200) {
         console.log('OTP from backend:', response.data?.otp);
-        Alert.alert('Code Sent', 'A verification code has been sent to your phone.');
         router.push({ 
           pathname: '/verify-otp', 
           params: { 
@@ -76,7 +74,7 @@ const VerifyPhoneScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
       <KeyboardAwareScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20 }}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20, justifyContent: 'space-between' }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         enableOnAndroid={true}
@@ -84,23 +82,20 @@ const VerifyPhoneScreen = () => {
         extraScrollHeight={150}
       >
           
-          {/* Logo Section */}
-          <View className="items-center mb-12">
-            <Image
-              source={require('../../assets/images/healthconnectlogo-cropped.png')}
-              style={{ width: 220, height: 220, marginBottom: 32 }}
-              resizeMode="contain"
-            />
-            <Text className="text-3xl font-bold text-gray-900 text-center mb-3">
-              Verify Your Phone
-            </Text>
-            <Text className="text-base text-gray-600 text-center px-4">
-              We&apos;ll send you a verification code to confirm your number
-            </Text>
-          </View>
+          {/* Content Section - Title, Description, and Phone Input */}
+          <View className="mt-20">
+            {/* Title and Description Section - Centered */}
+            <View className="items-center mb-2">
+              <Text className="text-3xl font-bold text-gray-900 text-center mb-1">
+                Verify Your Phone
+              </Text>
+              <Text className="text-base text-gray-600 text-center px-4">
+                We&apos;ll send you a verification code to confirm your number
+              </Text>
+            </View>
 
-          {/* Phone Input Section */}
-          <View className="mb-8">
+            {/* Phone Input Section */}
+            <View className="mb-6">
             <Text className="text-base font-medium text-gray-700 mb-2">
               Phone Number
             </Text>
@@ -136,17 +131,20 @@ const VerifyPhoneScreen = () => {
             <Text className="text-sm text-gray-500 mt-2 ml-1">
               Enter your 9-digit Namibian phone number
             </Text>
+            </View>
           </View>
 
-          {/* Send Button */}
+        {/* Bottom Button - Fixed at bottom with safe area */}
+        <SafeAreaView edges={['bottom']} className="px-6 pb-4">
           <TouchableOpacity
-            className={`w-full py-5 rounded-2xl ${isLoading ? 'bg-gray-400' : 'bg-blue-600'}`}
+            className="w-full py-5 rounded-2xl items-center justify-center"
             style={{
-              shadowColor: '#000',
+              backgroundColor: isLoading ? '#9CA3AF' : '#10B981',
+              shadowColor: '#10B981',
               shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
+              shadowOpacity: 0.3,
               shadowRadius: 8,
-              elevation: 4,
+              elevation: 6,
             }}
             onPress={handleSendCode}
             disabled={isLoading}
@@ -155,15 +153,15 @@ const VerifyPhoneScreen = () => {
             {isLoading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <View className="flex-row items-center justify-center">
-                <Text className="text-white text-center text-lg font-semibold mr-2">
+              <View className="flex-row items-center">
+                <Text className="text-white text-xl font-semibold mr-2">
                   Send Verification Code
                 </Text>
                 <Feather name="arrow-right" size={20} color="#FFFFFF" />
               </View>
             )}
           </TouchableOpacity>
-        
+        </SafeAreaView>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
