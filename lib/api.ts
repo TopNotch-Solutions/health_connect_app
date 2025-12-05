@@ -2,7 +2,9 @@
 
 import axios from 'axios';
 
-const API_BASE_URL = 'http://192.168.11.138:4000/api';
+// Configuration for different environments
+// Using production IP
+const API_BASE_URL = 'http://13.61.152.64:4000/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
