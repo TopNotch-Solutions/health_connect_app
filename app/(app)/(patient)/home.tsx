@@ -321,66 +321,71 @@ export default function PatientHomeScreen() {
   const loadRecentRequests = useCallback(async () => {
     try {
       // Fetch requests from backend via socket
-      if (user?.userId && socketService.getSocket()?.connected) {
-        const liveRequests = await socketService.getPatientRequests(user.userId);
-        console.log('🔍 Raw requests received:', liveRequests);
+      const socket = socketService.getSocket();
+      if (!user?.userId || !socket || !socket.connected) {
+        console.warn('Socket not ready or user ID missing. Skipping recent requests load.');
+        setRecentRequests([]);
+        return;
+      }
+
+      const liveRequests = await socketService.getPatientRequests(user.userId);
+      console.log('🔍 Raw requests received:', liveRequests);
+      
+      if (Array.isArray(liveRequests) && liveRequests.length > 0) {
+        console.log('First request full structure:', JSON.stringify(liveRequests[0], null, 2));
+      }
+      
+      if (Array.isArray(liveRequests)) {
+        // Load ailment mappings from local storage
+        const ailmentMappingsStr = await AsyncStorage.getItem(`ailment-mappings-${user.userId}`);
+        const ailmentMappings = ailmentMappingsStr ? JSON.parse(ailmentMappingsStr) : {};
+        console.log('📍 Ailment mappings:', ailmentMappings);
         
-        if (Array.isArray(liveRequests) && liveRequests.length > 0) {
-          console.log('First request full structure:', JSON.stringify(liveRequests[0], null, 2));
-        }
-        
-        if (Array.isArray(liveRequests)) {
-          // Load ailment mappings from local storage
-          const ailmentMappingsStr = await AsyncStorage.getItem(`ailment-mappings-${user.userId}`);
-          const ailmentMappings = ailmentMappingsStr ? JSON.parse(ailmentMappingsStr) : {};
-          console.log('📍 Ailment mappings:', ailmentMappings);
-          
-          // Get the 2 most recent requests
-          const recent = liveRequests
-            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .slice(0, 2)
-            .map((item: any) => {
-              // Log each item's ailment structure
-              console.log('Item ailmentCategoryId:', item.ailmentCategoryId);
-              console.log('Item ailmentCategoryId type:', typeof item.ailmentCategoryId);
-              
-              // Try to get ailment name from backend data first
-              let ailmentName = 'Unknown';
-              
-              // First, try ailmentCategoryId.title (populated object)
-              if (item.ailmentCategoryId?.title) {
-                ailmentName = item.ailmentCategoryId.title;
-              }
-              // Try ailmentCategory field
-              else if (item.ailmentCategory) {
-                ailmentName = item.ailmentCategory;
-              }
-              // Try ailmentCategoryId.name (alternative field name)
-              else if (item.ailmentCategoryId?.name) {
-                ailmentName = item.ailmentCategoryId.name;
-              }
-              // Fall back to local mapping if available
-              else if (ailmentMappings[item._id]) {
-                ailmentName = ailmentMappings[item._id];
-                console.log('✅ Got ailment from local mapping:', ailmentName);
-              }
-              
-              console.log('Resolved ailment name:', ailmentName);
-              
-              return {
-                _id: item._id,
-                ailment: ailmentName,
-                status: item.status,
-                date: new Date(item.createdAt).toLocaleDateString('en-ZA', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                }),
-              };
-            });
-          console.log('📋 Final recent requests:', recent);
-          setRecentRequests(recent);
-        }
+        // Get the 2 most recent requests
+        const recent = liveRequests
+          .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 2)
+          .map((item: any) => {
+            // Log each item's ailment structure
+            console.log('Item ailmentCategoryId:', item.ailmentCategoryId);
+            console.log('Item ailmentCategoryId type:', typeof item.ailmentCategoryId);
+            
+            // Try to get ailment name from backend data first
+            let ailmentName = 'Unknown';
+            
+            // First, try ailmentCategoryId.title (populated object)
+            if (item.ailmentCategoryId?.title) {
+              ailmentName = item.ailmentCategoryId.title;
+            }
+            // Try ailmentCategory field
+            else if (item.ailmentCategory) {
+              ailmentName = item.ailmentCategory;
+            }
+            // Try ailmentCategoryId.name (alternative field name)
+            else if (item.ailmentCategoryId?.name) {
+              ailmentName = item.ailmentCategoryId.name;
+            }
+            // Fall back to local mapping if available
+            else if (ailmentMappings[item._id]) {
+              ailmentName = ailmentMappings[item._id];
+              console.log('✅ Got ailment from local mapping:', ailmentName);
+            }
+            
+            console.log('Resolved ailment name:', ailmentName);
+            
+            return {
+              _id: item._id,
+              ailment: ailmentName,
+              status: item.status,
+              date: new Date(item.createdAt).toLocaleDateString('en-ZA', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              }),
+            };
+          });
+        console.log('📋 Final recent requests:', recent);
+        setRecentRequests(recent);
       }
     } catch (error) {
       console.error('Error loading recent requests:', error);
@@ -408,15 +413,23 @@ export default function PatientHomeScreen() {
   // Connect socket on mount and load ailment categories
   useEffect(() => {
     if (user?.userId) {
-      // Connect with patient role
-      socketService.connect(user.userId, 'patient');
-      
-      // Load ailment categories after a brief delay to ensure socket is connected
-      const timer = setTimeout(() => {
-        loadAilmentCategories();
-      }, 1000);
+      try {
+        // Connect with patient role
+        socketService.connect(user.userId, 'patient');
+        
+        // Load ailment categories after a brief delay to ensure socket is connected
+        const timer = setTimeout(() => {
+          try {
+            loadAilmentCategories();
+          } catch (error) {
+            console.error('Error loading ailment categories:', error);
+          }
+        }, 1000);
 
-      return () => clearTimeout(timer);
+        return () => clearTimeout(timer);
+      } catch (error) {
+        console.error('Error connecting to socket:', error);
+      }
     }
   }, [user?.userId, loadAilmentCategories]);
 

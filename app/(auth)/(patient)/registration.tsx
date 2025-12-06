@@ -424,7 +424,7 @@ const handleRegister = async () => {
                           <Text className="text-base text-gray-700 mb-2 font-semibold">Gender</Text>
                           {errors.gender && <Text className="text-red-500 text-sm mb-2">{errors.gender}</Text>}
                           <View className="mb-4" style={{ gap: 12 }}>
-                            {["Male", "Female", "Other"].map((g) => (<TouchableOpacity key={g} className={`p-4 rounded-xl border-2 ${formData.gender === g ? "bg-blue-600 border-blue-600" : "bg-white border-gray-200"}`} onPress={() => handleInputChange("gender", g)}><Text className={`text-center font-semibold ${formData.gender === g ? "text-white" : "text-gray-700"}`}>{g}</Text></TouchableOpacity>))}
+                            {["Male", "Female"].map((g) => (<TouchableOpacity key={g} className={`p-4 rounded-xl border-2 ${formData.gender === g ? "bg-blue-600 border-blue-600" : "bg-white border-gray-200"}`} onPress={() => handleInputChange("gender", g)}><Text className={`text-center font-semibold ${formData.gender === g ? "text-white" : "text-gray-700"}`}>{g}</Text></TouchableOpacity>))}
                           </View>
                           
                           <Text className="text-base text-gray-700 mb-2 font-semibold">National ID Number</Text>
@@ -680,7 +680,7 @@ const handleRegister = async () => {
                                 <ActivityIndicator color="#fff" size="small" />
                             ) : (
                                 <View className="flex-row items-center">
-                                    <Text className="text-white text-xl font-semibold mr-2">Submit Registration</Text>
+                                    <Text className="text-white text-lg font-semibold mr-2">Register</Text>
                                     <Feather name="arrow-right" size={20} color="#FFFFFF" />
                                 </View>
                             )}

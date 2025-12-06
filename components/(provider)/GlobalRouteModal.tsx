@@ -8,7 +8,7 @@ import socketService from '../../lib/socket';
 import ProviderMap from '../(patient)/ProviderMap';
 
 export default function GlobalRouteModal() {
-    const { user } = useAuth();
+    const { user, isAuthenticated } = useAuth();
     const { activeRoute, clearRoute } = useRoute();
     const [providerLocation, setProviderLocation] = useState<{ latitude: number, longitude: number } | null>(null);
     const routeWatcherRef = useRef<any>(null);
@@ -16,7 +16,7 @@ export default function GlobalRouteModal() {
     useEffect(() => {
         let isMounted = true;
         const startRouteWatch = async () => {
-            if (!activeRoute || !user?.userId) return;
+            if (!activeRoute || !user?.userId || !isAuthenticated) return;
 
             try {
                 const { status } = await Location.requestForegroundPermissionsAsync();
@@ -32,7 +32,11 @@ export default function GlobalRouteModal() {
                         if (!isMounted) return;
                         const coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
                         setProviderLocation(coords);
-                        socketService.updateProviderLocation(activeRoute._id, user.userId, coords);
+                        try {
+                            socketService.updateProviderLocation(activeRoute._id, user.userId, coords);
+                        } catch (error) {
+                            console.error('Error updating provider location:', error);
+                        }
                     }
                 );
             } catch (e: any) { 
@@ -53,7 +57,7 @@ export default function GlobalRouteModal() {
                 routeWatcherRef.current = null;
             }
         };
-    }, [activeRoute, user?.userId, clearRoute]);
+    }, [activeRoute, user?.userId, isAuthenticated, clearRoute]);
 
     if (!activeRoute) return null;
 
@@ -64,6 +68,7 @@ export default function GlobalRouteModal() {
             clearRoute();
             Alert.alert('Success', "You've arrived at the patient's location!");
         } catch (error: any) {
+            console.error('Error marking as arrived:', error);
             Alert.alert('Error', error.message || 'Failed to mark as arrived');
         }
     };

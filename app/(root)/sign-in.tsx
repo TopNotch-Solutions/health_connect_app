@@ -2,7 +2,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Text, TextInput, TouchableOpacity, View, Image } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Text, TextInput, TouchableOpacity, View, Image, ScrollView } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -16,6 +16,7 @@ const SignInScreen = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [renderError, setRenderError] = useState<string | null>(null);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -24,7 +25,7 @@ const SignInScreen = () => {
 
   useEffect(() => {
     // Start animations on mount
-    Animated.parallel([
+    const animationRef = Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 1000,
@@ -36,22 +37,15 @@ const SignInScreen = () => {
         tension: 40,
         useNativeDriver: true,
       }),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(rotateAnim, {
-            toValue: 1,
-            duration: 3000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(rotateAnim, {
-            toValue: 0,
-            duration: 3000,
-            useNativeDriver: true,
-          }),
-        ])
-      ),
-    ]).start();
-  }, []);
+    ]);
+    
+    animationRef.start();
+    
+    return () => {
+      // Clean up animation on unmount
+      animationRef.stop?.();
+    };
+  }, [fadeAnim, scaleAnim]);
 
   const handleSignIn = async () => {
     // Clear previous errors
@@ -85,6 +79,12 @@ const SignInScreen = () => {
       // The _layout.tsx will detect the authentication change and redirect to the correct home screen
       console.log('Login successful for user:', user.email, 'Role:', user.role);
     } catch(error: any){
+      console.error('Sign-in error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        error: error,
+      });
       const message = error?.response?.data?.message || error?.message || 'Failed to sign in. Please check your credentials and try again.';
       Alert.alert('Login Failed', message);
     } finally {
@@ -93,25 +93,44 @@ const SignInScreen = () => {
   };
 
   const handleEmailChange = (text: string) => {
-    setEmail(text);
-    if (emailError) {
-      setEmailError('');
+    try {
+      setEmail(text);
+      if (emailError) {
+        setEmailError('');
+      }
+    } catch (error) {
+      console.error('Error in handleEmailChange:', error);
     }
   };
 
   const handlePasswordChange = (text: string) => {
-    setPassword(text);
-    if (passwordError) {
-      setPasswordError('');
+    try {
+      setPassword(text);
+      if (passwordError) {
+        setPasswordError('');
+      }
+    } catch (error) {
+      console.error('Error in handlePasswordChange:', error);
     }
   };
 
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '5deg'],
-  });
 
-  return (
+  if (renderError) {
+    return (
+      <SafeAreaView className="flex-1 bg-white items-center justify-center">
+        <Text className="text-red-600 text-lg font-semibold mb-4">An error occurred</Text>
+        <Text className="text-gray-600 text-base mb-6 px-4 text-center">{renderError}</Text>
+        <TouchableOpacity
+          className="bg-green-600 px-6 py-3 rounded-lg"
+          onPress={() => setRenderError(null)}
+        >
+          <Text className="text-white font-semibold">Try Again</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+  try {
+    return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
       <KeyboardAwareScrollView
         contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, justifyContent: 'space-between' }}
@@ -144,11 +163,14 @@ const SignInScreen = () => {
                 placeholder="Enter your email"
                 placeholderTextColor="#9CA3AF"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={handleEmailChange}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
             </View>
+            {emailError ? (
+              <Text className="text-red-500 text-sm mt-1 ml-1">{emailError}</Text>
+            ) : null}
           </View>
 
             {/* Password Input */}
@@ -239,7 +261,23 @@ const SignInScreen = () => {
         </SafeAreaView>
       <StatusBar backgroundColor="#EFF6FF" style="dark" />
     </SafeAreaView>
-  );
+    );
+  } catch (error: any) {
+    console.error('Error rendering SignInScreen:', error);
+    setRenderError(error?.message || 'An unknown error occurred while rendering');
+    return (
+      <SafeAreaView className="flex-1 bg-white items-center justify-center">
+        <Text className="text-red-600 text-lg font-semibold mb-4">Render Error</Text>
+        <Text className="text-gray-600 text-base mb-6 px-4 text-center">{error?.message}</Text>
+        <TouchableOpacity
+          className="bg-green-600 px-6 py-3 rounded-lg"
+          onPress={() => setRenderError(null)}
+        >
+          <Text className="text-white font-semibold">Retry</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 };
 
 export default SignInScreen;

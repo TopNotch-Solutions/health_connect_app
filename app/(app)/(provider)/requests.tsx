@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -198,157 +197,38 @@ export default function ProviderRequests() {
     }
   };
 
-  // Calculate distance using Haversine formula
-  const calculateDistance = (
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ): number => {
-    const R = 6371; // Earth's radius in km
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Distance in km
-  };
-
-  // Handle accept request - automatically open map with calculated ETA
+  // Handle accept request - same as home.tsx
   const handleAccept = async (request: Request) => {
-    if (!user?.userId || !request.address?.coordinates) {
-      Alert.alert('Error', 'Patient location not available');
-      return;
-    }
-
+    if (!user?.userId) return;
     try {
-      console.log('✅ Accepting request:', request._id);
-      
-      // OPEN MAP IMMEDIATELY - synchronously, before any async operations
-      console.log('🗺️ Opening map immediately and marking route locally...');
-      setCurrentRouteRequest({
-        ...request,
-        status: 'en_route' as any,
-      });
-      setRouteModalVisible(true);
+      // 1) Accept on backend (assign provider)
+      await socketService.acceptRequest(request._id, user.userId);
 
-      // Update local state immediately to reflect that provider started routing
-      setRequests((prev) => {
-        const updated = prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req));
+      // 2) Open global route modal immediately for fast UX
+      startRoute(request);
 
-        // Persist to AsyncStorage so other screens/refreshes see en_route immediately
-        (async () => {
-          try {
-            if (user?.userId) {
-              await AsyncStorage.setItem(`provider-requests-${user.userId}`, JSON.stringify(updated));
-              console.log('💾 Persisted en_route to AsyncStorage for request', request._id);
-            }
-          } catch (e) {
-            console.warn('⚠️ Failed to persist requests to AsyncStorage', e);
-          }
-        })();
-
-        return updated;
-      });
-      
-      // ALL OTHER OPERATIONS HAPPEN IN BACKGROUND (non-blocking, no await)
+      // 3) In background, request location and send en_route with coords (backend requires location)
       (async () => {
         try {
-          // Request location permission
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status !== 'granted') {
-            console.warn('Location permission denied');
+            console.warn('Location permission not granted; cannot send en_route with coordinates');
             return;
           }
 
-          // Get provider's current location
-          const providerLocation = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+          const providerCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
 
-          const providerCoords = {
-            latitude: providerLocation.coords.latitude,
-            longitude: providerLocation.coords.longitude,
-          };
-
-          console.log('📍 Provider location obtained:', providerCoords);
-
-          // Calculate distance and ETA
-          if (request.address?.coordinates) {
-            const distance = calculateDistance(
-              providerCoords.latitude,
-              providerCoords.longitude,
-              request.address.coordinates.latitude,
-              request.address.coordinates.longitude
-            );
-
-            const avgSpeed = 40;
-            const estimatedMinutes = Math.round((distance / avgSpeed) * 60);
-            console.log(`📊 Distance: ${distance.toFixed(1)} km, Estimated time: ${estimatedMinutes} minutes`);
-
-            // Prepare handshake listener BEFORE accepting so we don't miss server event
-            const sock = socketService.getSocket();
-            let handled = false;
-
-            const onConfirm = async (data: any) => {
-              if (!data || data.requestId !== request._id) return;
-              if (handled) return;
-              handled = true;
-              try {
-                sock?.off('acceptConfirmed', onConfirm);
-                await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
-                console.log('✅ Request status updated to en_route after acceptConfirmed');
-                setRequests((prev) => prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req)));
-              } catch (err) {
-                console.warn('⚠️ Failed to update request status to en_route after acceptConfirmed:', err);
-              }
-            };
-
-            sock?.on('acceptConfirmed', onConfirm);
-
-            // Accept request (now that listener is in place)
-            await socketService.acceptRequest(request._id, user.userId);
-            console.log('✅ Request accepted by backend (acceptRequest returned)');
-
-            // Fallback: if no acceptConfirmed within 10s, attempt update with retry
-            setTimeout(async () => {
-              if (handled) return;
-              handled = true;
-              sock?.off('acceptConfirmed', onConfirm);
-              try {
-                await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
-                console.log('✅ Request status updated to en_route via fallback');
-                setRequests((prev) => prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req)));
-              } catch (err) {
-                console.warn('⚠️ Fallback: failed to set en_route, will retry once', err);
-                setTimeout(async () => {
-                  try {
-                    await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
-                    console.log('✅ Request status updated to en_route via fallback retry');
-                    setRequests((prev) => prev.map((req) => (req._id === request._id ? { ...req, status: 'en_route' as any } : req)));
-                  } catch (e) {
-                    console.warn('⚠️ Fallback retry failed', e);
-                  }
-                }, 2000);
-              }
-            }, 10000);
-
-            // Send provider response (ETA and location)
-            await socketService.updateProviderResponse(request._id, estimatedMinutes.toString(), providerCoords);
-            console.log('✅ Provider response sent successfully');
-          }
-        } catch (error) {
-          console.error('❌ Background error:', error);
-          // User already has map open, errors are silently handled
+          await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
+          console.log('✅ Sent en_route with provider coordinates');
+        } catch (bgError: any) {
+          console.warn('Failed to send en_route with coords:', bgError?.message || bgError);
         }
       })();
-      
+
+      // 4) Remove request locally from requests list
+      setRequests((prev) => prev.filter((req) => req._id !== request._id));
     } catch (error: any) {
-      console.error('Error accepting request:', error);
       Alert.alert('Error', error.message || 'Failed to accept request');
     }
   };
