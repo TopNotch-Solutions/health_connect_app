@@ -121,6 +121,16 @@ export default function ProviderRouteModal({
     }
   }, [visible, patientLocation, onClose]);
 
+  // Stop speech when modal closes
+  useEffect(() => {
+    if (!visible) {
+      Speech.stop();
+    }
+    return () => {
+      Speech.stop();
+    };
+  }, [visible]);
+
   const speak = (text: string) => {
     Speech.speak(text, {
       language: 'en',
@@ -331,8 +341,8 @@ export default function ProviderRouteModal({
       locationSubscriptionRef.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
-          timeInterval: 10000, // Update every 10 seconds instead of 5
-          distanceInterval: 50, // Update every 50 meters to reduce updates
+          timeInterval: 15000, // Update every 15 seconds to reduce server load
+          distanceInterval: 100, // Update every 100 meters
         },
         async (location) => {
           const newProviderLocation = {
@@ -370,17 +380,17 @@ export default function ProviderRouteModal({
             }
           }
 
-          // Animate map to provider location
-          if (mapRef.current) {
-            mapRef.current.animateToRegion(
-              {
-                ...newProviderLocation,
-                latitudeDelta: LATITUDE_DELTA,
-                longitudeDelta: LONGITUDE_DELTA,
-              },
-              500
-            );
-          }
+          // Animate map to provider location - DISABLED to allow user to pan map
+          // if (mapRef.current) {
+          //   mapRef.current.animateToRegion(
+          //     {
+          //       ...newProviderLocation,
+          //       latitudeDelta: LATITUDE_DELTA,
+          //       longitudeDelta: LONGITUDE_DELTA,
+          //     },
+          //     500
+          //   );
+          // }
         }
       );
 

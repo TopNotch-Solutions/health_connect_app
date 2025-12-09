@@ -268,50 +268,67 @@ export default function PatientProviderTracking({
   useEffect(() => {
     if (!visible) return;
 
+    let unsubscribe: (() => void) | undefined;
+
     const init = async () => {
       await initializeTracking();
-      startTracking();
+      unsubscribe = startTracking();
     };
 
     init();
 
     return () => {
-      const unsubscribe = startTracking();
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      } else {
+        // If init hasn't finished yet, we need to ensure we don't leave a dangling listener.
+        // Since we can't cancel the async init easily, we rely on startTracking returning the cleanup.
+        // Ideally, we should refactor to not have this race condition, but for now:
+        // We can try to remove the listener directly if we know the event name.
+        socketService.getSocket()?.off('updateProviderLocation');
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, requestId]);
 
-  // Auto-zoom to fit both locations
+  // Stop speech when modal closes or component unmounts
+  useEffect(() => {
+    if (!visible) {
+      Speech.stop();
+    }
+    return () => {
+      Speech.stop();
+    };
+  }, [visible]);
+
+  // Auto-zoom to fit both locations - Only on initial load or significant changes
   useEffect(() => {
     if (!visible || !mapViewRef.current || !currentPatientLocation || !providerLocation) return;
 
-    // Validate both locations have valid coordinates
-    if (!currentPatientLocation.latitude || !currentPatientLocation.longitude ||
-        !providerLocation.latitude || !providerLocation.longitude) {
-      console.log('⚠️ Invalid coordinates for fitToCoordinates');
-      return;
+    // Only fit to coordinates if we haven't done it yet or if it's the first valid location
+    // We use a simple check: if routeCoordinates has just 1 item (initial) or we just opened
+    // We don't want to re-zoom on every small provider movement
+    if (routeCoordinates.length <= 1) {
+       setTimeout(() => {
+        mapViewRef.current?.fitToCoordinates(
+          [
+            {
+              latitude: currentPatientLocation.latitude,
+              longitude: currentPatientLocation.longitude,
+            },
+            {
+              latitude: providerLocation.latitude,
+              longitude: providerLocation.longitude,
+            },
+          ],
+          {
+            edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
+            animated: true,
+          }
+        );
+      }, 500);
     }
-
-    setTimeout(() => {
-      mapViewRef.current?.fitToCoordinates(
-        [
-          {
-            latitude: currentPatientLocation.latitude,
-            longitude: currentPatientLocation.longitude,
-          },
-          {
-            latitude: providerLocation.latitude,
-            longitude: providerLocation.longitude,
-          },
-        ],
-        {
-          edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
-          animated: true,
-        }
-      );
-    }, 500);
-  }, [visible, currentPatientLocation, providerLocation]);
+  }, [visible, currentPatientLocation]); // Removed providerLocation from dependency to prevent auto-centering on every update
 
   // Fetch navigation route when both locations are available
   useEffect(() => {

@@ -4,6 +4,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +18,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform
 } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -469,6 +473,27 @@ export default function ProviderRegistrationScreen() {
     try {
       console.log('🔄 Building form data...');
       const formData = buildFormData();
+
+      // Get Push Token
+      if (Device.isDevice) {
+          try {
+              const { status: existingStatus } = await Notifications.getPermissionsAsync();
+              let finalStatus = existingStatus;
+              if (existingStatus !== 'granted') {
+                  const { status } = await Notifications.requestPermissionsAsync();
+                  finalStatus = status;
+              }
+              if (finalStatus === 'granted') {
+                  const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+                  const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+                  if (tokenData.data) {
+                      formData.append('pushToken', tokenData.data);
+                  }
+              }
+          } catch (e) {
+              console.log("Error getting push token:", e);
+          }
+      }
       
       console.log('📤 Submitting registration...');
       const res = await apiClient.post(
