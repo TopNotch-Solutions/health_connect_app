@@ -286,33 +286,57 @@ export default function PatientHomeScreen() {
   const [isLoadingAilments, setIsLoadingAilments] = useState(false);
   const slideAnim = React.useRef(new Animated.Value(0)).current;
 
-  // Function to fetch ailment categories from backend
-   const loadAilmentCategories = useCallback(async () => {
+  // Function to fetch ailment categories from backend via socket
+  const loadAilmentCategories = useCallback(async () => {
     setIsLoadingAilments(true);
     try {
-        // --- This is a placeholder for your actual data fetching (e.g., via Socket.IO or API) ---
-        const backendCategories = [
-            { _id: '1', title: 'Allergic Reactions or Bites', provider: 'Doctor'},
-            { _id: '2', title: 'Back, Neck, or Shoulder Pain', provider: 'Physiotherapist' },
-            { _id: '3',  title: 'Bladder Infection / UTI Symptoms', provider: 'Doctor' },
-            { _id: '4', title: 'Blood Pressure & Sugar Monitoring', provider: 'Nurse' },
-            { _id: '5', title: 'Caregiver Stress & Burnout', provider: 'Social Worker' },
-            { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist' },
-        ];
-        // --------------------------------------------------------------------------------------
+      const socket = socketService.getSocket();
+      
+      if (!socket?.connected) {
+        console.warn('⚠️ Socket not connected');
+        setIsLoadingAilments(false);
+        return;
+      }
 
-        // Map the backend data to include the correct icon
-        const mappedCategories = backendCategories.map(category => ({
-            ...category,
-            // Look up the icon from our simple map. Use the default if not found.
-            icon: AilmentIconMap[category.title] || AilmentIconMap.default,
-        }));
+      return new Promise<void>((resolve) => {
+        let resolved = false;
 
-        setAilmentCategories(mappedCategories);
+        const handleAilmentCategories = (categories: any) => {
+          if (resolved) return;
+          resolved = true;
+          
+          console.log('📋 Received ailment categories from backend:', categories);
+          if (Array.isArray(categories) && categories.length > 0) {
+            // Map the backend data to include the correct icon
+            const mappedCategories = categories.map((category: any) => ({
+              ...category,
+              icon: AilmentIconMap[category.title] || AilmentIconMap.default,
+            }));
+            setAilmentCategories(mappedCategories);
+          }
+          socket?.off('ailmentCategories', handleAilmentCategories);
+          setIsLoadingAilments(false);
+          resolve();
+        };
 
+        const timeout = setTimeout(() => {
+          if (resolved) return;
+          resolved = true;
+          
+          console.warn('⚠️ Ailment categories request timeout');
+          socket?.off('ailmentCategories', handleAilmentCategories);
+          setIsLoadingAilments(false);
+          resolve();
+        }, 5000);
+
+        socket?.on('ailmentCategories', handleAilmentCategories);
+        console.log('📤 Emitting getAilmentCategories request');
+        socket?.emit('getAilmentCategories');
+
+        return () => clearTimeout(timeout);
+      });
     } catch (error) {
       console.error('Error loading ailment categories:', error);
-    } finally {
       setIsLoadingAilments(false);
     }
   }, []);

@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   FlatList,
   SafeAreaView,
@@ -8,33 +8,33 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import CreateRequestModal from '../../../components/(patient)/CreateRequestModal';
 import { useAuth } from '../../../context/AuthContext';
 import socketService from '../../../lib/socket';
 import * as Location from 'expo-location';
 
-const ailmentCategories = [
-  { id: '1', title: 'Flu, Cold & Cough', provider: 'Doctor', icon: 'wind' },
-  { id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: 'alert-circle' },
-  { id: '3', title: 'Skin Rash', provider: 'Nurse', icon: 'alert-octagon' },
-  { id: '4', title: 'Headache or Migraine', provider: 'Doctor', icon: 'activity' },
-  { id: '5', title: 'Elderly Wellness Check', provider: 'Social Worker', icon: 'heart' },
-  { id: '6', title: 'Sports Injury', provider: 'Physiotherapist', icon: 'target' },
-];
+interface Ailment {
+  _id: string;
+  title: string;
+  provider: string;
+  description?: string;
+  linkedSpecializations?: string[];
+}
 
 const AilmentCard = ({ 
   item, 
   onPress 
 }: { 
-  item: (typeof ailmentCategories)[0]; 
+  item: Ailment; 
   onPress: () => void;
 }) => (
   <TouchableOpacity 
     onPress={onPress}
     className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200"
   >
-    <Feather name={item.icon as any} size={24} color="#2563EB" />
+    <Feather name="alert-circle" size={24} color="#2563EB" />
     <Text className="text-base font-bold text-gray-800 mt-3">{item.title}</Text>
     <Text className="text-sm text-gray-600 mt-1">{item.provider}</Text>
   </TouchableOpacity>
@@ -47,14 +47,98 @@ export default function AilmentsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState('');
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [ailments, setAilments] = useState<Ailment[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Filter ailments based on search
-  const filteredAilments = ailmentCategories.filter((ailment) =>
-    ailment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ailment.provider.toLowerCase().includes(searchQuery.toLowerCase())
+  // Fetch ailments from socket
+  const fetchAilments = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const socket = socketService.getSocket();
+      
+      if (!socket?.connected) {
+        console.warn('⚠️ Socket not connected');
+        setIsLoading(false);
+        return;
+      }
+
+      return new Promise<void>((resolve) => {
+        let resolved = false;
+
+        const handleAilmentCategories = (categories: any) => {
+          if (resolved) return;
+          resolved = true;
+          
+          console.log('📋 Received ailment categories from backend:', categories);
+          if (Array.isArray(categories) && categories.length > 0) {
+            setAilments(categories);
+          }
+          socket?.off('ailmentCategories', handleAilmentCategories);
+          setIsLoading(false);
+          resolve();
+        };
+
+        const timeout = setTimeout(() => {
+          if (resolved) return;
+          resolved = true;
+          
+          console.warn('⚠️ Ailment categories request timeout');
+          socket?.off('ailmentCategories', handleAilmentCategories);
+          setIsLoading(false);
+          resolve();
+        }, 5000);
+
+        socket?.on('ailmentCategories', handleAilmentCategories);
+        console.log('📤 Emitting getAilmentCategories request');
+        socket?.emit('getAilmentCategories');
+
+        return () => clearTimeout(timeout);
+      });
+    } catch (error) {
+      console.error('Error loading ailment categories:', error);
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Connect to socket on mount
+  useEffect(() => {
+    if (user?.userId) {
+      socketService.connect(user.userId, 'patient');
+    }
+  }, [user?.userId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchAilments();
+    }, [fetchAilments])
   );
 
-  const handleAilmentSelect = (ailment: string) => {
+  // Filter and sort ailments based on search and provider order
+  const providerOrder: Record<string, number> = {
+    'Doctor': 1,
+    'Nurse': 2,
+    'Physiotherapist': 3,
+    'Social Worker': 4,
+  };
+
+  const filteredAilments = ailments
+    .filter((ailment: Ailment) =>
+      ailment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ailment.provider.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a: Ailment, b: Ailment) => {
+      const orderA = providerOrder[a.provider] || 999;
+      const orderB = providerOrder[b.provider] || 999;
+      
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      
+      // If same provider, sort by title alphabetically
+      return a.title.localeCompare(b.title);
+    });
+
+  const handleAilmentSelect = (ailment: any) => {
     setSelectedAilment(ailment);
     setModalVisible(true);
   };
@@ -99,7 +183,7 @@ export default function AilmentsScreen() {
         ailmentCategory: requestData.ailmentCategory,
         ailmentCategoryId: requestData.ailmentCategoryId,
         paymentMethod: requestData.paymentMethod,
-        symptoms: requestData.symptoms || 'No symptoms provided',
+        symptoms: requestData.symptoms,
         estimatedCost: requestData.dueCost,
         address: {
           route: requestData.street,
@@ -144,24 +228,30 @@ export default function AilmentsScreen() {
         </View>
 
         {/* Ailment Grid */}
-        <FlatList
-          data={filteredAilments}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}
-          columnWrapperStyle={{ justifyContent: 'space-between' }}
-          renderItem={({ item }) => (
-            <AilmentCard item={item} onPress={() => handleAilmentSelect(item.title)} />
-          )}
-          ListEmptyComponent={
-            <View className="flex-1 items-center justify-center py-12">
-              <Feather name="search" size={40} color="#9CA3AF" />
-              <Text className="text-gray-600 mt-3 text-center">
-                No ailments found matching &quot;{searchQuery}&quot;
-              </Text>
-            </View>
-          }
-        />
+        {isLoading ? (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator size="large" color="#2563EB" />
+            <Text className="mt-4 text-gray-600">Loading ailments...</Text>
+          </View>
+        ) : filteredAilments.length === 0 ? (
+          <View className="flex-1 items-center justify-center">
+            <Feather name="search" size={40} color="#9CA3AF" />
+            <Text className="text-gray-600 mt-3 text-center">
+              No ailments found matching &quot;{searchQuery}&quot;
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredAilments}
+            keyExtractor={(item) => item._id}
+            numColumns={2}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}
+            columnWrapperStyle={{ justifyContent: 'space-between' }}
+            renderItem={({ item }) => (
+              <AilmentCard item={item} onPress={() => handleAilmentSelect(item)} />
+            )}
+          />
+        )}
       </View>
 
       {/* Create Request Modal */}
