@@ -74,7 +74,7 @@ const VerifyPhoneScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
       <KeyboardAwareScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20, justifyContent: 'space-between' }}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 5, paddingBottom: 5, justifyContent: 'space-between' }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         enableOnAndroid={true}
@@ -83,7 +83,7 @@ const VerifyPhoneScreen = () => {
       >
           
           {/* Content Section - Title, Description, and Phone Input */}
-          <View className="mt-20">
+          <View>
             {/* Title and Description Section - Centered */}
             <View className="items-center mb-2">
               <Text className="text-3xl font-bold text-gray-900 text-center mb-1">

@@ -2,7 +2,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Text, TextInput, TouchableOpacity, View, Image, ScrollView } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -133,7 +133,7 @@ const SignInScreen = () => {
     return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
       <KeyboardAwareScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, justifyContent: 'space-between' }}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 0, paddingBottom: 5, }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         enableOnAndroid={true}
@@ -142,10 +142,13 @@ const SignInScreen = () => {
       >
         
         {/* Logo/Icon Section */}
-        <View className="items-center mb-4">
+        <View
+          className="items-center"
+          style={{ marginBottom:0 }}
+        >
           <Image 
             source={require('../../assets/images/healthconnectlogo-cropped.png')}
-            style={{ width: 180, height: 180, marginBottom: 16 }}
+            style={{ width: 180, height: 180, marginBottom: 0 }}
             resizeMode="contain"
           />
         </View>
@@ -156,8 +159,18 @@ const SignInScreen = () => {
           {/* Email Input */}
           <View className="mb-5">
             <Text className="text-base text-gray-700 mb-2 font-medium">Email</Text>
-            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2 border-gray-300">
-              <MaterialCommunityIcons name="email" size={20} color="#10B981" />
+            <View 
+              className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2"
+              style={{
+                borderColor: emailError ? '#EF4444' : '#D1D5DB',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.06,
+                shadowRadius: 3,
+                elevation: 1,
+              }}
+            >
+              <MaterialCommunityIcons name="email" size={20} color={emailError ? '#EF4444' : '#10B981'} />
               <TextInput
                 className="flex-1 ml-3 text-base text-gray-900"
                 placeholder="Enter your email"
