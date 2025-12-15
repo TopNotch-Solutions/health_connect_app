@@ -1,7 +1,12 @@
 // Socket.IO client for real-time communication with backend
 import { io, Socket } from 'socket.io-client';
 
+<<<<<<< HEAD
 const SOCKET_URL = 'http://13.61.152.64:4000';
+=======
+// const SOCKET_URL = 'http://13.61.152.64:4000';
+const SOCKET_URL = 'http://192.168.11.95:4000';
+>>>>>>> 702f622ad220ac456d3ae188d88a9cebec53ab37
 
 class SocketService {
   private socket: Socket | null = null;
@@ -679,19 +684,15 @@ class SocketService {
     coordinates: { latitude: number; longitude: number }
   ) {
     if (!this.socket?.connected) {
-      console.warn('Socket not connected when trying to update provider location');
-      return; // Silently return instead of emitting to avoid crashes
+      console.error('Socket not connected when trying to update provider location');
+      return;
     }
 
-    try {
-      console.log('📍 Emitting provider location update:', { requestId, providerId, coordinates });
-      this.socket.emit('updateProviderLocationRealtime', {
-        requestId,
-        location: coordinates,
-      });
-    } catch (error) {
-      console.error('Error emitting provider location update:', error);
-    }
+    console.log('📍 Emitting provider location update:', { requestId, providerId, coordinates });
+    this.socket.emit('updateProviderLocationRealtime', {
+      requestId,
+      location: coordinates,
+    });
   }
 
   // Remove specific event listeners

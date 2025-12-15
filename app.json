@@ -65,9 +65,8 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "37466beb-b202-424c-a1ab-fa3b1a504a68"
+        "projectId": "d0f37ffa-941d-4292-987d-286deb2c310f"
       }
-    },
-    "owner": "paulo_devops"
+    }
   }
 }

@@ -6,7 +6,7 @@ let MapViewDirections: any = null;
 import { generateMarkersFromProviders, calculateRegion, calculateProviderTimes } from '../../lib/map';
 import { MarkerData, Provider } from '../../types';
 
-const directionsAPI = process.env.EXPO_PUBLIC_DIRECTIONS_API_KEY;
+const directionsAPI = process.env.EXPO_PUBLIC_DIRECTIONS_API_KEY || 'AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg';
 
 type Props = {
   userLatitude?: number | null;
@@ -15,9 +15,10 @@ type Props = {
   destinationLongitude?: number | null;
   providers?: Provider[];
   onTimesCalculated?: (providers: MarkerData[]) => void;
+  onRouteDetails?: (details: { distance: number; duration: number }) => void;
 };
 
-const ProviderMap = ({ userLatitude, userLongitude, destinationLatitude, destinationLongitude, providers = [], onTimesCalculated }: Props) => {
+const ProviderMap = ({ userLatitude, userLongitude, destinationLatitude, destinationLongitude, providers = [], onTimesCalculated, onRouteDetails }: Props) => {
   const [markers, setMarkers] = useState<MarkerData[]>([]);
 
   useEffect(() => {
@@ -91,6 +92,14 @@ const ProviderMap = ({ userLatitude, userLongitude, destinationLatitude, destina
                     apikey={directionsAPI}
                     strokeColor="#0286FF"
                     strokeWidth={2}
+                    onReady={(result: any) => {
+                      if (onRouteDetails) {
+                        onRouteDetails({
+                          distance: result.distance,
+                          duration: result.duration,
+                        });
+                      }
+                    }}
                   />
                 );
               } catch (err) {

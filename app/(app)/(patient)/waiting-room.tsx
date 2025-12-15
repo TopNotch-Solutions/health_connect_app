@@ -496,9 +496,36 @@ export default function WaitingRoom() {
       });
     };
 
+    const handleRequestStatusChanged = (data: { requestId: string; status: any }) => {
+      console.log('🔔 Request status changed:', data);
+      setRequests((prev) => {
+        return prev.map((item) => {
+          if (item.request._id === data.requestId) {
+            // Update status locally
+            const updatedRequest = { ...item.request, status: data.status };
+            
+            // If accepted, update timestamp
+            const acceptedAt = data.status === 'accepted' && item.request.status !== 'accepted' 
+              ? Date.now() 
+              : item.acceptedAt;
+
+            return { request: updatedRequest, acceptedAt };
+          }
+          return item;
+        });
+      });
+      
+      // If status changed to something that might have new data (like accepted -> provider assigned),
+      // we should probably reload the full request to get provider details if we don't have them.
+      if (data.status === 'accepted' || data.status === 'en_route') {
+        loadRequests();
+      }
+    };
+
     // Set up listeners
     socketService.onRequestUpdated(handleRequestUpdated);
     socketService.onNewRequestAvailable(handleNewRequestAvailable);
+    socketService.onRequestStatusChanged(handleRequestStatusChanged);
 
     // Listen for provider location realtime updates and store by requestId
     const handleProviderLocationUpdate = (data: any) => {
@@ -516,6 +543,7 @@ export default function WaitingRoom() {
     return () => {
       socketService.off('requestUpdated', handleRequestUpdated);
       socketService.off('newRequestAvailable', handleNewRequestAvailable);
+      socketService.off('requestStatusChanged', handleRequestStatusChanged);
       socketService.getSocket()?.off('updateProviderLocation', handleProviderLocationUpdate);
     };
   }, [user?.userId]);

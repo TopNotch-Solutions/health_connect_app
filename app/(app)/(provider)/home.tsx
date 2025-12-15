@@ -22,6 +22,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { useRoute } from '../../../context/RouteContext';
 import socketService from "../../../lib/socket";
 import { normalizeCoordinateOrUndefined } from '@/lib/coordinate';
+import { calculateDistance } from '@/lib/distance';
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -161,10 +162,10 @@ export default function ProviderHome() {
       setRequests((prev) => [request, ...prev]);
     };
 
-    socketService.getSocket()?.on('newRequest', handleNewRequest);
+    socketService.getSocket()?.on('newRequestAvailable', handleNewRequest);
 
     return () => {
-      socketService.getSocket()?.off('newRequest', handleNewRequest);
+      socketService.getSocket()?.off('newRequestAvailable', handleNewRequest);
     };
   }, []);
 
@@ -179,6 +180,7 @@ export default function ProviderHome() {
 
         // 2) Open global route modal immediately for fast UX
         startRoute(request);
+        setSelectedRequest(null);
 
         // 3) In background, request location and send en_route with coords (backend requires location)
         (async () => {
@@ -312,7 +314,19 @@ export default function ProviderHome() {
               const ailment = request.ailmentCategory || 'Consultation';
               const fee = `N$ ${request.estimatedCost || 0}`;
               const commission = `N$ ${Math.round((request.estimatedCost || 0) * 0.1)}`; // 10% commission
-              const distance = '-- km'; // Calculate distance if coordinates available
+              
+              let distance = '-- km';
+              const patientCoords = normalizeCoordinateOrUndefined(request.address?.coordinates);
+              
+              if (providerLocation && patientCoords) {
+                const dist = calculateDistance(
+                  providerLocation.latitude,
+                  providerLocation.longitude,
+                  patientCoords.latitude,
+                  patientCoords.longitude
+                );
+                distance = `${dist} km`;
+              }
               
               return (
                 <TouchableOpacity
@@ -448,35 +462,37 @@ export default function ProviderHome() {
                   </View>
 
                   {/* Map */}
-                  {selectedRequest.address?.coordinates && (
-                    <View className="mb-4">
-                      <View className="flex-row items-center justify-between mb-3">
-                        <Text className="text-base font-bold text-gray-900">Location</Text>
-                      </View>
+                  {(() => {
+                    const coords = normalizeCoordinateOrUndefined(selectedRequest.address?.coordinates);
+                    if (!coords) return null;
+                    
+                    return (
+                      <View className="mb-4">
+                        <View className="flex-row items-center justify-between mb-3">
+                          <Text className="text-base font-bold text-gray-900">Location</Text>
+                        </View>
 
-                      <View className="rounded-xl overflow-hidden h-48 bg-gray-100 border border-gray-200">
-                        <MapView
-                          style={styles.map}
-                          initialRegion={{
-                            latitude: selectedRequest.address.coordinates.latitude,
-                            longitude: selectedRequest.address.coordinates.longitude,
-                            latitudeDelta: 0.01,
-                            longitudeDelta: 0.01,
-                          }}
-                          provider={PROVIDER_GOOGLE}
-                        >
-                          <Marker
-                            coordinate={{
-                              latitude: selectedRequest.address.coordinates.latitude,
-                              longitude: selectedRequest.address.coordinates.longitude,
+                        <View className="rounded-xl overflow-hidden h-48 bg-gray-100 border border-gray-200">
+                          <MapView
+                            style={styles.map}
+                            initialRegion={{
+                              latitude: coords.latitude,
+                              longitude: coords.longitude,
+                              latitudeDelta: 0.01,
+                              longitudeDelta: 0.01,
                             }}
-                            title={selectedRequest.patientId?.fullname}
-                            description={selectedRequest.ailmentCategory}
-                          />
-                        </MapView>
+                            provider={PROVIDER_GOOGLE}
+                          >
+                            <Marker
+                              coordinate={coords}
+                              title={selectedRequest.patientId?.fullname}
+                              description={selectedRequest.ailmentCategory}
+                            />
+                          </MapView>
+                        </View>
                       </View>
-                    </View>
-                  )}
+                    );
+                  })()}
 
                   {/* Actions */}
                   <View className="flex-row" style={{ gap: 10 }}>
