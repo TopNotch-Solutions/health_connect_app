@@ -1,22 +1,23 @@
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
+import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   RefreshControl,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../../../context/AuthContext';
-import socketService from '../../../lib/socket';
 import PatientProviderTracking from '../../../components/(patient)/PatientProviderTracking';
 import ProviderMap from '../../../components/(patient)/ProviderMap';
+import { useAuth } from '../../../context/AuthContext';
+import socketService from '../../../lib/socket';
 
 interface RequestStatus {
   _id: string;
@@ -172,50 +173,50 @@ const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest;
   };
 
   return (
-    <View className="bg-white rounded-xl p-4 mb-4 border border-gray-200 shadow-sm">
+    <View style={styles.requestCard}>
       {/* Header with status */}
-      <View className="flex-row justify-between items-start mb-3">
+      <View style={styles.requestHeaderRow}>
         <View className="flex-1">
-          <Text className="text-lg font-bold text-gray-800 mb-2">
+          <Text style={styles.requestTitle}>
             {request.ailmentCategoryId?.title || 'Healthcare Request'}
           </Text>
-          <View className="flex-row gap-2 items-center">
+          <View style={styles.requestStatusRow}>
             <StatusBadge status={request.status} />
           </View>
         </View>
       </View>
 
       {/* Status description */}
-      <Text className="text-sm text-gray-600 mb-3">{getStatusDescription(request.status)}</Text>
+      <Text style={styles.requestDescription}>{getStatusDescription(request.status)}</Text>
 
       {/* Provider info - only show if accepted */}
       {request.status === 'accepted' && request.providerId && (
-        <View className="bg-blue-50 rounded-lg p-3 mb-3 border border-blue-200">
-          <Text className="text-xs font-semibold text-blue-900 mb-1">Provider Details</Text>
-          <View className="flex-row items-center mb-2">
+        <View style={styles.providerCard}>
+          <Text style={styles.providerCardLabel}>Provider Details</Text>
+          <View style={styles.providerHeaderRow}>
             <Feather name="user" size={14} color="#1e40af" />
-            <Text className="text-sm font-semibold text-gray-800 ml-2">
+            <Text style={styles.providerName}>
               {request.providerId.fullname}
             </Text>
-            <View className="ml-auto bg-blue-100 px-2 py-1 rounded">
-              <Text className="text-xs font-semibold text-blue-800 capitalize">
+            <View style={styles.providerRolePill}>
+              <Text style={styles.providerRoleText}>
                 {request.providerId.role}
               </Text>
             </View>
           </View>
-          <View className="flex-row items-center">
+          <View style={styles.providerPhoneRow}>
             <Feather name="phone" size={14} color="#1e40af" />
-            <Text className="text-sm text-gray-700 ml-2">{request.providerId.cellphoneNumber}</Text>
+            <Text style={styles.providerPhone}>{request.providerId.cellphoneNumber}</Text>
           </View>
         </View>
       )}
 
       {/* ETA info - show if provider responded */}
       {request.providerResponse?.estimatedArrival && request.status !== 'in_progress' && request.status !== 'completed' && (
-        <View className="bg-green-50 rounded-lg p-3 mb-3 border border-green-200">
-          <View className="flex-row items-center">
+        <View style={styles.etaCard}>
+          <View style={styles.etaRow}>
             <Feather name="navigation" size={14} color="#15803d" />
-            <Text className="text-sm font-semibold text-gray-800 ml-2">
+            <Text style={styles.etaText}>
               Estimated Arrival: {request.providerResponse.estimatedArrival}
             </Text>
           </View>
@@ -223,16 +224,16 @@ const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest;
       )}
 
       {/* Request details */}
-      <View className="bg-gray-50 rounded-lg p-3 mb-3">
-        <View className="flex-row items-center mb-2">
+      <View style={styles.metaCard}>
+        <View style={styles.metaRow}>
           <Feather name="map-pin" size={14} color="#6b7280" />
-          <Text className="text-xs text-gray-600 ml-2 flex-1">
+          <Text style={styles.metaText} numberOfLines={2}>
             {request.address?.route}, {request.address?.locality}
           </Text>
         </View>
-        <View className="flex-row items-center">
+        <View style={styles.metaRow}>
           <Feather name="calendar" size={14} color="#6b7280" />
-          <Text className="text-xs text-gray-600 ml-2">
+          <Text style={styles.metaText}>
             Requested: {new Date(request.createdAt).toLocaleString()}
           </Text>
         </View>
@@ -240,8 +241,8 @@ const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest;
 
       {/* Expiration notice for accepted requests */}
       {request.status === 'accepted' && timeRemaining > 0 && (
-        <View className="bg-amber-50 rounded-lg p-2 border border-amber-200 mb-3">
-          <Text className="text-xs text-amber-800">
+        <View style={styles.expiryCard}>
+          <Text style={styles.expiryText}>
             This entry will expire in <Text className="font-semibold">{hoursRemaining}h {minutesRemaining}m</Text>
           </Text>
         </View>
@@ -252,11 +253,11 @@ const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest;
         <>
           <TouchableOpacity
             onPress={() => setTrackingModalVisible(true)}
-            className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3"
+            style={styles.trackButton}
           >
-            <View className="flex-row items-center justify-center">
+            <View style={styles.trackButtonRow}>
               <Feather name="map" size={16} color="#15803d" />
-              <Text className="text-green-600 font-semibold text-sm ml-2">Track Provider on Map</Text>
+              <Text style={styles.trackButtonText}>Track Provider on Map</Text>
             </View>
           </TouchableOpacity>
 
@@ -276,14 +277,14 @@ const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest;
         <TouchableOpacity
           onPress={handleCancel}
           disabled={isCancelling}
-          className="bg-red-50 border border-red-200 rounded-lg p-3"
+          style={styles.cancelButton}
         >
           {isCancelling ? (
             <ActivityIndicator size="small" color="#dc2626" />
           ) : (
-            <View className="flex-row items-center justify-center">
+            <View style={styles.cancelButtonRow}>
               <Feather name="x-circle" size={16} color="#dc2626" />
-              <Text className="text-red-600 font-semibold text-sm ml-2">Cancel Request</Text>
+              <Text style={styles.cancelButtonText}>Cancel Request</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -583,7 +584,7 @@ export default function WaitingRoom() {
       ? [
           {
             _id: activeRequest.request.providerId._id || `provider-${activeRequest.request._id}`,
-            firstname: activeRequest.request.providerId.fullname || activeRequest.request.providerId.name,
+            firstname: activeRequest.request.providerId.fullname,
             location: providerLocations[activeRequest.request._id],
           },
         ]
@@ -593,7 +594,7 @@ export default function WaitingRoom() {
     return (
       <SafeAreaView className="flex-1 bg-gray-50 items-center justify-center">
         <ActivityIndicator size="large" color="#007BFF" />
-        <Text className="text-gray-600 mt-4">Loading your requests...</Text>
+        <Text style={styles.loadingText}>Loading your requests...</Text>
       </SafeAreaView>
     );
   }
@@ -617,23 +618,24 @@ export default function WaitingRoom() {
         data={sortedRequests}
         keyExtractor={(item) => item.request._id}
         renderItem={({ item }) => <RequestCard item={item} onCancel={handleRequestCancelled} patientLocation={patientLocation} />}
-        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+        contentContainerStyle={styles.listContent}
         ListHeaderComponent={
-          <View className="mb-4">
-            <Text className="text-2xl font-bold">
-              Track your healthcare requests and provider status
+          <View style={styles.headerContainer}>
+            <Text style={styles.headerTitle}>Track your healthcare requests and provider status</Text>
+            <Text style={styles.headerSubtitle}>
+              Track your healthcare requests and see your provider&apos;s status in real time.
             </Text>
           </View>
         }
         ListEmptyComponent={
-          <View className="bg-white rounded-xl p-6 items-center border border-gray-200">
+          <View style={styles.emptyCard}>
             <Feather name="inbox" size={48} color="#9CA3AF" />
-            <Text className="text-lg font-semibold text-gray-800 mt-4">No Active Requests</Text>
-            <Text className="text-sm text-gray-600 text-center mt-2">
+            <Text style={styles.emptyTitle}>No Active Requests</Text>
+            <Text style={styles.emptyText}>
               When you submit a healthcare request, it will appear here. You can track the status of your request and
               see provider details once they accept.
             </Text>
-            <Text className="text-xs text-gray-500 text-center mt-3">
+            <Text style={styles.emptyHint}>
               Accepted requests will be shown here for 24 hours
             </Text>
           </View>
@@ -643,3 +645,227 @@ export default function WaitingRoom() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  headerContainer: {
+    paddingHorizontal: 0,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  requestCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  requestHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  requestTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  requestStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  requestDescription: {
+    fontSize: 13,
+    color: '#4B5563',
+    marginBottom: 10,
+  },
+  providerCard: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  providerCardLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1D4ED8',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  providerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  providerName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
+    marginLeft: 6,
+    flex: 1,
+  },
+  providerRolePill: {
+    marginLeft: 'auto',
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  providerRoleText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1D4ED8',
+    textTransform: 'capitalize',
+  },
+  providerPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  providerPhone: {
+    fontSize: 12,
+    color: '#374151',
+    marginLeft: 6,
+  },
+  etaCard: {
+    backgroundColor: '#ECFDF3',
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  etaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  etaText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#14532D',
+    marginLeft: 6,
+  },
+  metaCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 8,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  metaText: {
+    fontSize: 11,
+    color: '#4B5563',
+    marginLeft: 6,
+    flex: 1,
+  },
+  expiryCard: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 10,
+    padding: 6,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  expiryText: {
+    fontSize: 11,
+    color: '#92400E',
+  },
+  trackButton: {
+    backgroundColor: '#ECFDF3',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    marginBottom: 8,
+  },
+  trackButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trackButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#15803D',
+    marginLeft: 6,
+  },
+  cancelButton: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  cancelButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#DC2626',
+    marginLeft: 6,
+  },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginHorizontal: 16,
+    marginTop: 32,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 16,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#4B5563',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  emptyHint: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginTop: 8,
+  },
+});

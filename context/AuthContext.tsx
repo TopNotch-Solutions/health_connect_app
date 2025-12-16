@@ -19,6 +19,7 @@ export interface User { // Exporting the interface so other files can use it
   address?: string;
   region?: string;
   town?: string;
+  nationalId?: string;
   isAccountVerified?: boolean;
 }
 

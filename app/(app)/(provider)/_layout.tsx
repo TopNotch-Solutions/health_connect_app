@@ -3,11 +3,13 @@ import { Feather } from "@expo/vector-icons";
 import { Tabs, useRouter } from "expo-router";
 import { TouchableOpacity, View, Text, StyleSheet } from "react-native";
 import React, { useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ProviderTabsLayout() {
   const { logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleLogout = async () => {
     try {
@@ -24,8 +26,9 @@ export default function ProviderTabsLayout() {
       screenOptions={{
         tabBarShowLabel: true,
         tabBarStyle: {
-          height: 64,
+          height: 64 + insets.bottom,
           paddingTop: 6,
+          paddingBottom: insets.bottom,
         },
         tabBarLabelStyle: {
           fontSize: 12,

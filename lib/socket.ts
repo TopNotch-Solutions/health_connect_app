@@ -1,12 +1,8 @@
 // Socket.IO client for real-time communication with backend
 import { io, Socket } from 'socket.io-client';
 
-<<<<<<< HEAD
-const SOCKET_URL = 'http://13.61.152.64:4000';
-=======
 // const SOCKET_URL = 'http://13.61.152.64:4000';
-const SOCKET_URL = 'http://192.168.11.95:4000';
->>>>>>> 702f622ad220ac456d3ae188d88a9cebec53ab37
+const SOCKET_URL = 'http://13.61.152.64:4000';
 
 class SocketService {
   private socket: Socket | null = null;
