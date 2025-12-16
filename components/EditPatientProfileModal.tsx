@@ -1,6 +1,10 @@
 import { Feather } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import RNPickerSelect from 'react-native-picker-select';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { namibianRegions, townsByRegion } from '../constants/locations';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../lib/api';
 
@@ -9,21 +13,141 @@ interface EditPatientProfileModalProps {
     onClose: () => void;
 }
 
+const pickerStyle = {
+    inputIOS: {
+        color: '#111827',
+        fontSize: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        paddingRight: 30,
+    },
+    inputAndroid: {
+        color: '#111827',
+        fontSize: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        paddingRight: 30,
+    },
+    iconContainer: {
+        top: 16,
+        right: 12,
+    },
+    placeholder: {
+        color: '#9CA3AF',
+    },
+    modalViewMiddle: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+    },
+    modalViewBottom: {
+        backgroundColor: 'white',
+    },
+    chevronContainer: {
+        display: 'none',
+    },
+};
+
 export default function EditPatientProfileModal({ visible, onClose }: EditPatientProfileModalProps) {
     const { user, updateUser } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
+    const [availableTowns, setAvailableTowns] = useState<{ label: string; value: string }[]>([]);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    
+    // Parse dateOfBirth string to Date object, or use current date as fallback
+    const parseDate = (dateString: string | undefined): Date => {
+        if (!dateString) return new Date();
+        const date = new Date(dateString);
+        return isNaN(date.getTime()) ? new Date() : date;
+    };
+
     const [formData, setFormData] = useState({
         fullname: user?.fullname || '',
         email: user?.email || '',
         cellphoneNumber: user?.cellphoneNumber || '',
-        dateOfBirth: user?.dateOfBirth || '',
+        dateOfBirth: parseDate(user?.dateOfBirth),
         gender: user?.gender || 'Male',
         address: user?.address || '',
         town: user?.town || '',
         region: user?.region || '',
+        nationalId: user?.nationalId || '',
     });
 
+    useEffect(() => {
+        if (formData.region) {
+            setAvailableTowns(townsByRegion[formData.region] || []);
+        } else {
+            setAvailableTowns([]);
+        }
+    }, [formData.region]);
+
+    useEffect(() => {
+        if (visible && user) {
+            setFormData({
+                fullname: user.fullname || '',
+                email: user.email || '',
+                cellphoneNumber: user.cellphoneNumber || '',
+                dateOfBirth: parseDate(user.dateOfBirth),
+                gender: user.gender || 'Male',
+                address: user.address || '',
+                town: user.town || '',
+                region: user.region || '',
+                nationalId: user.nationalId || '',
+            });
+        }
+    }, [visible, user]);
+
+    const onDateChange = (_: any, selectedDate?: Date) => {
+        if (Platform.OS === 'android') {
+            setShowDatePicker(false);
+        }
+        if (selectedDate) {
+            setFormData({ ...formData, dateOfBirth: selectedDate });
+            if (Platform.OS === 'ios') {
+                setShowDatePicker(false);
+            }
+        } else if (Platform.OS === 'android') {
+            // User cancelled on Android
+            setShowDatePicker(false);
+        }
+    };
+
+    const formatDate = (date: Date): string => {
+        if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+            return '';
+        }
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const hasChanges = (): boolean => {
+        if (!user) return true;
+        
+        const originalDate = user.dateOfBirth ? formatDate(parseDate(user.dateOfBirth)) : '';
+        const currentDate = formatDate(formData.dateOfBirth);
+        
+        return (
+            formData.fullname !== (user.fullname || '') ||
+            formData.email !== (user.email || '') ||
+            formData.cellphoneNumber !== (user.cellphoneNumber || '') ||
+            currentDate !== originalDate ||
+            formData.gender !== (user.gender || 'Male') ||
+            formData.address !== (user.address || '') ||
+            formData.town !== (user.town || '') ||
+            formData.region !== (user.region || '') ||
+            formData.nationalId !== (user.nationalId || '')
+        );
+    };
+
     const handleSave = async () => {
+        // Check if any changes were made
+        if (!hasChanges()) {
+            Alert.alert('No Changes', 'No changes have been made to your profile.');
+            return;
+        }
+
         // Validate required fields
         if (!formData.fullname.trim()) {
             Alert.alert('Error', 'Full name is required');
@@ -37,7 +161,7 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
             Alert.alert('Error', 'Cellphone number is required');
             return;
         }
-        if (!formData.dateOfBirth.trim()) {
+        if (!formData.dateOfBirth || !(formData.dateOfBirth instanceof Date) || isNaN(formData.dateOfBirth.getTime())) {
             Alert.alert('Error', 'Date of birth is required');
             return;
         }
@@ -62,12 +186,12 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                     fullname: formData.fullname,
                     email: formData.email,
                     cellphoneNumber: formData.cellphoneNumber,
-                    dateOfBirth: formData.dateOfBirth,
+                    dateOfBirth: formatDate(formData.dateOfBirth),
                     gender: formData.gender,
                     address: formData.address,
                     town: formData.town,
                     region: formData.region,
-                    nationalId: '',
+                    nationalId: formData.nationalId,
                 }
             );
 
@@ -75,11 +199,12 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                 fullname: formData.fullname,
                 email: formData.email,
                 cellphoneNumber: formData.cellphoneNumber,
-                dateOfBirth: formData.dateOfBirth,
+                dateOfBirth: formatDate(formData.dateOfBirth),
                 gender: formData.gender,
                 address: formData.address,
                 town: formData.town,
                 region: formData.region,
+                nationalId: formData.nationalId,
             });
 
             Alert.alert('Success', 'Profile updated successfully');
@@ -96,22 +221,23 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
 
     return (
         <Modal visible={visible} animationType="slide" transparent={false}>
-            <View className="flex-1 bg-gray-50">
+            <SafeAreaView style={styles.container} edges={['top']}>
                 {/* Header */}
-                <View className="bg-white border-b border-gray-200 pt-4 pb-4 px-4 flex-row items-center justify-between">
-                    <Text className="text-xl font-bold text-gray-900">Edit Profile</Text>
-                    <TouchableOpacity onPress={onClose}>
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>Edit Profile</Text>
+                    <TouchableOpacity onPress={onClose} style={styles.closeButton} activeOpacity={0.7}>
                         <Feather name="x" size={24} color="#6B7280" />
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView className="flex-1 px-4 pt-6">
+                <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     {/* Full Name */}
-                    <View className="mb-5">
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">Full Name</Text>
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Full Name</Text>
                         <TextInput
-                            className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                            style={styles.input}
                             placeholder="Enter full name"
+                            placeholderTextColor="#9CA3AF"
                             value={formData.fullname}
                             onChangeText={(text) => setFormData({ ...formData, fullname: text })}
                             editable={!isLoading}
@@ -119,24 +245,27 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                     </View>
 
                     {/* Email */}
-                    <View className="mb-5">
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">Email</Text>
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Email</Text>
                         <TextInput
-                            className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                            style={styles.input}
                             placeholder="Enter email"
+                            placeholderTextColor="#9CA3AF"
                             value={formData.email}
                             onChangeText={(text) => setFormData({ ...formData, email: text })}
                             keyboardType="email-address"
+                            autoCapitalize="none"
                             editable={!isLoading}
                         />
                     </View>
 
                     {/* Cellphone Number */}
-                    <View className="mb-5">
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">Cellphone Number</Text>
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Cellphone Number</Text>
                         <TextInput
-                            className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                            style={styles.input}
                             placeholder="Enter cellphone number"
+                            placeholderTextColor="#9CA3AF"
                             value={formData.cellphoneNumber}
                             onChangeText={(text) => setFormData({ ...formData, cellphoneNumber: text })}
                             keyboardType="phone-pad"
@@ -145,33 +274,70 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                     </View>
 
                     {/* Date of Birth */}
-                    <View className="mb-5">
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">Date of Birth (YYYY-MM-DD)</Text>
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Date of Birth</Text>
+                        <TouchableOpacity
+                            onPress={() => setShowDatePicker(true)}
+                            disabled={isLoading}
+                            style={styles.input}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[styles.dateText, !formData.dateOfBirth && styles.datePlaceholder]}>
+                                {formData.dateOfBirth ? formatDate(formData.dateOfBirth) : 'Select date of birth'}
+                            </Text>
+                        </TouchableOpacity>
+                        {showDatePicker && (
+                            <DateTimePicker
+                                value={formData.dateOfBirth}
+                                mode="date"
+                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                onChange={onDateChange}
+                                maximumDate={new Date()}
+                            />
+                        )}
+                    </View>
+
+                    {/* National ID */}
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>National ID Number</Text>
                         <TextInput
-                            className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
-                            placeholder="YYYY-MM-DD"
-                            value={formData.dateOfBirth}
-                            onChangeText={(text) => setFormData({ ...formData, dateOfBirth: text })}
+                            style={styles.input}
+                            placeholder="Enter your 11-digit National ID"
+                            placeholderTextColor="#9CA3AF"
+                            value={formData.nationalId}
+                            onChangeText={(text) => {
+                                const numericOnly = text.replace(/[^0-9]/g, '');
+                                if (numericOnly.length <= 11) {
+                                    setFormData({ ...formData, nationalId: numericOnly });
+                                }
+                            }}
+                            keyboardType="numeric"
+                            maxLength={11}
                             editable={!isLoading}
                         />
                     </View>
 
                     {/* Gender */}
-                    <View className="mb-5">
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">Gender</Text>
-                        <View className="flex-row gap-4">
-                            {['Male', 'Female', 'Other'].map((option) => (
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Gender</Text>
+                        <View style={styles.genderContainer}>
+                            {['Male', 'Female'].map((option) => (
                                 <TouchableOpacity
                                     key={option}
                                     onPress={() => setFormData({ ...formData, gender: option as any })}
                                     disabled={isLoading}
-                                    className={`flex-1 py-3 rounded-lg border-2 items-center ${
-                                        formData.gender === option
-                                            ? 'bg-blue-100 border-blue-500'
-                                            : 'bg-white border-gray-300'
-                                    }`}
+                                    style={[
+                                        styles.genderButton,
+                                        formData.gender === option && styles.genderButtonActive,
+                                    ]}
+                                    activeOpacity={0.7}
                                 >
-                                    <Text className={formData.gender === option ? 'text-blue-600 font-semibold' : 'text-gray-700'}>
+                                    <Text
+                                        style={[
+                                            styles.genderText,
+                                            formData.gender === option && styles.genderTextActive,
+                                        ]}
+                                    >
                                         {option}
                                     </Text>
                                 </TouchableOpacity>
@@ -180,58 +346,207 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                     </View>
 
                     {/* Address */}
-                    <View className="mb-5">
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">Address</Text>
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Address</Text>
                         <TextInput
-                            className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                            style={styles.input}
                             placeholder="Enter address"
+                            placeholderTextColor="#9CA3AF"
                             value={formData.address}
                             onChangeText={(text) => setFormData({ ...formData, address: text })}
                             editable={!isLoading}
                         />
                     </View>
 
-                    {/* Town */}
-                    <View className="mb-5">
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">Town</Text>
-                        <TextInput
-                            className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
-                            placeholder="Enter town"
-                            value={formData.town}
-                            onChangeText={(text) => setFormData({ ...formData, town: text })}
-                            editable={!isLoading}
-                        />
+                    {/* Region */}
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Region</Text>
+                        <View style={styles.pickerContainer}>
+                            <RNPickerSelect
+                                onValueChange={(value) => {
+                                    setFormData({ ...formData, region: value, town: '' });
+                                }}
+                                items={namibianRegions}
+                                placeholder={{ label: 'Select a region...', value: null }}
+                                value={formData.region}
+                                style={pickerStyle as any}
+                                useNativeAndroidPickerStyle={false}
+                            />
+                            <View style={styles.pickerIcon}>
+                                <Feather name="chevron-down" size={20} color="#10B981" />
+                            </View>
+                        </View>
                     </View>
 
-                    {/* Region */}
-                    <View className="mb-6">
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">Region</Text>
-                        <TextInput
-                            className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
-                            placeholder="Enter region"
-                            value={formData.region}
-                            onChangeText={(text) => setFormData({ ...formData, region: text })}
-                            editable={!isLoading}
-                        />
+                    {/* Town */}
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Town</Text>
+                        <View style={[styles.pickerContainer, !formData.region && styles.pickerContainerDisabled]}>
+                            <RNPickerSelect
+                                onValueChange={(value) => setFormData({ ...formData, town: value })}
+                                items={availableTowns}
+                                placeholder={{ label: 'Select a town...', value: null }}
+                                value={formData.town}
+                                disabled={!formData.region}
+                                style={pickerStyle as any}
+                                useNativeAndroidPickerStyle={false}
+                            />
+                            <View style={styles.pickerIcon}>
+                                <Feather
+                                    name="chevron-down"
+                                    size={20}
+                                    color={formData.region ? '#10B981' : '#D1D5DB'}
+                                />
+                            </View>
+                        </View>
                     </View>
 
                     {/* Save Button */}
                     <TouchableOpacity
                         onPress={handleSave}
                         disabled={isLoading}
-                        className="bg-blue-600 py-3 rounded-lg mb-8 flex-row items-center justify-center"
+                        style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+                        activeOpacity={0.8}
                     >
                         {isLoading ? (
-                            <ActivityIndicator color="white" />
+                            <ActivityIndicator color="#FFFFFF" />
                         ) : (
                             <>
-                                <Feather name="check" size={20} color="white" />
-                                <Text className="text-white font-semibold ml-2">Save Changes</Text>
+                                <Feather name="check" size={20} color="#FFFFFF" />
+                                <Text style={styles.saveButtonText}>Save Changes</Text>
                             </>
                         )}
                     </TouchableOpacity>
                 </ScrollView>
-            </View>
+            </SafeAreaView>
         </Modal>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#F9FAFB',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+    },
+    headerTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    closeButton: {
+        padding: 8,
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        padding: 20,
+        paddingBottom: 40,
+    },
+    inputContainer: {
+        marginBottom: 20,
+    },
+    label: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#374151',
+        marginBottom: 8,
+    },
+    input: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        fontSize: 16,
+        color: '#111827',
+    },
+    genderContainer: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    genderButton: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    genderButtonActive: {
+        backgroundColor: '#10B981',
+        borderColor: '#10B981',
+    },
+    genderText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#6B7280',
+    },
+    genderTextActive: {
+        color: '#FFFFFF',
+    },
+    pickerContainer: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 2,
+        borderColor: '#10B981',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        height: 56,
+        justifyContent: 'center',
+        position: 'relative',
+    },
+    pickerContainerDisabled: {
+        borderColor: '#E5E7EB',
+        opacity: 0.6,
+    },
+    pickerIcon: {
+        position: 'absolute',
+        right: 16,
+        top: 18,
+        pointerEvents: 'none',
+    },
+    saveButton: {
+        backgroundColor: '#10B981',
+        paddingVertical: 16,
+        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 8,
+        marginBottom: 20,
+        shadowColor: '#10B981',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    saveButtonDisabled: {
+        opacity: 0.6,
+    },
+    saveButtonText: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '700',
+        marginLeft: 8,
+    },
+    dateText: {
+        fontSize: 16,
+        color: '#111827',
+    },
+    datePlaceholder: {
+        color: '#9CA3AF',
+    },
+});

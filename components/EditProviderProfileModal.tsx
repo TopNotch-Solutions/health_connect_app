@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../lib/api';
@@ -18,16 +18,69 @@ export default function EditProviderProfileModal({ visible, onClose }: EditProvi
         cellphoneNumber: user?.cellphoneNumber || '',
         gender: user?.gender || 'Male',
         address: user?.address || '',
-        hpcnaNumber: '',
-        hpcnaExpiryDate: '',
-        specializations: '',
-        yearsOfExperience: '',
-        operationalZone: '',
-        governingCouncil: '',
-        bio: '',
+        hpcnaNumber: (user as any)?.hpcnaNumber || '',
+        hpcnaExpiryDate: (user as any)?.hpcnaExpiryDate || '',
+        specializations: Array.isArray((user as any)?.specializations) 
+            ? (user as any).specializations.join(', ') 
+            : (user as any)?.specializations || '',
+        yearsOfExperience: (user as any)?.yearsOfExperience?.toString() || '',
+        operationalZone: (user as any)?.operationalZone || '',
+        governingCouncil: (user as any)?.governingCouncil || '',
+        bio: (user as any)?.bio || '',
     });
 
+    useEffect(() => {
+        if (visible && user) {
+            setFormData({
+                fullname: user.fullname || '',
+                email: user.email || '',
+                cellphoneNumber: user.cellphoneNumber || '',
+                gender: user.gender || 'Male',
+                address: user.address || '',
+                hpcnaNumber: (user as any)?.hpcnaNumber || '',
+                hpcnaExpiryDate: (user as any)?.hpcnaExpiryDate || '',
+                specializations: Array.isArray((user as any)?.specializations) 
+                    ? (user as any).specializations.join(', ') 
+                    : (user as any)?.specializations || '',
+                yearsOfExperience: (user as any)?.yearsOfExperience?.toString() || '',
+                operationalZone: (user as any)?.operationalZone || '',
+                governingCouncil: (user as any)?.governingCouncil || '',
+                bio: (user as any)?.bio || '',
+            });
+        }
+    }, [visible, user]);
+
+    const hasChanges = (): boolean => {
+        if (!user) return true;
+        
+        const userSpecializations = Array.isArray((user as any)?.specializations) 
+            ? (user as any).specializations.join(', ') 
+            : (user as any)?.specializations || '';
+        const userYearsOfExperience = (user as any)?.yearsOfExperience?.toString() || '';
+        
+        return (
+            formData.fullname !== (user.fullname || '') ||
+            formData.email !== (user.email || '') ||
+            formData.cellphoneNumber !== (user.cellphoneNumber || '') ||
+            formData.gender !== (user.gender || 'Male') ||
+            formData.address !== (user.address || '') ||
+            formData.hpcnaNumber !== ((user as any)?.hpcnaNumber || '') ||
+            formData.hpcnaExpiryDate !== ((user as any)?.hpcnaExpiryDate || '') ||
+            formData.specializations !== userSpecializations ||
+            formData.yearsOfExperience !== userYearsOfExperience ||
+            formData.operationalZone !== ((user as any)?.operationalZone || '') ||
+            formData.governingCouncil !== ((user as any)?.governingCouncil || '') ||
+            formData.bio !== ((user as any)?.bio || '')
+        );
+    };
+
     const handleSave = async () => {
+        // Check if any changes were made
+        if (!hasChanges()) {
+            Alert.alert('No Changes', 'No changes have been made to your profile.');
+            return;
+        }
+
         // Validate required fields
         if (!formData.fullname.trim()) {
             Alert.alert('Error', 'Full name is required');
@@ -136,7 +189,7 @@ export default function EditProviderProfileModal({ visible, onClose }: EditProvi
                     <View className="mb-5">
                         <Text className="text-sm font-semibold text-gray-700 mb-2">Gender</Text>
                         <View className="flex-row gap-4">
-                            {['Male', 'Female', 'Other'].map((option) => (
+                            {['Male', 'Female'].map((option) => (
                                 <TouchableOpacity
                                     key={option}
                                     onPress={() => setFormData({ ...formData, gender: option as any })}

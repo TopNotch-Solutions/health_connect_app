@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import React from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,15 +26,86 @@ const ProfileMenuItem = ({ icon, label, onPress, isDestructive = false }: { icon
 );
 
 export default function ProfileScreen() {
-    const { user, logout } = useAuth();
+    const { user, logout, updateUser } = useAuth();
     const [isLoading, setIsLoading] = React.useState(false);
+    const [isUploading, setIsUploading] = React.useState(false);
     const [editProfileVisible, setEditProfileVisible] = React.useState(false);
     const [changePasswordVisible, setChangePasswordVisible] = React.useState(false);
+    const [selectedImage, setSelectedImage] = React.useState<ImagePicker.ImagePickerAsset | null>(null);
 
     // This is the base URL where your backend serves images.
     // YOU MUST CONFIRM THIS from your backend's `server.js` or `app.js` file.
     // It's often where you see a line like `app.use(express.static('public'))`.
-    const IMAGE_BASE_URL = 'http://192.168.11.138:4000/images/';
+    const IMAGE_BASE_URL = 'http://13.61.152.64:4000/images/';
+
+    const handlePickImage = async () => {
+        try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission Denied', 'We need gallery permissions to select an image.');
+                return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                setSelectedImage(result.assets[0]);
+                await handleUploadImage(result.assets[0]);
+            }
+        } catch (error: any) {
+            Alert.alert('Error', 'Failed to pick image. Please try again.');
+            console.error('Image picker error:', error);
+        }
+    };
+
+    const handleUploadImage = async (image: ImagePicker.ImagePickerAsset) => {
+        if (!user?.userId) {
+            Alert.alert('Error', 'User not found. Please try again.');
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('profileImage', {
+                uri: image.uri,
+                name: image.fileName || `profile-${Date.now()}.jpg`,
+                type: image.mimeType || 'image/jpeg',
+            } as any);
+
+            const response = await apiClient.patch(
+                `/app/auth/upload-profile-image/${user.userId}`,
+                formData,
+                {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                }
+            );
+
+            if (response.data?.profileImage) {
+                await updateUser({ profileImage: response.data.profileImage });
+                console.log(response.data);
+                Alert.alert('Success', 'Profile photo updated successfully!');
+            } else {
+                Alert.alert('Success', 'Profile photo updated successfully!');
+            }
+        } catch (error: any) {
+            Alert.alert(
+                'Error',
+                error.response?.data?.message || 'Failed to upload profile photo. Please try again.'
+            );
+            console.error('Upload error:', error);
+        } finally {
+            setIsUploading(false);
+            setSelectedImage(null);
+        }
+    };
 
     const handleLogout = () => {
         Alert.alert("Log Out", "Are you sure you want to log out?", [
@@ -104,24 +176,39 @@ export default function ProfileScreen() {
             <ScrollView className="flex-1">
                 {/* Profile Header */}
                 <View className="bg-white items-center pt-8 pb-6 px-6 border-b border-gray-200">
-                    {user?.profileImage ? (
+                    {selectedImage ? (
+                        <Image
+                            source={{ uri: selectedImage.uri }}
+                            className="w-32 h-32 rounded-full mb-4 border-4 border-blue-100"
+                            style={{ width: 128, height: 128, borderRadius: 64 }}
+                        />
+                    ) : user?.profileImage ? (
                         <Image
                             source={{ uri: `${IMAGE_BASE_URL}${user.profileImage}` }}
-                            className="w-24 h-24 rounded-full mb-4 border-4 border-blue-100"
+                            className="w-32 h-32 rounded-full mb-4 border-4 border-blue-100"
+                            style={{ width: 128, height: 128, borderRadius: 64 }}
                         />
                     ) : (
-                        <View className="w-24 h-24 rounded-full bg-blue-50 justify-center items-center mb-4 border-4 border-blue-100">
-                            <Feather name="user" size={40} color="#3B82F6" />
+                        <View className="w-32 h-32 rounded-full bg-blue-50 justify-center items-center mb-4 border-4 border-blue-100">
+                            <Feather name="user" size={50} color="#3B82F6" />
                         </View>
                     )}
                     <Text className="text-2xl font-bold text-gray-900">{user?.fullname || 'Patient Name'}</Text>
                     <Text className="text-base text-gray-500 mt-1">{user?.email || 'patient@email.com'}</Text>
                     <TouchableOpacity 
-                        onPress={() => setEditProfileVisible(true)} 
-                        disabled={isLoading}
+                        onPress={handlePickImage} 
+                        disabled={isLoading || isUploading}
                         className="mt-4 bg-blue-100 px-4 py-2 rounded-lg"
+                        style={{ opacity: (isLoading || isUploading) ? 0.6 : 1 }}
                     >
-                        <Text className="text-blue-600 font-semibold text-sm">Upload Photo</Text>
+                        {isUploading ? (
+                            <View className="flex-row items-center">
+                                <ActivityIndicator size="small" color="#3B82F6" style={{ marginRight: 8 }} />
+                                <Text className="text-blue-600 font-semibold text-sm">Uploading...</Text>
+                            </View>
+                        ) : (
+                            <Text className="text-blue-600 font-semibold text-sm">Upload Photo</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
 

@@ -1,19 +1,20 @@
 import { Feather } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { useFocusEffect } from 'expo-router';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Image,
   SafeAreaView,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from 'react-native';
 import CreateRequestModal from '../../../components/(patient)/CreateRequestModal';
 import { useAuth } from '../../../context/AuthContext';
 import socketService from '../../../lib/socket';
-import * as Location from 'expo-location';
 
 
 
@@ -23,6 +24,7 @@ interface Ailment {
   provider: string;
   description?: string;
   linkedSpecializations?: string[];
+  image?: string;
 }
 
 const AilmentCard = ({ 
@@ -31,16 +33,117 @@ const AilmentCard = ({
 }: { 
   item: Ailment; 
   onPress: () => void;
-}) => (
-  <TouchableOpacity 
-    onPress={onPress}
-    className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200"
-  >
-    <Feather name="alert-circle" size={24} color="#2563EB" />
-    <Text className="text-base font-bold text-gray-800 mt-3">{item.title}</Text>
-    <Text className="text-sm text-gray-600 mt-1">{item.provider}</Text>
-  </TouchableOpacity>
-);
+}) => {
+  const AILMENT_IMAGE_BASE_URL = 'http://13.61.152.64:4000/ailments/';
+  const imageUri = item.image ? `${AILMENT_IMAGE_BASE_URL}${item.image}` : null;
+  const [imageLoading, setImageLoading] = React.useState(true);
+  const [imageError, setImageError] = React.useState(false);
+
+  // Prefetch image when component mounts
+  React.useEffect(() => {
+    if (imageUri) {
+      Image.prefetch(imageUri)
+        .then(() => {
+          setImageLoading(false);
+        })
+        .catch(() => {
+          setImageError(true);
+          setImageLoading(false);
+        });
+    }
+  }, [imageUri]);
+
+  return (
+    <TouchableOpacity 
+      onPress={onPress}
+      className="w-[48%] mb-4 rounded-2xl overflow-hidden"
+      style={{
+        height: 180,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 4,
+      }}
+      activeOpacity={0.7}
+    >
+      {imageUri && !imageError ? (
+        <>
+          {imageLoading && (
+            <View style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              backgroundColor: '#F3F4F6',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 1,
+            }}>
+              <ActivityIndicator size="small" color="#10B981" />
+            </View>
+          )}
+          <Image 
+            source={{ uri: imageUri }} 
+            style={{
+              width: '100%',
+              height: '100%',
+            }}
+            resizeMode="cover"
+            onLoadStart={() => setImageLoading(true)}
+            onLoadEnd={() => setImageLoading(false)}
+            onError={() => {
+              setImageError(true);
+              setImageLoading(false);
+            }}
+          />
+        </>
+      ) : (
+        <View style={{ width: '100%', height: '100%', backgroundColor: '#F3F4F6' }} />
+      )}
+      
+      {/* Blurred overlay at the bottom with title */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          paddingVertical: 12,
+          paddingHorizontal: 12,
+        }}
+      >
+        <Text 
+          style={{
+            fontSize: 14,
+            fontWeight: '700',
+            color: '#FFFFFF',
+            textShadowColor: 'rgba(0, 0, 0, 0.75)',
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 3,
+          }}
+          numberOfLines={2}
+        >
+          {item.title}
+        </Text>
+        {item.provider && (
+          <Text 
+            style={{
+              fontSize: 12,
+              color: '#E5E7EB',
+              marginTop: 4,
+              textShadowColor: 'rgba(0, 0, 0, 0.75)',
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 3,
+            }}
+          >
+            {item.provider}
+          </Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 export default function AllAilmentsScreen() {
   const { user } = useAuth();
@@ -72,7 +175,23 @@ export default function AllAilmentsScreen() {
           
           console.log('📋 Received ailment categories from backend:', categories);
           if (Array.isArray(categories) && categories.length > 0) {
-            setAilments(categories);
+            // Ensure provider field is properly set
+            const mappedCategories = categories.map((category: any) => ({
+              ...category,
+              provider: category.provider || 'Other',
+            }));
+            setAilments(mappedCategories);
+            
+            // Prefetch ailment images for faster loading
+            const AILMENT_IMAGE_BASE_URL = 'http://13.61.152.64:4000/ailments/';
+            mappedCategories.forEach((category: any) => {
+              if (category.image) {
+                const imageUri = `${AILMENT_IMAGE_BASE_URL}${category.image}`;
+                Image.prefetch(imageUri).catch((err) => {
+                  console.log('Failed to prefetch image:', imageUri, err);
+                });
+              }
+            });
           }
           socket?.off('ailmentCategories', handleAilmentCategories);
           setIsLoading(false);
@@ -253,7 +372,13 @@ export default function AllAilmentsScreen() {
               if (!acc[key]) acc[key] = [];
               acc[key].push(ailment);
               return acc;
-            }, {})).map(([provider, items]) => (
+            }, {}))
+            .sort(([providerA], [providerB]) => {
+              const orderA = providerOrder[providerA] || 999;
+              const orderB = providerOrder[providerB] || 999;
+              return orderA - orderB;
+            })
+            .map(([provider, items]) => (
               <View key={provider} className="mb-6">
                 <View className="w-full px-2 py-1">
                   <Text className="text-lg font-bold text-blue-600">{provider}</Text>

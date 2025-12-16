@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "project-health-connect",
+  "name": "HealthConnect",
     "slug": "project-health-connect",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+  "icon": "./assets/images/healthconnectlogo-cropped.png",
     "scheme": "projecthealthconnect",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

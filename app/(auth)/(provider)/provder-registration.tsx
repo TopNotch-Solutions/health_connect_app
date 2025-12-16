@@ -64,22 +64,76 @@ const openFile = async (file?: PickedImage | DocFile | null) => {
   }
 };
 
+// --- Password validation helper ---
+function validatePassword(password: string): { valid: boolean; message: string } {
+  if (!password) {
+    return { valid: false, message: 'Password is required.' };
+  }
+
+  const minLength = 8;
+  const uppercase = /[A-Z]/;
+  const lowercase = /[a-z]/;
+  const number = /[0-9]/;
+  const specialChar = /[!@#$%^&*(),.?":{}|<>]/;
+
+  if (password.length < minLength) {
+    return {
+      valid: false,
+      message: `Password must be at least ${minLength} characters long.`,
+    };
+  }
+
+  if (!uppercase.test(password)) {
+    return {
+      valid: false,
+      message: 'Password must contain at least one uppercase letter.',
+    };
+  }
+
+  if (!lowercase.test(password)) {
+    return {
+      valid: false,
+      message: 'Password must contain at least one lowercase letter.',
+    };
+  }
+
+  if (!number.test(password)) {
+    return {
+      valid: false,
+      message: 'Password must contain at least one number.',
+    };
+  }
+
+  if (!specialChar.test(password)) {
+    return {
+      valid: false,
+      message: 'Password must contain at least one special character.',
+    };
+  }
+
+  return { valid: true, message: 'Password is strong.' };
+}
+
 // --- Reusable UI Components ---
 const UploadBox = ({
   label,
   file,
   onPick,
   icon,
+  error,
 }: {
   label: string;
   file: PickedImage | DocFile;
   onPick: () => void;
   icon: React.ComponentProps<typeof Feather>['name'];
+  error?: string;
 }) => (
   <TouchableOpacity
     onPress={onPick}
     activeOpacity={0.85}
-    className="bg-gray-100 border border-gray-200 rounded-xl items-center justify-center h-32 flex-1"
+    className={`bg-gray-100 border rounded-xl items-center justify-center h-32 flex-1 ${
+      error ? 'border-red-400' : 'border-gray-200'
+    }`}
   >
     {file ? (
       <View className="items-center justify-center p-2">
@@ -219,6 +273,20 @@ export default function ProviderRegistrationScreen() {
     operationalZone: '',
   });
 
+  const [docErrors, setDocErrors] = useState<{
+    profileImage?: string;
+    finalQualification?: string;
+    HPCNAQualification?: string;
+  }>({});
+
+  const [profErrors, setProfErrors] = useState<{
+    specializations?: string;
+    hpcnaNumber?: string;
+    yearsOfExperience?: string;
+    operationalZone?: string;
+    bio?: string;
+  }>({});
+
   // Pre-fill phone number from previous screen
   useEffect(() => {
     if (params.cellphoneNumber && typeof params.cellphoneNumber === 'string') {
@@ -330,7 +398,89 @@ export default function ProviderRegistrationScreen() {
   };
 
   // --- Navigation Logic ---
-  const handleNext = () => setStep((prev) => Math.min(prev + 1, 4) as Step);
+  const handleNext = () => {
+    // Step 1: basic account info + strong password rules
+    if (step === 1) {
+      if (!accountInfo.password || !accountInfo.confirmPassword) {
+        Alert.alert('Missing password', 'Please enter and confirm your password.');
+        return;
+      }
+
+      const check = validatePassword(accountInfo.password);
+      if (!check.valid) {
+        Alert.alert('Weak password', check.message);
+        return;
+      }
+
+      if (accountInfo.password !== accountInfo.confirmPassword) {
+        Alert.alert('Password mismatch', 'Password and Confirm Password do not match.');
+        return;
+      }
+    }
+
+    // Step 2: validate required documents before allowing Next
+    if (step === 2) {
+      const newDocErrors: {
+        profileImage?: string;
+        finalQualification?: string;
+        HPCNAQualification?: string;
+      } = {};
+
+      if (!documents.profileImage) {
+        newDocErrors.profileImage = 'Profile photo is required.';
+      }
+      if (!documents.finalQualification) {
+        newDocErrors.finalQualification = 'Final qualification document is required.';
+      }
+      if (!documents.HPCNAQualification) {
+        newDocErrors.HPCNAQualification = 'HPCNA practicing certificate is required.';
+      }
+
+      setDocErrors(newDocErrors);
+
+      if (Object.keys(newDocErrors).length > 0) {
+        // Do not advance if there are errors
+        return;
+      }
+    } else if (step === 3) {
+      // Validate professional details on step 3 before allowing Next
+      const newProfErrors: {
+        specializations?: string;
+        hpcnaNumber?: string;
+        yearsOfExperience?: string;
+        operationalZone?: string;
+        bio?: string;
+      } = {};
+
+      if (!professionalDetails.specializations.length) {
+        newProfErrors.specializations = 'Please select at least one specialization.';
+      }
+      if (!professionalDetails.hpcnaNumber.trim()) {
+        newProfErrors.hpcnaNumber = 'HPCNA Registration Number is required.';
+      }
+      if (!professionalDetails.yearsOfExperience.trim()) {
+        newProfErrors.yearsOfExperience = 'Years of experience is required.';
+      }
+      if (!professionalDetails.operationalZone.trim()) {
+        newProfErrors.operationalZone = 'Operational zone is required.';
+      }
+      if (!professionalDetails.bio.trim()) {
+        newProfErrors.bio = 'Professional bio is required.';
+      }
+
+      setProfErrors(newProfErrors);
+
+      if (Object.keys(newProfErrors).length > 0) {
+        return;
+      }
+    } else {
+      // Clear errors when leaving validation steps
+      if (Object.keys(docErrors).length) setDocErrors({});
+      if (Object.keys(profErrors).length) setProfErrors({});
+    }
+
+    setStep((prev) => Math.min(prev + 1, 4) as Step);
+  };
   const handleBack = () => setStep((prev) => Math.max(prev - 1, 1) as Step);
 
   // --- helpers for submission ---
@@ -461,8 +611,7 @@ export default function ProviderRegistrationScreen() {
     if (!documents.finalQualification) missing.push('Final Qualification');
     if (!documents.HPCNAQualification)
       missing.push('HPCNA Practicing Certificate');
-    if (params?.providerType === 'nurse' && !documents.dispensingCertificateLicence)
-      missing.push('Dispensing Certification Licence');
+    // Dispensing certification is optional, do NOT treat as missing
 
     if (missing.length) {
       Alert.alert('Missing info', 'Please provide:\n• ' + missing.join('\n• '));
@@ -659,28 +808,32 @@ export default function ProviderRegistrationScreen() {
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Gender
               </Text>
-              <View
-                className="bg-white border-2 border-green-300 rounded-xl px-3 mb-4"
-                style={{ height: 56, justifyContent: 'center' }}
-              >
-                <RNPickerSelect
-                  onValueChange={(v) =>
-                    setAccountInfo((p) => ({ ...p, gender: String(v || '') }))
-                  }
-                  value={accountInfo.gender}
-                  items={[
-                    { label: 'Male', value: 'Male' },
-                    { label: 'Female', value: 'Female' }
-                  ]}
-                  placeholder={{ label: 'Select gender…', value: '' }}
-                  Icon={() => null}
-                  useNativeAndroidPickerStyle={false}
-                  style={{
-                    inputAndroid: { fontSize: 16, color: '#111' },
-                    inputIOS: { fontSize: 16, color: '#111' },
-                    placeholder: { color: '#888' },
-                  }}
-                />
+              <View className="mb-4" style={{ gap: 12 }}>
+                {['Male', 'Female'].map((g) => (
+                  <TouchableOpacity
+                    key={g}
+                    className={`p-4 rounded-xl border-2 ${
+                      accountInfo.gender === g
+                        ? 'bg-blue-600 border-blue-600'
+                        : 'bg-white border-gray-200'
+                    }`}
+                    onPress={() =>
+                      setAccountInfo((p) => ({
+                        ...p,
+                        gender: g,
+                      }))
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      className={`text-center font-semibold ${
+                        accountInfo.gender === g ? 'text-white' : 'text-gray-700'
+                      }`}
+                    >
+                      {g}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <View className="flex-row" style={{ gap: 16 }}>
@@ -744,26 +897,50 @@ export default function ProviderRegistrationScreen() {
                 Documents & Qualifications
               </Text>
 
+            <View className="mb-2">
               <UploadBox
                 label="Upload Photo"
                 file={documents.profileImage}
                 onPick={() => pickImage('profileImage')}
                 icon="camera"
+                error={docErrors.profileImage}
               />
-              <View className="h-3" />
+              {docErrors.profileImage ? (
+                <Text className="mt-1 text-xs text-red-500">
+                  {docErrors.profileImage}
+                </Text>
+              ) : null}
+            </View>
+
+            <View className="mb-2">
               <UploadBox
                 label="Upload Final Qualification (e.g. Degree/Diploma)"
                 file={documents.finalQualification}
                 onPick={() => pickDocument('finalQualification')}
                 icon="award"
+                error={docErrors.finalQualification}
               />
-              <View className="h-3" />
+              {docErrors.finalQualification ? (
+                <Text className="mt-1 text-xs text-red-500">
+                  {docErrors.finalQualification}
+                </Text>
+              ) : null}
+            </View>
+
+            <View className="mb-2">
               <UploadBox
                 label="Upload HPCNA Practicing Certificate"
                 file={documents.HPCNAQualification}
                 onPick={() => pickDocument('HPCNAQualification')}
                 icon="calendar"
+                error={docErrors.HPCNAQualification}
               />
+              {docErrors.HPCNAQualification ? (
+                <Text className="mt-1 text-xs text-red-500">
+                  {docErrors.HPCNAQualification}
+                </Text>
+              ) : null}
+            </View>
               {params?.providerType === 'nurse' && (
                 <>
                   <View className="h-3" />
@@ -800,8 +977,15 @@ export default function ProviderRegistrationScreen() {
                 value={professionalDetails.specializations.join(', ')}
                 editable={false}
                 placeholder="Select specialization(s) below"
-                className="bg-white p-4 rounded-xl mb-3 border-2 border-green-300"
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                  profErrors.specializations ? 'border-red-400' : 'border-green-300'
+                }`}
               />
+              {profErrors.specializations ? (
+                <Text className="text-xs text-red-500 mb-2">
+                  {profErrors.specializations}
+                </Text>
+              ) : null}
 
               {loadingSpecializations ? (
                 <View className="py-4">
@@ -856,8 +1040,15 @@ export default function ProviderRegistrationScreen() {
                   setProfessionalDetails((p) => ({ ...p, hpcnaNumber: t }))
                 }
                 placeholder="Enter your HPCNA registration number"
-                className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300"
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                  profErrors.hpcnaNumber ? 'border-red-400' : 'border-green-300'
+                }`}
               />
+              {profErrors.hpcnaNumber ? (
+                <Text className="text-xs text-red-500 mb-2">
+                  {profErrors.hpcnaNumber}
+                </Text>
+              ) : null}
 
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Years of Experience
@@ -872,14 +1063,23 @@ export default function ProviderRegistrationScreen() {
                 }
                 placeholder="Enter years of experience"
                 keyboardType="number-pad"
-                className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300"
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                  profErrors.yearsOfExperience ? 'border-red-400' : 'border-green-300'
+                }`}
               />
+              {profErrors.yearsOfExperience ? (
+                <Text className="text-xs text-red-500 mb-2">
+                  {profErrors.yearsOfExperience}
+                </Text>
+              ) : null}
 
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Operational Zone
               </Text>
               <View
-                className="bg-white border-2 border-green-300 rounded-xl px-3 mb-4"
+                className={`bg-white border-2 rounded-xl px-3 mb-1 ${
+                  profErrors.operationalZone ? 'border-red-400' : 'border-green-300'
+                }`}
                 style={{ height: 56, justifyContent: 'center' }}
               >
                 <RNPickerSelect
@@ -901,6 +1101,11 @@ export default function ProviderRegistrationScreen() {
                   }}
                 />
               </View>
+              {profErrors.operationalZone ? (
+                <Text className="text-xs text-red-500 mb-2">
+                  {profErrors.operationalZone}
+                </Text>
+              ) : null}
 
               {/* Date of Expiration */}
               <Text className="text-base text-text-main mb-2 font-semibold">
@@ -933,10 +1138,17 @@ export default function ProviderRegistrationScreen() {
                   setProfessionalDetails((p) => ({ ...p, bio: t }))
                 }
                 placeholder="Tell us about your professional experience and expertise"
-                className="bg-white p-4 rounded-xl mb-4 border-2 border-green-300 h-24"
+                className={`bg-white p-4 rounded-xl mb-1 border-2 h-24 ${
+                  profErrors.bio ? 'border-red-400' : 'border-green-300'
+                }`}
                 multiline
                 textAlignVertical="top"
               />
+              {profErrors.bio ? (
+                <Text className="text-xs text-red-500 mb-2">
+                  {profErrors.bio}
+                </Text>
+              ) : null}
             </View>
           )}
 

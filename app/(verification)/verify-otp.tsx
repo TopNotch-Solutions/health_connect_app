@@ -126,7 +126,11 @@ const OTPScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
       <KeyboardAwareScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 20, justifyContent: 'space-between' }}
+        contentContainerStyle={{
+          paddingHorizontal: 15,
+          paddingTop: 5,
+          paddingBottom: 5,
+        }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         enableOnAndroid={true}
@@ -135,7 +139,7 @@ const OTPScreen = () => {
       >
         
         {/* Content Section - Centered */}
-        <View className="items-center mt-12">
+        <View className="items-center">
           <Text className="text-3xl font-bold text-gray-900 text-center mb-2">Verify Your Code</Text>
           <Text className="text-base text-gray-600 text-center px-4">
             Enter the 6-digit code sent to {'\n'}
@@ -144,7 +148,7 @@ const OTPScreen = () => {
         </View>
 
             {/* OTP Input Section */}
-            <View className="mb-6">
+            <View className="mb-6 mt-6">
               <View className="flex-row justify-between w-full">
                 {otp.map((digit, index) => (
                   <TextInput

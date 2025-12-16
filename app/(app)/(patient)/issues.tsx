@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
@@ -31,6 +31,41 @@ const tabs: { key: Tab, label: string }[] = [
     { key: 'contact', label: 'Contact' },
 ];
 
+const pickerStyle = {
+    inputIOS: {
+        color: '#111827',
+        fontSize: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        paddingRight: 30,
+    },
+    inputAndroid: {
+        color: '#111827',
+        fontSize: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        paddingRight: 30,
+    },
+    iconContainer: {
+        top: 16,
+        right: 12,
+    },
+    placeholder: {
+        color: '#9CA3AF',
+    },
+    modalViewMiddle: {
+        backgroundColor: 'white',
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+    },
+    modalViewBottom: {
+        backgroundColor: 'white',
+    },
+    chevronContainer: {
+        display: 'none',
+    },
+};
+
 export default function IssuesScreen() {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<Tab>('report');
@@ -41,6 +76,10 @@ export default function IssuesScreen() {
     const [issueImage, setIssueImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
     const [myTickets, setMyTickets] = useState<Issue[]>([]);
     const [faqs, setFaqs] = useState<Faq[]>([]);
+    const [errors, setErrors] = useState({
+        issueTitle: '',
+        issueDescription: '',
+    });
 
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 1 });
@@ -48,8 +87,30 @@ export default function IssuesScreen() {
     };
   
     const handleSubmitIssue = async () => {
-      if (!user?.userId) return Alert.alert("Authentication Error", "You must be logged in.");
-      if (!issueTitle || !issueDescription) return Alert.alert('Missing Information', 'Please select a type and a description.');
+      if (!user?.userId) {
+        Alert.alert("Authentication Error", "You must be logged in.");
+        return;
+      }
+
+      // Clear previous errors
+      setErrors({ issueTitle: '', issueDescription: '' });
+
+      let hasError = false;
+      const newErrors = { issueTitle: '', issueDescription: '' };
+
+      if (!issueTitle || !issueTitle.trim()) {
+        newErrors.issueTitle = 'Please select an issue type';
+        hasError = true;
+      }
+      if (!issueDescription || !issueDescription.trim()) {
+        newErrors.issueDescription = 'Please describe the issue in detail';
+        hasError = true;
+      }
+
+      if (hasError) {
+        setErrors(newErrors);
+        return;
+      }
       
       setIsSubmitting(true);
       const fd = new FormData();
@@ -64,6 +125,7 @@ export default function IssuesScreen() {
         const response = await apiClient.post(CREATE_ISSUE_ENDPOINT, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
         Alert.alert('Success', response.data.message);
         setIssueTitle(''); setIssueDescription(''); setIssueImage(null);
+        setErrors({ issueTitle: '', issueDescription: '' });
         setActiveTab('tickets');
       } catch (error: any) {
         Alert.alert('Submission Failed', error.response?.data?.message || 'An error occurred.');
@@ -117,33 +179,106 @@ export default function IssuesScreen() {
             case 'report':
                 return (
                     <View>
-                        <Text className="text-base text-text-main mb-2 font-semibold">What are you reporting?</Text>
-                        <View className="bg-white border border-gray-200 rounded-xl px-3 mb-4" style={{ height: 56, justifyContent: "center" }}>
-                            <RNPickerSelect onValueChange={setIssueTitle} items={issueTypes} placeholder={{ label: "Select an issue type...", value: null }}/>
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>What are you reporting?</Text>
+                            <View style={[styles.pickerContainer, errors.issueTitle && styles.inputError]}>
+                                <RNPickerSelect
+                                    onValueChange={(value) => {
+                                        setIssueTitle(value);
+                                        if (errors.issueTitle) {
+                                            setErrors({ ...errors, issueTitle: '' });
+                                        }
+                                    }}
+                                    items={issueTypes}
+                                    placeholder={{ label: "Select an issue type...", value: null }}
+                                    value={issueTitle}
+                                    style={pickerStyle as any}
+                                    useNativeAndroidPickerStyle={false}
+                                />
+                                <View style={styles.pickerIcon}>
+                                    <Feather name="chevron-down" size={20} color={errors.issueTitle ? '#EF4444' : '#10B981'} />
+                                </View>
+                            </View>
+                            {errors.issueTitle ? (
+                                <Text style={styles.errorText}>{errors.issueTitle}</Text>
+                            ) : null}
                         </View>
-                        <Text className="text-base text-text-main mb-2 font-semibold">Description</Text>
-                        <TextInput value={issueDescription} onChangeText={setIssueDescription} placeholder="Please describe the issue in detail..." className="bg-white p-4 rounded-xl h-32 border border-gray-200" multiline textAlignVertical="top"/>
-                        <TouchableOpacity onPress={pickImage} className="bg-gray-100 border border-dashed border-gray-400 rounded-xl p-4 flex-row items-center justify-center mt-4">
-                            <Feather name={issueImage ? 'check-circle' : 'paperclip'} size={20} color={issueImage ? '#28A745' : '#6C757D'} />
-                            <Text className={`ml-2 font-semibold ${issueImage ? 'text-secondary' : 'text-text-main'}`}>{issueImage ? 'Image Attached' : 'Attach Screenshot (Optional)'}</Text>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={styles.label}>Description</Text>
+                            <TextInput
+                                value={issueDescription}
+                                onChangeText={(text) => {
+                                    setIssueDescription(text);
+                                    if (errors.issueDescription) {
+                                        setErrors({ ...errors, issueDescription: '' });
+                                    }
+                                }}
+                                placeholder="Please describe the issue in detail..."
+                                placeholderTextColor="#9CA3AF"
+                                style={[styles.textArea, errors.issueDescription && styles.inputError]}
+                                multiline
+                                textAlignVertical="top"
+                                numberOfLines={6}
+                            />
+                            {errors.issueDescription ? (
+                                <Text style={styles.errorText}>{errors.issueDescription}</Text>
+                            ) : null}
+                        </View>
+
+                        <TouchableOpacity
+                            onPress={pickImage}
+                            style={styles.imageButton}
+                            activeOpacity={0.7}
+                        >
+                            <Feather
+                                name={issueImage ? 'check-circle' : 'paperclip'}
+                                size={20}
+                                color={issueImage ? '#10B981' : '#6B7280'}
+                            />
+                            <Text style={[styles.imageButtonText, issueImage && styles.imageButtonTextSuccess]}>
+                                {issueImage ? 'Image Attached' : 'Attach Screenshot (Optional)'}
+                            </Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={handleSubmitIssue} disabled={isSubmitting} className={`bg-primary p-4 rounded-xl mt-6 ${isSubmitting && 'opacity-50'}`}>
-                            {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Submit Issue</Text>}
+
+                        <TouchableOpacity
+                            onPress={handleSubmitIssue}
+                            disabled={isSubmitting}
+                            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+                            activeOpacity={0.8}
+                        >
+                            {isSubmitting ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.submitButtonText}>Submit Issue</Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 );
             case 'contact':
                 return (
                     <View>
-                        <TouchableOpacity onPress={handleEmailPress} className="bg-white p-6 rounded-xl border border-gray-200 items-center mb-4">
-                            <Feather name="mail" size={32} color="#007BFF" />
-                            <Text className="text-lg font-bold text-text-main mt-3">Contact Support</Text>
-                            <Text className="text-base text-gray-600 mt-1">support@healthconnect.com</Text>
+                        <TouchableOpacity
+                            onPress={handleEmailPress}
+                            style={styles.contactCard}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.contactIconContainer}>
+                                <Feather name="mail" size={32} color="#10B981" />
+                            </View>
+                            <Text style={styles.contactTitle}>Contact Support</Text>
+                            <Text style={styles.contactText}>support@healthconnect.com</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={handlePhonePress} className="bg-white p-6 rounded-xl border border-gray-200 items-center">
-                            <Feather name="phone" size={32} color="#007BFF" />
-                            <Text className="text-lg font-bold text-text-main mt-3">Call Us</Text>
-                            <Text className="text-base text-gray-600 mt-1">+264 81 123 4567</Text>
+                        <TouchableOpacity
+                            onPress={handlePhonePress}
+                            style={styles.contactCard}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.contactIconContainer}>
+                                <Feather name="phone" size={32} color="#10B981" />
+                            </View>
+                            <Text style={styles.contactTitle}>Call Us</Text>
+                            <Text style={styles.contactText}>+264 81 123 4567</Text>
                         </TouchableOpacity>
                     </View>
                 );
@@ -156,17 +291,24 @@ export default function IssuesScreen() {
     return (
       <SafeAreaView className="flex-1" edges={['bottom', 'left', 'right']}>
         {/* Static Header */}
-        <View className="p-6">
-          <Text className="text-3xl font-bold ">Help & Support</Text>
-          <Text className="text-base text-gray-500 mt-1">Find answers or report an issue.</Text>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Help & Support</Text>
+          <Text style={styles.headerSubtitle}>Find answers or report an issue.</Text>
         </View>
   
         {/* Static Tab Selector */}
-        <View className="px-6 mb-6">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.tabContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScrollContent}>
             {tabs.map(tab => (
-              <TouchableOpacity key={tab.key} onPress={() => setActiveTab(tab.key)} className={`py-2 px-4 rounded-full mr-3 ${activeTab === tab.key ? 'bg-primary' : 'bg-white border border-primary/20'}`}>
-                <Text className={`font-semibold ${activeTab === tab.key ? 'text-white' : 'text-primary'}`}>{tab.label}</Text>
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key)}
+                style={[styles.tabButton, activeTab === tab.key && styles.tabButtonActive]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tabButtonText, activeTab === tab.key && styles.tabButtonTextActive]}>
+                  {tab.label}
+                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -217,3 +359,168 @@ export default function IssuesScreen() {
       </SafeAreaView>
     );
 }
+
+const styles = StyleSheet.create({
+    header: {
+        paddingHorizontal: 24,
+        paddingTop: 24,
+        paddingBottom: 16,
+    },
+    headerTitle: {
+        fontSize: 32,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    headerSubtitle: {
+        fontSize: 16,
+        color: '#6B7280',
+        marginTop: 4,
+    },
+    tabContainer: {
+        paddingHorizontal: 24,
+        marginBottom: 24,
+    },
+    tabScrollContent: {
+        paddingRight: 24,
+    },
+    tabButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 20,
+        marginRight: 12,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 2,
+        borderColor: '#10B981',
+    },
+    tabButtonActive: {
+        backgroundColor: '#10B981',
+        borderColor: '#10B981',
+    },
+    tabButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#10B981',
+    },
+    tabButtonTextActive: {
+        color: '#FFFFFF',
+    },
+    inputContainer: {
+        marginBottom: 20,
+    },
+    label: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#374151',
+        marginBottom: 8,
+    },
+    pickerContainer: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 2,
+        borderColor: '#10B981',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        height: 56,
+        justifyContent: 'center',
+        position: 'relative',
+    },
+    pickerIcon: {
+        position: 'absolute',
+        right: 16,
+        top: 18,
+        pointerEvents: 'none',
+    },
+    inputError: {
+        borderColor: '#EF4444',
+    },
+    textArea: {
+        backgroundColor: '#FFFFFF',
+        borderWidth: 2,
+        borderColor: '#10B981',
+        borderRadius: 12,
+        padding: 16,
+        fontSize: 16,
+        color: '#111827',
+        minHeight: 120,
+        textAlignVertical: 'top',
+    },
+    errorText: {
+        fontSize: 12,
+        color: '#EF4444',
+        marginTop: 4,
+        marginLeft: 4,
+    },
+    imageButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F3F4F6',
+        borderWidth: 2,
+        borderStyle: 'dashed',
+        borderColor: '#D1D5DB',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 24,
+    },
+    imageButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#6B7280',
+        marginLeft: 8,
+    },
+    imageButtonTextSuccess: {
+        color: '#10B981',
+    },
+    submitButton: {
+        backgroundColor: '#10B981',
+        paddingVertical: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#10B981',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    submitButtonDisabled: {
+        opacity: 0.6,
+    },
+    submitButtonText: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    contactCard: {
+        backgroundColor: '#FFFFFF',
+        padding: 24,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        alignItems: 'center',
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    contactIconContainer: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#D1FAE5',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    contactTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#111827',
+        marginBottom: 8,
+    },
+    contactText: {
+        fontSize: 16,
+        color: '#6B7280',
+    },
+});
