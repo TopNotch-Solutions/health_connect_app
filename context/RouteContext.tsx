@@ -3,8 +3,20 @@ import React, { createContext, useState, useContext } from 'react';
 // Define the shape of a request object for the context
 interface Request {
     _id: string;
-    patientId?: { fullname: string };
-    address?: { coordinates?: { latitude: number; longitude: number } };
+    patientId?: { 
+        fullname: string;
+        profileImage?: string;
+    };
+    providerId?: {
+        fullname?: string;
+        profileImage?: string;
+    };
+    address?: {
+        coordinates?: { latitude: number; longitude: number };
+        route?: string;
+        locality?: string;
+        administrative_area_level_1?: string;
+    };
     // Add any other properties from your request object that the map modal might need
 }
 

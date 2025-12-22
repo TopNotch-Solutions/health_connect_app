@@ -28,6 +28,7 @@ interface CreateRequestModalProps {
     locality: string;
     region: string;
     preferredTime?: string;
+    coordinates?: { latitude: number; longitude: number };
   }) => Promise<void>;
   selectedAilment?: any;
 }
@@ -128,6 +129,12 @@ export default function CreateRequestModal({
       return;
     }
 
+    // Ensure we have coordinates before submitting
+    if (!markerCoord) {
+      Alert.alert('Location Required', 'Please wait for your location to be detected or try again.');
+      return;
+    }
+
     setIsLoading(true);
     try {
       await onSubmit({
@@ -140,6 +147,7 @@ export default function CreateRequestModal({
         locality: locality.trim(),
         region: region.trim(),
         preferredTime: undefined,
+        coordinates: markerCoord, // Pass the actual coordinates from the modal
       });
       
       // Reset form on success

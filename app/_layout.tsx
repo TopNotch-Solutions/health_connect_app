@@ -99,6 +99,7 @@ const IntroSplash = () => {
               marginBottom: 8,
               color: '#374151', // text-gray-700 for better contrast
               textAlign: 'center',
+              fontStyle: 'italic',
             }}
           >
             One place to coordinate care, stay informed, and feel supported every step of the way.
@@ -132,6 +133,7 @@ const IntroSplash = () => {
                   fontWeight: '600',
                   color: '#808080', // slightly lighter than #0F172A
                   flexShrink: 1,
+                  fontStyle: 'italic',
                 }}
               >
                 Easy access to trusted healthcare when you need it
@@ -158,6 +160,7 @@ const IntroSplash = () => {
                   fontWeight: '600',
                   color: '#808080', // slightly lighter than #0F172A
                   flexShrink: 1,
+                  fontStyle: 'italic',
                 }}
               >
                 Clear, secure information about your health journey
@@ -184,6 +187,7 @@ const IntroSplash = () => {
                   fontWeight: '600',
                   color: '#808080', // very dark, highly visible
                   flexShrink: 1,
+                  fontStyle: 'italic',
                 }}
               >
                 Smarter tools for planning, tracking, and peace of mind

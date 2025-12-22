@@ -14,6 +14,11 @@ interface Request {
     fullname: string;
     cellphoneNumber?: string;
     walletID?: string;
+    profileImage?: string;
+  };
+  providerId?: {
+    fullname?: string;
+    profileImage?: string;
   };
   ailmentCategoryId?: {
     title: string;
@@ -199,10 +204,18 @@ export default function ProviderRequests() {
 
   // Handle accept request - same as home.tsx
   const handleAccept = async (request: Request) => {
-    if (!user?.userId) return;
+    // Double check user is available
+    if (!user || !user.userId) {
+      console.error('Cannot accept request: user is not available');
+      Alert.alert('Error', 'User session not available. Please try again.');
+      return;
+    }
+
+    const currentUserId = user.userId; // Store userId to avoid issues if user becomes null
+    
     try {
       // 1) Accept on backend (assign provider)
-      await socketService.acceptRequest(request._id, user.userId);
+      await socketService.acceptRequest(request._id, currentUserId);
 
       // 2) Open global route modal immediately for fast UX
       startRoute(request);
@@ -210,6 +223,12 @@ export default function ProviderRequests() {
       // 3) In background, request location and send en_route with coords (backend requires location)
       (async () => {
         try {
+          // Re-check user in case it changed
+          if (!user || !user.userId) {
+            console.warn('User not available in background task');
+            return;
+          }
+
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status !== 'granted') {
             console.warn('Location permission not granted; cannot send en_route with coordinates');
@@ -219,7 +238,7 @@ export default function ProviderRequests() {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
           const providerCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
 
-          await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
+          await socketService.updateRequestStatus(request._id, currentUserId, 'en_route', providerCoords);
           console.log('✅ Sent en_route with provider coordinates');
         } catch (bgError: any) {
           console.warn('Failed to send en_route with coords:', bgError?.message || bgError);
@@ -229,6 +248,7 @@ export default function ProviderRequests() {
       // 4) Remove request locally from requests list
       setRequests((prev) => prev.filter((req) => req._id !== request._id));
     } catch (error: any) {
+      console.error('Error accepting request:', error);
       Alert.alert('Error', error.message || 'Failed to accept request');
     }
   };

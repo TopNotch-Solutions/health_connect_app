@@ -58,7 +58,7 @@ const AilmentCard = ({
       onPress={onPress}
       className="w-[48%] mb-4 rounded-2xl overflow-hidden"
       style={{
-        height: 180,
+        height: 150,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
@@ -233,28 +233,13 @@ export default function AllAilmentsScreen() {
     }, [fetchAilments])
   );
 
-  // Filter and sort ailments based on search and provider order
-  const providerOrder: Record<string, number> = {
-    'Doctor': 1,
-    'Nurse': 2,
-    'Physiotherapist': 3,
-    'Social Worker': 4,
-  };
-
+  // Filter and sort ailments alphabetically by title
   const filteredAilments = ailments
     .filter((ailment: Ailment) =>
       ailment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ailment.provider.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a: Ailment, b: Ailment) => {
-      const orderA = providerOrder[a.provider] || 999;
-      const orderB = providerOrder[b.provider] || 999;
-      
-      if (orderA !== orderB) {
-        return orderA - orderB;
-      }
-      
-      // If same provider, sort by title alphabetically
       return a.title.localeCompare(b.title);
     });
 
@@ -273,9 +258,10 @@ export default function AllAilmentsScreen() {
     locality: string;
     region: string;
     preferredTime?: string;
+    coordinates?: { latitude: number; longitude: number };
   }) => {
-    // Check if location is available, if not try to get it again
-    let currentLocation = location;
+    // Use coordinates from the modal if provided, otherwise try to get current location
+    let currentLocation = requestData.coordinates || location;
     
     if (!currentLocation) {
       try {
@@ -366,32 +352,11 @@ export default function AllAilmentsScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/** Group ailments by provider so headers can span full width and cards can wrap underneath */}
-            {Object.entries(filteredAilments.reduce((acc: Record<string, Ailment[]>, ailment) => {
-              const key = ailment.provider || 'Other';
-              if (!acc[key]) acc[key] = [];
-              acc[key].push(ailment);
-              return acc;
-            }, {}))
-            .sort(([providerA], [providerB]) => {
-              const orderA = providerOrder[providerA] || 999;
-              const orderB = providerOrder[providerB] || 999;
-              return orderA - orderB;
-            })
-            .map(([provider, items]) => (
-              <View key={provider} className="mb-6">
-                <View className="w-full px-2 py-1">
-                  <Text className="text-lg font-bold text-blue-600">{provider}</Text>
-                  <View className="h-1 bg-blue-600 rounded-full mt-1" style={{ width: '30%' }} />
-                </View>
-
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 12 }}>
-                  {items.map((item) => (
-                    <AilmentCard key={item._id} item={item} onPress={() => handleAilmentSelect(item)} />
-                  ))}
-                </View>
-              </View>
-            ))}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+              {filteredAilments.map((item) => (
+                <AilmentCard key={item._id} item={item} onPress={() => handleAilmentSelect(item)} />
+              ))}
+            </View>
           </ScrollView>
         )}
       </View>

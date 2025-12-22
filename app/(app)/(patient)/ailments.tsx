@@ -153,9 +153,10 @@ export default function AilmentsScreen() {
     locality: string;
     region: string;
     preferredTime?: string;
+    coordinates?: { latitude: number; longitude: number };
   }) => {
-    // Check if location is available, if not try to get it again
-    let currentLocation = location;
+    // Use coordinates from the modal if provided, otherwise try to get current location
+    let currentLocation = requestData.coordinates || location;
     
     if (!currentLocation) {
       try {

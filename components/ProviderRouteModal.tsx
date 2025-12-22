@@ -10,8 +10,11 @@ import {
   StyleSheet,
   Linking,
   Platform,
+  Image,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapViewDirections from 'react-native-maps-directions';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 import { Feather } from '@expo/vector-icons';
@@ -28,6 +31,8 @@ interface ProviderRouteModalProps {
   };
   patientAddress?: string;
   patientName?: string;
+  providerProfileImage?: string;
+  patientProfileImage?: string;
   onCompleteRoute?: () => void;
 }
 
@@ -37,6 +42,7 @@ const LATITUDE_DELTA = 0.05;
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg';
+const IMAGE_BASE_URL = 'http://13.61.152.64:4000/images/';
 
 // ✅ Helper to normalize coordinates (handles both formats)
 const normalizeCoordinate = (coord: any): { latitude: number; longitude: number } | null => {
@@ -89,6 +95,8 @@ export default function ProviderRouteModal({
   patientLocation: rawPatientLocation,
   patientAddress,
   patientName = 'Patient',
+  providerProfileImage,
+  patientProfileImage,
   onCompleteRoute,
 }: ProviderRouteModalProps) {
   const mapRef = useRef<MapView>(null);
@@ -107,9 +115,12 @@ export default function ProviderRouteModal({
   >([]);
   const [distance, setDistance] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
+  const [routeDistance, setRouteDistance] = useState<number | null>(null);
+  const [routeDuration, setRouteDuration] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [lastSpeechTime, setLastSpeechTime] = useState<number>(0);
   
 
   // ✅ Validate patient location on mount
@@ -191,11 +202,13 @@ export default function ProviderRouteModal({
         const durationInSeconds = leg.duration.value;
         const durationInMinutes = Math.round(durationInSeconds / 60);
 
-        setDistance(distanceInKm);
-        setDuration(durationInMinutes);
+      setDistance(distanceInKm);
+      setDuration(durationInMinutes);
+      setRouteDistance(distanceInKm);
+      setRouteDuration(durationInMinutes);
 
-        console.log(`🗺️ Route fetched: ${distanceInKm.toFixed(1)} km, ${durationInMinutes} min`);
-        return { distanceInKm, durationInMinutes };
+      console.log(`🗺️ Route fetched: ${distanceInKm.toFixed(1)} km, ${durationInMinutes} min`);
+      return { distanceInKm, durationInMinutes };
       } else {
         console.error('❌ Google Maps API Error:', data.status, data.error_message);
         throw new Error(`Google Maps API Error: ${data.status}`);
@@ -216,11 +229,15 @@ export default function ProviderRouteModal({
       const d = R * c;
       
       setDistance(d);
-      setDuration(Math.round((d / 40) * 60));
+      const fallbackDuration = Math.round((d / 40) * 60);
+      setDuration(fallbackDuration);
+      setRouteDistance(d);
+      setRouteDuration(fallbackDuration);
       
       speak(`Starting route to ${patientName}. Distance is ${d.toFixed(1)} kilometers.`);
+      setLastSpeechTime(Date.now());
       
-      return { distanceInKm: d, durationInMinutes: Math.round((d / 40) * 60) };
+      return { distanceInKm: d, durationInMinutes: fallbackDuration };
     }
   }, [patientName, patientAddress]);
 
@@ -369,10 +386,21 @@ export default function ProviderRouteModal({
                 patientLocation.longitude
               );
               
-              // Only speak arrival once (guard with ref)
+              // Speech logic - only speak once per minute
+              const currentTime = Date.now();
+              const oneMinuteInMs = 60 * 1000; // 60 seconds in milliseconds
+              const timeSinceLastSpeech = currentTime - lastSpeechTime;
+
+              // Only speak arrival once (guard with ref) - always announce arrival
               if (distToDest < 0.1 && !arrivedRef.current) {
                 arrivedRef.current = true;
                 speak("You have arrived at the destination.");
+                setLastSpeechTime(currentTime);
+              } else if (distToDest >= 0.1 && timeSinceLastSpeech >= oneMinuteInMs) {
+                // Only speak distance updates if at least 1 minute has passed
+                const eta = Math.round((distToDest / 40) * 60);
+                speak(`You are ${distToDest.toFixed(1)} kilometers away. About ${eta} minutes remaining.`);
+                setLastSpeechTime(currentTime);
               }
 
             } catch (error) {
@@ -551,39 +579,52 @@ export default function ProviderRouteModal({
       transparent={false}
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
         <MapView
           ref={mapRef}
           style={styles.map}
           provider={PROVIDER_GOOGLE}
+          showsUserLocation={true}
+          followsUserLocation={false}
+          showsMyLocationButton={true}
           initialRegion={initialRegion}
         >
-          {routeCoordinates.length > 1 && (
-            <>
-              <Polyline
-                coordinates={routeCoordinates}
-                strokeColor="#ffffff"
-                strokeWidth={8}
-                geodesic={true}
-              />
-              <Polyline
-                coordinates={routeCoordinates}
-                strokeColor="#3b82f6"
-                strokeWidth={4}
-                geodesic={true}
-              />
-            </>
-          )}
-
           {/* ✅ Only render marker if coordinate is valid */}
           {isValidCoordinate(providerLocation) && (
             <Marker
               coordinate={providerLocation}
               title="Your Location"
               description="You are here"
+              identifier="provider"
             >
-              <View className="bg-blue-600 rounded-full p-2 border-4 border-white shadow-lg">
-                <Feather name="navigation" size={20} color="white" />
+              <View style={{
+                width: 50,
+                height: 50,
+                borderRadius: 25,
+                borderWidth: 4,
+                borderColor: '#FFFFFF',
+                backgroundColor: '#3B82F6',
+                overflow: 'hidden',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 5,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+                {providerProfileImage ? (
+                  <Image
+                    source={{ uri: `${IMAGE_BASE_URL}${providerProfileImage}` }}
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                    onError={(error) => {
+                      console.log('Failed to load provider profile image:', error);
+                    }}
+                  />
+                ) : (
+                  <Feather name="navigation" size={24} color="white" />
+                )}
               </View>
             </Marker>
           )}
@@ -593,11 +634,93 @@ export default function ProviderRouteModal({
             coordinate={patientLocation}
             title={`${patientName}'s Location`}
             description="Patient destination"
+            identifier="patient"
           >
-            <View className="bg-red-600 rounded-full p-2 border-4 border-white shadow-lg">
-              <Feather name="map-pin" size={20} color="white" />
+            <View style={{
+              width: 50,
+              height: 50,
+              borderRadius: 25,
+              borderWidth: 4,
+              borderColor: '#FFFFFF',
+              backgroundColor: '#EF4444',
+              overflow: 'hidden',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 5,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}>
+              {patientProfileImage ? (
+                <Image
+                  source={{ uri: `${IMAGE_BASE_URL}${patientProfileImage}` }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                  onError={(error) => {
+                    console.log('Failed to load patient profile image:', error);
+                  }}
+                />
+              ) : (
+                <Feather name="map-pin" size={24} color="white" />
+              )}
             </View>
           </Marker>
+
+          {/* Route directions using MapViewDirections - Shows the road route provider needs to travel */}
+          {isValidCoordinate(providerLocation) && 
+           isValidCoordinate(patientLocation) && (
+            <MapViewDirections
+              origin={{
+                latitude: providerLocation.latitude,
+                longitude: providerLocation.longitude,
+              }}
+              destination={{
+                latitude: patientLocation.latitude,
+                longitude: patientLocation.longitude,
+              }}
+              apikey={GOOGLE_MAPS_API_KEY}
+              strokeWidth={5}
+              strokeColor="#3B82F6"
+              mode="DRIVING"
+              optimizeWaypoints={true}
+              onReady={(result) => {
+                // Store route details for display
+                setRouteDistance(result.distance);
+                setRouteDuration(result.duration);
+                
+                // Update distance and duration with actual route values
+                setDistance(result.distance);
+                setDuration(Math.round(result.duration));
+                
+                // Fit map to show the entire route
+                if (mapRef.current) {
+                  mapRef.current.fitToCoordinates(
+                    [
+                      {
+                        latitude: providerLocation.latitude,
+                        longitude: providerLocation.longitude,
+                      },
+                      {
+                        latitude: patientLocation.latitude,
+                        longitude: patientLocation.longitude,
+                      },
+                    ],
+                    {
+                      edgePadding: { top: 100, right: 50, bottom: 100, left: 50 },
+                      animated: true,
+                    }
+                  );
+                }
+                console.log(`Route Distance: ${result.distance} km`);
+                console.log(`Route Duration: ${result.duration} minutes`);
+              }}
+              onError={(errorMessage) => {
+                console.log("MapViewDirections Error:", errorMessage);
+                // Fallback to existing route coordinates if available
+              }}
+            />
+          )}
         </MapView>
 
         <View style={styles.topBar}>
@@ -615,11 +738,16 @@ export default function ProviderRouteModal({
             ) : (
               <>
                 <Text style={styles.distanceText}>
-                  {distance.toFixed(1)} km away
+                  {routeDistance !== null ? routeDistance.toFixed(1) : distance.toFixed(1)} km away
                 </Text>
                 <Text style={styles.durationText}>
-                  ~{duration} min ETA
+                  ~{routeDuration !== null ? Math.round(routeDuration) : duration} min ETA
                 </Text>
+                {routeDistance !== null && routeDuration !== null && (
+                  <Text style={styles.routeInfoText}>
+                    Road route • {routeDistance.toFixed(1)} km • {Math.round(routeDuration)} min
+                  </Text>
+                )}
               </>
             )}
           </View>
@@ -627,7 +755,21 @@ export default function ProviderRouteModal({
 
         <View style={styles.bottomBar}>
           <View style={styles.statusInfo}>
-            <Text style={styles.statusLabel}>Heading to {patientName}</Text>
+            <Text style={styles.statusLabel}>Heading to {patientName} via road route</Text>
+            {routeDistance !== null && routeDuration !== null && (
+              <View style={styles.routeInfoContainer}>
+                <View style={styles.routeInfoRow}>
+                  <Feather name="map" size={14} color="#4F46E5" />
+                  <Text style={styles.routeInfoLabel}>Route Distance: </Text>
+                  <Text style={styles.routeInfoValue}>{routeDistance.toFixed(1)} km</Text>
+                </View>
+                <View style={styles.routeInfoRow}>
+                  <Feather name="clock" size={14} color="#4F46E5" />
+                  <Text style={styles.routeInfoLabel}>Route Duration: </Text>
+                  <Text style={styles.routeInfoValue}>{Math.round(routeDuration)} min</Text>
+                </View>
+              </View>
+            )}
             {isTracking && (
               <View style={styles.trackingIndicator}>
                 <View style={styles.trackingDot} />
@@ -670,7 +812,7 @@ export default function ProviderRouteModal({
             <Text style={styles.externalMapButtonText}>Open in Google Maps</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -691,7 +833,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
-    paddingTop: 50,
+    paddingTop: 15,
     paddingBottom: 15,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
@@ -719,6 +861,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b7280',
     marginTop: 4,
+  },
+  routeInfoText: {
+    fontSize: 11,
+    color: '#4F46E5',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  routeInfoContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 6,
+    gap: 4,
+  },
+  routeInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  routeInfoLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  routeInfoValue: {
+    fontSize: 12,
+    color: '#4F46E5',
+    fontWeight: '600',
   },
   bottomBar: {
     position: 'absolute',
