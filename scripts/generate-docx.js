@@ -135,8 +135,23 @@ async function main() {
   });
 
   const buffer = await Packer.toBuffer(doc);
-  fs.writeFileSync(OUTPUT_DOCX, buffer);
-  console.log(`\n✅ Generated: ${OUTPUT_DOCX}\nFiles included: ${files.length}`);
+  try {
+    fs.writeFileSync(OUTPUT_DOCX, buffer);
+    console.log(`\n✅ Generated: ${OUTPUT_DOCX}\nFiles included: ${files.length}`);
+  } catch (e) {
+    if (e && e.code === 'EBUSY') {
+      const stamp = new Date()
+        .toISOString()
+        .replace(/[:.]/g, '-')
+        .replace('T', '_')
+        .slice(0, 19);
+      const altPath = path.join(DOCS_DIR, `HealthConnect-Mobile-App-${stamp}.docx`);
+      fs.writeFileSync(altPath, buffer);
+      console.warn(`\n⚠️ Existing file locked. Wrote to: ${altPath}\nFiles included: ${files.length}`);
+    } else {
+      throw e;
+    }
+  }
 }
 
 main().catch((e) => {

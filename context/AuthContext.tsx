@@ -158,7 +158,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     } catch (error: any) {
       console.error("Login failed:", error.response?.data?.message || error.message);
-      // Clear any partial state on error
       setUser(null);
       await SecureStore.deleteItemAsync('user').catch(() => {});
       throw error;

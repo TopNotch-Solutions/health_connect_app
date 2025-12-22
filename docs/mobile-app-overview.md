@@ -166,3 +166,71 @@ npm run lint
 - Centralize environment configs (API base, socket URL, keys) via EAS secrets or `.env`
 - Add error surfaces and retry strategies for network outages
 - Add E2E and unit tests for critical flows (auth, requests, notifications)
+
+## Features
+
+- **Authentication**: Email + password login, secure session persisted via SecureStore; 5-minute inactivity timeout.
+- **Onboarding**: First-run detection via `hasSeenOnboarding` in AsyncStorage; role onboarding screens.
+- **Role-based navigation**: Patient vs provider sections under `(app)/(patient)` and `(app)/(provider)` with guarded redirects.
+- **Requests lifecycle**: Patients create requests; providers view and accept available requests; realtime status updates.
+- **Notifications**: Push notifications via `expo-notifications`; in-app screen for listing and marking as read.
+- **Maps & Location**: Google Maps integrated on Android; location permissions and coordinates handling.
+- **Wallet**: Placeholder screen primed for future transactions and history.
+- **Profile Modals**: Editable patient/provider profile components under `components/`.
+
+## Navigation Map
+
+- Root layout: `app/_layout.tsx` (protected stack)
+- Entry: `app/index.tsx`
+- Stacks:
+  - `(onboarding)/` → `onboarding-patient`, `onboarding-provider`, `onboarding-summary`
+  - `(root)/` → sign-in and selection flows (unauthenticated)
+  - `(auth)/`, `(verification)/` → authentication and verification screens
+  - `(app)/(patient)/` → patient home and features
+  - `(app)/(provider)/` → provider home and features
+
+## Socket Events (client)
+
+- Emitters:
+  - `join` → `{ userId, role }`
+  - `createRequest` → patient request payload
+  - `getAvailableRequests` → `{ providerId }`
+  - `getPatientRequests` → `{ patientId }`
+- Listeners:
+  - `requestCreated`, `requestUpdated`, `requestUpdate`
+  - `newRequestAvailable`, `availableRequests`
+  - `requestStatusChanged`, `providerUnavailable`, `providerResponse`
+- Robust cleanup: all listeners tracked and removed on disconnect to prevent leaks.
+
+## Testing
+
+- Unit tests can be added under `__tests__/` (Jest/React Testing Library recommended for RN).
+- Suggested coverage: `AuthContext` (login, timeout), socket request flows, notifications list, and routing guards.
+
+## Security & Privacy
+
+- Move API base, socket URL, and keys to environment config (EAS secrets or runtime `.env`) and avoid hardcoding sensitive values.
+- Use HTTPS for API and WSS for sockets in production; configure Network Security Config for Android if needed.
+- Limit retained PII in storage; prefer SecureStore for sensitive fields.
+- Validate and sanitize all user inputs on backend; enforce role-based authorization on server endpoints.
+
+## Known Limitations
+
+- **Session timeout**: 5 minutes of inactivity may be short for some workflows; adjust `SESSION_TIMEOUT` if needed.
+- **Push tokens**: Expo push requires physical devices; simulators won’t receive notifications.
+- **Maps**: Google Maps API key must be valid and provisioned; ensure platform SDKs are configured.
+- **Endpoints**: Current config uses plain HTTP; production should enforce HTTPS.
+
+## Setup (Quick)
+
+```bash
+npm install
+npx expo start
+npm run android # or npm run ios / npm run web
+```
+
+Generate Word technical package:
+
+```bash
+npm run export:docx
+```
