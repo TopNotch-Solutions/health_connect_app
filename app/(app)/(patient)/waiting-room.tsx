@@ -33,11 +33,13 @@ interface RequestStatus {
     cellphoneNumber: string;
     role: string;
     walletID: string;
+    profileImage?: string;
   };
   patientId?: {
     _id: string;
     fullname: string;
     walletID: string;
+    profileImage?: string;
   };
   providerResponse?: {
     responseTime: string;
@@ -105,7 +107,7 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
-const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest; onCancel?: (requestId: string) => void; patientLocation?: { latitude: number; longitude: number } | null }) => {
+const RequestCard = ({ item, onCancel, patientLocation, patientProfileImage }: { item: StoredRequest; onCancel?: (requestId: string) => void; patientLocation?: { latitude: number; longitude: number } | null; patientProfileImage?: string }) => {
   const request = item.request;
   const acceptedAt = item.acceptedAt;
   const expiresAt = acceptedAt + 24 * 60 * 60 * 1000; // 24 hours
@@ -114,6 +116,15 @@ const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest;
   const minutesRemaining = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
   const [isCancelling, setIsCancelling] = useState(false);
   const [trackingModalVisible, setTrackingModalVisible] = useState(false);
+
+  // Debug logging for profile images
+  useEffect(() => {
+    if (trackingModalVisible) {
+      console.log('RequestCard - Provider profileImage:', request.providerId?.profileImage);
+      console.log('RequestCard - Provider object:', JSON.stringify(request.providerId, null, 2));
+      console.log('RequestCard - Patient profileImage:', patientProfileImage);
+    }
+  }, [trackingModalVisible, request.providerId, patientProfileImage]);
 
   const handleCancel = async () => {
     Alert.alert(
@@ -268,6 +279,8 @@ const RequestCard = ({ item, onCancel, patientLocation }: { item: StoredRequest;
             patientLocation={patientLocation || request.address?.coordinates}
             providerName={request.providerId.fullname}
             providerRole={request.providerId.role}
+            providerProfileImage={request.providerId.profileImage}
+            patientProfileImage={patientProfileImage}
           />
         </>
       )}
@@ -617,7 +630,7 @@ export default function WaitingRoom() {
       <FlatList
         data={sortedRequests}
         keyExtractor={(item) => item.request._id}
-        renderItem={({ item }) => <RequestCard item={item} onCancel={handleRequestCancelled} patientLocation={patientLocation} />}
+        renderItem={({ item }) => <RequestCard item={item} onCancel={handleRequestCancelled} patientLocation={patientLocation} patientProfileImage={user?.profileImage} />}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View style={styles.headerContainer}>

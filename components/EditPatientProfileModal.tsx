@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { namibianRegions, townsByRegion } from '../constants/locations';
+import { namibianRegions } from '../constants/locations';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../lib/api';
 
@@ -51,7 +51,6 @@ const pickerStyle = {
 export default function EditPatientProfileModal({ visible, onClose }: EditPatientProfileModalProps) {
     const { user, updateUser } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
-    const [availableTowns, setAvailableTowns] = useState<{ label: string; value: string }[]>([]);
     const [showDatePicker, setShowDatePicker] = useState(false);
     
     // Parse dateOfBirth string to Date object, or use current date as fallback
@@ -68,18 +67,9 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
         dateOfBirth: parseDate(user?.dateOfBirth),
         gender: user?.gender || 'Male',
         address: user?.address || '',
-        town: user?.town || '',
         region: user?.region || '',
         nationalId: user?.nationalId || '',
     });
-
-    useEffect(() => {
-        if (formData.region) {
-            setAvailableTowns(townsByRegion[formData.region] || []);
-        } else {
-            setAvailableTowns([]);
-        }
-    }, [formData.region]);
 
     useEffect(() => {
         if (visible && user) {
@@ -90,7 +80,6 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                 dateOfBirth: parseDate(user.dateOfBirth),
                 gender: user.gender || 'Male',
                 address: user.address || '',
-                town: user.town || '',
                 region: user.region || '',
                 nationalId: user.nationalId || '',
             });
@@ -135,7 +124,6 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
             currentDate !== originalDate ||
             formData.gender !== (user.gender || 'Male') ||
             formData.address !== (user.address || '') ||
-            formData.town !== (user.town || '') ||
             formData.region !== (user.region || '') ||
             formData.nationalId !== (user.nationalId || '')
         );
@@ -169,10 +157,6 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
             Alert.alert('Error', 'Address is required');
             return;
         }
-        if (!formData.town.trim()) {
-            Alert.alert('Error', 'Town is required');
-            return;
-        }
         if (!formData.region.trim()) {
             Alert.alert('Error', 'Region is required');
             return;
@@ -189,7 +173,6 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                     dateOfBirth: formatDate(formData.dateOfBirth),
                     gender: formData.gender,
                     address: formData.address,
-                    town: formData.town,
                     region: formData.region,
                     nationalId: formData.nationalId,
                 }
@@ -202,7 +185,6 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                 dateOfBirth: formatDate(formData.dateOfBirth),
                 gender: formData.gender,
                 address: formData.address,
-                town: formData.town,
                 region: formData.region,
                 nationalId: formData.nationalId,
             });
@@ -364,7 +346,7 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                         <View style={styles.pickerContainer}>
                             <RNPickerSelect
                                 onValueChange={(value) => {
-                                    setFormData({ ...formData, region: value, town: '' });
+                                    setFormData({ ...formData, region: value });
                                 }}
                                 items={namibianRegions}
                                 placeholder={{ label: 'Select a region...', value: null }}
@@ -374,29 +356,6 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                             />
                             <View style={styles.pickerIcon}>
                                 <Feather name="chevron-down" size={20} color="#10B981" />
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Town */}
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.label}>Town</Text>
-                        <View style={[styles.pickerContainer, !formData.region && styles.pickerContainerDisabled]}>
-                            <RNPickerSelect
-                                onValueChange={(value) => setFormData({ ...formData, town: value })}
-                                items={availableTowns}
-                                placeholder={{ label: 'Select a town...', value: null }}
-                                value={formData.town}
-                                disabled={!formData.region}
-                                style={pickerStyle as any}
-                                useNativeAndroidPickerStyle={false}
-                            />
-                            <View style={styles.pickerIcon}>
-                                <Feather
-                                    name="chevron-down"
-                                    size={20}
-                                    color={formData.region ? '#10B981' : '#D1D5DB'}
-                                />
                             </View>
                         </View>
                     </View>

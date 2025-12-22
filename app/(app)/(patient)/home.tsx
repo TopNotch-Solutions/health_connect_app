@@ -10,6 +10,7 @@ import {
   FlatList,
   Image,
   Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -180,23 +181,7 @@ const healthTips = [
   },
 ];
 
-// Ailment categories will be fetched from backend
-// const defaultAilmentCategories = assignAilmentIcons([
-//   { _id: '1', title: 'Flu, Cold & Cough Symptoms', provider: 'Doctor', icon: bacteriaIcon },
-//   { _id: '2', title: 'Sore Throat & Ear Ache', provider: 'Doctor', icon: painIcon },
-//   { _id: '3', title: 'New or Worsening Skin Rash', provider: 'Nurse', icon: mosquitoIcon },
-//   { _id: '4', title: 'Headaches or Migraines', provider: 'Doctor', icon: bloodPressureIcon },
-//   { _id: '5', title: 'Elderly Parent Wellness Check', provider: 'Social Worker', icon: careIcon },
-//   { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist', icon: woundCareIcon },
-// ]);
-const defaultAilmentCategories = assignAilmentIcons([
-  { _id: '1', title: 'Bladder Infection / UTI Symptoms', provider: 'Doctor' },
-  { _id: '2', title: 'Back, Neck or Shoulder Pain', provider: 'Doctor' },
-  { _id: '3', title: 'Allergic Reactions or Bites', provider: 'Nurse' },
-  { _id: '4', title: 'Blood Pressure & Sugar Monitoring', provider: 'Doctor' },
-  { _id: '5', title: 'Caregiver Stress & Burnout', provider: 'Social Worker' },
-  { _id: '6', title: 'Assessment of a Sports Injury', provider: 'Physiotherapist' },
-]);
+// Ailment categories are fetched from backend API
 
 // --- Reusable Components for this Screen ---
 const HealthTipCard = ({ item }: { item: (typeof healthTips)[0] }) => (
@@ -247,7 +232,7 @@ const AilmentCard = ({ item, onPress }: { item: any; onPress: () => void; }) => 
       onPress={onPress}
       className="w-[48%] mb-4 rounded-2xl overflow-hidden"
       style={{
-        height: 180,
+        height: 150,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
@@ -463,6 +448,7 @@ export default function PatientHomeScreen() {
   const [currentAdvertIndex, setCurrentAdvertIndex] = useState(0);
   const [advertImageLoading, setAdvertImageLoading] = useState(true);
   const [advertImageError, setAdvertImageError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const slideAnim = React.useRef(new Animated.Value(0)).current;
   const advertSlideAnim = React.useRef(new Animated.Value(0)).current;
   
@@ -745,6 +731,23 @@ export default function PatientHomeScreen() {
     }, [loadRecentRequests, loadAdverts])
   );
 
+  // Universal refresh function
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Refresh all data in parallel
+      await Promise.all([
+        loadAilmentCategories(),
+        loadAdverts(),
+        loadRecentRequests(),
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadAilmentCategories, loadAdverts, loadRecentRequests]);
+
   // Request location permissions on mount
   useEffect(() => {
     (async () => {
@@ -803,9 +806,10 @@ export default function PatientHomeScreen() {
     locality: string;
     region: string;
     preferredTime?: string;
+    coordinates?: { latitude: number; longitude: number };
   }) => {
-    // Check if location is available, if not try to get it again
-    let currentLocation = location;
+    // Use coordinates from the modal if provided, otherwise try to get current location
+    let currentLocation = requestData.coordinates || location;
     
     if (!currentLocation) {
       try {
@@ -900,7 +904,17 @@ export default function PatientHomeScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom', 'left', 'right']}>
       <View className="flex-1 p-2">
-        <ScrollView className="flex-1">
+        <ScrollView 
+          className="flex-1"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#10B981']}
+              tintColor="#10B981"
+            />
+          }
+        >
           <View className="px-4 pb-2">
             <View>
               <Text className="text-2xl font-bold">
@@ -1050,9 +1064,9 @@ export default function PatientHomeScreen() {
               <View className="items-center justify-center py-8">
                 <Text className="text-gray-600">Loading ailments...</Text>
               </View>
-            ) : (
+            ) : ailmentCategories.length > 0 ? (
               <FlatList
-                data={ailmentCategories.length > 0 ? ailmentCategories.slice(0, 6) : defaultAilmentCategories.slice(0, 6)}
+                data={ailmentCategories.slice(0, 6)}
                 keyExtractor={(item) => item._id}
                 numColumns={2}
                 scrollEnabled={false} // Disable scrolling for this nested list
@@ -1061,6 +1075,10 @@ export default function PatientHomeScreen() {
                   <AilmentCard item={item} onPress={() => handleAilmentSelect(item)} />
                 )}
               />
+            ) : (
+              <View className="items-center justify-center py-8">
+                <Text className="text-gray-500">No ailments available</Text>
+              </View>
             )}
           </View>
 

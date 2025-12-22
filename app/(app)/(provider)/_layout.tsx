@@ -1,15 +1,49 @@
 import { useAuth } from "@/context/AuthContext";
 import { Feather } from "@expo/vector-icons";
-import { Tabs, useRouter } from "expo-router";
+import { Tabs, useRouter, useFocusEffect, usePathname } from "expo-router";
 import { TouchableOpacity, View, Text, StyleSheet } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import apiClient from "@/lib/api";
 
 export default function ProviderTabsLayout() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
+
+  // Fetch unread notification count
+  const fetchUnreadCount = useCallback(async () => {
+    if (!user?.userId) return;
+    try {
+      console.log('Fetching unread count for user:', user.userId);
+      const response = await apiClient.get(`/app/notification/unread-count/${user.userId}`);
+      console.log('Unread count response:', response.data);
+      
+      // API response structure: { status: true, data: { unReadCount: number } }
+      const count = response.data?.data?.unReadCount || 0;
+      console.log('Parsed unread count:', count);
+      setUnreadCount(count); // Store actual count
+    } catch (error: any) {
+      console.error("Error fetching unread count:", error);
+      console.error("Error details:", error.response?.data);
+      setUnreadCount(0);
+    }
+  }, [user?.userId]);
+
+  // Fetch count when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchUnreadCount();
+    }, [fetchUnreadCount])
+  );
+
+  // Fetch count when route changes (user navigates between tabs/pages)
+  useEffect(() => {
+    fetchUnreadCount();
+  }, [pathname, fetchUnreadCount]);
 
   const handleLogout = async () => {
     try {
@@ -43,7 +77,16 @@ export default function ProviderTabsLayout() {
               accessibilityRole="button"
               accessibilityLabel="Open notifications"
             >
-              <Feather name="bell" size={22} />
+              <View style={styles.bellContainer}>
+                <Feather name="bell" size={22} />
+                {unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {unreadCount > 100 ? '99+' : unreadCount.toString()}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
 
             {/* Logout button */}
@@ -134,6 +177,28 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: 8,
     marginRight: 12,
+  },
+  bellContainer: {
+    position: "relative",
+  },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -8,
+    backgroundColor: "#ef4444",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "bold",
   },
   logoutButton: {
     flexDirection: "row",

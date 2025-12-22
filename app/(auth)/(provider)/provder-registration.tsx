@@ -1,12 +1,12 @@
 ﻿import { Feather } from '@expo/vector-icons';
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as DocumentPicker from 'expo-document-picker';
-import * as ImagePicker from 'expo-image-picker';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import * as Notifications from 'expo-notifications';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,8 +17,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Platform
+  View
 } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -654,8 +653,22 @@ export default function ProviderRegistrationScreen() {
       console.log('✅ Registration response:', res.status);
       
       if (res && (res.status === 201 || res.status === 200)) {
-        Alert.alert('Success', 'Registration complete.');
-        router.replace('/(app)/(provider)/home');
+        // Show success message
+        Alert.alert(
+          'Registration Successful', 
+          'Your account has been created successfully. Please sign in to continue.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Reset navigation stack and redirect to sign-in
+                // Using replace prevents going back to registration page
+                router.replace('/(root)/sign-in');
+              }
+            }
+          ],
+          { cancelable: false }
+        );
       } else {
         const errorMsg = res?.data?.message ?? 'Unable to register.';
         console.error('❌ Registration error:', errorMsg);

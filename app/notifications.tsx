@@ -113,7 +113,7 @@ const formatTimeAgo = (dateString: string): string => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
 };
 
-const NotificationCard = ({ item, onPress }: { item: Notification; onPress?: () => void }) => {
+const NotificationCard = ({ item, onPress, onDelete }: { item: Notification; onPress?: () => void; onDelete?: () => void }) => {
   const config = getNotificationConfig(item.type);
   const isUnread = item.status === 'sent' || item.status === 'delivered' || item.status === 'pending';
   const priority = item.priority || 'medium';
@@ -165,16 +165,30 @@ const NotificationCard = ({ item, onPress }: { item: Notification; onPress?: () 
           
           <View style={styles.footer}>
             <Text style={styles.time}>{formatTimeAgo(item.createdAt)}</Text>
-            {priority === 'urgent' && (
-              <View style={styles.urgentBadge}>
-                <Text style={styles.urgentText}>Urgent</Text>
-              </View>
-            )}
-            {priority === 'high' && (
-              <View style={styles.highBadge}>
-                <Text style={styles.highText}>High</Text>
-              </View>
-            )}
+            <View style={styles.footerRight}>
+              {priority === 'urgent' && (
+                <View style={styles.urgentBadge}>
+                  <Text style={styles.urgentText}>Urgent</Text>
+                </View>
+              )}
+              {priority === 'high' && (
+                <View style={styles.highBadge}>
+                  <Text style={styles.highText}>High</Text>
+                </View>
+              )}
+              {onDelete && (
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                  style={styles.deleteButton}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="trash-2" size={16} color="#EF4444" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
       </View>
@@ -228,6 +242,18 @@ export default function NotificationsScreen() {
             );
         } catch (error: any) {
             console.error("Mark as read error:", error.message);
+        }
+    }, []);
+
+    const deleteNotification = useCallback(async (notificationId: string) => {
+        try {
+            await apiClient.delete(`/app/notification/delete-notification/${notificationId}`);
+            
+            // Remove deleted notification from state
+            setNotifications(prev => prev.filter(n => n._id !== notificationId));
+        } catch (error: any) {
+            console.error("Delete notification error:", error.message);
+            console.error("Error details:", error.response?.data);
         }
     }, []);
 
@@ -315,6 +341,7 @@ export default function NotificationsScreen() {
                                     markAsRead(item._id);
                                 }
                             }}
+                            onDelete={() => deleteNotification(item._id)}
                         />
                     )}
                     contentContainerStyle={styles.listContent}
@@ -485,9 +512,18 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginTop: 4,
     },
+    footerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
     time: {
         fontSize: 12,
         color: '#9CA3AF',
+    },
+    deleteButton: {
+        padding: 4,
+        marginLeft: 4,
     },
     urgentBadge: {
         backgroundColor: '#FEE2E2',

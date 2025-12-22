@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -34,6 +35,7 @@ const getGreeting = () => {
 export default function ProviderHome() {
   const [requests, setRequests] = useState<any[]>([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -155,6 +157,18 @@ export default function ProviderHome() {
     }, [user?.userId, loadAvailableRequests])
   );
 
+  // Universal refresh function
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadAvailableRequests();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadAvailableRequests]);
+
   // Listen for new request notifications
   useEffect(() => {
     const handleNewRequest = (request: any) => {
@@ -173,10 +187,18 @@ export default function ProviderHome() {
   // Route arrival/cancel handlers moved to GlobalRouteModal via RouteContext.
 
   const handleAccept = async (request: any) => {
-    if (!user?.userId) return;
+    // Double check user is available
+    if (!user || !user.userId) {
+      console.error('Cannot accept request: user is not available');
+      Alert.alert('Error', 'User session not available. Please try again.');
+      return;
+    }
+
+    const currentUserId = user.userId; // Store userId to avoid issues if user becomes null
+    
     try {
         // 1) Accept on backend (assign provider)
-        await socketService.acceptRequest(request._id, user.userId);
+        await socketService.acceptRequest(request._id, currentUserId);
 
         // 2) Open global route modal immediately for fast UX
         startRoute(request);
@@ -185,6 +207,12 @@ export default function ProviderHome() {
         // 3) In background, request location and send en_route with coords (backend requires location)
         (async () => {
           try {
+            // Re-check user in case it changed
+            if (!user || !user.userId) {
+              console.warn('User not available in background task');
+              return;
+            }
+
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
               console.warn('Location permission not granted; cannot send en_route with coordinates');
@@ -194,7 +222,7 @@ export default function ProviderHome() {
             const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
             const providerCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
 
-            await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
+            await socketService.updateRequestStatus(request._id, currentUserId, 'en_route', providerCoords);
             console.log('✅ Sent en_route with provider coordinates');
           } catch (bgError: any) {
             console.warn('Failed to send en_route with coords:', bgError?.message || bgError);
@@ -204,6 +232,7 @@ export default function ProviderHome() {
         // 4) Remove request locally from home list
         setRequests((prev) => prev.filter((req) => req._id !== request._id));
     } catch (error: any) {
+        console.error('Error accepting request:', error);
         Alert.alert('Error', error.message || 'Failed to accept request');
     }
   };
@@ -225,7 +254,17 @@ export default function ProviderHome() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={['bottom', 'left', 'right']}>
-      <ScrollView className="flex-1">
+      <ScrollView 
+        className="flex-1"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#3B82F6']}
+            tintColor="#3B82F6"
+          />
+        }
+      >
         {/* Header with provider name + Online/Offline toggle */}
         <View className="bg-white pt-6 pb-4 px-6 border-b border-gray-200">
           <View className="flex-row items-center justify-between">
