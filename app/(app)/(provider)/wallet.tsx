@@ -237,20 +237,27 @@ export default function TransactionsScreen() {
                 )}
             </SafeAreaView>
 
-            <BottomSheet ref={addMoneySheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backgroundStyle={{ backgroundColor: '#F9FAFB' }}>
-                <BottomSheetView className="p-6">
+            <BottomSheet
+                ref={addMoneySheetRef}
+                index={-1}
+                snapPoints={snapPoints}
+                enablePanDownToClose
+                backgroundStyle={{ backgroundColor: '#FFFFFF', borderRadius: 24 }}
+                handleIndicatorStyle={{ backgroundColor: '#9CA3AF', width: 40 }}
+            >
+                <BottomSheetView style={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 0 }}>
                     <View className="flex-row justify-between items-center mb-4">
                         <Text className="text-2xl font-bold text-text-main">Add Money to Wallet</Text>
                         <TouchableOpacity onPress={() => addMoneySheetRef.current?.close()}>
                             <Feather name="x" size={24} color="#374151" />
                         </TouchableOpacity>
                     </View>
-                    <TextInput value={addMoneyForm.amount} onChangeText={v => setAddMoneyForm(p => ({ ...p, amount: v }))} placeholder="Amount (N$)" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" keyboardType="numeric"/>
-                    <TextInput value={addMoneyForm.cardHolder} onChangeText={v => setAddMoneyForm(p => ({ ...p, cardHolder: v }))} placeholder="Cardholder Name" className="bg-white p-4 rounded-xl mb-3 border border-gray-200"/>
-                    <TextInput value={addMoneyForm.cardNumber} onChangeText={v => setAddMoneyForm(p => ({ ...p, cardNumber: v }))} placeholder="Card Number" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" keyboardType="numeric"/>
+                    <TextInput value={addMoneyForm.amount} onChangeText={v => setAddMoneyForm(p => ({ ...p, amount: v }))} placeholder="Amount (N$)" className="bg-white p-4 rounded-2xl mb-3 border border-gray-200" keyboardType="numeric" placeholderTextColor="#9CA3AF"/>
+                    <TextInput value={addMoneyForm.cardHolder} onChangeText={v => setAddMoneyForm(p => ({ ...p, cardHolder: v }))} placeholder="Cardholder Name" className="bg-white p-4 rounded-2xl mb-3 border border-gray-200" placeholderTextColor="#9CA3AF"/>
+                    <TextInput value={addMoneyForm.cardNumber} onChangeText={v => setAddMoneyForm(p => ({ ...p, cardNumber: v }))} placeholder="Card Number" className="bg-white p-4 rounded-2xl mb-3 border border-gray-200" keyboardType="numeric" placeholderTextColor="#9CA3AF"/>
                     <View className="flex-row" style={{ gap: 12 }}>
-                        <TextInput value={addMoneyForm.expiryDate} onChangeText={v => setAddMoneyForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }))} placeholder="Expiry (MM/YY)" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" maxLength={5}/>
-                        <TextInput value={addMoneyForm.cvv} onChangeText={v => setAddMoneyForm(p => ({ ...p, cvv: v }))} placeholder="CVV" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" keyboardType="numeric" secureTextEntry/>
+                        <TextInput value={addMoneyForm.expiryDate} onChangeText={v => setAddMoneyForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }))} placeholder="MM/YY" className="bg-white p-4 rounded-2xl mb-4 flex-1 border border-gray-200" maxLength={5} placeholderTextColor="#9CA3AF"/>
+                        <TextInput value={addMoneyForm.cvv} onChangeText={v => setAddMoneyForm(p => ({ ...p, cvv: v }))} placeholder="CVV" className="bg-white p-4 rounded-2xl mb-4 flex-1 border border-gray-200" keyboardType="numeric" secureTextEntry placeholderTextColor="#9CA3AF"/>
                     </View>
                     <TouchableOpacity onPress={handleAddMoney} disabled={isSubmitting} className={`bg-green-600 p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
                         {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Confirm Deposit</Text>}
@@ -258,21 +265,28 @@ export default function TransactionsScreen() {
                 </BottomSheetView>
             </BottomSheet>
 
-            <BottomSheet ref={fundOthersSheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backgroundStyle={{ backgroundColor: '#F9FAFB' }}>
-                <BottomSheetView className="p-6">
+            <BottomSheet
+                ref={fundOthersSheetRef}
+                index={-1}
+                snapPoints={snapPoints}
+                enablePanDownToClose
+                backgroundStyle={{ backgroundColor: '#FFFFFF', borderRadius: 24 }}
+                handleIndicatorStyle={{ backgroundColor: '#9CA3AF', width: 40 }}
+            >
+                <BottomSheetView style={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 0 }}>
                     <View className="flex-row justify-between items-center mb-4">
                         <Text className="text-2xl font-bold text-text-main">Send Funds</Text>
                         <TouchableOpacity onPress={() => fundOthersSheetRef.current?.close()}>
                             <Feather name="x" size={24} color="#374151" />
                         </TouchableOpacity>
                     </View>
-                    <TextInput value={fundOthersForm.walletID} onChangeText={v => setFundOthersForm(p => ({ ...p, walletID: v }))} placeholder="Recipient's Wallet ID" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" />
-                    <TextInput value={fundOthersForm.amount} onChangeText={v => setFundOthersForm(p => ({ ...p, amount: v }))} placeholder="Amount (N$)" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" keyboardType="numeric"/>
-                    <TextInput value={fundOthersForm.cardHolder} onChangeText={v => setFundOthersForm(p => ({ ...p, cardHolder: v }))} placeholder="Cardholder Name" className="bg-white p-4 rounded-xl mb-3 border border-gray-200"/>
-                    <TextInput value={fundOthersForm.cardNumber} onChangeText={v => setFundOthersForm(p => ({ ...p, cardNumber: v }))} placeholder="Card Number" className="bg-white p-4 rounded-xl mb-3 border border-gray-200" keyboardType="numeric"/>
+                    <TextInput value={fundOthersForm.walletID} onChangeText={v => setFundOthersForm(p => ({ ...p, walletID: v }))} placeholder="Recipient's Wallet ID" className="bg-white p-4 rounded-2xl mb-3 border border-gray-200 text-gray-700" placeholderTextColor="#9CA3AF" />
+                    <TextInput value={fundOthersForm.amount} onChangeText={v => setFundOthersForm(p => ({ ...p, amount: v }))} placeholder="Amount (N$)" className="bg-white p-4 rounded-2xl mb-3 border border-gray-200" keyboardType="numeric" placeholderTextColor="#9CA3AF"/>
+                    <TextInput value={fundOthersForm.cardHolder} onChangeText={v => setFundOthersForm(p => ({ ...p, cardHolder: v }))} placeholder="Cardholder Name" className="bg-white p-4 rounded-2xl mb-3 border border-gray-200" placeholderTextColor="#9CA3AF"/>
+                    <TextInput value={fundOthersForm.cardNumber} onChangeText={v => setFundOthersForm(p => ({ ...p, cardNumber: v }))} placeholder="Card Number" className="bg-white p-4 rounded-2xl mb-3 border border-gray-200" keyboardType="numeric" placeholderTextColor="#9CA3AF"/>
                     <View className="flex-row" style={{ gap: 12 }}>
-                        <TextInput value={fundOthersForm.expiryDate} onChangeText={v => setFundOthersForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }))} placeholder="Expiry (MM/YY)" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" maxLength={5}/>
-                        <TextInput value={fundOthersForm.cvv} onChangeText={v => setFundOthersForm(p => ({ ...p, cvv: v }))} placeholder="CVV" className="bg-white p-4 rounded-xl mb-4 flex-1 border border-gray-200" keyboardType="numeric" secureTextEntry/>
+                        <TextInput value={fundOthersForm.expiryDate} onChangeText={v => setFundOthersForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }))} placeholder="MM/YY" className="bg-white p-4 rounded-2xl mb-4 flex-1 border border-gray-200" maxLength={5} placeholderTextColor="#9CA3AF"/>
+                        <TextInput value={fundOthersForm.cvv} onChangeText={v => setFundOthersForm(p => ({ ...p, cvv: v }))} placeholder="CVV" className="bg-white p-4 rounded-2xl mb-4 flex-1 border border-gray-200" keyboardType="numeric" secureTextEntry placeholderTextColor="#9CA3AF"/>
                     </View>
                     <TouchableOpacity onPress={handleFundOthers} disabled={isSubmitting} className={`bg-green-600 p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
                         {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Send Money</Text>}
@@ -280,15 +294,22 @@ export default function TransactionsScreen() {
                 </BottomSheetView>
             </BottomSheet>
 
-            <BottomSheet ref={withdrawSheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backgroundStyle={{ backgroundColor: '#F9FAFB' }}>
-                <BottomSheetView className="p-6">
+            <BottomSheet
+                ref={withdrawSheetRef}
+                index={-1}
+                snapPoints={snapPoints}
+                enablePanDownToClose
+                backgroundStyle={{ backgroundColor: '#FFFFFF', borderRadius: 24 }}
+                handleIndicatorStyle={{ backgroundColor: '#9CA3AF', width: 40 }}
+            >
+                <BottomSheetView style={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 0 }}>
                     <View className="flex-row justify-between items-center mb-4">
                         <Text className="text-2xl font-bold text-text-main">Withdraw to Card</Text>
                         <TouchableOpacity onPress={() => withdrawSheetRef.current?.close()}>
                             <Feather name="x" size={24} color="#374151" />
                         </TouchableOpacity>
                     </View>
-                    <TextInput value={withdrawForm.amount} onChangeText={v => setWithdrawForm(p => ({ ...p, amount: v }))} placeholder="Amount to Withdraw (N$)" className="bg-white p-4 rounded-xl mb-4 border border-gray-200" keyboardType="numeric"/>
+                    <TextInput value={withdrawForm.amount} onChangeText={v => setWithdrawForm(p => ({ ...p, amount: v }))} placeholder="Amount to Withdraw (N$)" className="bg-white p-4 rounded-2xl mb-4 border border-gray-200" keyboardType="numeric" placeholderTextColor="#9CA3AF"/>
                     <TouchableOpacity onPress={handleWithdraw} disabled={isSubmitting} className={`bg-green-600 p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
                         {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Confirm Withdrawal</Text>}
                     </TouchableOpacity>
