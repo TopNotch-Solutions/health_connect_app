@@ -43,6 +43,8 @@ const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg';
 const IMAGE_BASE_URL = 'http://13.61.152.64:4000/images/';
+const [mapReady, setMapReady] = useState(false);
+
 
 // ✅ Helper to normalize coordinates (handles both formats)
 const normalizeCoordinate = (coord: any): { latitude: number; longitude: number } | null => {
@@ -103,6 +105,10 @@ export default function ProviderRouteModal({
   const routeInitializedRef = useRef(false);
   const locationSubscriptionRef = useRef<any>(null);
   const arrivedRef = useRef(false);
+  const lastEmitRef = useRef(0);
+  const hasFittedRouteRef = useRef(false);
+
+
   
   // ✅ Normalize patient location on mount
   const patientLocation = normalizeCoordinate(rawPatientLocation);
@@ -134,13 +140,10 @@ export default function ProviderRouteModal({
 
   // Stop speech when modal closes
   useEffect(() => {
-    if (!visible) {
-      Speech.stop();
-    }
     return () => {
       Speech.stop();
     };
-  }, [visible]);
+  }, []);
 
   const speak = (text: string) => {
     Speech.speak(text, {
@@ -309,7 +312,7 @@ export default function ProviderRouteModal({
     try {
       console.log('📍 Getting provider current location...');
       const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+        accuracy: Location.Accuracy.Balanced,
       });
 
       const providerCoords = {
@@ -358,8 +361,8 @@ export default function ProviderRouteModal({
       locationSubscriptionRef.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
-          timeInterval: 15000, // Update every 15 seconds to reduce server load
-          distanceInterval: 100, // Update every 100 meters
+          timeInterval: 20000, // Update every 15 seconds to reduce server load
+          distanceInterval: 150, // Update every 100 meters
         },
         async (location) => {
           const newProviderLocation = {
@@ -374,7 +377,16 @@ export default function ProviderRouteModal({
           }
 
           setProviderLocation(newProviderLocation);
-          socketService.updateProviderLocation(requestId, providerId, newProviderLocation);
+          const now = Date.now();
+          // Emit at most once every 10 seconds
+          if (now - lastEmitRef.current > 10000) {
+            socketService.updateProviderLocation(
+              requestId,
+              providerId,
+              newProviderLocation
+            );
+            lastEmitRef.current = now;
+          }
 
           if (isValidCoordinate(patientLocation)) {
             try {
@@ -525,16 +537,15 @@ export default function ProviderRouteModal({
   }, [visible, patientLocation, initializeRoute]);
 
   useEffect(() => {
-    if (visible) {
+    if (visible && mapReady) {
       startTracking();
     } else {
       stopTracking();
     }
-
     return () => {
       stopTracking();
     };
-  }, [visible, startTracking, stopTracking]);
+  }, [visible, startTracking, stopTracking, mapReady]);
 
   useEffect(() => {
     return () => {
@@ -581,6 +592,7 @@ export default function ProviderRouteModal({
     >
       <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
         <MapView
+          onMapReady={() => setMapReady(false)}
           ref={mapRef}
           style={styles.map}
           provider={PROVIDER_GOOGLE}
@@ -666,61 +678,7 @@ export default function ProviderRouteModal({
               )}
             </View>
           </Marker>
-
-          {/* Route directions using MapViewDirections - Shows the road route provider needs to travel */}
-          {isValidCoordinate(providerLocation) && 
-           isValidCoordinate(patientLocation) && (
-            <MapViewDirections
-              origin={{
-                latitude: providerLocation.latitude,
-                longitude: providerLocation.longitude,
-              }}
-              destination={{
-                latitude: patientLocation.latitude,
-                longitude: patientLocation.longitude,
-              }}
-              apikey={GOOGLE_MAPS_API_KEY}
-              strokeWidth={5}
-              strokeColor="#3B82F6"
-              mode="DRIVING"
-              optimizeWaypoints={true}
-              onReady={(result) => {
-                // Store route details for display
-                setRouteDistance(result.distance);
-                setRouteDuration(result.duration);
-                
-                // Update distance and duration with actual route values
-                setDistance(result.distance);
-                setDuration(Math.round(result.duration));
-                
-                // Fit map to show the entire route
-                if (mapRef.current) {
-                  mapRef.current.fitToCoordinates(
-                    [
-                      {
-                        latitude: providerLocation.latitude,
-                        longitude: providerLocation.longitude,
-                      },
-                      {
-                        latitude: patientLocation.latitude,
-                        longitude: patientLocation.longitude,
-                      },
-                    ],
-                    {
-                      edgePadding: { top: 100, right: 50, bottom: 100, left: 50 },
-                      animated: true,
-                    }
-                  );
-                }
-                console.log(`Route Distance: ${result.distance} km`);
-                console.log(`Route Duration: ${result.duration} minutes`);
-              }}
-              onError={(errorMessage) => {
-                console.log("MapViewDirections Error:", errorMessage);
-                // Fallback to existing route coordinates if available
-              }}
-            />
-          )}
+          
         </MapView>
 
         <View style={styles.topBar}>

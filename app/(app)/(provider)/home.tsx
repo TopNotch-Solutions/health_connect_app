@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -62,7 +63,7 @@ export default function ProviderHome() {
       
       // Wait for socket to be ready
       console.log('⏳ Waiting for socket to connect...');
-      await socketService.waitForConnection(5000);
+      await socketService.waitForConnection(10000);
       
       console.log('📡 Socket is ready, fetching requests');
       const availableRequests = await socketService.getAvailableRequests(user.userId);
@@ -230,7 +231,7 @@ export default function ProviderHome() {
         })();
 
         // 4) Remove request locally from home list
-        setRequests((prev) => prev.filter((req) => req._id !== request._id));
+        await loadAvailableRequests();
     } catch (error: any) {
         console.error('Error accepting request:', error);
         Alert.alert('Error', error.message || 'Failed to accept request');
@@ -436,9 +437,11 @@ export default function ProviderHome() {
           visible={!!selectedRequest}
           onRequestClose={() => setSelectedRequest(null)}
         >
-          <TouchableWithoutFeedback onPress={() => setSelectedRequest(null)}>
             <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback>
+              <Pressable 
+                style={StyleSheet.absoluteFill}
+                onPress={() => setSelectedRequest(null)}
+              />
                 <View className="bg-white rounded-2xl p-6 w-11/12 max-w-lg">
                   {/* Header */}
                   <View className="flex-row items-center justify-between mb-4">
@@ -514,6 +517,11 @@ export default function ProviderHome() {
                         <View className="rounded-xl overflow-hidden h-48 bg-gray-100 border border-gray-200">
                           <MapView
                             style={styles.map}
+                            pointerEvents="auto"
+                            scrollEnabled
+                            zoomEnabled
+                            rotateEnabled
+                            pitchEnabled
                             initialRegion={{
                               latitude: coords.latitude,
                               longitude: coords.longitude,
@@ -557,9 +565,7 @@ export default function ProviderHome() {
                     </TouchableOpacity>
                   </View>
                 </View>
-              </TouchableWithoutFeedback>
             </View>
-          </TouchableWithoutFeedback>
         </Modal>
       )}
 
