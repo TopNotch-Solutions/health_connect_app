@@ -9,11 +9,11 @@ const OnboardingSummaryScreen = () => {
   const router = useRouter();
 
   const handleGetStarted = () => {
-    router.push('/selection');
+    router.push('/sign-in');
   };
 
   const handleSkip = () => {
-    router.push('/selection');
+    router.push('/(root)/sign-in');
   };
 
   return (
