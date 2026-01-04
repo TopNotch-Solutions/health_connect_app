@@ -44,10 +44,10 @@ See dependencies in [health-connect/package.json](../package.json).
     - Stores an active provider route context (e.g., current request being navigated to).
 - Networking:
   - Axios client: [health-connect/lib/api.ts](../lib/api.ts)
-    - Base URL: `http://13.61.152.64:4000/api` with 120s default timeout; 180s for file uploads; timeout error normalization.
+    - Base URL: `http://13.51.207.99:4000/api` with 120s default timeout; 180s for file uploads; timeout error normalization.
 - Realtime:
   - Socket service: [health-connect/lib/socket.ts](../lib/socket.ts)
-    - Connects to `http://13.61.152.64:4000`, supports `connect/join/disconnect`, ensures cleanup of event listeners on disconnect.
+    - Connects to `http://13.51.207.99:4000`, supports `connect/join/disconnect`, ensures cleanup of event listeners on disconnect.
     - Exposes helpers for creating requests, fetching available/patient requests, and subscribing to updates (e.g., `requestUpdated`, `newRequestAvailable`).
 - Notifications:
   - Hook: [health-connect/hooks/usePushNotifications.ts](../hooks/usePushNotifications.ts)
@@ -98,8 +98,8 @@ See dependencies in [health-connect/package.json](../package.json).
 
 ## Environment & Secrets
 
-- API base: [lib/api.ts](../lib/api.ts) currently points to `http://13.61.152.64:4000/api`.
-- Socket base: [lib/socket.ts](../lib/socket.ts) points to `http://13.61.152.64:4000`.
+- API base: [lib/api.ts](../lib/api.ts) currently points to `http://13.51.207.99:4000/api`.
+- Socket base: [lib/socket.ts](../lib/socket.ts) points to `http://13.51.207.99:4000`.
 - Google Maps API key is embedded in `app.json` for Android.
 
 Recommendations:

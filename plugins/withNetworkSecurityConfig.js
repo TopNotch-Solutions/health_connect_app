@@ -26,7 +26,7 @@ module.exports = function withNetworkSecurityConfig(config) {
     </base-config>
     <!-- Allow cleartext traffic for specific IP addresses if needed -->
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">13.61.152.64</domain>
+        <domain includeSubdomains="true">13.51.207.99</domain>
     </domain-config>
 </network-security-config>`;
       

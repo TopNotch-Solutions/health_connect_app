@@ -34,7 +34,7 @@ const AilmentCard = ({
   item: Ailment; 
   onPress: () => void;
 }) => {
-  const AILMENT_IMAGE_BASE_URL = 'http://13.61.152.64:4000/ailments/';
+  const AILMENT_IMAGE_BASE_URL = 'http://13.51.207.99:4000/ailments/';
   const imageUri = item.image ? `${AILMENT_IMAGE_BASE_URL}${item.image}` : null;
   const [imageLoading, setImageLoading] = React.useState(true);
   const [imageError, setImageError] = React.useState(false);
@@ -183,7 +183,7 @@ export default function AllAilmentsScreen() {
             setAilments(mappedCategories);
             
             // Prefetch ailment images for faster loading
-            const AILMENT_IMAGE_BASE_URL = 'http://13.61.152.64:4000/ailments/';
+            const AILMENT_IMAGE_BASE_URL = 'http://13.51.207.99:4000/ailments/';
             mappedCategories.forEach((category: any) => {
               if (category.image) {
                 const imageUri = `${AILMENT_IMAGE_BASE_URL}${category.image}`;

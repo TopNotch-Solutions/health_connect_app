@@ -31,7 +31,7 @@ if (fs.existsSync(xmlConfigPath)) {
   } else {
     console.log('   ❌ Does NOT contain cleartextTrafficPermitted="true"');
   }
-  if (content.includes('13.61.152.64')) {
+  if (content.includes('13.51.207.99')) {
     console.log('   ✅ Contains server IP address');
   }
 } else {

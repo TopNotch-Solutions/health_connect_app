@@ -206,7 +206,7 @@ const HealthTipCard = ({ item }: { item: (typeof healthTips)[0] }) => (
 );
 
 const AilmentCard = ({ item, onPress }: { item: any; onPress: () => void; }) => {
-  const AILMENT_IMAGE_BASE_URL = 'http://13.61.152.64:4000/ailments/';
+  const AILMENT_IMAGE_BASE_URL = 'http://13.51.207.99:4000/ailments/';
   const imageUri = item.image ? `${AILMENT_IMAGE_BASE_URL}${item.image}` : null;
   const [imageLoading, setImageLoading] = React.useState(false);
   const [imageError, setImageError] = React.useState(false);
@@ -452,7 +452,7 @@ export default function PatientHomeScreen() {
   const slideAnim = React.useRef(new Animated.Value(0)).current;
   const advertSlideAnim = React.useRef(new Animated.Value(0)).current;
   
-  const IMAGE_BASE_URL = 'http://13.61.152.64:4000/adverts/';
+  const IMAGE_BASE_URL = 'http://13.51.207.99:4000/adverts/';
 
   // Function to fetch adverts from API
   const loadAdverts = useCallback(async () => {
@@ -463,7 +463,7 @@ export default function PatientHomeScreen() {
         setAdverts(response.data.adverts);
         
         // Prefetch all advert images for faster loading
-        const IMAGE_BASE_URL = 'http://13.61.152.64:4000/adverts/';
+        const IMAGE_BASE_URL = 'http://13.51.207.99:4000/adverts/';
         response.data.adverts.forEach((advert: Advert) => {
           if (advert.image) {
             const imageUri = `${IMAGE_BASE_URL}${advert.image}`;
@@ -512,7 +512,7 @@ export default function PatientHomeScreen() {
             setAilmentCategories(mappedCategories);
             
             // Prefetch ailment images for faster loading - prioritize first 6 for home page
-            const AILMENT_IMAGE_BASE_URL = 'http://13.61.152.64:4000/ailments/';
+            const AILMENT_IMAGE_BASE_URL = 'http://13.51.207.99:4000/ailments/';
             const categoriesToPrefetch = mappedCategories.slice(0, 6); // Only prefetch first 6 for home page
             
             // Prefetch in parallel for faster loading

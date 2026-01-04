@@ -1,10 +1,10 @@
 {
   "expo": {
-  "name": "HealthConnect",
+    "name": "HealthConnect",
     "slug": "project-health-connect",
     "version": "1.0.0",
     "orientation": "portrait",
-  "icon": "./assets/images/healthconnectlogo-cropped.png",
+    "icon": "./assets/images/healthconnectlogo-cropped.png",
     "scheme": "projecthealthconnect",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -56,7 +56,9 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to connect you with nearby healthcare providers."
         }
-      ]
+      ],
+      "expo-build-properties",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -67,6 +69,7 @@
       "eas": {
         "projectId": "d0f37ffa-941d-4292-987d-286deb2c310f"
       }
-    }
+    },
+    "owner": "talo_n1"
   }
 }

@@ -42,7 +42,7 @@ const LATITUDE_DELTA = 0.05;
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg';
-const IMAGE_BASE_URL = 'http://13.61.152.64:4000/images/';
+const IMAGE_BASE_URL = 'http://13.51.207.99:4000/images/';
 const [mapReady, setMapReady] = useState(false);
 
 

@@ -1,7 +1,7 @@
 # Network Error Troubleshooting Guide
 
 ## Problem
-Receiving network errors when making calls to `http://13.61.152.64:4000` on physical Android device.
+Receiving network errors when making calls to `http://13.51.207.99:4000` on physical Android device.
 
 ## Solutions
 
@@ -34,7 +34,7 @@ Also verify `AndroidManifest.xml` includes:
 
 **Test if device can reach the server:**
 1. Connect your device to the same network as your development machine
-2. Open a browser on the device and try: `http://13.61.152.64:4000`
+2. Open a browser on the device and try: `http://13.51.207.99:4000`
 3. If it doesn't load, the device cannot reach the server
 
 **Common issues:**
@@ -61,10 +61,10 @@ If the server is running on your local machine, use your computer's local IP ins
 Verify the server is running and accessible:
 ```bash
 # Test from your computer
-curl http://13.61.152.64:4000
+curl http://13.51.207.99:4000
 
 # Or check if port is open
-telnet 13.61.152.64 4000
+telnet 13.51.207.99 4000
 ```
 
 ### 6. Android Debugging
@@ -164,13 +164,13 @@ The app now includes network diagnostics. When you tap "Retry" on the connection
 
 3. **Test Server from Device Browser:**
    - Open Chrome on your device
-   - Navigate to: `http://13.61.152.64:4000`
+   - Navigate to: `http://13.51.207.99:4000`
    - If it doesn't load, the device cannot reach the server (not an app issue)
 
 4. **Verify Server is Running:**
    ```bash
    # From your computer
-   curl http://13.61.152.64:4000
+   curl http://13.51.207.99:4000
    ```
 
 5. **Try Clean Rebuild:**

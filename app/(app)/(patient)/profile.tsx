@@ -36,7 +36,7 @@ export default function ProfileScreen() {
     // This is the base URL where your backend serves images.
     // YOU MUST CONFIRM THIS from your backend's `server.js` or `app.js` file.
     // It's often where you see a line like `app.use(express.static('public'))`.
-    const IMAGE_BASE_URL = 'http://13.61.152.64:4000/images/';
+    const IMAGE_BASE_URL = 'http://13.51.207.99:4000/images/';
 
     const handlePickImage = async () => {
         try {

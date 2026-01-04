@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import socketService from '../../lib/socket';
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg';
-const IMAGE_BASE_URL = 'http://13.61.152.64:4000/images/';
+const IMAGE_BASE_URL = 'http://13.51.207.99:4000/images/';
 
 interface ProviderLocation {
   latitude: number;

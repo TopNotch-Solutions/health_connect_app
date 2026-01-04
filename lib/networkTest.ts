@@ -5,8 +5,8 @@
 
 import axios from 'axios';
 
-const SOCKET_URL = 'http://13.61.152.64:4000';
-const API_URL = 'http://13.61.152.64:4000/api';
+const SOCKET_URL = 'http://13.51.207.99:4000';
+const API_URL = 'http://13.51.207.99:4000/api';
 
 export interface NetworkTestResult {
   success: boolean;

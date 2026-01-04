@@ -32,7 +32,7 @@ export default function ProfileScreen() {
     const [changePasswordVisible, setChangePasswordVisible] = React.useState(false);
     const [selectedImage, setSelectedImage] = React.useState<ImagePicker.ImagePickerAsset | null>(null);
 
-    const IMAGE_BASE_URL = 'http://13.61.152.64:4000/images/';
+    const IMAGE_BASE_URL = 'http://13.51.207.99:4000/images/';
 
     const handlePickImage = async () => {
         try {
