@@ -21,10 +21,16 @@ import socketService from '../../../lib/socket';
 interface Ailment {
   _id: string;
   title: string;
-  provider: string;
+  provider?: string;
   description?: string;
   linkedSpecializations?: string[];
   image?: string;
+  specialization?: Array<{
+    _id: string;
+    title: string;
+    role: string;
+    description?: string;
+  }>;
 }
 
 const AilmentCard = ({ 
@@ -171,16 +177,39 @@ export default function AllAilmentsScreen() {
 
         const handleAilmentCategories = (categories: any) => {
           if (resolved) return;
-          resolved = true;
-          
-          console.log('📋 Received ailment categories from backend:', categories);
-          if (Array.isArray(categories) && categories.length > 0) {
-            // Ensure provider field is properly set
-            const mappedCategories = categories.map((category: any) => ({
-              ...category,
-              provider: category.provider || 'Other',
-            }));
-            setAilments(mappedCategories);
+  resolved = true;
+  
+  console.log('📋 Received ailment categories from backend:', categories);
+  
+  // ADD THESE LOGS:
+  console.log('📊 Total categories received:', categories?.length);
+  if (categories && categories.length > 0) {
+    console.log('📊 First category full data:', JSON.stringify(categories[0], null, 2));
+    console.log('📊 First category provider field:', categories[0].provider);
+    console.log('📊 Provider field type:', typeof categories[0].provider);
+    console.log('📊 All provider values:', categories.map((cat: any) => ({
+      title: cat.title,
+      provider: cat.provider
+    })));
+  }
+  
+  if (Array.isArray(categories) && categories.length > 0) {
+    // Ensure provider field is properly set from specialization roles
+    const mappedCategories = categories.map((category: any) => {
+      // Extract unique roles from specializations
+      const roles = category.specialization?.map((spec: any) => spec.role) || [];
+      const uniqueRoles = [...new Set(roles)];
+      const provider = uniqueRoles.length > 0 ? uniqueRoles.join(', ') : 'Other';
+      
+      return {
+        ...category,
+        provider,
+      };
+    });
+    // ADD THIS LOG AFTER MAPPING:
+    console.log('📊 After mapping - first category provider:', mappedCategories[0].provider);
+    
+    setAilments(mappedCategories);
             
             // Prefetch ailment images for faster loading
             const AILMENT_IMAGE_BASE_URL = 'http://13.51.207.99:4000/ailments/';
@@ -237,7 +266,7 @@ export default function AllAilmentsScreen() {
   const filteredAilments = ailments
     .filter((ailment: Ailment) =>
       ailment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ailment.provider.toLowerCase().includes(searchQuery.toLowerCase())
+      ailment.provider?.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a: Ailment, b: Ailment) => {
       return a.title.localeCompare(b.title);
@@ -354,7 +383,11 @@ export default function AllAilmentsScreen() {
           >
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
               {filteredAilments.map((item) => (
-                <AilmentCard key={item._id} item={item} onPress={() => handleAilmentSelect(item)} />
+                <AilmentCard 
+                  key={item._id} 
+                  item={item} 
+                  onPress={() => handleAilmentSelect(item)} 
+                />
               ))}
             </View>
           </ScrollView>
