@@ -17,11 +17,12 @@ const SignInScreen = () => {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [credentialError, setCredentialError] = useState<{ message: string; type: 'invalid' | 'network' | 'server' } | null>(null);
+  const credentialErrorAnim = useRef(new Animated.Value(0)).current;
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Start animations on mount
@@ -74,6 +75,7 @@ const SignInScreen = () => {
 
     try {
       setIsLoading(true);
+      setCredentialError(null);
       const user = await login(email, password);
       // Don't manually navigate - let the root layout handle it automatically
       // The _layout.tsx will detect the authentication change and redirect to the correct home screen
@@ -85,8 +87,42 @@ const SignInScreen = () => {
         status: error?.response?.status,
         error: error,
       });
-      const message = error?.response?.data?.message || error?.message || 'Failed to sign in. Please check your credentials and try again.';
-      Alert.alert('Login Failed', message);
+      
+      // Determine error type and message
+      const status = error?.response?.status;
+      const message = error?.response?.data?.message || error?.message;
+      
+      let errorType: 'invalid' | 'network' | 'server' = 'server';
+      let errorMessage = 'Failed to sign in. Please check your credentials and try again.';
+      
+      if (status === 401 || message?.toLowerCase().includes('invalid') || message?.toLowerCase().includes('incorrect')) {
+        errorType = 'invalid';
+        errorMessage = 'Invalid email or password. Please try again.';
+      } else if (status === 403 || message?.toLowerCase().includes('not found')) {
+        errorType = 'invalid';
+        errorMessage = 'No account found with this email address.';
+      } else if (!status || message?.toLowerCase().includes('network') || message?.toLowerCase().includes('timeout')) {
+        errorType = 'network';
+        errorMessage = 'Network error. Please check your connection and try again.';
+      }
+      
+      setCredentialError({ message: errorMessage, type: errorType });
+      
+      // Animate error appearance
+      Animated.sequence([
+        Animated.spring(credentialErrorAnim, {
+          toValue: 1,
+          friction: 6,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.delay(4000),
+        Animated.timing(credentialErrorAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } finally {
       setIsLoading(false);
     }
@@ -98,6 +134,10 @@ const SignInScreen = () => {
       if (emailError) {
         setEmailError('');
       }
+      // Clear credential error when user starts typing
+      if (credentialError) {
+        setCredentialError(null);
+      }
     } catch (error) {
       console.error('Error in handleEmailChange:', error);
     }
@@ -108,6 +148,10 @@ const SignInScreen = () => {
       setPassword(text);
       if (passwordError) {
         setPasswordError('');
+      }
+      // Clear credential error when user starts typing
+      if (credentialError) {
+        setCredentialError(null);
       }
     } catch (error) {
       console.error('Error in handlePasswordChange:', error);
@@ -155,10 +199,54 @@ const SignInScreen = () => {
 
         {/* Form Section */}
         <View className="mb-4">
-          <Text className="text-2xl mb-2 font-bold text-gray-500">Welcome</Text>
+          <Text className="text-2xl mb-2 font-bold text-gray-900">Welcome</Text>
+
+          {/* Credential Error Display */}
+          {credentialError && (
+            <Animated.View
+              style={{
+                opacity: credentialErrorAnim,
+                transform: [
+                  {
+                    translateY: credentialErrorAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-20, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <View
+                className="mb-4 rounded-lg px-4 py-3 flex-row items-start"
+                style={{
+                  backgroundColor: credentialError.type === 'invalid' ? '#FEE2E2' : '#FEF3C7',
+                  borderLeftWidth: 4,
+                  borderLeftColor: credentialError.type === 'invalid' ? '#EF4444' : '#F59E0B',
+                }}
+              >
+                <Feather
+                  name={credentialError.type === 'invalid' ? 'alert-circle' : 'wifi-off'}
+                  size={18}
+                  color={credentialError.type === 'invalid' ? '#DC2626' : '#D97706'}
+                  style={{ marginRight: 10, marginTop: 2 }}
+                />
+                <Text
+                  style={{
+                    color: credentialError.type === 'invalid' ? '#B91C1C' : '#92400E',
+                    fontSize: 14,
+                    fontWeight: '500',
+                    flex: 1,
+                  }}
+                >
+                  {credentialError.message}
+                </Text>
+              </View>
+            </Animated.View>
+          )}
+          
           {/* Email Input */}
           <View className="mb-5">
-            <Text className="text-base text-gray-700 mb-2 font-medium">Email</Text>
+            <Text className="text-base text-gray-900 mb-2 font-medium">Email</Text>
             <View 
               className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2"
               style={{
@@ -188,7 +276,7 @@ const SignInScreen = () => {
 
             {/* Password Input */}
             <View className="mb-4">
-              <Text className="text-base text-gray-700 mb-2 font-medium">Password</Text>
+              <Text className="text-base text-gray-900 mb-2 font-medium">Password</Text>
               <View 
                 className="flex-row items-center bg-white rounded-2xl px-5 py-4 border-2"
                 style={{

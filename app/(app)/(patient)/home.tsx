@@ -24,123 +24,16 @@ import apiClient from '../../../lib/api';
 import { getLocationCoordinates } from '../../../lib/geocoding';
 import socketService from '../../../lib/socket';
 
-// Import ailment icons directly
-const bacteriaIcon = require('../../../assets/icons/bacteria.png');
-const painIcon = require('../../../assets/icons/pain.png');
-const mosquitoIcon = require('../../../assets/icons/mosquito (1).png');
-const bloodPressureIcon = require('../../../assets/icons/blood-pressure-check.png');
-const careIcon = require('../../../assets/icons/care.png');
-const woundCareIcon = require('../../../assets/icons/wound-care.png');
-
 const AilmentIconMap: { [key: string]: any } = {
   // The KEY must EXACTLY match the 'title' from your backend (case-sensitive)
   'Allergic Reactions or Bites': require('../../../assets/icons/mosquito (1).png'),
   'Bladder Infection / UTI Symptoms': require('../../../assets/icons/bacteria.png'),
   'Blood Pressure & Sugar Monitoring': require('../../../assets/icons/blood-pressure-check.png'),
   'Caregiver Stress & Burnout': require('../../../assets/icons/care.png'),
-  'Assessment of a Sports Injury': require('../../../assets/icons/wound-care.png'), // Assuming 'check' is the right name
+  'Assessment of a Sports Injury': require('../../../assets/icons/wound-care.png'),
   'Back, Neck, or Shoulder Pain': require('../../../assets/icons/pain.png'),
 };
 
-const ailmentIcons = [
-  bacteriaIcon,
-  painIcon,
-  mosquitoIcon,
-  bloodPressureIcon,
-  careIcon,
-  woundCareIcon,
-];
-
-const assignAilmentIcons = (categories: any[] = []) => {
-  // Mapping keywords -> local asset
-  const keywordMap: { [key: string]: any } = {
-    bacteria: bacteriaIcon,
-    uti: bacteriaIcon,
-    bladder: bacteriaIcon,
-    pain: painIcon,
-    back: painIcon,
-    neck: painIcon,
-    shoulder: painIcon,
-    mosquito: mosquitoIcon,
-    allerg: mosquitoIcon,
-    bite: mosquitoIcon,
-    rash: mosquitoIcon,
-    blood: bloodPressureIcon,
-    pressure: bloodPressureIcon,
-    sugar: bloodPressureIcon,
-    bp: bloodPressureIcon,
-    care: careIcon,
-    caregiver: careIcon,
-    wound: woundCareIcon,
-    sport: woundCareIcon,
-    injury: woundCareIcon,
-    check: woundCareIcon,
-    assessment: woundCareIcon,
-  };
-
-  
-
-  const resolveFromString = (s: string, index: number) => {
-    const trimmed = s.trim();
-    if (!trimmed) return ailmentIcons[index % ailmentIcons.length];
-
-    // URL or data URI
-    const looksLikeUrl = /^https?:\/\//i.test(trimmed) || trimmed.startsWith('data:');
-    if (looksLikeUrl) return { uri: trimmed };
-
-    const lw = trimmed.toLowerCase();
-    // Try keyword map
-    for (const key of Object.keys(keywordMap)) {
-      if (lw.includes(key)) return keywordMap[key];
-    }
-
-    // Fallback: if string looks like a filename (contains png/jpg), try to map by filename
-    if (lw.includes('.png') || lw.includes('.jpg') || lw.includes('.jpeg')) {
-      if (lw.includes('bacteria')) return bacteriaIcon;
-      if (lw.includes('pain')) return painIcon;
-      if (lw.includes('mosquito')) return mosquitoIcon;
-      if (lw.includes('blood')) return bloodPressureIcon;
-      if (lw.includes('care')) return careIcon;
-      if (lw.includes('wound') || lw.includes('sport') || lw.includes('injury')) return woundCareIcon;
-    }
-
-    return ailmentIcons[index % ailmentIcons.length];
-  };
-
-  const mapped = categories.map((category = {}, index: number) => {
-    const fallbackIcon = ailmentIcons[index % ailmentIcons.length];
-    const rawIcon = category?.icon;
-    let resolvedIcon = fallbackIcon;
-
-    if (rawIcon) {
-      if (typeof rawIcon === 'string') {
-        resolvedIcon = resolveFromString(rawIcon, index);
-      } else {
-        // If backend already sent a require/object, use it
-        resolvedIcon = rawIcon;
-      }
-    } else {
-      // No icon provided by backend: infer from title or name
-      const title = (category && (category.title || category.name || '')) as string;
-      resolvedIcon = resolveFromString(title, index);
-    }
-
-    const out = {
-      ...category,
-      icon: resolvedIcon,
-    };
-
-    console.log(`🔧 assignAilmentIcons: resolved icon for [${index}] "${(category as any).title || (category as any).name || ''}" ->`,
-      typeof resolvedIcon === 'object' && (resolvedIcon as any).uri ? (resolvedIcon as any).uri : 'local-asset');
-
-    return out;
-  });
-
-  console.log('🧩 assignAilmentIcons -> input count:', categories?.length ?? 0);
-  console.log('🧩 assignAilmentIcons -> first mapped item:', mapped[0]);
-
-  return mapped;
-};
 // --- Dummy Data (for UI development, replace with API data later) ---
 const healthTips = [
   {
@@ -262,7 +155,7 @@ const AilmentCard = ({ item, onPress }: { item: any; onPress: () => void; }) => 
               width: '100%',
               height: '100%',
             }}
-            resizeMode="cover"
+            resizeMode="contain"
             onLoadStart={() => {
               // Only show loading indicator if image takes more than 150ms to load
               // This way prefetched images won't show loading
@@ -973,7 +866,7 @@ export default function PatientHomeScreen() {
                     <Image
                       source={{ uri: `${IMAGE_BASE_URL}${adverts[currentAdvertIndex].image}` }}
                       style={styles.advertImage}
-                      resizeMode="cover"
+                      resizeMode="contain"
                       onLoadStart={() => setAdvertImageLoading(true)}
                       onLoadEnd={() => setAdvertImageLoading(false)}
                       onError={() => {
