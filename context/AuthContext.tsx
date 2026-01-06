@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { AppState, AppStateStatus } from 'react-native';
 import apiClient from '../lib/api';
 import socketService from '../lib/socket';
+import { Alert } from 'react-native/Libraries/Alert/Alert';
 
 // --- The corrected and expanded User interface ---
 export interface User { // Exporting the interface so other files can use it
@@ -57,6 +58,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       setUser(null);
       await SecureStore.deleteItemAsync('user');
+      await SecureStore.deleteItemAsync('authToken');
       await SecureStore.deleteItemAsync(LAST_ACTIVITY_KEY);
     } catch (error) {
       console.error("Failed to logout:", error);
@@ -131,38 +133,94 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [user, checkSessionTimeout, updateLastActivity]);
 
-  // Login function
-  const login = async (email: string, password: string): Promise<User> => {
-    try {
-      // Make the API call first
-      const response = await apiClient.post('/app/auth/login', { 
-        email, 
-        password,
-      });
-      
-      if (response.data && response.data.user) {
-        const userData: User = response.data.user;
-        
-        // Clear old data and set new user atomically to avoid race conditions
-        await SecureStore.deleteItemAsync('user');
-        await SecureStore.setItemAsync('user', JSON.stringify(userData));
-        
-        // Set initial activity timestamp
-        await updateLastActivity();
-        
-        setUser(userData);
-        
-        return userData;
-      } else {
-        throw new Error('Login failed: Invalid response from server.');
+  useEffect(() => {
+    const fetchAppToken = async () => {
+      try {
+        const existingToken = await SecureStore.getItemAsync('appToken');
+        if (!existingToken) {
+          const response = await apiClient.get('http://13.51.207.99:4000/api/app/auth/retrieve-jwt-token');
+          const data = await response.data;
+
+          console.log("Fetch app token", data);
+
+          if (data && data.token) {
+            await SecureStore.setItemAsync('appToken', data.token);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch app token:", error);
       }
-    } catch (error: any) {
-      console.error("Login failed:", error.response?.data?.message || error.message);
-      setUser(null);
-      await SecureStore.deleteItemAsync('user').catch(() => {});
-      throw error;
+    };
+    fetchAppToken();
+  }, []);
+  // Login function
+  // Login function in AuthContext.tsx
+const login = async (email: string, password: string): Promise<User> => {
+  try {
+    // Make the API call first
+    const response = await apiClient.post('/app/auth/login', { 
+      email, 
+      password,
+    });
+    
+    console.log('Login response:', response.data); // Debug log
+    
+    if (response.data && response.data.user) {
+      const userDataWithToken = response.data.user;
+      
+      // Extract the token
+      const token = userDataWithToken.token;
+      
+      if (!token) {
+        console.error('Token not found in response:', userDataWithToken);
+        throw new Error('Login failed: No token received from server.');
+      }
+      
+      // Create userData without the token property
+      const userData: User = {
+        userId: userDataWithToken.userId,
+        fullname: userDataWithToken.fullname,
+        email: userDataWithToken.email,
+        role: userDataWithToken.role,
+        cellphoneNumber: userDataWithToken.cellphoneNumber,
+        walletID: userDataWithToken.walletID,
+        gender: userDataWithToken.gender,
+        dateOfBirth: userDataWithToken.dateOfBirth,
+        balance: userDataWithToken.balance,
+        profileImage: userDataWithToken.profileImage,
+        address: userDataWithToken.address,
+        region: userDataWithToken.region,
+        town: userDataWithToken.town,
+        nationalId: userDataWithToken.nationalId,
+        isAccountVerified: userDataWithToken.isAccountVerified,
+      };
+      
+      // Clear old data and set new user atomically to avoid race conditions
+      await SecureStore.deleteItemAsync('user');
+      await SecureStore.deleteItemAsync('authToken');
+
+      await SecureStore.setItemAsync('user', JSON.stringify(userData));
+      await SecureStore.setItemAsync('authToken', token);
+      
+      console.log('Token saved successfully:', token.substring(0, 20) + '...'); // Debug log
+      
+      // Set initial activity timestamp
+      await updateLastActivity();
+      setUser(userData);
+      
+      return userData;
+    } else {
+      throw new Error('Login failed: Invalid response from server.');
     }
-  };
+  } catch (error: any) {
+    console.error("Login failed:", error.response?.data?.message || error.message);
+    console.error("Full error:", error); // More detailed error log
+    setUser(null);
+    await SecureStore.deleteItemAsync('user').catch(() => {});
+    await SecureStore.deleteItemAsync('authToken').catch(() => {});
+    throw error;
+  }
+};
   
   // --- NEW: Function to update the user's state after actions like a transaction ---
   const updateUser = async (updatedUserData: Partial<User>) => {

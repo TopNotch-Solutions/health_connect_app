@@ -24,79 +24,9 @@ import apiClient from '../../../lib/api';
 import { getLocationCoordinates } from '../../../lib/geocoding';
 import socketService from '../../../lib/socket';
 
-const AilmentIconMap: { [key: string]: any } = {
-  // The KEY must EXACTLY match the 'title' from your backend (case-sensitive)
-  'Allergic Reactions or Bites': require('../../../assets/icons/mosquito (1).png'),
-  'Bladder Infection / UTI Symptoms': require('../../../assets/icons/bacteria.png'),
-  'Blood Pressure & Sugar Monitoring': require('../../../assets/icons/blood-pressure-check.png'),
-  'Caregiver Stress & Burnout': require('../../../assets/icons/care.png'),
-  'Assessment of a Sports Injury': require('../../../assets/icons/wound-care.png'),
-  'Back, Neck, or Shoulder Pain': require('../../../assets/icons/pain.png'),
-};
-
-// --- Dummy Data (for UI development, replace with API data later) ---
-const healthTips = [
-  {
-    id: '1',
-    title: 'Stay Hydrated',
-    content: 'Drink 8 glasses of water a day.',
-    bgColor: 'bg-blue-100',
-    bgGradientColor: '#E0F2FE',
-    icon: 'water',
-    iconColor: '#0284C7',
-  },
-  {
-    id: '2',
-    title: 'Get Enough Sleep',
-    content: 'Aim for 7-9 hours per night.',
-    bgColor: 'bg-purple-100',
-    bgGradientColor: '#F3E8FF',
-    icon: 'sleep',
-    iconColor: '#A855F7',
-  },
-  {
-    id: '3',
-    title: 'Eat a Balanced Diet',
-    content: 'Include fruits and vegetables.',
-    bgColor: 'bg-green-100',
-    bgGradientColor: '#DCFCE7',
-    icon: 'leaf',
-    iconColor: '#22C55E',
-  },
-  {
-    id: '4',
-    title: 'Regular Exercise',
-    content: 'Move for at least 30 minutes daily.',
-    bgColor: 'bg-orange-100',
-    bgGradientColor: '#FED7AA',
-    icon: 'run',
-    iconColor: '#F97316',
-  },
-];
-
 // Ailment categories are fetched from backend API
 
 // --- Reusable Components for this Screen ---
-const HealthTipCard = ({ item }: { item: (typeof healthTips)[0] }) => (
-  <View 
-    className={`rounded-lg p-6 ${item.bgColor}`} 
-    style={{ 
-      width: '100%',
-      backgroundColor: item.bgGradientColor,
-      shadowColor: '#000',
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
-      elevation: 3,
-    }}
-  >
-    <View className="flex-row items-center mb-3">
-      <MaterialCommunityIcons name={item.icon as any} size={32} color={item.iconColor} />
-      <Text className="font-bold text-xl text-gray-800 ml-3 flex-1">{item.title}</Text>
-    </View>
-    <Text className="text-base text-gray-700 ml-10">{item.content}</Text>
-  </View>
-);
 
 const AilmentCard = ({ item, onPress }: { item: any; onPress: () => void; }) => {
   const AILMENT_IMAGE_BASE_URL = 'http://13.51.207.99:4000/ailments/';
@@ -330,7 +260,6 @@ export default function PatientHomeScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<any>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [recentRequests, setRecentRequests] = useState<HistoryItem[]>([]);
   const [ailmentCategories, setAilmentCategories] = useState<any[]>([]);
   const [isLoadingAilments, setIsLoadingAilments] = useState(false);
@@ -342,7 +271,6 @@ export default function PatientHomeScreen() {
   const [advertImageLoading, setAdvertImageLoading] = useState(true);
   const [advertImageError, setAdvertImageError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const slideAnim = React.useRef(new Animated.Value(0)).current;
   const advertSlideAnim = React.useRef(new Animated.Value(0)).current;
   
   const IMAGE_BASE_URL = 'http://13.51.207.99:4000/adverts/';
@@ -397,16 +325,11 @@ export default function PatientHomeScreen() {
           
           console.log('📋 Received ailment categories from backend:', categories);
           if (Array.isArray(categories) && categories.length > 0) {
-            // Map the backend data to include the correct icon
-            const mappedCategories = categories.map((category: any) => ({
-              ...category,
-              icon: AilmentIconMap[category.title] || AilmentIconMap.default,
-            }));
-            setAilmentCategories(mappedCategories);
+            setAilmentCategories(categories);
             
             // Prefetch ailment images for faster loading - prioritize first 6 for home page
             const AILMENT_IMAGE_BASE_URL = 'http://13.51.207.99:4000/ailments/';
-            const categoriesToPrefetch = mappedCategories.slice(0, 6); // Only prefetch first 6 for home page
+            const categoriesToPrefetch = categories.slice(0, 6); // Only prefetch first 6 for home page
             
             // Prefetch in parallel for faster loading
             const prefetchPromises = categoriesToPrefetch.map((category: any) => {
@@ -525,24 +448,6 @@ export default function PatientHomeScreen() {
       console.error('Error loading recent requests:', error);
     }
   }, [user?.userId]);
-
-  // Auto-scroll health tips with animation
-  useEffect(() => {
-    slideAnim.setValue(0);
-    Animated.timing(slideAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [currentTipIndex, slideAnim]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTipIndex((prev) => (prev + 1) % healthTips.length);
-    }, 5000); // Change every 5 seconds
-
-    return () => clearInterval(interval);
-  }, []);
 
   // Auto-scroll adverts with animation
   useEffect(() => {
@@ -904,42 +809,7 @@ export default function PatientHomeScreen() {
                 ))}
               </View>
             </View>
-          ) : (
-            <View className="mb-8 px-4">
-              <Animated.View
-                style={[
-                  {
-                    opacity: slideAnim,
-                    transform: [
-                      {
-                        translateX: slideAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [50, 0],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <HealthTipCard item={healthTips[currentTipIndex]} />
-              </Animated.View>
-              
-              {/* Tip Indicators */}
-              <View className="flex-row justify-center mt-4 gap-2">
-                {healthTips.map((_, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    onPress={() => setCurrentTipIndex(index)}
-                    className={`rounded-full transition-all ${
-                      index === currentTipIndex
-                        ? 'bg-blue-600 w-3 h-3'
-                        : 'bg-gray-300 w-2 h-2'
-                    }`}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
+          ) : null}
 
           {/* Main Content Area */}
           <View className="px-4 mb-6">
