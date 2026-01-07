@@ -1,6 +1,6 @@
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs, useFocusEffect, usePathname, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -108,7 +108,7 @@ export default function PatientTabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({color, size}) => (
-            <Feather name="home" color={color} size={size}/>
+            <MaterialCommunityIcons name="home" color={color} size={size}/>
           )
         }}
       />
@@ -117,7 +117,7 @@ export default function PatientTabLayout() {
         options={{
           title: "Waiting Room",
           tabBarIcon: ({color, size}) => (
-            <Feather name="clock" color={color} size={size}/>
+            <MaterialCommunityIcons name="clock" color={color} size={size}/>
           )
         }}
       />
@@ -127,7 +127,7 @@ export default function PatientTabLayout() {
         options={{
           title: "Transactions",
           tabBarIcon: ({color, size}) => (
-            <Feather name="credit-card" color={color} size={size}/>
+            <MaterialCommunityIcons name="credit-card" color={color} size={size}/>
           )
         }}
       />
@@ -136,7 +136,7 @@ export default function PatientTabLayout() {
         options={{
           title: "Issues",
           tabBarIcon: ({color, size}) => (
-            <Feather name="book" color={color} size={size}/>
+            <MaterialCommunityIcons name="book" color={color} size={size}/>
           )
         }}
       />
@@ -145,7 +145,7 @@ export default function PatientTabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({color, size}) => (
-            <Feather name="user" color={color} size={size}/>
+            <MaterialCommunityIcons name="account" color={color} size={size}/>
           )
         }}
       />
