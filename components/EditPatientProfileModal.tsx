@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { namibianRegions } from '../constants/locations';
+import { namibianRegions, townsByRegion } from '../constants/locations';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../lib/api';
 
@@ -53,6 +53,11 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
     const [isLoading, setIsLoading] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
     
+    // Initialize availableTowns based on user's region
+    const [availableTowns, setAvailableTowns] = useState<{ label: string; value: string }[]>(
+        user?.region ? (townsByRegion[user.region] || []) : []
+    );
+    
     // Parse dateOfBirth string to Date object, or use current date as fallback
     const parseDate = (dateString: string | undefined): Date => {
         if (!dateString) return new Date();
@@ -67,6 +72,7 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
         dateOfBirth: parseDate(user?.dateOfBirth),
         gender: user?.gender || 'Male',
         address: user?.address || '',
+        town: user?.town || '',
         region: user?.region || '',
         nationalId: user?.nationalId || '',
     });
@@ -80,11 +86,26 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                 dateOfBirth: parseDate(user.dateOfBirth),
                 gender: user.gender || 'Male',
                 address: user.address || '',
+                town: user.town || '',
                 region: user.region || '',
                 nationalId: user.nationalId || '',
             });
+            
+            // Set available towns based on the user's current region
+            if (user.region) {
+                setAvailableTowns(townsByRegion[user.region] || []);
+            }
         }
     }, [visible, user]);
+
+    const handleInputChange = (name: string, value: any) => {
+        if (name === "region") {
+            setAvailableTowns(townsByRegion[value] || []);
+            setFormData(prev => ({ ...prev, region: value, town: "" }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
+    };
 
     const onDateChange = (_: any, selectedDate?: Date) => {
         if (Platform.OS === 'android') {
@@ -124,82 +145,107 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
             currentDate !== originalDate ||
             formData.gender !== (user.gender || 'Male') ||
             formData.address !== (user.address || '') ||
+            formData.town !== (user.town || '') ||
             formData.region !== (user.region || '') ||
             formData.nationalId !== (user.nationalId || '')
         );
     };
 
     const handleSave = async () => {
-        // Check if any changes were made
-        if (!hasChanges()) {
-            Alert.alert('No Changes', 'No changes have been made to your profile.');
-            return;
-        }
+    console.log('=== SAVE PROFILE DEBUG START ===');
+    
+    // Check if any changes were made
+    if (!hasChanges()) {
+        console.log('❌ No changes detected');
+        Alert.alert('No Changes', 'No changes have been made to your profile.');
+        return;
+    }
+    console.log('✅ Changes detected');
 
-        // Validate required fields
-        if (!formData.fullname.trim()) {
-            Alert.alert('Error', 'Full name is required');
-            return;
-        }
-        if (!formData.email.trim()) {
-            Alert.alert('Error', 'Email is required');
-            return;
-        }
-        if (!formData.cellphoneNumber.trim()) {
-            Alert.alert('Error', 'Cellphone number is required');
-            return;
-        }
-        if (!formData.dateOfBirth || !(formData.dateOfBirth instanceof Date) || isNaN(formData.dateOfBirth.getTime())) {
-            Alert.alert('Error', 'Date of birth is required');
-            return;
-        }
-        if (!formData.address.trim()) {
-            Alert.alert('Error', 'Address is required');
-            return;
-        }
-        if (!formData.region.trim()) {
-            Alert.alert('Error', 'Region is required');
-            return;
-        }
+    // Validate required fields
+    if (!formData.fullname.trim()) {
+        Alert.alert('Error', 'Full name is required');
+        return;
+    }
+    if (!formData.email.trim()) {
+        Alert.alert('Error', 'Email is required');
+        return;
+    }
+    if (!formData.cellphoneNumber.trim()) {
+        Alert.alert('Error', 'Cellphone number is required');
+        return;
+    }
+    if (!formData.dateOfBirth || !(formData.dateOfBirth instanceof Date) || isNaN(formData.dateOfBirth.getTime())) {
+        Alert.alert('Error', 'Date of birth is required');
+        return;
+    }
+    if (!formData.address.trim()) {
+        Alert.alert('Error', 'Address is required');
+        return;
+    }
+    if (!formData.town.trim()) {
+        Alert.alert('Error', 'Town is required');
+        return;
+    }
+    if (!formData.region.trim()) {
+        Alert.alert('Error', 'Region is required');
+        return;
+    }
 
-        setIsLoading(true);
-        try {
-            await apiClient.put(
-                `/app/auth/update-patient-details/${user?.userId}`,
-                {
-                    fullname: formData.fullname,
-                    email: formData.email,
-                    cellphoneNumber: formData.cellphoneNumber,
-                    dateOfBirth: formatDate(formData.dateOfBirth),
-                    gender: formData.gender,
-                    address: formData.address,
-                    region: formData.region,
-                    nationalId: formData.nationalId,
-                }
-            );
+    console.log('✅ All validations passed');
 
-            await updateUser({
-                fullname: formData.fullname,
-                email: formData.email,
-                cellphoneNumber: formData.cellphoneNumber,
-                dateOfBirth: formatDate(formData.dateOfBirth),
-                gender: formData.gender,
-                address: formData.address,
-                region: formData.region,
-                nationalId: formData.nationalId,
-            });
-
-            Alert.alert('Success', 'Profile updated successfully');
-            onClose();
-        } catch (error: any) {
-            Alert.alert(
-                'Error',
-                error.response?.data?.message || 'Failed to update profile'
-            );
-        } finally {
-            setIsLoading(false);
-        }
+    const payload = {
+        fullname: formData.fullname,
+        email: formData.email,
+        cellphoneNumber: formData.cellphoneNumber,
+        dateOfBirth: formatDate(formData.dateOfBirth),
+        gender: formData.gender,
+        address: formData.address,
+        town: formData.town,
+        region: formData.region,
+        nationalId: formData.nationalId,
     };
+
+    console.log('📤 Request payload:', JSON.stringify(payload, null, 2));
+
+    setIsLoading(true);
+    try {
+        console.log('🚀 Making API call to /app/auth/update-patient-details');
+        
+        const response = await apiClient.put(
+            '/app/auth/update-patient-details',
+            payload
+        );
+
+        console.log('✅ API Response Status:', response.status);
+        console.log('✅ API Response Data:', JSON.stringify(response.data, null, 2));
+
+        console.log('🔄 Updating local context...');
+        await updateUser(payload);
+        console.log('✅ Local context updated');
+
+        console.log('=== SAVE PROFILE DEBUG END - SUCCESS ===');
+        Alert.alert('Success', 'Profile updated successfully');
+        onClose();
+    } catch (error: any) {
+        console.log('=== SAVE PROFILE DEBUG END - ERROR ===');
+        console.error('❌ Error Type:', error.constructor.name);
+        console.error('❌ Error Message:', error.message);
+        console.error('❌ Response Status:', error.response?.status);
+        console.error('❌ Response Data:', JSON.stringify(error.response?.data, null, 2));
+        console.error('❌ Response Headers:', JSON.stringify(error.response?.headers, null, 2));
+        console.error('❌ Request URL:', error.config?.url);
+        console.error('❌ Request Method:', error.config?.method);
+        console.error('❌ Request Headers:', JSON.stringify(error.config?.headers, null, 2));
+        
+        Alert.alert(
+            'Error',
+            error.response?.data?.message || 'Failed to update profile'
+        );
+    } finally {
+        setIsLoading(false);
+    }
+};
 
     return (
         <Modal visible={visible} animationType="slide" transparent={false}>
@@ -221,7 +267,7 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                             placeholder="Enter full name"
                             placeholderTextColor="#9CA3AF"
                             value={formData.fullname}
-                            onChangeText={(text) => setFormData({ ...formData, fullname: text })}
+                            onChangeText={(text) => handleInputChange('fullname', text)}
                             editable={!isLoading}
                         />
                     </View>
@@ -234,7 +280,7 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                             placeholder="Enter email"
                             placeholderTextColor="#9CA3AF"
                             value={formData.email}
-                            onChangeText={(text) => setFormData({ ...formData, email: text })}
+                            onChangeText={(text) => handleInputChange('email', text)}
                             keyboardType="email-address"
                             autoCapitalize="none"
                             editable={!isLoading}
@@ -249,7 +295,7 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                             placeholder="Enter cellphone number"
                             placeholderTextColor="#9CA3AF"
                             value={formData.cellphoneNumber}
-                            onChangeText={(text) => setFormData({ ...formData, cellphoneNumber: text })}
+                            onChangeText={(text) => handleInputChange('cellphoneNumber', text)}
                             keyboardType="phone-pad"
                             editable={!isLoading}
                         />
@@ -290,7 +336,7 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                             onChangeText={(text) => {
                                 const numericOnly = text.replace(/[^0-9]/g, '');
                                 if (numericOnly.length <= 11) {
-                                    setFormData({ ...formData, nationalId: numericOnly });
+                                    handleInputChange('nationalId', numericOnly);
                                 }
                             }}
                             keyboardType="numeric"
@@ -306,7 +352,7 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                             {['Male', 'Female'].map((option) => (
                                 <TouchableOpacity
                                     key={option}
-                                    onPress={() => setFormData({ ...formData, gender: option as any })}
+                                    onPress={() => handleInputChange('gender', option)}
                                     disabled={isLoading}
                                     style={[
                                         styles.genderButton,
@@ -335,7 +381,7 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                             placeholder="Enter address"
                             placeholderTextColor="#9CA3AF"
                             value={formData.address}
-                            onChangeText={(text) => setFormData({ ...formData, address: text })}
+                            onChangeText={(text) => handleInputChange('address', text)}
                             editable={!isLoading}
                         />
                     </View>
@@ -345,9 +391,7 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                         <Text style={styles.label}>Region</Text>
                         <View style={styles.pickerContainer}>
                             <RNPickerSelect
-                                onValueChange={(value) => {
-                                    setFormData({ ...formData, region: value });
-                                }}
+                                onValueChange={(value) => handleInputChange('region', value)}
                                 items={namibianRegions}
                                 placeholder={{ label: 'Select a region...', value: null }}
                                 value={formData.region}
@@ -356,6 +400,25 @@ export default function EditPatientProfileModal({ visible, onClose }: EditPatien
                             />
                             <View style={styles.pickerIcon}>
                                 <Feather name="chevron-down" size={20} color="#10B981" />
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Town */}
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Town</Text>
+                        <View style={[styles.pickerContainer, !formData.region && styles.pickerContainerDisabled]}>
+                            <RNPickerSelect
+                                onValueChange={(value) => handleInputChange('town', value)}
+                                items={availableTowns}
+                                placeholder={{ label: "Select a town...", value: null }}
+                                value={formData.town}
+                                disabled={!formData.region}
+                                style={pickerStyle as any}
+                                useNativeAndroidPickerStyle={false}
+                            />
+                            <View style={styles.pickerIcon}>
+                                <Feather name="chevron-down" size={20} color={formData.region ? "#10B981" : "#D1D5DB"} />
                             </View>
                         </View>
                     </View>

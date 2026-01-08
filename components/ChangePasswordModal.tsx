@@ -88,10 +88,11 @@ export default function ChangePasswordModal({ visible, onClose }: ChangePassword
         setIsLoading(true);
         try {
             await apiClient.patch(
-                `/app/auth/change-password/${user?.userId}`,
+                '/app/auth/change-password/',
                 {
                     currentPassword: passwords.currentPassword,
                     newPassword: passwords.newPassword,
+                    confirmPassword: passwords.confirmPassword,
                 }
             );
 

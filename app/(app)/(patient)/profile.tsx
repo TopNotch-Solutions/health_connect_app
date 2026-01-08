@@ -79,7 +79,7 @@ export default function ProfileScreen() {
             } as any);
 
             const response = await apiClient.patch(
-                `/app/auth/upload-profile-image/${user.userId}`,
+                '/app/auth/upload-profile-image/',
                 formData,
                 {
                     headers: {

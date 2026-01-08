@@ -1,12 +1,12 @@
 import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 import apiClient from '../lib/api';
 import socketService from '../lib/socket';
-import { Alert } from 'react-native/Libraries/Alert/Alert';
 
-// --- The corrected and expanded User interface ---
-export interface User { // Exporting the interface so other files can use it
+export interface User {
   userId: string;
   fullname: string;
   email: string;
@@ -22,9 +22,9 @@ export interface User { // Exporting the interface so other files can use it
   town?: string;
   nationalId?: string;
   isAccountVerified?: boolean;
+  isPushNotificationEnabled?: boolean;
 }
 
-// Session timeout duration: 5 minutes in milliseconds
 const SESSION_TIMEOUT = 5 * 60 * 1000;
 const LAST_ACTIVITY_KEY = 'lastActivityTime';
 
@@ -34,7 +34,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
   logout: () => void;
-  updateUser: (updatedUserData: Partial<User>) => Promise<void>; // New function to update user state
+  updateUser: (updatedUserData: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,16 +44,53 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const appState = useRef(AppState.currentState);
 
-  // Update last activity timestamp
+  const getPushToken = async (): Promise<string> => {
+    try {
+      if (!Device.isDevice) {
+        console.log('Push notifications only work on physical devices');
+        return 'simulator-no-token';
+      }
+
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        console.log('Push notification permission denied');
+        return 'permission-denied';
+      }
+
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: 'your-project-id', // Replace with your Expo project ID from app.json
+      });
+
+      return tokenData.data;
+    } catch (error) {
+      console.error('Error getting push token:', error);
+      return 'error-getting-token';
+    }
+  };
+
   const updateLastActivity = useCallback(async () => {
     const timestamp = Date.now().toString();
     await SecureStore.setItemAsync(LAST_ACTIVITY_KEY, timestamp);
   }, []);
 
-  // Logout function
   const logout = useCallback(async () => {
     try {
-      // Disconnect the socket before logging out
+      const token = await SecureStore.getItemAsync('authToken');
+      if (token) {
+        try {
+          await apiClient.patch('/app/auth/logout');
+        } catch (error) {
+          console.error('Failed to call logout endpoint:', error);
+        }
+      }
+
       socketService.disconnect();
       
       setUser(null);
@@ -62,42 +99,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await SecureStore.deleteItemAsync(LAST_ACTIVITY_KEY);
     } catch (error) {
       console.error("Failed to logout:", error);
-      // Even if storage deletion fails, clear the user state
       setUser(null);
     }
   }, []);
 
-  // Check if session has expired
   const checkSessionTimeout = useCallback(async () => {
     try {
       const lastActivity = await SecureStore.getItemAsync(LAST_ACTIVITY_KEY);
       if (lastActivity) {
         const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
         if (timeSinceLastActivity > SESSION_TIMEOUT) {
-          // Session expired, log out user
           console.log('Session expired after 5 minutes of inactivity');
           await logout();
-          return true; // Session expired
+          return true;
         }
       }
-      return false; // Session still valid
+      return false;
     } catch (e) {
       console.error("Failed to check session timeout", e);
       return false;
     }
   }, [logout]);
 
-  // This effect runs on app startup to load a saved session
   useEffect(() => {
     const loadUser = async () => {
       try {
         const storedUser = await SecureStore.getItemAsync('user');
         if (storedUser) {
-          // Check if session has expired
           const expired = await checkSessionTimeout();
           if (!expired) {
             setUser(JSON.parse(storedUser));
-            // Update activity timestamp on app start
             await updateLastActivity();
           }
         }
@@ -110,18 +141,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loadUser();
   }, [checkSessionTimeout, updateLastActivity]);
 
-  // Monitor app state changes (foreground/background)
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
       if (
         appState.current.match(/inactive|background/) &&
         nextAppState === 'active' &&
-        user // Only check if user is logged in
+        user
       ) {
-        // App has come to the foreground
         const expired = await checkSessionTimeout();
         if (!expired) {
-          // Session still valid, update timestamp
           await updateLastActivity();
         }
       }
@@ -138,13 +166,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         const existingToken = await SecureStore.getItemAsync('appToken');
         if (!existingToken) {
-          const response = await apiClient.get('http://13.51.207.99:4000/api/app/auth/retrieve-jwt-token');
-          const data = await response.data;
-
-          console.log("Fetch app token", data);
+          const response = await apiClient.get('/app/auth/retrieve-jwt-token');
+          const data = response.data;
 
           if (data && data.token) {
             await SecureStore.setItemAsync('appToken', data.token);
+            console.log('✅ App token saved successfully');
           }
         }
       } catch (error) {
@@ -153,78 +180,115 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
     fetchAppToken();
   }, []);
-  // Login function
-  // Login function in AuthContext.tsx
-const login = async (email: string, password: string): Promise<User> => {
-  try {
-    // Make the API call first
-    const response = await apiClient.post('/app/auth/login', { 
-      email, 
-      password,
-    });
-    
-    console.log('Login response:', response.data); // Debug log
-    
-    if (response.data && response.data.user) {
-      const userDataWithToken = response.data.user;
+
+  const login = async (email: string, password: string): Promise<User> => {
+    try {
+      console.log('🔐 Starting login process...');
       
-      // Extract the token
-      const token = userDataWithToken.token;
+      // Get push token for notifications
+      const pushToken = await getPushToken();
+      console.log('📱 Push token obtained');
+
+      // Call login endpoint
+      const response = await apiClient.post('/app/auth/login', { 
+        email, 
+        password,
+        pushToken,
+      });
       
-      if (!token) {
-        console.error('Token not found in response:', userDataWithToken);
-        throw new Error('Login failed: No token received from server.');
+      console.log('✅ Login API call successful');
+      console.log('📦 Response status:', response.status);
+      
+      if (!response.data || !response.data.user) {
+        throw new Error('Invalid response from server');
+      }
+
+      const userDataFromBackend = response.data.user;
+      
+      // CRITICAL FIX: Token is inside user object!
+      let authToken = null;
+      
+      // Check for token in multiple locations
+      if (userDataFromBackend.token) {
+        // Token is inside the user object (current backend structure)
+        authToken = userDataFromBackend.token;
+        console.log('✅ Token found in response.data.user.token');
+      } else if (response.data.token) {
+        // Token is at top level (standard structure)
+        authToken = response.data.token;
+        console.log('✅ Token found in response.data.token');
+      } else if (response.headers['x-access-token']) {
+        // Token in headers
+        authToken = response.headers['x-access-token'].replace('Bearer ', '');
+        console.log('✅ Token found in x-access-token header');
+      } else if (response.headers['authorization']) {
+        // Token in authorization header
+        authToken = response.headers['authorization'].replace('Bearer ', '');
+        console.log('✅ Token found in authorization header');
       }
       
-      // Create userData without the token property
+      if (!authToken) {
+        console.error('❌ NO TOKEN FOUND IN RESPONSE');
+        throw new Error('Authentication token not found in response');
+      }
+      
+      console.log('🔑 Auth token obtained:', authToken.substring(0, 30) + '...');
+      
+      // Create user object (exclude token from user data)
       const userData: User = {
-        userId: userDataWithToken.userId,
-        fullname: userDataWithToken.fullname,
-        email: userDataWithToken.email,
-        role: userDataWithToken.role,
-        cellphoneNumber: userDataWithToken.cellphoneNumber,
-        walletID: userDataWithToken.walletID,
-        gender: userDataWithToken.gender,
-        dateOfBirth: userDataWithToken.dateOfBirth,
-        balance: userDataWithToken.balance,
-        profileImage: userDataWithToken.profileImage,
-        address: userDataWithToken.address,
-        region: userDataWithToken.region,
-        town: userDataWithToken.town,
-        nationalId: userDataWithToken.nationalId,
-        isAccountVerified: userDataWithToken.isAccountVerified,
+        userId: userDataFromBackend.userId,
+        fullname: userDataFromBackend.fullname,
+        email: userDataFromBackend.email,
+        role: userDataFromBackend.role,
+        cellphoneNumber: userDataFromBackend.cellphoneNumber,
+        walletID: userDataFromBackend.walletID,
+        gender: userDataFromBackend.gender,
+        dateOfBirth: userDataFromBackend.dateOfBirth,
+        balance: userDataFromBackend.balance,
+        profileImage: userDataFromBackend.profileImage,
+        address: userDataFromBackend.address,
+        region: userDataFromBackend.region,
+        town: userDataFromBackend.town,
+        nationalId: userDataFromBackend.nationalId,
+        isAccountVerified: userDataFromBackend.isAccountVerified,
+        isPushNotificationEnabled: userDataFromBackend.isPushNotificationEnabled,
       };
-      
-      // Clear old data and set new user atomically to avoid race conditions
-      await SecureStore.deleteItemAsync('user');
-      await SecureStore.deleteItemAsync('authToken');
 
-      await SecureStore.setItemAsync('user', JSON.stringify(userData));
-      await SecureStore.setItemAsync('authToken', token);
+      // Save token FIRST
+      await SecureStore.setItemAsync('authToken', authToken);
+      console.log('✅ Auth token saved to SecureStore');
       
-      console.log('Token saved successfully:', token.substring(0, 20) + '...'); // Debug log
+      // Save user data
+      await SecureStore.setItemAsync('user', JSON.stringify(userData));
+      console.log('✅ User data saved to SecureStore');
+      
+      // Verify token works
+      try {
+        console.log('🧪 Verifying token with /user-details endpoint...');
+        const detailsResponse = await apiClient.get('/app/auth/user-details');
+        console.log('✅ Token verification successful!');
+      } catch (detailsError: any) {
+        console.error('⚠️  Token verification failed:', detailsError.response?.data || detailsError.message);
+        console.warn('⚠️  Continuing anyway - token might still work for other endpoints');
+      }
       
       // Set initial activity timestamp
       await updateLastActivity();
       setUser(userData);
       
+      console.log('🎉 Login successful and fully authenticated!');
       return userData;
-    } else {
-      throw new Error('Login failed: Invalid response from server.');
+      
+    } catch (error: any) {
+      console.error("❌ Login failed:", error.response?.data?.message || error.message);
+      setUser(null);
+      await SecureStore.deleteItemAsync('user').catch(() => {});
+      await SecureStore.deleteItemAsync('authToken').catch(() => {});
+      throw error;
     }
-  } catch (error: any) {
-    console.error("Login failed:", error.response?.data?.message || error.message);
-    console.error("Full error:", error); // More detailed error log
-    setUser(null);
-    await SecureStore.deleteItemAsync('user').catch(() => {});
-    await SecureStore.deleteItemAsync('authToken').catch(() => {});
-    throw error;
-  }
-};
+  };
   
-  // --- NEW: Function to update the user's state after actions like a transaction ---
   const updateUser = async (updatedUserData: Partial<User>) => {
-    // Only proceed if there is a current user
     if (!user) return; 
 
     const newUser = { ...user, ...updatedUserData };
@@ -239,7 +303,6 @@ const login = async (email: string, password: string): Promise<User> => {
   );
 };
 
-// Custom hook to use the context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

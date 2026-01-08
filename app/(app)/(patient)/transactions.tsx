@@ -118,7 +118,7 @@ export default function TransactionsScreen() {
         
         try {
             console.log(`Fetching transactions for userId: ${user.userId}, page: ${page}`);
-            const response = await apiClient.get(`/app/transaction/transaction-history/${user.userId}?page=${page}&limit=10`);
+            const response = await apiClient.get('/app/transaction/transaction-history/?page=${page}&limit=10');
             console.log("Transactions Response:", response.data);
             const newTransactions = response.data.data || [];
             const pagination = response.data.pagination || {};
@@ -210,7 +210,7 @@ export default function TransactionsScreen() {
 
         setIsSubmitting(true);
         try {
-            const response = await apiClient.post(`/app/transaction/fund-wallet/${user?.userId}`, addMoneyForm);
+            const response = await apiClient.post('/app/transaction/fund-wallet/', addMoneyForm);
 
             // Treat any 2xx as success
             if (response.status >= 200 && response.status < 300) {
@@ -251,7 +251,7 @@ export default function TransactionsScreen() {
 
         setIsSubmitting(true);
         try {
-            const response = await apiClient.post(`/app/transaction/fund-other-wallet/${user?.userId}`, fundOthersForm);
+            const response = await apiClient.post('/app/transaction/fund-other-wallet', fundOthersForm);
 
             if (response.status >= 200 && response.status < 300) {
                 // Close sheet and clear fields immediately
@@ -285,7 +285,7 @@ export default function TransactionsScreen() {
 
         setIsSubmitting(true);
         try {
-            const response = await apiClient.post(`/app/transaction/withdraw-wallet-funds/${user?.userId}`, withdrawForm);
+            const response = await apiClient.post('/app/transaction/withdraw-wallet-funds/', withdrawForm);
 
             if (response.status >= 200 && response.status < 300) {
                 // Close sheet and clear fields immediately

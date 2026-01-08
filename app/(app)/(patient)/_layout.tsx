@@ -18,8 +18,8 @@ export default function PatientTabLayout() {
   const fetchUnreadCount = useCallback(async () => {
     if (!user?.userId) return;
     try {
-      console.log('Fetching unread count for user:', user.userId);
-      const response = await apiClient.get(`/app/notification/unread-count/${user.userId}`);
+      console.log('Fetching unread count...');
+      const response = await apiClient.get('/app/notification/unread-count/');
       console.log('Unread count response:', response.data);
       
       // API response structure: { status: true, data: { unReadCount: number } }
@@ -27,7 +27,7 @@ export default function PatientTabLayout() {
       console.log('Parsed unread count:', count);
       setUnreadCount(count); // Store actual count
     } catch (error: any) {
-      console.error("Error fetching unread count:", error);
+      console.error("Error fetching unread count:", error.message);
       console.error("Error details:", error.response?.data);
       setUnreadCount(0);
     }

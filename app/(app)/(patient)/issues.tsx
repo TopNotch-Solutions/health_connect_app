@@ -121,7 +121,7 @@ export default function IssuesScreen() {
       }
   
       try {
-        const CREATE_ISSUE_ENDPOINT = `/app/issue/create-issue/${user.userId}`;
+        const CREATE_ISSUE_ENDPOINT = '/app/issue/create-issue/';
         const response = await apiClient.post(CREATE_ISSUE_ENDPOINT, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
         Alert.alert('Success', response.data.message);
         setIssueTitle(''); setIssueDescription(''); setIssueImage(null);
@@ -138,7 +138,7 @@ export default function IssuesScreen() {
       if (!user?.userId) return;
       setIsLoading(true);
       try {
-        const GET_ISSUES_ENDPOINT = `/app/issue/all-issues/${user.userId}`;
+        const GET_ISSUES_ENDPOINT = '/app/issue/all-issues/';
         const response = await apiClient.get(GET_ISSUES_ENDPOINT);
         setMyTickets(response.data.data || []);
       } catch (error: any) {

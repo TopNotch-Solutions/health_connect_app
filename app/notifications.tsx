@@ -202,13 +202,16 @@ export default function NotificationsScreen() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'unread'>('all');
+    const [unreadCount, setUnreadCount] = useState(0);
 
+    // FIXED: Fetch notifications without userId in URL
     const fetchNotifications = useCallback(async () => {
         if (!user?.userId) return;
         setIsLoading(true);
         try {
-            console.log(`Fetching notifications for userId: ${user.userId}`);
-            const response = await apiClient.get(`/app/notification/all-user-notification/${user.userId}`);
+            console.log('Fetching notifications...');
+            // Backend extracts userId from JWT token
+            const response = await apiClient.get('/app/notification/all-user-notification');
             console.log("Notifications Response:", response.data);
             setNotifications(response.data.data || []);
         } catch (error: any) {
@@ -216,7 +219,6 @@ export default function NotificationsScreen() {
                 message: error.message,
                 status: error.response?.status,
                 data: error.response?.data,
-                url: error.config?.url,
             });
             setNotifications([]);
         } finally {
@@ -224,43 +226,52 @@ export default function NotificationsScreen() {
         }
     }, [user]);
 
+    // FIXED: Fetch unread count from dedicated endpoint
+    const fetchUnreadCount = useCallback(async () => {
+        if (!user?.userId) return;
+        try {
+            const response = await apiClient.get('/app/notification/unread-count');
+            console.log("Unread Count Response:", response.data);
+            setUnreadCount(response.data.data?.unReadCount || 0);
+        } catch (error: any) {
+            console.error("Fetch Unread Count Error:", error.message);
+        }
+    }, [user]);
+
+    // FIXED: Mark ALL notifications as read (backend behavior)
     const markAllAsRead = useCallback(async () => {
         if (!user?.userId) return;
         try {
-            await apiClient.patch(`/app/notification/mark-as-read/${user.userId}`);
+            // Backend marks all user notifications as read
+            await apiClient.patch('/app/notification/mark-as-read');
             setNotifications(prev => prev.map(n => ({ ...n, status: 'read' as NotificationStatus })));
+            setUnreadCount(0);
         } catch (error: any) {
             console.error("Mark as read error:", error.message);
         }
     }, [user]);
 
-    const markAsRead = useCallback(async (notificationId: string) => {
-        try {
-            await apiClient.patch(`/app/notification/mark-as-read/${notificationId}`);
-            setNotifications(prev =>
-                prev.map(n => n._id === notificationId ? { ...n, status: 'read' as NotificationStatus } : n)
-            );
-        } catch (error: any) {
-            console.error("Mark as read error:", error.message);
-        }
-    }, []);
-
+    // FIXED: Delete individual notification
     const deleteNotification = useCallback(async (notificationId: string) => {
         try {
             await apiClient.delete(`/app/notification/delete-notification/${notificationId}`);
             
             // Remove deleted notification from state
             setNotifications(prev => prev.filter(n => n._id !== notificationId));
+            
+            // Refresh unread count
+            fetchUnreadCount();
         } catch (error: any) {
             console.error("Delete notification error:", error.message);
             console.error("Error details:", error.response?.data);
         }
-    }, []);
+    }, [fetchUnreadCount]);
 
     useFocusEffect(
         useCallback(() => {
             fetchNotifications();
-        }, [fetchNotifications])
+            fetchUnreadCount();
+        }, [fetchNotifications, fetchUnreadCount])
     );
 
     const filteredNotifications = notifications.filter(n => {
@@ -269,10 +280,6 @@ export default function NotificationsScreen() {
         }
         return true;
     });
-
-    const unreadCount = notifications.filter(
-        n => n.status === 'sent' || n.status === 'delivered' || n.status === 'pending'
-    ).length;
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -337,9 +344,9 @@ export default function NotificationsScreen() {
                         <NotificationCard
                             item={item}
                             onPress={() => {
-                                if (item.status !== 'read') {
-                                    markAsRead(item._id);
-                                }
+                                // Note: Backend doesn't support marking individual notifications as read
+                                // You would need to implement this on backend first
+                                console.log('Notification tapped:', item._id);
                             }}
                             onDelete={() => deleteNotification(item._id)}
                         />
