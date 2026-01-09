@@ -187,13 +187,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // Get push token for notifications
       const pushToken = await getPushToken();
-      console.log('📱 Push token obtained');
+      console.log('📱 Push token obtained', pushToken);
+
+      const validPushToken = pushToken?.startsWith('ExpoToken[') ? pushToken : null;
+    
+      if (!validPushToken) {
+        console.warn('⚠️ Invalid or missing push token, proceeding without notifications');
+      }
 
       // Call login endpoint
       const response = await apiClient.post('/app/auth/login', { 
         email, 
         password,
-        pushToken,
+        pushToken: validPushToken || 'no-token',
       });
       
       console.log('✅ Login API call successful');

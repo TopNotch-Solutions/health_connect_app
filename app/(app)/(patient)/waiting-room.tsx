@@ -662,7 +662,7 @@ export default function WaitingRoom() {
 const styles = StyleSheet.create({
   headerContainer: {
     paddingHorizontal: 0,
-    paddingTop: 16,
+    paddingTop: 0,
     paddingBottom: 8,
   },
   headerTitle: {
@@ -855,8 +855,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    marginHorizontal: 16,
-    marginTop: 32,
+    marginTop: 8,
   },
   emptyTitle: {
     fontSize: 18,

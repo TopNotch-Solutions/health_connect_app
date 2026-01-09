@@ -479,8 +479,8 @@ export default function PatientHomeScreen() {
   const greeting = getGreeting();
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={['bottom', 'left', 'right']}>
-      <View className="flex-1 p-2">
+    <SafeAreaView className="flex-1 bg-gray-100" edges={['bottom', 'left', 'right']}>
+      <View className="flex-1">
         <ScrollView 
           className="flex-1"
           refreshControl={
@@ -492,7 +492,7 @@ export default function PatientHomeScreen() {
             />
           }
         >
-          <View className="px-4 pb-2">
+          <View className="px-2 px-4">
             <View>
               <Text className="text-2xl font-bold">
                 {greeting},
@@ -500,7 +500,7 @@ export default function PatientHomeScreen() {
               
             </View>
             <View>
-              <Text className="text-xl font-bold text-gray-500">
+              <Text className="font-bold text-gray-500">
                 {user?.fullname || 'Patient'}
               </Text>
               
@@ -509,7 +509,7 @@ export default function PatientHomeScreen() {
 
           {/* Adverts or Health Tips Section */}
           {adverts.length > 0 ? (
-            <View className="mb-8">
+            <View className="mb-8 py-2 px-4">
               <Animated.View
                 style={[
                   {
@@ -593,11 +593,11 @@ export default function PatientHomeScreen() {
           {/* Main Content Area */}
           <View className="px-4 mb-6">
             <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
-              <Text className="text-lg font-bold text-gray-800 flex-shrink">
+              <Text className="text-xl font-bold text-gray-800 flex-shrink">
                 What do you need help with today?
               </Text>
               <TouchableOpacity onPress={() => router.push('/(app)/(patient)/all_ailments')} className="flex-shrink-0">
-                <Text className="font-semibold text-blue-600 text-sm">See all</Text>
+                <Text className="font-bold text-blue-600 text-xl">See all</Text>
               </TouchableOpacity>
             </View>
 
@@ -627,11 +627,11 @@ export default function PatientHomeScreen() {
           {/* Recent Activity / History Section (similar spacing to Ailments) */}
           <View className="px-4 mb-8">
             <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
-              <Text className="text-lg font-bold text-gray-800 flex-shrink">
+              <Text className="text-xl font-bold text-gray-800 flex-shrink">
                 Recent Activity
               </Text>
               <TouchableOpacity onPress={() => router.push('/(app)/(patient)/recent-activities')} className="flex-shrink-0">
-                <Text className="font-semibold text-blue-600 text-sm">See all</Text>
+                <Text className="font-bold text-blue-600 text-xl">See all</Text>
               </TouchableOpacity>
             </View>
 

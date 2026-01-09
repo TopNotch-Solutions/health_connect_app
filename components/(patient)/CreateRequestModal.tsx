@@ -192,7 +192,7 @@ export default function CreateRequestModal({
         className="flex-1"
       >
         <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl flex-1" style={{ marginTop: '10%' }}>
+          <View className="bg-gray-200 rounded-t-3xl flex-1" style={{ marginTop: '10%' }}>
             {/* Header */}
             <View className="flex-row items-center justify-between p-6 border-b border-gray-200">
               <Text className="text-2xl font-bold text-gray-900">Request Healthcare</Text>
@@ -225,7 +225,7 @@ export default function CreateRequestModal({
                 <TouchableOpacity
                   onPress={() => setShowMap(!showMap)}
                   disabled={isLoading}
-                  className="bg-blue-100 px-3 py-1 rounded-full"
+                  className="bg-blue-100 px-3 py-1 rounded-full border border border-blue-500"
                 >
                   <Text className="text-blue-600 text-sm font-semibold">
                     {showMap ? 'Hide Map' : 'Show Map'}
@@ -260,7 +260,7 @@ export default function CreateRequestModal({
               ) : null}
 
               {/* Address fields - auto-populated from map */}
-              <View className="bg-blue-50 rounded-lg p-3 mb-3 flex-row items-start">
+              <View className="bg-blue-50 rounded-lg p-3 mb-3 flex-row items-start border border-blue-500">
                 <Feather name="map-pin" size={16} color="#3B82F6" />
                 <View className="ml-2 flex-1">
                   <Text className="text-sm font-semibold text-blue-900">Auto-populated from location</Text>
@@ -363,7 +363,7 @@ export default function CreateRequestModal({
             </View>
 
             {/* Info Box */}
-            <View className="bg-blue-50 rounded-lg p-4 mb-6">
+            <View className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-500">
               <View className="flex-row items-start">
                 <Feather name="info" size={20} color="#3B82F6" />
                 <View className="flex-1 ml-3">

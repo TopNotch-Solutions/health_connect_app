@@ -38,6 +38,8 @@ const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
       onPress={onPress}
       className="w-[48%] mb-4 rounded-2xl overflow-hidden"
       style={{
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
         height: 150,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
@@ -68,7 +70,7 @@ const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
               width: '100%',
               height: '100%',
             }}
-            resizeMode="contain"
+            resizeMode="cover"
             onLoadStart={() => {
               // Only show loading indicator if image takes more than 150ms to load
               // This way prefetched images won't show loading
