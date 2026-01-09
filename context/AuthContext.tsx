@@ -1,8 +1,8 @@
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
+import { Alert, AppState, AppStateStatus, Linking, Platform } from 'react-native';
 import apiClient from '../lib/api';
 import socketService from '../lib/socket';
 
@@ -44,13 +44,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const appState = useRef(AppState.currentState);
 
-  const getPushToken = async (): Promise<string> => {
+  const getPushToken = async (): Promise<string | null> => {
     try {
       if (!Device.isDevice) {
-        console.log('Push notifications only work on physical devices');
-        return 'simulator-no-token';
+        Alert.alert(
+          'Push Notifications Required',
+          'Push notifications are only available on physical devices. Please use a physical device to receive notifications.',
+          [{ text: 'OK' }]
+        );
+        return null;
       }
 
+      // Request notification permissions
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
@@ -60,18 +65,65 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('Push notification permission denied');
-        return 'permission-denied';
+        Alert.alert(
+          'Enable Push Notifications',
+          'Push notifications are required to receive important updates. Please enable notifications in your device settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              },
+            },
+          ]
+        );
+        return null;
       }
 
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: 'your-project-id', // Replace with your Expo project ID from app.json
-      });
+      // Configure Android notification channel for FCM
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      }
 
-      return tokenData.data;
+      // Get the native device push token (FCM token on Android, APNS token on iOS)
+      const deviceToken = await Notifications.getDevicePushTokenAsync();
+      
+      // On Android, this returns the FCM token directly
+      // On iOS, this returns the APNS token
+      const fcmToken = deviceToken.data;
+      
+      console.log('📱 FCM Token obtained:', fcmToken);
+      return fcmToken;
     } catch (error) {
-      console.error('Error getting push token:', error);
-      return 'error-getting-token';
+      console.error('Error getting FCM token:', error);
+      Alert.alert(
+        'Enable Push Notifications',
+        'Unable to get push notification token. Please ensure push notifications are enabled in your device settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open Settings',
+            onPress: () => {
+              if (Platform.OS === 'ios') {
+                Linking.openURL('app-settings:');
+              } else {
+                Linking.openSettings();
+              }
+            },
+          },
+        ]
+      );
+      return null;
     }
   };
 
@@ -185,21 +237,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       console.log('🔐 Starting login process...');
       
-      // Get push token for notifications
+      // Get FCM token from device
       const pushToken = await getPushToken();
-      console.log('📱 Push token obtained', pushToken);
+      console.log('📱 FCM token obtained:', pushToken);
 
-      const validPushToken = pushToken?.startsWith('ExpoToken[') ? pushToken : null;
-    
-      if (!validPushToken) {
-        console.warn('⚠️ Invalid or missing push token, proceeding without notifications');
-      }
-
-      // Call login endpoint
+      // Call login endpoint with email, password, and pushToken
       const response = await apiClient.post('/app/auth/login', { 
         email, 
         password,
-        pushToken: validPushToken || 'no-token',
+        pushToken: pushToken,
       });
       
       console.log('✅ Login API call successful');
