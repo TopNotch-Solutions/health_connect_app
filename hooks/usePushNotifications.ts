@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import apiClient from '../lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Linking, Platform } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import apiClient from '../lib/api';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -18,69 +17,137 @@ Notifications.setNotificationHandler({
 
 export const usePushNotifications = () => {
   const { user } = useAuth();
-  const [expoPushToken, setExpoPushToken] = useState<string | undefined>(undefined);
+  const [devicePushToken, setDevicePushToken] = useState<string | undefined>(undefined);
   const [notification, setNotification] = useState<Notifications.Notification | undefined>(undefined);
   const notificationListener = useRef<Notifications.Subscription>(null);
   const responseListener = useRef<Notifications.Subscription>(null);
 
   async function registerForPushNotificationsAsync() {
-    let token;
+    try {
+      if (!Device.isDevice) {
+        Alert.alert(
+          'Push Notifications Required',
+          'Push notifications are only available on physical devices. Please use a physical device to receive notifications.',
+          [{ text: 'OK' }]
+        );
+        console.log('⚠️  Not a physical device - skipping push notifications');
+        return null;
+      }
 
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
-    }
+      // Configure Android notification channel for FCM
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      }
 
-    if (Device.isDevice) {
+      // Request notification permissions
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
+
       if (existingStatus !== 'granted') {
+        console.log('🔔 Requesting push notification permissions...');
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
+        console.log('🔔 Permission result:', status);
       }
-      if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
-        return;
-      }
-      
-      // Get the token
-      try {
-          const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-          if (!projectId) {
-             // Fallback or just get token without projectId if not using EAS
-             token = (await Notifications.getExpoPushTokenAsync()).data;
-          } else {
-             token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-          }
-      } catch (e) {
-          console.log("Error getting token with projectId, trying without:", e);
-          token = (await Notifications.getExpoPushTokenAsync()).data;
-      }
-      
-      console.log("Expo Push Token:", token);
-    } else {
-      console.log('Must use physical device for Push Notifications');
-    }
 
-    return token;
+      if (finalStatus !== 'granted') {
+        Alert.alert(
+          'Enable Push Notifications',
+          'Push notifications are required to receive important updates. Please enable notifications in your device settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              },
+            },
+          ]
+        );
+        console.log('⚠️  Push notification permission denied by user');
+        return null;
+      }
+
+      // Get the native device push token (FCM token on Android, APNS token on iOS)
+      console.log('🔄 Requesting native device push token...');
+      const deviceToken = await Promise.race([
+        Notifications.getDevicePushTokenAsync(),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Push token request timeout')), 10000)
+        )
+      ]);
+      
+      // On Android, this returns the FCM token directly
+      // On iOS, this returns the APNS token
+      const fcmToken = deviceToken.data;
+      
+      if (!fcmToken || fcmToken.trim() === '') {
+        throw new Error('Empty token received from device');
+      }
+      
+      console.log('✅ Native Device Push Token obtained successfully');
+      console.log('📱 Platform:', Platform.OS);
+      console.log('📝 Token preview:', fcmToken.substring(0, 50) + '...');
+      console.log('📏 Token length:', fcmToken.length);
+      return fcmToken;
+      
+    } catch (error: any) {
+      console.error('❌ Error getting push token:', error.message);
+      console.error('Error code:', error.code);
+      
+      // Show alert to user
+      Alert.alert(
+        'Enable Push Notifications',
+        'Unable to get push notification token. Please ensure push notifications are enabled in your device settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open Settings',
+            onPress: () => {
+              if (Platform.OS === 'ios') {
+                Linking.openURL('app-settings:');
+              } else {
+                Linking.openSettings();
+              }
+            },
+          },
+        ]
+      );
+      
+      // Provide helpful error messages
+      if (error.message?.includes('timeout')) {
+        console.warn('⚠️  Network timeout - check your internet connection');
+      } else if (error.code === 'ERR_NOTIFICATIONS_UNSUPPORTED') {
+        console.warn('⚠️  Push notifications not supported on this device/emulator');
+      } else if (error.message?.includes('Empty token')) {
+        console.warn('⚠️  Device returned empty token - check notification configuration');
+      }
+      
+      return null;
+    }
   }
 
   useEffect(() => {
     if (user?.userId) {
         registerForPushNotificationsAsync().then(token => {
-            setExpoPushToken(token);
+            setDevicePushToken(token || undefined);
             if (token) {
                 // Send to backend
                 apiClient.patch(`/app/auth/update-push-token/${user.userId}`, { pushToken: token })
                 .then(() => {
-                    console.log("Push token updated on backend");
+                    console.log("✅ Push token updated on backend");
                 })
                 .catch(err => {
-                    console.error("Error updating push token on backend:", err);
+                    console.error("❌ Error updating push token on backend:", err);
                 });
             }
         });
@@ -105,7 +172,7 @@ export const usePushNotifications = () => {
   }, [user?.userId]);
 
   return {
-    expoPushToken,
+    devicePushToken,
     notification,
   };
 };
