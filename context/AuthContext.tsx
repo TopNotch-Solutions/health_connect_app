@@ -1,6 +1,7 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, AppStateStatus, Linking, Platform } from 'react-native';
 import apiClient from '../lib/api';
@@ -47,11 +48,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const getPushToken = async (): Promise<string | null> => {
     try {
       if (!Device.isDevice) {
-        Alert.alert(
-          'Push Notifications Required',
-          'Push notifications are only available on physical devices. Please use a physical device to receive notifications.',
-          [{ text: 'OK' }]
-        );
+        console.log('⚠️  Not a physical device - skipping push notifications');
         return null;
       }
 
@@ -60,28 +57,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       let finalStatus = existingStatus;
 
       if (existingStatus !== 'granted') {
+        console.log('🔔 Requesting push notification permissions...');
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
+        console.log('🔔 Permission result:', status);
       }
 
       if (finalStatus !== 'granted') {
-        Alert.alert(
-          'Enable Push Notifications',
-          'Push notifications are required to receive important updates. Please enable notifications in your device settings.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Open Settings',
-              onPress: () => {
-                if (Platform.OS === 'ios') {
-                  Linking.openURL('app-settings:');
-                } else {
-                  Linking.openSettings();
-                }
-              },
-            },
-          ]
-        );
+        console.log('⚠️  Push notification permission denied by user');
         return null;
       }
 
@@ -95,34 +78,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
 
-      // Get the native device push token (FCM token on Android, APNS token on iOS)
-      const deviceToken = await Notifications.getDevicePushTokenAsync();
+      // Get the project ID from app config using Constants
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
       
-      // On Android, this returns the FCM token directly
-      // On iOS, this returns the APNS token
-      const fcmToken = deviceToken.data;
+      if (!projectId) {
+        console.error('❌ Project ID not found in app config');
+        console.warn('⚠️  Make sure your app.json has:');
+        console.warn('   "extra": { "eas": { "projectId": "your-project-id" } }');
+        return null;
+      }
+
+      // Get Expo push token with project ID (TypeScript now knows projectId is a string here)
+      console.log('🔄 Requesting Expo push token with project:', projectId);
+      const pushTokenData = await Promise.race([
+        Notifications.getExpoPushTokenAsync({ 
+          projectId 
+        }),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Push token request timeout')), 10000)
+        )
+      ]);
       
-      console.log('📱 FCM Token obtained:', fcmToken);
-      return fcmToken;
-    } catch (error) {
-      console.error('Error getting FCM token:', error);
-      Alert.alert(
-        'Enable Push Notifications',
-        'Unable to get push notification token. Please ensure push notifications are enabled in your device settings.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Open Settings',
-            onPress: () => {
-              if (Platform.OS === 'ios') {
-                Linking.openURL('app-settings:');
-              } else {
-                Linking.openSettings();
-              }
-            },
-          },
-        ]
-      );
+      const pushToken = pushTokenData.data;
+      console.log('✅ Expo Push Token obtained successfully');
+      console.log('📝 Token preview:', pushToken.substring(0, 50) + '...');
+      return pushToken;
+      
+    } catch (error: any) {
+      console.error('❌ Error getting push token:', error.message);
+      console.error('Error code:', error.code);
+      
+      // Provide helpful error messages
+      if (error.message?.includes('timeout')) {
+        console.warn('⚠️  Network timeout - check your internet connection');
+      } else if (error.message?.includes('projectId')) {
+        console.warn('⚠️  Missing project ID - run: npx eas init');
+      } else if (error.code === 'ERR_NOTIFICATIONS_UNSUPPORTED') {
+        console.warn('⚠️  Push notifications not supported on this device/emulator');
+      }
+      
       return null;
     }
   };
@@ -218,16 +212,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         const existingToken = await SecureStore.getItemAsync('appToken');
         if (!existingToken) {
+          console.log('🔑 Fetching app token...');
           const response = await apiClient.get('/app/auth/retrieve-jwt-token');
           const data = response.data;
 
           if (data && data.token) {
             await SecureStore.setItemAsync('appToken', data.token);
             console.log('✅ App token saved successfully');
+          } else {
+            console.error('❌ No app token in response');
           }
+        } else {
+          console.log('✅ App token already exists');
         }
       } catch (error) {
-        console.error("Failed to fetch app token:", error);
+        console.error("❌ Failed to fetch app token:", error);
       }
     };
     fetchAppToken();
@@ -237,15 +236,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       console.log('🔐 Starting login process...');
       
-      // Get FCM token from device
+      // Ensure app token exists before login
+      let appToken = await SecureStore.getItemAsync('appToken');
+      if (!appToken) {
+        console.log('⚠️  No app token found, fetching...');
+        try {
+          const response = await apiClient.get('/app/auth/retrieve-jwt-token');
+          if (response.data && response.data.token) {
+            appToken = response.data.token;
+            if (appToken) {
+              await SecureStore.setItemAsync('appToken', appToken);
+              console.log('✅ App token fetched and saved');
+            }
+          } else {
+            throw new Error('Failed to get app token from server');
+          }
+        } catch (tokenError) {
+          console.error('❌ Failed to fetch app token:', tokenError);
+          throw new Error('Cannot connect to server. Please check your internet connection.');
+        }
+      }
+      
+      // Get push token from device (non-blocking)
       const pushToken = await getPushToken();
-      console.log('📱 FCM token obtained:', pushToken);
+      if (pushToken) {
+        console.log('✅ Push token obtained');
+      } else {
+        console.log('⚠️  Continuing login without push token');
+      }
 
       // Call login endpoint with email, password, and pushToken
+      console.log('🌐 Calling login API...');
       const response = await apiClient.post('/app/auth/login', { 
         email, 
         password,
-        pushToken: pushToken,
+        pushToken: pushToken || 'PENDING_NOTIFICATION_SETUP', // Backend requires pushToken, so provide a placeholder if null
       });
       
       console.log('✅ Login API call successful');
@@ -257,31 +282,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const userDataFromBackend = response.data.user;
       
-      // CRITICAL FIX: Token is inside user object!
+      // Get JWT token from response
       let authToken = null;
       
-      // Check for token in multiple locations
-      if (userDataFromBackend.token) {
-        // Token is inside the user object (current backend structure)
-        authToken = userDataFromBackend.token;
-        console.log('✅ Token found in response.data.user.token');
-      } else if (response.data.token) {
-        // Token is at top level (standard structure)
+      // Check for token in response
+      if (response.data.token) {
         authToken = response.data.token;
         console.log('✅ Token found in response.data.token');
-      } else if (response.headers['x-access-token']) {
-        // Token in headers
-        authToken = response.headers['x-access-token'].replace('Bearer ', '');
-        console.log('✅ Token found in x-access-token header');
-      } else if (response.headers['authorization']) {
-        // Token in authorization header
-        authToken = response.headers['authorization'].replace('Bearer ', '');
-        console.log('✅ Token found in authorization header');
+      } else if (userDataFromBackend.token) {
+        authToken = userDataFromBackend.token;
+        console.log('✅ Token found in response.data.user.token');
       }
       
+      // If no token in response, the backend's login function is missing the token return
       if (!authToken) {
-        console.error('❌ NO TOKEN FOUND IN RESPONSE');
-        throw new Error('Authentication token not found in response');
+        console.error('❌ Backend login response missing token');
+        console.log('⚠️  Backend needs to return token in login response');
+        throw new Error('Server error: Authentication token not provided');
       }
       
       console.log('🔑 Auth token obtained:', authToken.substring(0, 30) + '...');
@@ -314,19 +331,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await SecureStore.setItemAsync('user', JSON.stringify(userData));
       console.log('✅ User data saved to SecureStore');
       
-      // Verify token works
-      try {
-        console.log('🧪 Verifying token with /user-details endpoint...');
-        const detailsResponse = await apiClient.get('/app/auth/user-details');
-        console.log('✅ Token verification successful!');
-      } catch (detailsError: any) {
-        console.error('⚠️  Token verification failed:', detailsError.response?.data || detailsError.message);
-        console.warn('⚠️  Continuing anyway - token might still work for other endpoints');
-      }
-      
       // Set initial activity timestamp
       await updateLastActivity();
       setUser(userData);
+      
+      // If we didn't get a push token during login, try again in the background
+      if (!pushToken) {
+        console.log('🔄 Retrying push token setup in background...');
+        setTimeout(async () => {
+          try {
+            const retryToken = await getPushToken();
+            if (retryToken) {
+              console.log('✅ Push token obtained on retry, updating...');
+              await apiClient.patch('/app/auth/update-push-token', {
+                pushToken: retryToken,
+              });
+              console.log('✅ Push token updated successfully');
+            }
+          } catch (retryError) {
+            console.log('⚠️  Background push token update failed:', retryError);
+          }
+        }, 3000); // Wait 3 seconds after login
+      }
       
       console.log('🎉 Login successful and fully authenticated!');
       return userData;

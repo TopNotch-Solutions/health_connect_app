@@ -100,7 +100,7 @@ export default function TransactionsScreen() {
         }
         setIsLoading(true);
         try {
-            const response = await apiClient.get(`/app/transaction/transaction-history/${user.userId}`);
+            const response = await apiClient.get('/app/transaction/transaction-history/');
             setTransactions(response.data.data || []);
         } catch (error: any) {
             console.error("Fetch Transactions Error:", error.message);
@@ -125,7 +125,7 @@ export default function TransactionsScreen() {
         }
         setIsSubmitting(true);
         try {
-            const response = await apiClient.post(`/app/transaction/fund-wallet/${user?.userId}`, addMoneyForm);
+            const response = await apiClient.post('/app/transaction/fund-wallet/', addMoneyForm);
             Alert.alert("Success", response.data.message);
             if (response.data.user) {
                 updateUser(response.data.user);
@@ -147,7 +147,7 @@ export default function TransactionsScreen() {
         }
         setIsSubmitting(true);
         try {
-            const response = await apiClient.post(`/app/transaction/fund-other-wallet/${user?.userId}`, fundOthersForm);
+            const response = await apiClient.post('/app/transaction/fund-other-wallet/', fundOthersForm);
             Alert.alert("Success", response.data.message);
             fetchTransactions();
             fundOthersSheetRef.current?.close();
@@ -166,7 +166,7 @@ export default function TransactionsScreen() {
         }
         setIsSubmitting(true);
         try {
-            const response = await apiClient.post(`/app/transaction/withdraw-wallet-funds/${user?.userId}`, withdrawForm);
+            const response = await apiClient.post('/app/transaction/withdraw-wallet-funds/', withdrawForm);
             Alert.alert("Success", response.data.message);
             if (response.data.user) {
                 updateUser(response.data.user);
@@ -247,7 +247,7 @@ export default function TransactionsScreen() {
             >
                 <BottomSheetView style={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 0 }}>
                     <View className="flex-row justify-between items-center mb-4">
-                        <Text className="text-2xl font-bold text-text-main">Add Money to Wallet</Text>
+                        <Text className="text-2xl font-bold">Add Money to Wallet</Text>
                         <TouchableOpacity onPress={() => addMoneySheetRef.current?.close()}>
                             <Feather name="x" size={24} color="#374151" />
                         </TouchableOpacity>

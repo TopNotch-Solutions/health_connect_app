@@ -19,7 +19,7 @@ export default function ProviderTabsLayout() {
     if (!user?.userId) return;
     try {
       console.log('Fetching unread count for user:', user.userId);
-      const response = await apiClient.get(`/app/notification/unread-count/${user.userId}`);
+      const response = await apiClient.get('/app/notification/unread-count/');
       console.log('Unread count response:', response.data);
       
       // API response structure: { status: true, data: { unReadCount: number } }

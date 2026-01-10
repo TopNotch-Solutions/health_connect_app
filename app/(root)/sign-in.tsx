@@ -52,6 +52,7 @@ const SignInScreen = () => {
     // Clear previous errors
     setEmailError('');
     setPasswordError('');
+    setCredentialError(null);
     
     // Validate inputs
     let hasError = false;
@@ -75,35 +76,58 @@ const SignInScreen = () => {
 
     try {
       setIsLoading(true);
-      setCredentialError(null);
+      
+      console.log('🔐 Starting login process...');
       const user = await login(email, password);
+      console.log('✅ Login successful for user:', user.email, 'Role:', user.role);
       // Don't manually navigate - let the root layout handle it automatically
       // The _layout.tsx will detect the authentication change and redirect to the correct home screen
-      console.log('Login successful for user:', user.email, 'Role:', user.role);
+      
     } catch(error: any){
-      console.error('Sign-in error details:', {
+      console.error('❌ Sign-in error:', {
         message: error?.message,
-        response: error?.response?.data,
         status: error?.response?.status,
-        error: error,
+        data: error?.response?.data,
+        code: error?.code,
       });
       
       // Determine error type and message
       const status = error?.response?.status;
       const message = error?.response?.data?.message || error?.message;
+      const code = error?.code;
       
       let errorType: 'invalid' | 'network' | 'server' = 'server';
-      let errorMessage = 'Failed to sign in. Please check your credentials and try again.';
+      let errorMessage = 'Failed to sign in. Please try again.';
       
-      if (status === 401 || message?.toLowerCase().includes('invalid') || message?.toLowerCase().includes('incorrect')) {
+      // Network errors (no response from server)
+      if (!error?.response || code === 'ECONNABORTED' || code === 'ERR_NETWORK' || code === 'ECONNREFUSED') {
+        errorType = 'network';
+        errorMessage = 'Cannot connect to server. Please check your internet connection and try again.';
+      }
+      // Timeout errors
+      else if (code === 'ETIMEDOUT' || message?.toLowerCase().includes('timeout')) {
+        errorType = 'network';
+        errorMessage = 'Connection timeout. Please check your internet and try again.';
+      }
+      // Invalid credentials
+      else if (status === 401 || message?.toLowerCase().includes('invalid') || message?.toLowerCase().includes('incorrect')) {
         errorType = 'invalid';
         errorMessage = 'Invalid email or password. Please try again.';
-      } else if (status === 403 || message?.toLowerCase().includes('not found')) {
+      } 
+      // Account not found
+      else if (status === 403 || status === 404 || message?.toLowerCase().includes('not found')) {
         errorType = 'invalid';
         errorMessage = 'No account found with this email address.';
-      } else if (!status || message?.toLowerCase().includes('network') || message?.toLowerCase().includes('timeout')) {
-        errorType = 'network';
-        errorMessage = 'Network error. Please check your connection and try again.';
+      }
+      // Server errors
+      else if (status && status >= 500) {
+        errorType = 'server';
+        errorMessage = 'Server error. Please try again later.';
+      }
+      // Generic error with backend message
+      else if (message) {
+        errorType = 'server';
+        errorMessage = message;
       }
       
       setCredentialError({ message: errorMessage, type: errorType });
@@ -116,13 +140,14 @@ const SignInScreen = () => {
           tension: 40,
           useNativeDriver: true,
         }),
-        Animated.delay(4000),
+        Animated.delay(5000), // Show for 5 seconds
         Animated.timing(credentialErrorAnim, {
           toValue: 0,
           duration: 300,
           useNativeDriver: true,
         }),
       ]).start();
+      
     } finally {
       setIsLoading(false);
     }
@@ -173,106 +198,107 @@ const SignInScreen = () => {
       </SafeAreaView>
     );
   }
+  
   try {
     return (
-    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
-      <KeyboardAwareScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 0, paddingBottom: 5, }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        enableOnAndroid={true}
-        enableAutomaticScroll={true}
-        extraScrollHeight={150}
-      >
-        
-        {/* Logo/Icon Section */}
-        <View
-          className="items-center"
-          style={{ marginBottom:0 }}
+      <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
+        <KeyboardAwareScrollView
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 0, paddingBottom: 5, }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          enableOnAndroid={true}
+          enableAutomaticScroll={true}
+          extraScrollHeight={150}
         >
-          <Image 
-            source={require('../../assets/images/healthconnectlogo-cropped.png')}
-            style={{ width: 180, height: 180, marginBottom: 0 }}
-            resizeMode="contain"
-          />
-        </View>
+          
+          {/* Logo/Icon Section */}
+          <View
+            className="items-center"
+            style={{ marginBottom:0 }}
+          >
+            <Image 
+              source={require('../../assets/images/healthconnectlogo-cropped.png')}
+              style={{ width: 180, height: 180, marginBottom: 0 }}
+              resizeMode="contain"
+            />
+          </View>
 
-        {/* Form Section */}
-        <View className="mb-4">
-          <Text className="text-2xl mb-2 font-bold text-gray-900">Welcome</Text>
+          {/* Form Section */}
+          <View className="mb-4">
+            <Text className="text-2xl mb-2 font-bold text-gray-900">Welcome</Text>
 
-          {/* Credential Error Display */}
-          {credentialError && (
-            <Animated.View
-              style={{
-                opacity: credentialErrorAnim,
-                transform: [
-                  {
-                    translateY: credentialErrorAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-20, 0],
-                    }),
-                  },
-                ],
-              }}
-            >
-              <View
-                className="mb-4 rounded-lg px-4 py-3 flex-row items-start"
+            {/* Credential Error Display */}
+            {credentialError && (
+              <Animated.View
                 style={{
-                  backgroundColor: credentialError.type === 'invalid' ? '#FEE2E2' : '#FEF3C7',
-                  borderLeftWidth: 4,
-                  borderLeftColor: credentialError.type === 'invalid' ? '#EF4444' : '#F59E0B',
+                  opacity: credentialErrorAnim,
+                  transform: [
+                    {
+                      translateY: credentialErrorAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-20, 0],
+                      }),
+                    },
+                  ],
                 }}
               >
-                <Feather
-                  name={credentialError.type === 'invalid' ? 'alert-circle' : 'wifi-off'}
-                  size={18}
-                  color={credentialError.type === 'invalid' ? '#DC2626' : '#D97706'}
-                  style={{ marginRight: 10, marginTop: 2 }}
-                />
-                <Text
+                <View
+                  className="mb-4 rounded-lg px-4 py-3 flex-row items-start"
                   style={{
-                    color: credentialError.type === 'invalid' ? '#B91C1C' : '#92400E',
-                    fontSize: 14,
-                    fontWeight: '500',
-                    flex: 1,
+                    backgroundColor: credentialError.type === 'network' ? '#FEF3C7' : credentialError.type === 'invalid' ? '#FEE2E2' : '#FEF3C7',
+                    borderLeftWidth: 4,
+                    borderLeftColor: credentialError.type === 'network' ? '#F59E0B' : credentialError.type === 'invalid' ? '#EF4444' : '#F59E0B',
                   }}
                 >
-                  {credentialError.message}
-                </Text>
+                  <Feather
+                    name={credentialError.type === 'network' ? 'wifi-off' : credentialError.type === 'invalid' ? 'alert-circle' : 'alert-triangle'}
+                    size={18}
+                    color={credentialError.type === 'network' ? '#D97706' : credentialError.type === 'invalid' ? '#DC2626' : '#D97706'}
+                    style={{ marginRight: 10, marginTop: 2 }}
+                  />
+                  <Text
+                    style={{
+                      color: credentialError.type === 'network' ? '#92400E' : credentialError.type === 'invalid' ? '#B91C1C' : '#92400E',
+                      fontSize: 14,
+                      fontWeight: '500',
+                      flex: 1,
+                    }}
+                  >
+                    {credentialError.message}
+                  </Text>
+                </View>
+              </Animated.View>
+            )}
+            
+            {/* Email Input */}
+            <View className="mb-5">
+              <Text className="text-base text-gray-900 mb-2 font-medium">Email</Text>
+              <View 
+                className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2"
+                style={{
+                  borderColor: emailError ? '#EF4444' : '#D1D5DB',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.06,
+                  shadowRadius: 3,
+                  elevation: 1,
+                }}
+              >
+                <MaterialCommunityIcons name="email" size={20} color={emailError ? '#EF4444' : '#10B981'} />
+                <TextInput
+                  className="flex-1 ml-3 text-base text-gray-900"
+                  placeholder="Enter your email"
+                  placeholderTextColor="#9CA3AF"
+                  value={email}
+                  onChangeText={handleEmailChange}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
               </View>
-            </Animated.View>
-          )}
-          
-          {/* Email Input */}
-          <View className="mb-5">
-            <Text className="text-base text-gray-900 mb-2 font-medium">Email</Text>
-            <View 
-              className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2"
-              style={{
-                borderColor: emailError ? '#EF4444' : '#D1D5DB',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.06,
-                shadowRadius: 3,
-                elevation: 1,
-              }}
-            >
-              <MaterialCommunityIcons name="email" size={20} color={emailError ? '#EF4444' : '#10B981'} />
-              <TextInput
-                className="flex-1 ml-3 text-base text-gray-900"
-                placeholder="Enter your email"
-                placeholderTextColor="#9CA3AF"
-                value={email}
-                onChangeText={handleEmailChange}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+              {emailError ? (
+                <Text className="text-red-500 text-sm mt-1 ml-1">{emailError}</Text>
+              ) : null}
             </View>
-            {emailError ? (
-              <Text className="text-red-500 text-sm mt-1 ml-1">{emailError}</Text>
-            ) : null}
-          </View>
 
             {/* Password Input */}
             <View className="mb-4">
@@ -360,8 +386,8 @@ const SignInScreen = () => {
             )}
           </TouchableOpacity>
         </SafeAreaView>
-      <StatusBar backgroundColor="#EFF6FF" style="dark" />
-    </SafeAreaView>
+        <StatusBar backgroundColor="#EFF6FF" style="dark" />
+      </SafeAreaView>
     );
   } catch (error: any) {
     console.error('Error rendering SignInScreen:', error);

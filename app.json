@@ -57,6 +57,15 @@
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to connect you with nearby healthcare providers."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/healthconnectlogo-cropped.png",
+          "color": "#10B981",
+          "sounds": [],
+          "mode": "production"
+        }
+      ],
       "expo-build-properties",
       "expo-web-browser"
     ],
