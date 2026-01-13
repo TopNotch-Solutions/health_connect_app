@@ -142,13 +142,20 @@ export const usePushNotifications = () => {
             setDevicePushToken(token || undefined);
             if (token) {
                 // Send to backend
-                apiClient.patch(`/app/auth/update-push-token/`, { pushToken: token })
-                .then(() => {
-                    console.log("✅ Push token updated on backend");
-                })
-                .catch(err => {
-                    console.error("❌ Error updating push token on backend:", err);
-                });
+                const sendTokenToBackend = async (retryCount = 0) => {
+                    try {
+                        const response = await apiClient.patch(`/app/auth/update-push-token`, { pushToken: token });
+                        console.log("✅ Push token updated on backend:", response.data?.message);
+                    } catch (err: any) {
+                        console.error("❌ Error updating push token on backend:", err.response?.data?.message || err.message);
+                        // Retry up to 3 times if network error
+                        if (retryCount < 3 && (err.code === 'ECONNABORTED' || !err.response)) {
+                            console.log(`🔄 Retrying token upload (attempt ${retryCount + 1}/3) in 5 seconds...`);
+                            setTimeout(() => sendTokenToBackend(retryCount + 1), 5000);
+                        }
+                    }
+                };
+                sendTokenToBackend();
             }
         });
     }

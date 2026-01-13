@@ -1,6 +1,7 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, AppStateStatus, Linking, Platform } from 'react-native';
 import apiClient from '../lib/api';
@@ -47,11 +48,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const getPushToken = async (): Promise<string | null> => {
     try {
       if (!Device.isDevice) {
-        Alert.alert(
-          'Push Notifications Required',
-          'Push notifications are only available on physical devices. Please use a physical device to receive notifications.',
-          [{ text: 'OK' }]
-        );
         console.log('⚠️  Not a physical device - skipping push notifications');
         return null;
       }
@@ -68,23 +64,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (finalStatus !== 'granted') {
-        Alert.alert(
-          'Enable Push Notifications',
-          'Push notifications are required to receive important updates. Please enable notifications in your device settings.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Open Settings',
-              onPress: () => {
-                if (Platform.OS === 'ios') {
-                  Linking.openURL('app-settings:');
-                } else {
-                  Linking.openSettings();
-                }
-              },
-            },
-          ]
-        );
         console.log('⚠️  Push notification permission denied by user');
         return null;
       }
@@ -99,59 +78,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
 
-      // Get the native device push token (FCM token on Android, APNS token on iOS)
-      console.log('🔄 Requesting native device push token...');
-      const deviceToken = await Promise.race([
-        Notifications.getDevicePushTokenAsync(),
+      // Get the project ID from app config using Constants
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      
+      if (!projectId) {
+        console.error('❌ Project ID not found in app config');
+        console.warn('⚠️  Make sure your app.json has:');
+        console.warn('   "extra": { "eas": { "projectId": "your-project-id" } }');
+        return null;
+      }
+
+      // Get Expo push token with project ID
+      console.log('🔄 Requesting Expo push token with project:', projectId);
+      const pushTokenData = await Promise.race([
+        Notifications.getExpoPushTokenAsync({ 
+          projectId: projectId 
+        }),
         new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('Push token request timeout')), 10000)
         )
       ]);
       
-      // On Android, this returns the FCM token directly
-      // On iOS, this returns the APNS token
-      const fcmToken = deviceToken.data;
-      
-      if (!fcmToken || fcmToken.trim() === '') {
-        throw new Error('Empty token received from device');
-      }
-      
-      console.log('✅ Native Device Push Token obtained successfully');
-      console.log('📱 Platform:', Platform.OS);
-      console.log('📝 Token preview:', fcmToken.substring(0, 50) + '...');
-      console.log('📏 Token length:', fcmToken.length);
-      return fcmToken;
+      const pushToken = pushTokenData.data;
+      console.log('✅ Expo Push Token obtained successfully');
+      console.log('📝 Token preview:', pushToken.substring(0, 50) + '...');
+      return pushToken;
       
     } catch (error: any) {
       console.error('❌ Error getting push token:', error.message);
       console.error('Error code:', error.code);
       
-      // Show alert to user
-      Alert.alert(
-        'Enable Push Notifications',
-        'Unable to get push notification token. Please ensure push notifications are enabled in your device settings.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Open Settings',
-            onPress: () => {
-              if (Platform.OS === 'ios') {
-                Linking.openURL('app-settings:');
-              } else {
-                Linking.openSettings();
-              }
-            },
-          },
-        ]
-      );
-      
       // Provide helpful error messages
       if (error.message?.includes('timeout')) {
         console.warn('⚠️  Network timeout - check your internet connection');
+      } else if (error.message?.includes('projectId')) {
+        console.warn('⚠️  Missing project ID - run: npx eas init');
       } else if (error.code === 'ERR_NOTIFICATIONS_UNSUPPORTED') {
         console.warn('⚠️  Push notifications not supported on this device/emulator');
-      } else if (error.message?.includes('Empty token')) {
-        console.warn('⚠️  Device returned empty token - check notification configuration');
       }
       
       return null;
@@ -281,10 +244,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const response = await apiClient.get('/app/auth/retrieve-jwt-token');
           if (response.data && response.data.token) {
             appToken = response.data.token;
-            if (appToken) {
-              await SecureStore.setItemAsync('appToken', appToken);
-              console.log('✅ App token fetched and saved');
-            }
+            await SecureStore.setItemAsync('appToken', appToken);
+            console.log('✅ App token fetched and saved');
           } else {
             throw new Error('Failed to get app token from server');
           }
@@ -294,32 +255,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
       
-      // Get push token from device - this is required for push notifications
-      console.log('🔔 Attempting to get device push token...');
-      let pushToken = await getPushToken();
-      
-      // If we didn't get a token, try one more time after a short delay
-      if (!pushToken) {
-        console.log('⚠️  First attempt failed, retrying push token retrieval...');
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-        pushToken = await getPushToken();
-      }
-      
+      // Get push token from device (non-blocking)
+      const pushToken = await getPushToken();
       if (pushToken) {
-        console.log('✅ Push token obtained successfully');
-        console.log('📝 Token length:', pushToken.length);
-        console.log('📝 Token preview:', pushToken.substring(0, 30) + '...');
+        console.log('✅ Push token obtained');
       } else {
-        console.error('❌ Failed to obtain push token after retry');
-        console.warn('⚠️  Login will proceed without push token - user will not receive push notifications');
+        console.log('⚠️  Continuing login without push token');
       }
 
-      // Call login endpoint with email, password, and pushToken (null if not available)
+      // Call login endpoint with email, password, and pushToken
       console.log('🌐 Calling login API...');
       const response = await apiClient.post('/app/auth/login', { 
         email, 
         password,
-        pushToken: pushToken || null, // Pass null if token not available, let backend handle it
+        pushToken: pushToken || undefined, // Send undefined if no token, backend will handle it gracefully
       });
       
       console.log('✅ Login API call successful');
