@@ -141,7 +141,6 @@ export const usePushNotifications = () => {
         registerForPushNotificationsAsync().then(token => {
             setDevicePushToken(token || undefined);
             if (token) {
-                // Send to backend
                 const sendTokenToBackend = async (retryCount = 0) => {
                     try {
                         const response = await apiClient.patch(`/app/auth/update-push-token`, { pushToken: token });
