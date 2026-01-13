@@ -13,7 +13,7 @@ const OnboardingProviderScreen = () => {
   };
 
   const handleSkip = () => {
-    router.push('/selection');
+    router.push('/(root)/sign-in');
   };
 
   return (

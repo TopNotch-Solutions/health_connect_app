@@ -142,7 +142,7 @@ export const usePushNotifications = () => {
             setDevicePushToken(token || undefined);
             if (token) {
                 // Send to backend
-                apiClient.patch(`/app/auth/update-push-token/`, { pushToken: token })
+                apiClient.patch(`/app/auth/update-push-token/${user.userId}`, { pushToken: token })
                 .then(() => {
                     console.log("✅ Push token updated on backend");
                 })
