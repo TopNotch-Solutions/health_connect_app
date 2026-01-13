@@ -1,6 +1,5 @@
 ﻿import { Feather } from '@expo/vector-icons';
 import DateTimePicker from "@react-native-community/datetimepicker";
-import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -13,6 +12,7 @@ import {
   Image,
   Linking,
   Modal,
+  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -622,20 +622,41 @@ export default function ProviderRegistrationScreen() {
       console.log('🔄 Building form data...');
       const formData = buildFormData();
 
-      // Get Push Token
+      // Get Push Token (Native FCM/APNS token)
       if (Device.isDevice) {
           try {
+              // Configure Android notification channel for FCM
+              if (Platform.OS === 'android') {
+                  await Notifications.setNotificationChannelAsync('default', {
+                      name: 'default',
+                      importance: Notifications.AndroidImportance.MAX,
+                      vibrationPattern: [0, 250, 250, 250],
+                      lightColor: '#FF231F7C',
+                  });
+              }
+
+              // Request notification permissions
               const { status: existingStatus } = await Notifications.getPermissionsAsync();
               let finalStatus = existingStatus;
               if (existingStatus !== 'granted') {
                   const { status } = await Notifications.requestPermissionsAsync();
                   finalStatus = status;
               }
+              
               if (finalStatus === 'granted') {
-                  const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-                  const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
-                  if (tokenData.data) {
-                      formData.append('pushToken', tokenData.data);
+                  // Get the native device push token (FCM token on Android, APNS token on iOS)
+                  const deviceToken = await Promise.race([
+                      Notifications.getDevicePushTokenAsync(),
+                      new Promise<never>((_, reject) => 
+                          setTimeout(() => reject(new Error('Push token request timeout')), 10000)
+                      )
+                  ]);
+                  
+                  // On Android, this returns the FCM token directly
+                  // On iOS, this returns the APNS token
+                  const pushToken = deviceToken.data;
+                  if (pushToken) {
+                      formData.append('pushToken', pushToken);
                   }
               }
           } catch (e) {
