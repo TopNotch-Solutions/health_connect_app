@@ -40,9 +40,9 @@ export default function ProviderHome() {
   const { user } = useAuth();
   const router = useRouter();
 
-  // Online/Offline toggle
-  const [isOnline, setIsOnline] = useState(true);
-  const toggleOnline = () => setIsOnline((prev) => !prev);
+  // Online status is now automatically determined by verification status
+  // Provider is online only when documents are verified
+  const isOnline = user?.isDocumentVerified ?? false;
 
   const [selectedRequest, setSelectedRequest] = useState<null | any>(null);
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -277,7 +277,7 @@ export default function ProviderHome() {
           />
         }
       >
-        {/* Header with provider name + Online/Offline toggle */}
+        {/* Header with provider name */}
         <View className="bg-white pt-6 pb-4 px-6 border-b border-gray-200">
           <View className="flex-row items-center justify-between">
             <View>
@@ -286,21 +286,6 @@ export default function ProviderHome() {
                 {user?.fullname || "Provider"}
               </Text>
             </View>
-
-            {/* Online/Offline toggle button */}
-            <TouchableOpacity
-              onPress={toggleOnline}
-              className={`flex-row items-center px-5 py-2.5 rounded-full ${
-                isOnline ? "bg-green-500" : "bg-gray-400"
-              }`}
-            >
-              <View className={`w-2 h-2 rounded-full mr-2 ${
-                isOnline ? "bg-white" : "bg-gray-200"
-              }`} />
-              <Text className="text-white font-bold text-sm">
-                {isOnline ? "Online" : "Offline"}
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
 

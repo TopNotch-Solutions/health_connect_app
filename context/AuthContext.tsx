@@ -7,7 +7,9 @@ import { Alert, AppState, AppStateStatus, Linking, Platform } from 'react-native
 import apiClient from '../lib/api';
 import socketService from '../lib/socket';
 
+// Updated User interface with all health provider fields
 export interface User {
+  // Base fields (all users)
   userId: string;
   fullname: string;
   email: string;
@@ -24,7 +26,21 @@ export interface User {
   nationalId?: string;
   isAccountVerified?: boolean;
   isPushNotificationEnabled?: boolean;
+  
+  // Health provider specific fields
   isDocumentVerified?: boolean;
+  isDocumentsSubmitted?: boolean;
+  hpcnaNumber?: string;
+  hpcnaExpiryDate?: string;
+  specializations?: string[];
+  yearsOfExperience?: number;
+  operationalZone?: string;
+  governingCouncil?: string;
+  bio?: string;
+  HPCNAQualification?: string;
+  finalQualification?: string;
+  idDocumentFront?: string;
+  idDocumentBack?: string;
 }
 
 const SESSION_TIMEOUT = 5 * 60 * 1000;
@@ -269,7 +285,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const response = await apiClient.post('/app/auth/login', { 
         email, 
         password,
-        pushToken: pushToken || undefined, // Send undefined if no token, backend will handle it gracefully
+        pushToken: pushToken || undefined,
       });
       
       console.log('✅ Login API call successful');
@@ -302,7 +318,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       console.log('🔑 Auth token obtained:', authToken.substring(0, 30) + '...');
       
-      // Create user object (exclude token from user data)
+      // Create user object with ALL fields (exclude token from user data)
       const userData: User = {
         userId: userDataFromBackend.userId,
         fullname: userDataFromBackend.fullname,
@@ -320,6 +336,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         nationalId: userDataFromBackend.nationalId,
         isAccountVerified: userDataFromBackend.isAccountVerified,
         isPushNotificationEnabled: userDataFromBackend.isPushNotificationEnabled,
+        
+        // Health provider specific fields
+        isDocumentVerified: userDataFromBackend.isDocumentVerified,
+        isDocumentsSubmitted: userDataFromBackend.isDocumentsSubmitted,
+        hpcnaNumber: userDataFromBackend.hpcnaNumber,
+        hpcnaExpiryDate: userDataFromBackend.hpcnaExpiryDate,
+        specializations: userDataFromBackend.specializations,
+        yearsOfExperience: userDataFromBackend.yearsOfExperience,
+        operationalZone: userDataFromBackend.operationalZone,
+        governingCouncil: userDataFromBackend.governingCouncil,
+        bio: userDataFromBackend.bio,
+        HPCNAQualification: userDataFromBackend.HPCNAQualification,
+        finalQualification: userDataFromBackend.finalQualification,
+        idDocumentFront: userDataFromBackend.idDocumentFront,
+        idDocumentBack: userDataFromBackend.idDocumentBack,
       };
 
       // Save token FIRST
@@ -350,7 +381,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           } catch (retryError) {
             console.log('⚠️  Background push token update failed:', retryError);
           }
-        }, 3000); // Wait 3 seconds after login
+        }, 3000);
       }
       
       console.log('🎉 Login successful and fully authenticated!');
