@@ -24,6 +24,7 @@ export interface User {
   nationalId?: string;
   isAccountVerified?: boolean;
   isPushNotificationEnabled?: boolean;
+  isDocumentVerified?: boolean;
 }
 
 const SESSION_TIMEOUT = 5 * 60 * 1000;

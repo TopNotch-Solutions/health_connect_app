@@ -195,6 +195,16 @@ export default function ProviderHome() {
       return;
     }
 
+    // Check if provider is verified before allowing acceptance
+    if (!user.isDocumentVerified) {
+      Alert.alert(
+        'Account Not Verified',
+        'Your account is still under review. You cannot accept consultations until your documents have been verified by our admin team. We\'ll notify you once verification is complete.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     const currentUserId = user.userId; // Store userId to avoid issues if user becomes null
     
     try {
@@ -251,6 +261,7 @@ export default function ProviderHome() {
       Alert.alert('Error', error.message || 'Failed to decline request');
     }
   };
+  
   const greeting = getGreeting();
 
   return (
@@ -292,6 +303,33 @@ export default function ProviderHome() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Verification Status Banner */}
+        {!user?.isDocumentVerified && (
+          <View className="px-6 pt-4">
+            <View className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-4">
+              <View className="flex-row items-start">
+                <Feather name="alert-circle" size={20} color="#F59E0B" style={{ marginRight: 12, marginTop: 2 }} />
+                <View className="flex-1">
+                  <Text className="text-amber-900 font-bold text-base mb-1">
+                    Account Under Review
+                  </Text>
+                  <Text className="text-amber-800 text-sm leading-5">
+                    Your documents are currently being verified by our admin team. You'll be notified once your account is approved and you can start accepting consultations.
+                  </Text>
+                  <TouchableOpacity 
+                    onPress={() => router.push('/(app)/(provider)/profile')}
+                    className="mt-3 bg-amber-100 px-3 py-2 rounded-lg self-start"
+                  >
+                    <Text className="text-amber-900 font-semibold text-sm">
+                      View Profile →
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Stats Cards */}
         <View className="px-6 py-6">
