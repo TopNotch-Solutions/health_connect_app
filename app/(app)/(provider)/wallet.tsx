@@ -446,30 +446,30 @@ export default function TransactionsScreen() {
                     )}
                     <Text className="text-sm font-semibold text-gray-700 mb-1.5 mt-2">Card Number</Text>
                     <TextInput
-                        value={fundOthersForm.cardNumber}
+                        value={addMoneyForm.cardNumber}
                         onChangeText={v => {
-                            setFundOthersForm(p => ({ ...p, cardNumber: v }));
-                            setFundOthersErrors(e => ({ ...e, cardNumber: undefined }));
+                            setAddMoneyForm(p => ({ ...p, cardNumber: v }));
+                            setAddMoneyErrors(e => ({ ...e, cardNumber: undefined }));
                         }}
                         placeholder="Card Number"
-                        className={`bg-white p-4 rounded-2xl mb-1 border ${fundOthersErrors.cardNumber ? 'border-red-500' : 'border-gray-200'}`}
+                        className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.cardNumber ? 'border-red-500' : 'border-gray-200'}`}
                         keyboardType="numeric"
                         placeholderTextColor="#9CA3AF"
                     />
-                    {fundOthersErrors.cardNumber && (
-                        <Text className="text-xs text-red-500 mb-2">{fundOthersErrors.cardNumber}</Text>
+                    {addMoneyErrors.cardNumber && (
+                        <Text className="text-xs text-red-500 mb-2">{addMoneyErrors.cardNumber}</Text>
                     )}
                     <View className="flex-row mt-2" style={{ gap: 12 }}>
                         <View className="flex-1">
                             <Text className="text-sm font-semibold text-gray-700 mb-1.5">Expiry Date</Text>
                             <TextInput
-                                value={fundOthersForm.expiryDate}
+                                value={addMoneyForm.expiryDate}
                                 onChangeText={v => {
                                     setFundOthersForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }));
                                     setFundOthersErrors(e => ({ ...e, expiryDate: undefined }));
                                 }}
                                 placeholder="MM/YY"
-                                className={`bg-white p-4 rounded-2xl mb-1 border ${fundOthersErrors.expiryDate ? 'border-red-500' : 'border-gray-200'}`}
+                                className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.expiryDate ? 'border-red-500' : 'border-gray-200'}`}
                                 maxLength={5}
                                 placeholderTextColor="#9CA3AF"
                             />
@@ -477,35 +477,35 @@ export default function TransactionsScreen() {
                         <View className="flex-1">
                             <Text className="text-sm font-semibold text-gray-700 mb-1.5">CVV</Text>
                             <TextInput
-                                value={fundOthersForm.cvv}
+                                value={addMoneyForm.cvv}
                                 onChangeText={v => {
                                     setFundOthersForm(p => ({ ...p, cvv: v }));
                                     setFundOthersErrors(e => ({ ...e, cvv: undefined }));
                                 }}
                                 placeholder="CVV"
-                                className={`bg-white p-4 rounded-2xl mb-1 border ${fundOthersErrors.cvv ? 'border-red-500' : 'border-gray-200'}`}
+                                className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.cvv ? 'border-red-500' : 'border-gray-200'}`}
                                 keyboardType="numeric"
                                 secureTextEntry
                                 placeholderTextColor="#9CA3AF"
                             />
                         </View>
                     </View>
-                    {(fundOthersErrors.expiryDate || fundOthersErrors.cvv) && (
+                    {(addMoneyErrors.expiryDate || addMoneyErrors.cvv) && (
                         <View className="flex-row justify-between mb-2">
                             <View className="flex-1 pr-1">
-                                {fundOthersErrors.expiryDate && (
-                                    <Text className="text-xs text-red-500">{fundOthersErrors.expiryDate}</Text>
+                                {addMoneyErrors.expiryDate && (
+                                    <Text className="text-xs text-red-500">{addMoneyErrors.expiryDate}</Text>
                                 )}
                             </View>
                             <View className="flex-1 pl-1">
-                                {fundOthersErrors.cvv && (
-                                    <Text className="text-xs text-red-500 text-right">{fundOthersErrors.cvv}</Text>
+                                {addMoneyErrors.cvv && (
+                                    <Text className="text-xs text-red-500 text-right">{addMoneyErrors.cvv}</Text>
                                 )}
                             </View>
                         </View>
                     )}
                     <TouchableOpacity
-                        onPress={handleFundOthers}
+                        onPress={handleAddMoney}
                         disabled={isSubmitting}
                         className={`bg-green-600 p-4 rounded-xl mb-4 ${isSubmitting && 'opacity-50'}`}
                     >
