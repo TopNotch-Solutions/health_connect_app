@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Clipboard, FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Clipboard, FlatList, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
 import apiClient from '../../../lib/api';
@@ -179,14 +179,21 @@ export default function TransactionsScreen() {
     const fetchAndUpdateUserDetails = useCallback(async () => {
         if (!user?.userId) return;
         try {
-            const userResponse = await apiClient.get(`/app/auth/user-details/${user.userId}`);
-            if (userResponse.data?.status && userResponse.data?.user) {
-                updateUser(userResponse.data.user);
+            const userResponse = await apiClient.get(`/app/auth/user-details`);
+            console.log("User details response:", userResponse.data);
+            if (userResponse.data?.user) {
+                // Merge with existing user to preserve balance if not in response
+                const updatedUser = {
+                    ...userResponse.data.user,
+                    balance: userResponse.data.user.balance !== undefined ? userResponse.data.user.balance : user?.balance
+                };
+                console.log("Updated user with balance:", updatedUser);
+                updateUser(updatedUser);
             }
         } catch (error) {
             console.error("Error fetching user details:", error);
         }
-    }, [user?.userId, updateUser]);
+    }, [user?.userId, user?.balance, updateUser]);
     // --- FULLY IMPLEMENTED handleAddMoney ---
     const handleAddMoney = async () => {
         const errors: { amount?: string; cardNumber?: string; expiryDate?: string; cvv?: string; cardHolder?: string } = {};
@@ -247,6 +254,7 @@ export default function TransactionsScreen() {
                 setFundOthersForm({ amount: '', walletID: '', cardNumber: '', expiryDate: '', cvv: '', cardHolder: '' });
                 setFundOthersErrors({});
 
+                await fetchAndUpdateUserDetails();
                 await fetchTransactions(true, 1);
 
                 Alert.alert("Success", response.data.message);
@@ -404,7 +412,8 @@ export default function TransactionsScreen() {
                 backgroundStyle={{ backgroundColor: '#FFFFFF', borderRadius: 24 }}
                 handleIndicatorStyle={{ backgroundColor: '#9CA3AF', width: 40 }}
             >
-                <BottomSheetView style={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 0 }}>
+                <BottomSheetView style={{ flex: 1 }}>
+                    <ScrollView contentContainerStyle={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 24 }} keyboardShouldPersistTaps="handled" scrollEnabled={true}>
                     <View className="flex-row justify-between items-center mb-4">
                         <Text className="text-2xl font-bold text-text-main">Add Money to Wallet</Text>
                         <TouchableOpacity onPress={() => {
@@ -465,8 +474,8 @@ export default function TransactionsScreen() {
                             <TextInput
                                 value={addMoneyForm.expiryDate}
                                 onChangeText={v => {
-                                    setFundOthersForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }));
-                                    setFundOthersErrors(e => ({ ...e, expiryDate: undefined }));
+                                    setAddMoneyForm(p => ({ ...p, expiryDate: formatExpiryDate(v) }));
+                                    setAddMoneyErrors(e => ({ ...e, expiryDate: undefined }));
                                 }}
                                 placeholder="MM/YY"
                                 className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.expiryDate ? 'border-red-500' : 'border-gray-200'}`}
@@ -479,8 +488,8 @@ export default function TransactionsScreen() {
                             <TextInput
                                 value={addMoneyForm.cvv}
                                 onChangeText={v => {
-                                    setFundOthersForm(p => ({ ...p, cvv: v }));
-                                    setFundOthersErrors(e => ({ ...e, cvv: undefined }));
+                                    setAddMoneyForm(p => ({ ...p, cvv: v }));
+                                    setAddMoneyErrors(e => ({ ...e, cvv: undefined }));
                                 }}
                                 placeholder="CVV"
                                 className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.cvv ? 'border-red-500' : 'border-gray-200'}`}
@@ -515,6 +524,7 @@ export default function TransactionsScreen() {
                             <Text className="text-white font-semibold text-center text-lg">Send Money</Text>
                         )}
                     </TouchableOpacity>
+                    </ScrollView>
                 </BottomSheetView>
             </BottomSheet>
 
@@ -526,7 +536,8 @@ export default function TransactionsScreen() {
                 backgroundStyle={{ backgroundColor: '#FFFFFF', borderRadius: 24 }}
                 handleIndicatorStyle={{ backgroundColor: '#9CA3AF', width: 40 }}
             >
-                <BottomSheetView style={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 0 }}>
+                <BottomSheetView style={{ flex: 1 }}>
+                    <ScrollView contentContainerStyle={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 24 }} keyboardShouldPersistTaps="handled" scrollEnabled={true}>
                     <View className="flex-row justify-between items-center mb-4">
                         <Text className="text-2xl font-bold text-text-main">Send Funds</Text>
                         <TouchableOpacity onPress={() => fundOthersSheetRef.current?.close()}>
@@ -544,6 +555,7 @@ export default function TransactionsScreen() {
                     <TouchableOpacity onPress={handleFundOthers} disabled={isSubmitting} className={`bg-green-600 p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
                         {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Send Money</Text>}
                     </TouchableOpacity>
+                    </ScrollView>
                 </BottomSheetView>
             </BottomSheet>
 
@@ -555,7 +567,8 @@ export default function TransactionsScreen() {
                 backgroundStyle={{ backgroundColor: '#FFFFFF', borderRadius: 24 }}
                 handleIndicatorStyle={{ backgroundColor: '#9CA3AF', width: 40 }}
             >
-                <BottomSheetView style={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 0 }}>
+                <BottomSheetView style={{ flex: 1 }}>
+                    <ScrollView contentContainerStyle={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 24 }} keyboardShouldPersistTaps="handled" scrollEnabled={true}>
                     <View className="flex-row justify-between items-center mb-4">
                         <Text className="text-2xl font-bold text-text-main">Withdraw to Card</Text>
                         <TouchableOpacity onPress={() => withdrawSheetRef.current?.close()}>
@@ -566,6 +579,7 @@ export default function TransactionsScreen() {
                     <TouchableOpacity onPress={handleWithdraw} disabled={isSubmitting} className={`bg-green-600 p-4 rounded-xl ${isSubmitting && 'opacity-50'}`}>
                         {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white font-semibold text-center text-lg">Confirm Withdrawal</Text>}
                     </TouchableOpacity>
+                    </ScrollView>
                 </BottomSheetView>
             </BottomSheet>
         </View>
