@@ -23,6 +23,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
 import { useRoute } from '../../../context/RouteContext';
 import socketService from "../../../lib/socket";
+import apiClient from "../../../lib/api";
 import { normalizeCoordinateOrUndefined } from '@/lib/coordinate';
 import { calculateDistance } from '@/lib/distance';
 
@@ -37,17 +38,44 @@ export default function ProviderHome() {
   const [requests, setRequests] = useState<any[]>([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const router = useRouter();
 
-  // Online status is now automatically determined by verification status
-  // Provider is online only when documents are verified
-  const isOnline = user?.isDocumentVerified ?? false;
+  // Online/Offline toggle - provider can manually toggle, but only if verified
+  const [isOnline, setIsOnline] = useState(false);
+  
+  const toggleOnline = () => {
+    if (!user?.isDocumentVerified) {
+      Alert.alert(
+        'Account Not Verified',
+        'You need to be verified before you can go online. Please wait for admin approval.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    setIsOnline((prev) => !prev);
+  };
 
   const [selectedRequest, setSelectedRequest] = useState<null | any>(null);
   const [providerLocation, setProviderLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const locationWatcherRef = useRef<any>(null);
   const { startRoute } = useRoute();
+
+  // Helper function to fetch and update user details
+  const fetchAndUpdateUserDetails = useCallback(async () => {
+    if (!user?.userId) return;
+    try {
+      console.log('🔄 Fetching latest user details...');
+      const userResponse = await apiClient.get('/app/auth/user-details/');
+      console.log("User Details Response:", userResponse.data);
+      if (userResponse.data?.status && userResponse.data?.user) {
+        updateUser(userResponse.data.user);
+        console.log('✅ User details updated, isDocumentVerified:', userResponse.data.user.isDocumentVerified);
+      }
+    } catch (error) {
+      console.error("Error fetching user details:", error);
+    }
+  }, [user?.userId, updateUser]);
 
   // Define loadAvailableRequests before using it in useEffect
   const loadAvailableRequests = useCallback(async () => {
@@ -78,9 +106,9 @@ export default function ProviderHome() {
     }
   }, [user?.userId]);
 
-  // Connect socket and fetch available requests
+  // Connect socket and fetch available requests only when online
   useEffect(() => {
-    if (user?.userId) {
+    if (user?.userId && isOnline) {
       console.log('🔌 Connecting socket for provider:', user.userId);
       // Default to doctor role, but should ideally use user.role if available
       socketService.connect(user.userId, user.role as any || 'doctor');
@@ -107,7 +135,7 @@ export default function ProviderHome() {
         socket?.off('connect', handleConnect);
       };
     }
-  }, [user?.userId, user?.role, loadAvailableRequests]);
+  }, [user?.userId, user?.role, isOnline, loadAvailableRequests]);
 
   // Get provider device location and watch while provider is online
   useEffect(() => {
@@ -148,30 +176,39 @@ export default function ProviderHome() {
     };
   }, [isOnline]);
 
-  // Refresh requests when screen comes into focus
+  // Refresh user details and requests when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('🔄 Screen came into focus, refreshing requests');
-      if (user?.userId) {
-        loadAvailableRequests();
-      }
-    }, [user?.userId, loadAvailableRequests])
+      console.log('🔄 ProviderHome came into focus');
+      
+      // Only fetch user details on focus (not requests, as socket handles those)
+      fetchAndUpdateUserDetails();
+      
+      // Requests are loaded automatically via the socket useEffect when online changes
+    }, []) // Empty deps - only run on focus, not on every state change
   );
 
   // Universal refresh function
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await loadAvailableRequests();
+      // Refresh user details first
+      await fetchAndUpdateUserDetails();
+      // Then refresh requests if online
+      if (isOnline) {
+        await loadAvailableRequests();
+      }
     } catch (error) {
       console.error('Error refreshing data:', error);
     } finally {
       setRefreshing(false);
     }
-  }, [loadAvailableRequests]);
+  }, [fetchAndUpdateUserDetails, isOnline, loadAvailableRequests]);
 
   // Listen for new request notifications
   useEffect(() => {
+    if (!isOnline) return;
+
     const handleNewRequest = (request: any) => {
       console.log('New request received:', request);
       setRequests((prev) => [request, ...prev]);
@@ -182,7 +219,7 @@ export default function ProviderHome() {
     return () => {
       socketService.getSocket()?.off('newRequestAvailable', handleNewRequest);
     };
-  }, []);
+  }, [isOnline]);
 
   // Route modal handling moved to GlobalRouteModal via RouteContext.
   // Route arrival/cancel handlers moved to GlobalRouteModal via RouteContext.
@@ -200,6 +237,16 @@ export default function ProviderHome() {
       Alert.alert(
         'Account Not Verified',
         'Your account is still under review. You cannot accept consultations until your documents have been verified by our admin team. We\'ll notify you once verification is complete.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Check if provider is online
+    if (!isOnline) {
+      Alert.alert(
+        'You are Offline',
+        'Please go online to accept consultation requests.',
         [{ text: 'OK' }]
       );
       return;
@@ -277,7 +324,7 @@ export default function ProviderHome() {
           />
         }
       >
-        {/* Header with provider name */}
+        {/* Header with provider name + Online/Offline toggle */}
         <View className="bg-white pt-6 pb-4 px-6 border-b border-gray-200">
           <View className="flex-row items-center justify-between">
             <View>
@@ -286,6 +333,21 @@ export default function ProviderHome() {
                 {user?.fullname || "Provider"}
               </Text>
             </View>
+
+            {/* Online/Offline toggle button */}
+            <TouchableOpacity
+              onPress={toggleOnline}
+              className={`flex-row items-center px-5 py-2.5 rounded-full ${
+                isOnline ? "bg-green-500" : "bg-gray-400"
+              }`}
+            >
+              <View className={`w-2 h-2 rounded-full mr-2 ${
+                isOnline ? "bg-white" : "bg-gray-200"
+              }`} />
+              <Text className="text-white font-bold text-sm">
+                {isOnline ? "Online" : "Offline"}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -354,7 +416,19 @@ export default function ProviderHome() {
             Incoming Requests
           </Text>
 
-          {isLoadingRequests ? (
+          {!isOnline ? (
+            <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
+              <View className="w-16 h-16 bg-gray-100 rounded-full items-center justify-center mb-4">
+                <Feather name="power" size={32} color="#6B7280" />
+              </View>
+              <Text className="text-lg font-semibold text-gray-900 mb-1">
+                You are Offline
+              </Text>
+              <Text className="text-sm text-gray-500 text-center">
+                Go online to start receiving consultation requests
+              </Text>
+            </View>
+          ) : isLoadingRequests ? (
             <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
               <ActivityIndicator size="large" color="#3B82F6" />
               <Text className="text-sm text-gray-500 mt-4">Loading requests...</Text>
