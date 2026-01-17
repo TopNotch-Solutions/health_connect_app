@@ -23,7 +23,7 @@ interface CreateRequestModalProps {
     ailmentCategoryId?: string;
     symptoms: string;
     paymentMethod: 'wallet' | 'cash';
-    dueCost: number;
+    estimatedCost: number;
     street: string;
     locality: string;
     region: string;
@@ -44,7 +44,7 @@ export default function CreateRequestModal({
   
   const [ailmentCategory, setAilmentCategory] = useState(ailmentTitle);
   const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'cash'>('wallet');
-  const [dueCost, setDueCost] = useState('200');
+  const [dueCost, setDueCost] = useState('');
   const [street, setStreet] = useState('');
   const [locality, setLocality] = useState('');
   const [region, setRegion] = useState('');
@@ -66,11 +66,19 @@ export default function CreateRequestModal({
     }
   }, [visible]);
 
-  // Update ailment category when selectedAilment changes
+  // Update ailment category and due cost when selectedAilment changes
   useEffect(() => {
     if (selectedAilment) {
       const title = selectedAilment?.title || selectedAilment || '';
       setAilmentCategory(title);
+      
+      // Set due cost from ailment category's initialCost
+      if (selectedAilment?.initialCost !== undefined && selectedAilment?.initialCost !== null) {
+        setDueCost(selectedAilment.initialCost.toString());
+      } else {
+        // Fallback to 200 if initialCost is not available
+        setDueCost('200');
+      }
     }
   }, [selectedAilment]);
 
@@ -142,17 +150,18 @@ export default function CreateRequestModal({
         ailmentCategoryId: ailmentCategoryId,
         symptoms: '',
         paymentMethod,
-        dueCost: cost,
+        estimatedCost: cost, // Changed from dueCost to estimatedCost to match backend
         street: street.trim(),
         locality: locality.trim(),
         region: region.trim(),
         preferredTime: undefined,
-        coordinates: markerCoord, // Pass the actual coordinates from the modal
+        coordinates: markerCoord,
       });
       
       // Reset form on success
       setAilmentCategory('');
       setPaymentMethod('wallet');
+      setDueCost('0');
       setStreet('');
       setLocality('');
       setRegion('');
@@ -177,8 +186,6 @@ export default function CreateRequestModal({
     setLocality(address.locality || 'Current City');
     setRegion(address.administrative_area_level_1 || 'Current Region');
   };
-
-
 
   const paymentOptions = [
     { value: 'wallet', label: 'Wallet', icon: 'credit-card' },
@@ -316,16 +323,26 @@ export default function CreateRequestModal({
             {/* Due Cost */}
             <View className="mb-6">
               <Text className="text-base font-semibold text-gray-900 mb-2">
-                Due Cost (R) *
+                Consultation Cost (N$) *
               </Text>
-              <TextInput
-                className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-base text-gray-600"
-                placeholder="e.g., 200"
-                value={dueCost}
-                onChangeText={setDueCost}
-                keyboardType="numeric"
-                editable={false}
-              />
+              <View className="bg-blue-50 border border-blue-300 rounded-lg p-4">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center flex-1">
+                    <Feather name="dollar-sign" size={20} color="#3B82F6" />
+                    <Text className="text-2xl font-bold text-blue-900 ml-2">
+                      N${parseFloat(dueCost).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View className="bg-blue-100 px-3 py-1 rounded-full">
+                    <Text className="text-xs font-semibold text-blue-700">
+                      Auto-set
+                    </Text>
+                  </View>
+                </View>
+                <Text className="text-xs text-blue-700 mt-2">
+                  Cost is automatically set based on the selected ailment category
+                </Text>
+              </View>
             </View>
 
             {/* Payment Method */}

@@ -119,7 +119,7 @@ export default function TransactionsScreen() {
         try {
             console.log(`Fetching transactions for userId: ${user.userId}, page: ${page}`);
             const response = await apiClient.get('/app/transaction/transaction-history/?page=${page}&limit=10');
-            console.log("Transactions Response:", response.data);
+            // console.log("Transactions Response:", response.data);
             const newTransactions = response.data.data || [];
             const pagination = response.data.pagination || {};
             
@@ -185,7 +185,8 @@ export default function TransactionsScreen() {
     const fetchAndUpdateUserDetails = useCallback(async () => {
         if (!user?.userId) return;
         try {
-            const userResponse = await apiClient.get(`/app/auth/user-details/${user.userId}`);
+            const userResponse = await apiClient.get('/app/auth/user-details/');
+            console.log("User Details Response:", userResponse.data);
             if (userResponse.data?.status && userResponse.data?.user) {
                 updateUser(userResponse.data.user);
             }

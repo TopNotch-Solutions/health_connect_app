@@ -691,6 +691,13 @@ class SocketService {
     });
   }
 
+  // Add event listeners
+  on(event: string, callback: (...args: any[]) => void) {
+    if (this.socket) {
+      this.socket.on(event, callback);
+    }
+  }
+
   // Remove specific event listeners
   off(event: string, callback?: (...args: any[]) => void) {
     if (this.socket) {
