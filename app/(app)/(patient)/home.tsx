@@ -1,8 +1,8 @@
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Location from 'expo-location';
-import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,16 +16,17 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import CreateRequestModal from '../../../components/(patient)/CreateRequestModal';
-import AilmentCard from '../../../components/(patient)/AilmentCard';
-import HistoryCard from '../../../components/(patient)/HistoryCard';
-import { HistoryItem } from '../../../components/(patient)/HistoryCard';
-import { useAuth } from '../../../context/AuthContext';
-import apiClient from '../../../lib/api';
-import { getLocationCoordinates } from '../../../lib/geocoding';
-import socketService from '../../../lib/socket';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import AilmentCard from "../../../components/(patient)/AilmentCard";
+import CreateRequestModal from "../../../components/(patient)/CreateRequestModal";
+import HistoryCard, {
+  HistoryItem,
+} from "../../../components/(patient)/HistoryCard";
+import { useAuth } from "../../../context/AuthContext";
+import apiClient from "../../../lib/api";
+import { getLocationCoordinates } from "../../../lib/geocoding";
+import socketService from "../../../lib/socket";
 
 interface Advert {
   _id: string;
@@ -40,7 +41,10 @@ export default function PatientHomeScreen() {
   const router = useRouter();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<any>(null);
-  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [location, setLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [recentRequests, setRecentRequests] = useState<HistoryItem[]>([]);
   const [ailmentCategories, setAilmentCategories] = useState<any[]>([]);
   const [isLoadingAilments, setIsLoadingAilments] = useState(false);
@@ -53,24 +57,111 @@ export default function PatientHomeScreen() {
   const [advertImageError, setAdvertImageError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const advertSlideAnim = React.useRef(new Animated.Value(0)).current;
-  
-  const IMAGE_BASE_URL = 'http://13.51.207.99:4000/adverts/';
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [currentOnboardingStep, setCurrentOnboardingStep] = useState(0);
+
+  const IMAGE_BASE_URL = "http://13.51.207.99:4000/adverts/";
+
+  const onboardingSteps: {
+    id: number;
+    title: string;
+    description: string;
+    icon: keyof typeof MaterialCommunityIcons.glyphMap;
+    image?: boolean;
+  }[] = [
+    {
+      id: 1,
+      title: "Welcome to HealthConnect",
+      description:
+        "Request home visits from nearby healthcare providers, right from your phone.",
+      icon: "heart-pulse",
+      image: true,
+    },
+    {
+      id: 2,
+      title: "Choose Your Ailment",
+      description:
+        "Select what you need help with so we can match you to the right provider.",
+      icon: "stethoscope",
+    },
+    {
+      id: 3,
+      title: "Share Your Location",
+      description:
+        "We use your location to find providers near you. You stay in control at all times.",
+      icon: "map-marker",
+    },
+    {
+      id: 4,
+      title: "Track Your Requests",
+      description:
+        "See the status of your recent healthcare requests in one place.",
+      icon: "clock-outline",
+    },
+  ];
+
+  // First-time user welcome modal (patient)
+  useEffect(() => {
+    const checkFirstTime = async () => {
+      try {
+        const seen = await AsyncStorage.getItem("patient-onboarding-shown-v1");
+        if (!seen) {
+          setShowWelcomeModal(true);
+        }
+      } catch (e) {
+        console.error("Error checking patient onboarding flag:", e);
+      }
+    };
+
+    checkFirstTime();
+  }, []);
+
+  const handleWelcomeModalClose = async () => {
+    try {
+      await AsyncStorage.setItem("patient-onboarding-shown-v1", "true");
+    } catch (e) {
+      console.error("Error saving patient onboarding flag:", e);
+    }
+    setShowWelcomeModal(false);
+  };
+
+  const handleOnboardingNext = () => {
+    if (currentOnboardingStep < onboardingSteps.length - 1) {
+      setCurrentOnboardingStep((step) => step + 1);
+    } else {
+      handleWelcomeModalClose();
+    }
+  };
+
+  const handleOnboardingPrevious = () => {
+    if (currentOnboardingStep > 0) {
+      setCurrentOnboardingStep((step) => step - 1);
+    }
+  };
+
+  const handleOnboardingSkip = () => {
+    handleWelcomeModalClose();
+  };
 
   // Function to fetch adverts from API
   const loadAdverts = useCallback(async () => {
     setIsLoadingAdverts(true);
     try {
-      const response = await apiClient.get('/app/adverts/all-adverts');
-      if (response.data?.adverts && Array.isArray(response.data.adverts) && response.data.adverts.length > 0) {
+      const response = await apiClient.get("/app/adverts/all-adverts");
+      if (
+        response.data?.adverts &&
+        Array.isArray(response.data.adverts) &&
+        response.data.adverts.length > 0
+      ) {
         setAdverts(response.data.adverts);
-        
+
         // Prefetch all advert images for faster loading
-        const IMAGE_BASE_URL = 'http://13.51.207.99:4000/adverts/';
+        const IMAGE_BASE_URL = "http://13.51.207.99:4000/adverts/";
         response.data.adverts.forEach((advert: Advert) => {
           if (advert.image) {
             const imageUri = `${IMAGE_BASE_URL}${advert.image}`;
             Image.prefetch(imageUri).catch((err) => {
-              console.log('Failed to prefetch advert image:', imageUri, err);
+              console.log("Failed to prefetch advert image:", imageUri, err);
             });
           }
         });
@@ -78,7 +169,7 @@ export default function PatientHomeScreen() {
         setAdverts([]);
       }
     } catch (error) {
-      console.error('Error loading adverts:', error);
+      console.error("Error loading adverts:", error);
       setAdverts([]);
     } finally {
       setIsLoadingAdverts(false);
@@ -90,9 +181,9 @@ export default function PatientHomeScreen() {
     setIsLoadingAilments(true);
     try {
       const socket = socketService.getSocket();
-      
+
       if (!socket?.connected) {
-        console.warn('⚠️ Socket not connected');
+        console.warn("⚠️ Socket not connected");
         setIsLoadingAilments(false);
         return;
       }
@@ -103,32 +194,37 @@ export default function PatientHomeScreen() {
         const handleAilmentCategories = (categories: any) => {
           if (resolved) return;
           resolved = true;
-          
-          console.log('📋 Received ailment categories from backend:', categories);
+
+          console.log(
+            "📋 Received ailment categories from backend:",
+            categories,
+          );
           if (Array.isArray(categories) && categories.length > 0) {
             setAilmentCategories(categories);
-            
+
             // Prefetch ailment images for faster loading - prioritize first 6 for home page
-            const AILMENT_IMAGE_BASE_URL = 'http://13.51.207.99:4000/ailments/';
+            const AILMENT_IMAGE_BASE_URL = "http://13.51.207.99:4000/ailments/";
             const categoriesToPrefetch = categories.slice(0, 6); // Only prefetch first 6 for home page
-            
+
             // Prefetch in parallel for faster loading
-            const prefetchPromises = categoriesToPrefetch.map((category: any) => {
-              if (category.image) {
-                const imageUri = `${AILMENT_IMAGE_BASE_URL}${category.image}`;
-                return Image.prefetch(imageUri).catch((err) => {
-                  console.log('Failed to prefetch image:', imageUri, err);
-                });
-              }
-              return Promise.resolve();
-            });
-            
+            const prefetchPromises = categoriesToPrefetch.map(
+              (category: any) => {
+                if (category.image) {
+                  const imageUri = `${AILMENT_IMAGE_BASE_URL}${category.image}`;
+                  return Image.prefetch(imageUri).catch((err) => {
+                    console.log("Failed to prefetch image:", imageUri, err);
+                  });
+                }
+                return Promise.resolve();
+              },
+            );
+
             // Wait for all prefetches to complete
             Promise.all(prefetchPromises).then(() => {
-              console.log('✅ Prefetched first 6 ailment images');
+              console.log("✅ Prefetched first 6 ailment images");
             });
           }
-          socket?.off('ailmentCategories', handleAilmentCategories);
+          socket?.off("ailmentCategories", handleAilmentCategories);
           setIsLoadingAilments(false);
           resolve();
         };
@@ -136,21 +232,21 @@ export default function PatientHomeScreen() {
         const timeout = setTimeout(() => {
           if (resolved) return;
           resolved = true;
-          
-          console.warn('⚠️ Ailment categories request timeout');
-          socket?.off('ailmentCategories', handleAilmentCategories);
+
+          console.warn("⚠️ Ailment categories request timeout");
+          socket?.off("ailmentCategories", handleAilmentCategories);
           setIsLoadingAilments(false);
           resolve();
         }, 5000);
 
-        socket?.on('ailmentCategories', handleAilmentCategories);
-        console.log('📤 Emitting getAilmentCategories request');
-        socket?.emit('getAilmentCategories');
+        socket?.on("ailmentCategories", handleAilmentCategories);
+        console.log("📤 Emitting getAilmentCategories request");
+        socket?.emit("getAilmentCategories");
 
         return () => clearTimeout(timeout);
       });
     } catch (error) {
-      console.error('Error loading ailment categories:', error);
+      console.error("Error loading ailment categories:", error);
       setIsLoadingAilments(false);
     }
   }, []);
@@ -161,36 +257,51 @@ export default function PatientHomeScreen() {
       // Fetch requests from backend via socket
       const socket = socketService.getSocket();
       if (!user?.userId || !socket || !socket.connected) {
-        console.warn('Socket not ready or user ID missing. Skipping recent requests load.');
+        console.warn(
+          "Socket not ready or user ID missing. Skipping recent requests load.",
+        );
         setRecentRequests([]);
         return;
       }
 
       const liveRequests = await socketService.getPatientRequests(user.userId);
-      console.log('🔍 Raw requests received:', liveRequests);
-      
+      console.log("🔍 Raw requests received:", liveRequests);
+
       if (Array.isArray(liveRequests) && liveRequests.length > 0) {
-        console.log('First request full structure:', JSON.stringify(liveRequests[0], null, 2));
+        console.log(
+          "First request full structure:",
+          JSON.stringify(liveRequests[0], null, 2),
+        );
       }
-      
+
       if (Array.isArray(liveRequests)) {
         // Load ailment mappings from local storage
-        const ailmentMappingsStr = await AsyncStorage.getItem(`ailment-mappings-${user.userId}`);
-        const ailmentMappings = ailmentMappingsStr ? JSON.parse(ailmentMappingsStr) : {};
-        console.log('📍 Ailment mappings:', ailmentMappings);
-        
+        const ailmentMappingsStr = await AsyncStorage.getItem(
+          `ailment-mappings-${user.userId}`,
+        );
+        const ailmentMappings = ailmentMappingsStr
+          ? JSON.parse(ailmentMappingsStr)
+          : {};
+        console.log("📍 Ailment mappings:", ailmentMappings);
+
         // Get the 2 most recent requests
         const recent = liveRequests
-          .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .sort(
+            (a: any, b: any) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          )
           .slice(0, 2)
           .map((item: any) => {
             // Log each item's ailment structure
-            console.log('Item ailmentCategoryId:', item.ailmentCategoryId);
-            console.log('Item ailmentCategoryId type:', typeof item.ailmentCategoryId);
-            
+            console.log("Item ailmentCategoryId:", item.ailmentCategoryId);
+            console.log(
+              "Item ailmentCategoryId type:",
+              typeof item.ailmentCategoryId,
+            );
+
             // Try to get ailment name from backend data first
-            let ailmentName = 'Unknown';
-            
+            let ailmentName = "Unknown";
+
             // First, try ailmentCategoryId.title (populated object)
             if (item.ailmentCategoryId?.title) {
               ailmentName = item.ailmentCategoryId.title;
@@ -206,27 +317,27 @@ export default function PatientHomeScreen() {
             // Fall back to local mapping if available
             else if (ailmentMappings[item._id]) {
               ailmentName = ailmentMappings[item._id];
-              console.log('✅ Got ailment from local mapping:', ailmentName);
+              console.log("✅ Got ailment from local mapping:", ailmentName);
             }
-            
-            console.log('Resolved ailment name:', ailmentName);
-            
+
+            console.log("Resolved ailment name:", ailmentName);
+
             return {
               _id: item._id,
               ailment: ailmentName,
               status: item.status,
-              date: new Date(item.createdAt).toLocaleDateString('en-ZA', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
+              date: new Date(item.createdAt).toLocaleDateString("en-ZA", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
               }),
             };
           });
-        console.log('📋 Final recent requests:', recent);
+        console.log("📋 Final recent requests:", recent);
         setRecentRequests(recent);
       }
     } catch (error) {
-      console.error('Error loading recent requests:', error);
+      console.error("Error loading recent requests:", error);
     }
   }, [user?.userId]);
 
@@ -248,7 +359,7 @@ export default function PatientHomeScreen() {
             setAdvertImageLoading(false);
           });
       }
-      
+
       advertSlideAnim.setValue(0);
       Animated.timing(advertSlideAnim, {
         toValue: 1,
@@ -273,20 +384,20 @@ export default function PatientHomeScreen() {
     if (user?.userId) {
       try {
         // Connect with patient role
-        socketService.connect(user.userId, 'patient');
-        
+        socketService.connect(user.userId, "patient");
+
         // Load ailment categories after a brief delay to ensure socket is connected
         const timer = setTimeout(() => {
           try {
             loadAilmentCategories();
           } catch (error) {
-            console.error('Error loading ailment categories:', error);
+            console.error("Error loading ailment categories:", error);
           }
         }, 1000);
 
         return () => clearTimeout(timer);
       } catch (error) {
-        console.error('Error connecting to socket:', error);
+        console.error("Error connecting to socket:", error);
       }
     }
   }, [user?.userId, loadAilmentCategories]);
@@ -303,9 +414,10 @@ export default function PatientHomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      loadAilmentCategories();
       loadRecentRequests();
       loadAdverts();
-    }, [loadRecentRequests, loadAdverts])
+    }, [loadAilmentCategories, loadRecentRequests, loadAdverts]),
   );
 
   // Universal refresh function
@@ -319,7 +431,7 @@ export default function PatientHomeScreen() {
         loadRecentRequests(),
       ]);
     } catch (error) {
-      console.error('Error refreshing data:', error);
+      console.error("Error refreshing data:", error);
     } finally {
       setRefreshing(false);
     }
@@ -334,19 +446,20 @@ export default function PatientHomeScreen() {
           latitude: coords.latitude,
           longitude: coords.longitude,
         });
-        console.log('✅ Location obtained successfully:', coords);
+        console.log("✅ Location obtained successfully:", coords);
       } catch (error: any) {
-        console.error('Location error:', error);
+        console.error("Location error:", error);
         // Set default location for emulator/testing
-        const defaultLocation = { latitude: -22.557840, longitude: 17.072891 };
+        const defaultLocation = { latitude: -22.55784, longitude: 17.072891 };
         setLocation(defaultLocation);
-        
+
         Alert.alert(
-          'Location Error',
-          error.message || 'Could not get your current location. Using default location for testing. On a real device, please enable location services.',
+          "Location Error",
+          error.message ||
+            "Could not get your current location. Using default location for testing. On a real device, please enable location services.",
           [
             {
-              text: 'Try Again',
+              text: "Try Again",
               onPress: async () => {
                 try {
                   const coords = await getLocationCoordinates();
@@ -354,15 +467,15 @@ export default function PatientHomeScreen() {
                     latitude: coords.latitude,
                     longitude: coords.longitude,
                   });
-                  console.log('✅ Location retry successful:', coords);
+                  console.log("✅ Location retry successful:", coords);
                 } catch (retryError: any) {
-                  console.error('Retry failed:', retryError);
+                  console.error("Retry failed:", retryError);
                   // Keep using default location
                 }
-              }
+              },
             },
-            { text: 'Use Default', style: 'cancel' }
-          ]
+            { text: "Use Default", style: "cancel" },
+          ],
         );
       }
     })();
@@ -377,8 +490,8 @@ export default function PatientHomeScreen() {
     ailmentCategory: string;
     ailmentCategoryId?: string;
     symptoms: string;
-    paymentMethod: 'wallet' | 'cash';
-    dueCost: number;
+    paymentMethod: "wallet" | "cash";
+    estimatedCost: number;
     street: string;
     locality: string;
     region: string;
@@ -387,10 +500,10 @@ export default function PatientHomeScreen() {
   }) => {
     // Use coordinates from the modal if provided, otherwise try to get current location
     let currentLocation = requestData.coordinates || location;
-    
+
     if (!currentLocation) {
       try {
-        Alert.alert('Getting Location', 'Fetching your current location...');
+        Alert.alert("Getting Location", "Fetching your current location...");
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
@@ -400,21 +513,25 @@ export default function PatientHomeScreen() {
         };
         setLocation(currentLocation);
       } catch {
-        throw new Error('Location is required to create a request. Please enable location services and try again.');
+        throw new Error(
+          "Location is required to create a request. Please enable location services and try again.",
+        );
       }
     }
 
     if (!user?.userId) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
 
     try {
       // Sanitize ailmentCategoryId: backend expects a MongoDB ObjectId (24 hex chars).
       // If the selected/default category uses a placeholder id (like '1'), omit it so the
       // socket service will use its safe fallback. This avoids Mongoose "Cast to ObjectId failed" errors.
-      const safeAilmentCategoryId = requestData.ailmentCategoryId && /^[0-9a-fA-F]{24}$/.test(requestData.ailmentCategoryId)
-        ? requestData.ailmentCategoryId
-        : undefined;
+      const safeAilmentCategoryId =
+        requestData.ailmentCategoryId &&
+        /^[0-9a-fA-F]{24}$/.test(requestData.ailmentCategoryId)
+          ? requestData.ailmentCategoryId
+          : undefined;
 
       const request = await socketService.createRequest({
         patientId: user.userId,
@@ -423,7 +540,7 @@ export default function PatientHomeScreen() {
         ailmentCategoryId: safeAilmentCategoryId,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
-        estimatedCost: requestData.dueCost,
+        estimatedCost: requestData.estimatedCost,
         address: {
           route: requestData.street,
           locality: requestData.locality,
@@ -439,28 +556,35 @@ export default function PatientHomeScreen() {
       // Save ailment mapping locally for future reference (since backend stores null)
       if (request && (request as any)._id) {
         try {
-          const ailmentMappingsStr = await AsyncStorage.getItem(`ailment-mappings-${user.userId}`);
-          const ailmentMappings = ailmentMappingsStr ? JSON.parse(ailmentMappingsStr) : {};
+          const ailmentMappingsStr = await AsyncStorage.getItem(
+            `ailment-mappings-${user.userId}`,
+          );
+          const ailmentMappings = ailmentMappingsStr
+            ? JSON.parse(ailmentMappingsStr)
+            : {};
           ailmentMappings[(request as any)._id] = requestData.ailmentCategory;
-          await AsyncStorage.setItem(`ailment-mappings-${user.userId}`, JSON.stringify(ailmentMappings));
-          console.log('💾 Saved ailment mapping:', ailmentMappings);
+          await AsyncStorage.setItem(
+            `ailment-mappings-${user.userId}`,
+            JSON.stringify(ailmentMappings),
+          );
+          console.log("💾 Saved ailment mapping:", ailmentMappings);
         } catch (storageError) {
-          console.error('Error saving ailment mapping:', storageError);
+          console.error("Error saving ailment mapping:", storageError);
         }
       }
 
       Alert.alert(
-        'Request Created',
-        'Your request has been sent to nearby healthcare providers. You will be notified when a provider accepts.',
-        [{ text: 'OK' }]
+        "Request Created",
+        "Your request has been sent to nearby healthcare providers. You will be notified when a provider accepts.",
+        [{ text: "OK" }],
       );
 
-      console.log('Request created:', request);
-      
+      console.log("Request created:", request);
+
       // Refresh recent requests to show the newly created request
       loadRecentRequests();
     } catch (error: any) {
-      throw new Error(error.message || 'Failed to create request');
+      throw new Error(error.message || "Failed to create request");
     }
   };
 
@@ -468,326 +592,464 @@ export default function PatientHomeScreen() {
     const hour = new Date().getHours();
 
     if (hour < 12) {
-      return 'Good morning';
+      return "Good morning";
     } else if (hour < 18) {
-      return 'Good Afternoon';
+      return "Good Afternoon";
     } else {
-      return 'Good Evening';
+      return "Good Evening";
     }
   };
 
   const greeting = getGreeting();
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-100" edges={['bottom', 'left', 'right']}>
-      <View className="flex-1">
-        <ScrollView 
-          className="flex-1"
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#10B981']}
-              tintColor="#10B981"
-            />
-          }
-        >
-          <View className="px-2 px-4">
-            <View>
-              <Text className="text-2xl font-bold">
-                {greeting},
-              </Text>
-              
+    <>
+      <SafeAreaView
+        className="flex-1 bg-gray-100"
+        edges={["bottom", "left", "right"]}
+      >
+        <View className="flex-1">
+          <ScrollView
+            className="flex-1"
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={["#10B981"]}
+                tintColor="#10B981"
+              />
+            }
+          >
+            <View className="px-2 px-4">
+              <View>
+                <Text className="text-2xl font-bold">{greeting},</Text>
+              </View>
+              <View>
+                <Text className="font-bold text-gray-500">
+                  {user?.fullname || "Patient"}
+                </Text>
+              </View>
             </View>
-            <View>
-              <Text className="font-bold text-gray-500">
-                {user?.fullname || 'Patient'}
-              </Text>
-              
-            </View>
-          </View>
 
-          {/* Adverts or Health Tips Section */}
-          {adverts.length > 0 ? (
-            <View className="mb-8 py-2 px-4">
-              <Animated.View
-                style={[
-                  {
-                    opacity: advertSlideAnim,
-                    transform: [
-                      {
-                        translateX: advertSlideAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [50, 0],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  onPress={() => {
-                    setSelectedAdvert(adverts[currentAdvertIndex]);
-                    setAdvertModalVisible(true);
-                  }}
-                  activeOpacity={0.9}
-                  style={styles.advertContainer}
+            {/* Adverts or Health Tips Section */}
+            {adverts.length > 0 ? (
+              <View className="mb-8 py-2 px-4">
+                <Animated.View
+                  style={[
+                    {
+                      opacity: advertSlideAnim,
+                      transform: [
+                        {
+                          translateX: advertSlideAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [50, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
                 >
-                  {advertImageLoading && (
-                    <View style={{
-                      position: 'absolute',
-                      width: '100%',
-                      height: '100%',
-                      backgroundColor: '#F3F4F6',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      zIndex: 1,
-                    }}>
-                      <ActivityIndicator size="small" color="#10B981" />
-                    </View>
-                  )}
-                  {!advertImageError && adverts[currentAdvertIndex]?.image && (
-                    <Image
-                      source={{ uri: `${IMAGE_BASE_URL}${adverts[currentAdvertIndex].image}` }}
-                      style={styles.advertImage}
-                      resizeMode="contain"
-                      onLoadStart={() => setAdvertImageLoading(true)}
-                      onLoadEnd={() => setAdvertImageLoading(false)}
-                      onError={() => {
-                        setAdvertImageError(true);
-                        setAdvertImageLoading(false);
-                      }}
-                    />
-                  )}
-                  {advertImageError && (
-                    <View style={{
-                      width: '100%',
-                      height: '100%',
-                      backgroundColor: '#F3F4F6',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                    }}>
-                      <Feather name="image" size={32} color="#9CA3AF" />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
-              
-              {/* Advert Indicators */}
-              <View className="flex-row justify-center mt-4 gap-2">
-                {adverts.map((_, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    onPress={() => setCurrentAdvertIndex(index)}
-                    className={`rounded-full transition-all ${
-                      index === currentAdvertIndex
-                        ? 'bg-blue-600 w-3 h-3'
-                        : 'bg-gray-300 w-2 h-2'
-                    }`}
-                  />
-                ))}
-              </View>
-            </View>
-          ) : null}
-
-          {/* Main Content Area */}
-          <View className="px-4 mb-6">
-            <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
-              <Text className="text-xl font-bold text-gray-800 flex-shrink">
-                What do you need help with today?
-              </Text>
-              <TouchableOpacity onPress={() => router.push('/(app)/(patient)/all_ailments')} className="flex-shrink-0">
-                <Text className="font-bold text-blue-600 text-xl">See all</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Ailment Grid (cards styled like Provider request cards) */}
-            {isLoadingAilments ? (
-              <View className="items-center justify-center py-8">
-                <Text className="text-gray-600">Loading ailments...</Text>
-              </View>
-            ) : ailmentCategories.length > 0 ? (
-              <FlatList
-                data={ailmentCategories.slice(0, 6)}
-                keyExtractor={(item) => item._id}
-                numColumns={2}
-                scrollEnabled={false} // Disable scrolling for this nested list
-                columnWrapperStyle={{ justifyContent: 'space-between' }}
-                renderItem={({ item }) => (
-                  <AilmentCard item={item} onPress={() => handleAilmentSelect(item)} />
-                )}
-              />
-            ) : (
-              <View className="items-center justify-center py-8">
-                <Text className="text-gray-500">No ailments available</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Recent Activity / History Section (similar spacing to Ailments) */}
-          <View className="px-4 mb-8">
-            <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
-              <Text className="text-xl font-bold text-gray-800 flex-shrink">
-                Recent Activity
-              </Text>
-              <TouchableOpacity onPress={() => router.push('/(app)/(patient)/recent-activities')} className="flex-shrink-0">
-                <Text className="font-bold text-blue-600 text-xl">See all</Text>
-              </TouchableOpacity>
-            </View>
-
-            {recentRequests.length === 0 ? (
-              <View style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                padding: 24,
-                alignItems: 'center',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                elevation: 2,
-              }}>
-                <View style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: 32,
-                  backgroundColor: '#F3F4F6',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginBottom: 12,
-                }}>
-                  <Feather name="clock" size={32} color="#9CA3AF" />
-                </View>
-                <Text style={{
-                  fontSize: 16,
-                  fontWeight: '600',
-                  color: '#374151',
-                  marginBottom: 4,
-                }}>
-                  No Recent Activity
-                </Text>
-                <Text style={{
-                  fontSize: 14,
-                  color: '#6B7280',
-                  textAlign: 'center',
-                }}>
-                  Your recent healthcare requests will appear here
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                data={recentRequests}
-                keyExtractor={(item) => item._id}
-                numColumns={2}
-                scrollEnabled={false}
-                columnWrapperStyle={{ justifyContent: 'space-between' }}
-                renderItem={({ item }) => <HistoryCard item={item} />}
-              />
-            )}
-          </View>
-        </ScrollView>
-
-        {/* Create Request Modal */}
-        <CreateRequestModal
-          visible={modalVisible}
-          onClose={() => {
-            setModalVisible(false);
-            setSelectedAilment(null);
-          }}
-          onSubmit={handleCreateRequest}
-          selectedAilment={selectedAilment}
-        />
-
-        {/* Advert Detail Modal */}
-        <Modal
-          visible={advertModalVisible}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => {
-            setAdvertModalVisible(false);
-            setSelectedAdvert(null);
-          }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              {selectedAdvert && (
-                <>
-                  <Image
-                    source={{ uri: `${IMAGE_BASE_URL}${selectedAdvert.image}` }}
-                    style={styles.modalImage}
-                    resizeMode="contain"
-                  />
-                  <ScrollView
-                    style={styles.modalDescriptionContainer}
-                    contentContainerStyle={styles.modalDescriptionContent}
-                    showsVerticalScrollIndicator={true}
-                  >
-                    <Text style={styles.modalDescription}>{selectedAdvert.description}</Text>
-                  </ScrollView>
                   <TouchableOpacity
                     onPress={() => {
-                      setAdvertModalVisible(false);
-                      setSelectedAdvert(null);
+                      setSelectedAdvert(adverts[currentAdvertIndex]);
+                      setAdvertModalVisible(true);
                     }}
-                    style={styles.modalCancelButton}
-                    activeOpacity={0.7}
+                    activeOpacity={0.9}
+                    style={styles.advertContainer}
                   >
-                    <Text style={styles.modalCancelButtonText}>Close</Text>
+                    {advertImageLoading && (
+                      <View
+                        style={{
+                          position: "absolute",
+                          width: "100%",
+                          height: "100%",
+                          backgroundColor: "#F3F4F6",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          zIndex: 1,
+                        }}
+                      >
+                        <ActivityIndicator size="small" color="#10B981" />
+                      </View>
+                    )}
+                    {!advertImageError &&
+                      adverts[currentAdvertIndex]?.image && (
+                        <Image
+                          source={{
+                            uri: `${IMAGE_BASE_URL}${adverts[currentAdvertIndex].image}`,
+                          }}
+                          style={styles.advertImage}
+                          resizeMode="contain"
+                          onLoadStart={() => setAdvertImageLoading(true)}
+                          onLoadEnd={() => setAdvertImageLoading(false)}
+                          onError={() => {
+                            setAdvertImageError(true);
+                            setAdvertImageLoading(false);
+                          }}
+                        />
+                      )}
+                    {advertImageError && (
+                      <View
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          backgroundColor: "#F3F4F6",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Feather name="image" size={32} color="#9CA3AF" />
+                      </View>
+                    )}
                   </TouchableOpacity>
-                </>
+                </Animated.View>
+
+                {/* Advert Indicators */}
+                <View className="flex-row justify-center mt-4 gap-2">
+                  {adverts.map((_, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => setCurrentAdvertIndex(index)}
+                      className={`rounded-full transition-all ${
+                        index === currentAdvertIndex
+                          ? "bg-blue-600 w-3 h-3"
+                          : "bg-gray-300 w-2 h-2"
+                      }`}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {/* Main Content Area */}
+            <View className="px-4 mb-6">
+              <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
+                <Text className="text-xl font-bold text-gray-800 flex-shrink">
+                  What do you need help with today?
+                </Text>
+                <TouchableOpacity
+                  onPress={() => router.push("/(app)/(patient)/all_ailments")}
+                  className="flex-shrink-0"
+                >
+                  <Text className="font-bold text-blue-600 text-xl">
+                    See all
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Ailment Grid (cards styled like Provider request cards) */}
+              {isLoadingAilments ? (
+                <View className="items-center justify-center py-8">
+                  <Text className="text-gray-600">Loading ailments...</Text>
+                </View>
+              ) : ailmentCategories.length > 0 ? (
+                <FlatList
+                  data={ailmentCategories.slice(0, 6)}
+                  keyExtractor={(item) => item._id}
+                  numColumns={2}
+                  scrollEnabled={false} // Disable scrolling for this nested list
+                  columnWrapperStyle={{ justifyContent: "space-between" }}
+                  renderItem={({ item }) => (
+                    <AilmentCard
+                      item={item}
+                      onPress={() => handleAilmentSelect(item)}
+                    />
+                  )}
+                />
+              ) : (
+                <View className="items-center justify-center py-8">
+                  <Text className="text-gray-500">No ailments available</Text>
+                </View>
               )}
             </View>
+
+            {/* Recent Activity / History Section (similar spacing to Ailments) */}
+            <View className="px-4 mb-8">
+              <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
+                <Text className="text-xl font-bold text-gray-800 flex-shrink">
+                  Recent Activity
+                </Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push("/(app)/(patient)/recent-activities")
+                  }
+                  className="flex-shrink-0"
+                >
+                  <Text className="font-bold text-blue-600 text-xl">
+                    See all
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {recentRequests.length === 0 ? (
+                <View
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: "#E5E7EB",
+                    padding: 24,
+                    alignItems: "center",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 8,
+                    elevation: 2,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 32,
+                      backgroundColor: "#F3F4F6",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <Feather name="clock" size={32} color="#9CA3AF" />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "600",
+                      color: "#374151",
+                      marginBottom: 4,
+                    }}
+                  >
+                    No Recent Activity
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: "#6B7280",
+                      textAlign: "center",
+                    }}
+                  >
+                    Your recent healthcare requests will appear here
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={recentRequests}
+                  keyExtractor={(item) => item._id}
+                  numColumns={2}
+                  scrollEnabled={false}
+                  columnWrapperStyle={{ justifyContent: "space-between" }}
+                  renderItem={({ item }) => <HistoryCard item={item} />}
+                />
+              )}
+            </View>
+          </ScrollView>
+
+          {/* Create Request Modal */}
+          <CreateRequestModal
+            visible={modalVisible}
+            onClose={() => {
+              setModalVisible(false);
+              setSelectedAilment(null);
+            }}
+            onSubmit={handleCreateRequest}
+            selectedAilment={selectedAilment}
+          />
+
+          {/* Advert Detail Modal */}
+          <Modal
+            visible={advertModalVisible}
+            animationType="fade"
+            transparent={true}
+            onRequestClose={() => {
+              setAdvertModalVisible(false);
+              setSelectedAdvert(null);
+            }}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                {selectedAdvert && (
+                  <>
+                    <Image
+                      source={{
+                        uri: `${IMAGE_BASE_URL}${selectedAdvert.image}`,
+                      }}
+                      style={styles.modalImage}
+                      resizeMode="contain"
+                    />
+                    <ScrollView
+                      style={styles.modalDescriptionContainer}
+                      contentContainerStyle={styles.modalDescriptionContent}
+                      showsVerticalScrollIndicator={true}
+                    >
+                      <Text style={styles.modalDescription}>
+                        {selectedAdvert.description}
+                      </Text>
+                    </ScrollView>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setAdvertModalVisible(false);
+                        setSelectedAdvert(null);
+                      }}
+                      style={styles.modalCancelButton}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.modalCancelButtonText}>Close</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </View>
+          </Modal>
+        </View>
+      </SafeAreaView>
+
+      {/* First-time user welcome modal (patient) */}
+      <Modal visible={showWelcomeModal} animationType="slide" transparent>
+        <View className="flex-1 justify-end items-center bg-black/50">
+          <View
+            className="bg-white rounded-t-3xl p-6 w-full"
+            style={{ height: "65%" }}
+          >
+            {/* Progress */}
+            <View className="mb-4">
+              <View className="flex-row justify-between items-center mb-2">
+                <Text className="text-sm text-gray-600">
+                  Step {currentOnboardingStep + 1} of {onboardingSteps.length}
+                </Text>
+                <TouchableOpacity onPress={handleOnboardingSkip}>
+                  <Text className="text-sm text-blue-600 font-semibold">
+                    Skip
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View className="w-full h-2 bg-gray-200 rounded-full">
+                <View
+                  style={{
+                    height: "100%",
+                    backgroundColor: "#FACC15",
+                    borderRadius: 999,
+                    width: `${((currentOnboardingStep + 1) / onboardingSteps.length) * 100}%`,
+                  }}
+                />
+              </View>
+            </View>
+
+            {/* Content */}
+            <View className="flex-1 justify-center items-center">
+              {onboardingSteps[currentOnboardingStep].image ? (
+                <View className="w-40 h-40 rounded-full overflow-hidden mb-6 bg-gray-100">
+                  <Image
+                    source={require("../../../assets/images/healthconnectlogo.png")}
+                    style={{ width: "100%", height: "100%" }}
+                    resizeMode="cover"
+                  />
+                </View>
+              ) : (
+                <View className="w-24 h-24 bg-yellow-100 rounded-full justify-center items-center mb-6">
+                  <MaterialCommunityIcons
+                    name={onboardingSteps[currentOnboardingStep].icon}
+                    size={48}
+                    color="#CA8A04"
+                  />
+                </View>
+              )}
+
+              <Text className="text-2xl font-bold text-center mb-4 text-gray-800">
+                {onboardingSteps[currentOnboardingStep].title}
+              </Text>
+              <Text className="text-base text-center text-gray-600 mb-8 px-4 leading-6">
+                {onboardingSteps[currentOnboardingStep].description}
+              </Text>
+            </View>
+
+            {/* Navigation */}
+            <View className="flex-row justify-between items-center">
+              <TouchableOpacity
+                onPress={handleOnboardingPrevious}
+                className={`flex-1 mr-2 p-4 rounded-lg border border-gray-300 ${
+                  currentOnboardingStep === 0 ? "opacity-50" : ""
+                }`}
+                disabled={currentOnboardingStep === 0}
+              >
+                <Text className="text-center text-gray-700 font-semibold">
+                  Previous
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleOnboardingNext}
+                className="flex-1 ml-2 p-4 rounded-lg"
+                style={{ backgroundColor: "#FACC15" }}
+              >
+                <Text className="text-center text-gray-800 font-bold">
+                  {currentOnboardingStep === onboardingSteps.length - 1
+                    ? "Get Started!"
+                    : "Next"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Dots */}
+            <View className="flex-row justify-center items-center mt-4">
+              {onboardingSteps.map((step, index) => (
+                <View
+                  key={step.id}
+                  className={`w-2 h-2 rounded-full mx-1 ${
+                    index === currentOnboardingStep
+                      ? "bg-yellow-400"
+                      : "bg-gray-300"
+                  }`}
+                />
+              ))}
+            </View>
           </View>
-        </Modal>
-      </View>
-    </SafeAreaView>
+        </View>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   advertContainer: {
-    width: '100%',
+    width: "100%",
     height: 200,
     borderRadius: 0,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 12,
-    backgroundColor: '#F3F4F6',
-    shadowColor: '#000',
+    backgroundColor: "#F3F4F6",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 4,
   },
   advertImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
-    maxHeight: '90%',
+    maxHeight: "90%",
     padding: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalImage: {
-    width: '100%',
+    width: "100%",
     height: 300,
     borderRadius: 12,
     marginBottom: 16,
   },
   modalDescriptionContainer: {
-    width: '100%',
+    width: "100%",
     maxHeight: 200,
     marginBottom: 20,
   },
@@ -796,21 +1058,21 @@ const styles = StyleSheet.create({
   },
   modalDescription: {
     fontSize: 16,
-    color: '#374151',
+    color: "#374151",
     lineHeight: 24,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalCancelButton: {
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
     paddingVertical: 12,
     paddingHorizontal: 32,
     borderRadius: 12,
     minWidth: 120,
   },
   modalCancelButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
 });

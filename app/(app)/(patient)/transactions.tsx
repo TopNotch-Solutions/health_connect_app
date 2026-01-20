@@ -1,8 +1,8 @@
 import { Feather } from '@expo/vector-icons';
-import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Clipboard, FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Clipboard, FlatList, Keyboard, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
 import apiClient from '../../../lib/api';
@@ -87,10 +87,10 @@ export default function TransactionsScreen() {
     const addMoneySheetRef = useRef<BottomSheet>(null);
     const fundOthersSheetRef = useRef<BottomSheet>(null);
     const withdrawSheetRef = useRef<BottomSheet>(null);
-    // Snap points sized to fit content - no wasted space
-    const addMoneySnapPoints = useMemo(() => [500], []);
-    const fundOthersSnapPoints = useMemo(() => [550], []);
-    const withdrawSnapPoints = useMemo(() => [280], []);
+    // Snap points with extra space for keyboard
+    const addMoneySnapPoints = useMemo(() => ['90%'], []);
+    const fundOthersSnapPoints = useMemo(() => ['90%'], []);
+    const withdrawSnapPoints = useMemo(() => ['50%'], []);
 
     const [addMoneyForm, setAddMoneyForm] = useState({ amount: '', cardNumber: '', expiryDate: '', cvv: '', cardHolder: '' });
     const [fundOthersForm, setFundOthersForm] = useState({ amount: '', walletID: '', cardNumber: '', expiryDate: '', cvv: '', cardHolder: '' });
@@ -98,6 +98,28 @@ export default function TransactionsScreen() {
     const [addMoneyErrors, setAddMoneyErrors] = useState<{ amount?: string; cardNumber?: string; expiryDate?: string; cvv?: string; cardHolder?: string }>({});
     const [fundOthersErrors, setFundOthersErrors] = useState<{ amount?: string; walletID?: string; cardNumber?: string; expiryDate?: string; cvv?: string; cardHolder?: string }>({});
     const [withdrawErrors, setWithdrawErrors] = useState<{ amount?: string }>({});
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    // Listen to keyboard show/hide events
+    React.useEffect(() => {
+        const keyboardWillShowListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            (e) => {
+                setKeyboardHeight(e.endCoordinates.height);
+            }
+        );
+        const keyboardWillHideListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            () => {
+                setKeyboardHeight(0);
+            }
+        );
+
+        return () => {
+            keyboardWillShowListener.remove();
+            keyboardWillHideListener.remove();
+        };
+    }, []);
 
     const fetchTransactions = useCallback(async (isRefresh = false, page = 1) => {
         if (!user?.userId) {
@@ -418,10 +440,18 @@ export default function TransactionsScreen() {
                 index={-1}
                 snapPoints={addMoneySnapPoints}
                 enablePanDownToClose
+                keyboardBehavior="interactive"
+                keyboardBlurBehavior="restore"
+                android_keyboardInputMode="adjustResize"
                 backgroundStyle={{ backgroundColor: '#FFFFFF', borderRadius: 24 }}
                 handleIndicatorStyle={{ backgroundColor: '#9CA3AF', width: 40 }}
             >
-                <BottomSheetView style={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 0 }}>
+                <BottomSheetScrollView 
+                    style={{ paddingTop: 24, paddingHorizontal: 24 }}
+                    contentContainerStyle={{ paddingBottom: Math.max(24, keyboardHeight + 20) }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={true}
+                >
                     <View className="flex-row justify-between items-center mb-4">
                         <Text className="text-2xl font-bold text-text-main">Add Money to Wallet</Text>
                         <TouchableOpacity onPress={() => {
@@ -532,7 +562,8 @@ export default function TransactionsScreen() {
                             <Text className="text-white font-semibold text-center text-lg">Confirm Deposit</Text>
                         )}
                     </TouchableOpacity>
-                </BottomSheetView>
+                    <View style={{ height: Math.max(100, keyboardHeight + 50) }} />
+                </BottomSheetScrollView>
             </BottomSheet>
 
             <BottomSheet
@@ -540,10 +571,18 @@ export default function TransactionsScreen() {
                 index={-1}
                 snapPoints={fundOthersSnapPoints}
                 enablePanDownToClose
+                keyboardBehavior="interactive"
+                keyboardBlurBehavior="restore"
+                android_keyboardInputMode="adjustResize"
                 backgroundStyle={{ backgroundColor: '#FFFFFF', borderRadius: 24 }}
                 handleIndicatorStyle={{ backgroundColor: '#9CA3AF', width: 40 }}
             >
-                <BottomSheetView style={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 0 }}>
+                <BottomSheetScrollView 
+                    style={{ paddingTop: 24, paddingHorizontal: 24 }}
+                    contentContainerStyle={{ paddingBottom: Math.max(24, keyboardHeight + 20) }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={true}
+                >
                     <View className="flex-row justify-between items-center mb-4">
                         <Text className="text-2xl font-bold text-text-main">Send Funds</Text>
                         <TouchableOpacity onPress={() => {
@@ -668,7 +707,8 @@ export default function TransactionsScreen() {
                             <Text className="text-white font-semibold text-center text-lg">Send Money</Text>
                         )}
                     </TouchableOpacity>
-                </BottomSheetView>
+                    <View style={{ height: Math.max(100, keyboardHeight + 50) }} />
+                </BottomSheetScrollView>
             </BottomSheet>
 
             <BottomSheet
@@ -676,10 +716,18 @@ export default function TransactionsScreen() {
                 index={-1}
                 snapPoints={withdrawSnapPoints}
                 enablePanDownToClose
+                keyboardBehavior="interactive"
+                keyboardBlurBehavior="restore"
+                android_keyboardInputMode="adjustResize"
                 backgroundStyle={{ backgroundColor: '#FFFFFF', borderRadius: 24 }}
                 handleIndicatorStyle={{ backgroundColor: '#9CA3AF', width: 40 }}
             >
-                <BottomSheetView style={{ paddingTop: 24, paddingHorizontal: 24, paddingBottom: 0 }}>
+                <BottomSheetScrollView 
+                    style={{ paddingTop: 24, paddingHorizontal: 24 }}
+                    contentContainerStyle={{ paddingBottom: Math.max(24, keyboardHeight + 20) }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={true}
+                >
                     <View className="flex-row justify-between items-center mb-4">
                         <Text className="text-2xl font-bold text-text-main">Withdraw to Card</Text>
                         <TouchableOpacity onPress={() => {
@@ -716,7 +764,8 @@ export default function TransactionsScreen() {
                             <Text className="text-white font-semibold text-center text-lg">Confirm Withdrawal</Text>
                         )}
                     </TouchableOpacity>
-                </BottomSheetView>
+                    <View style={{ height: Math.max(100, keyboardHeight + 50) }} />
+                </BottomSheetScrollView>
             </BottomSheet>
         </View>
     );
