@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -66,13 +67,19 @@ export default function ProviderHome() {
   const locationWatcherRef = useRef<any>(null);
   const { startRoute } = useRoute();
 
-  const onboardingSteps = [
+  const onboardingSteps: {
+    id: number;
+    title: string;
+    description: string;
+    icon: keyof typeof MaterialCommunityIcons.glyphMap;
+    image?: boolean;
+  }[] = [
     {
       id: 1,
       title: "Welcome to HealthConnect",
       description:
         "Receive nearby patient requests and provide care where it's needed most.",
-      icon: "briefcase-medical",
+      icon: "briefcase",
       image: true,
     },
     {
@@ -96,7 +103,7 @@ export default function ProviderHome() {
         "Keep an eye on your current month earnings and completed consultations.",
       icon: "wallet-outline",
     },
-  ] as const;
+  ];
 
   // First-time user welcome modal (provider)
   useEffect(() => {
@@ -915,7 +922,7 @@ export default function ProviderHome() {
                   />
                 </View>
               ) : (
-                <View className="w-24 h-24 bg-yellow-100 rounded-full justify-center items-center mb-6">
+                <View className="w-24 h-24 bg-green-100 rounded-full justify-center items-center mb-6">
                   <MaterialCommunityIcons
                     name={onboardingSteps[currentOnboardingStep].icon}
                     size={48}
@@ -948,10 +955,9 @@ export default function ProviderHome() {
 
               <TouchableOpacity
                 onPress={handleOnboardingNext}
-                className="flex-1 ml-2 p-4 rounded-lg"
-                style={{ backgroundColor: "#FACC15" }}
+                className="flex-1 ml-2 p-4 rounded-lg bg-green-500"
               >
-                <Text className="text-center text-gray-800 font-bold">
+                <Text className="text-center text-white font-bold">
                   {currentOnboardingStep === onboardingSteps.length - 1
                     ? "Get Started!"
                     : "Next"}
@@ -966,7 +972,7 @@ export default function ProviderHome() {
                   key={step.id}
                   className={`w-2 h-2 rounded-full mx-1 ${
                     index === currentOnboardingStep
-                      ? "bg-yellow-400"
+                      ? "bg-green-500"
                       : "bg-gray-300"
                   }`}
                 />

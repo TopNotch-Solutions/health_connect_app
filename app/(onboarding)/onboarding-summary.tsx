@@ -1,19 +1,44 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const OnboardingSummaryScreen = () => {
   const router = useRouter();
 
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const completed = await AsyncStorage.getItem('onboarding-completed-v1');
+        if (completed === 'true') {
+          router.replace('/(root)/sign-in');
+        }
+      } catch (e) {
+        console.error('Error checking onboarding flag (summary):', e);
+      }
+    };
+
+    checkOnboarding();
+  }, [router]);
+
+  const completeOnboardingAndGoToSignIn = async () => {
+    try {
+      await AsyncStorage.setItem('onboarding-completed-v1', 'true');
+    } catch (e) {
+      console.error('Error saving onboarding flag (summary):', e);
+    }
+    router.replace('/(root)/sign-in');
+  };
+
   const handleGetStarted = () => {
-    router.push('/sign-in');
+    completeOnboardingAndGoToSignIn();
   };
 
   const handleSkip = () => {
-    router.push('/(root)/sign-in');
+    completeOnboardingAndGoToSignIn();
   };
 
   return (

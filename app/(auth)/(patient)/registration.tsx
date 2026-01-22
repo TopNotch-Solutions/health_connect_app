@@ -117,6 +117,7 @@ export default function RegistrationScreen() {
     const [errors, setErrors] = useState<{[key: string]: string}>({});
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [showDisclaimer, setShowDisclaimer] = useState(true);
 
     // Set up global callback for terms acceptance
     useEffect(() => {
@@ -133,6 +134,16 @@ export default function RegistrationScreen() {
             setFormData(prev => ({ ...prev, cellphoneNumber: params.cellphoneNumber as string }));
         }
     }, [params.cellphoneNumber]);
+
+    useEffect(() => {
+        if (showDisclaimer) {
+            const timer = setTimeout(() => {
+                setShowDisclaimer(false);
+            }, 30000); // 30 seconds
+
+            return () => clearTimeout(timer);
+        }
+    }, [showDisclaimer]);
 
     const handleInputChange = (name: string, value: any) => {
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -365,6 +376,20 @@ const handleRegister = async () => {
                     {step === 1 && (
                         <View>
                             <Text className="text-2xl font-bold text-blue-600 mb-6">Account Information</Text>
+                            
+                            {showDisclaimer && (
+                                <View className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-6">
+                                    <View className="flex-row items-start">
+                                        <Feather name="shield" size={20} color="#3B82F6" style={{ marginRight: 12, marginTop: 2 }} />
+                                        <View className="flex-1">
+                                            <Text className="text-sm text-blue-900 font-semibold mb-1">Data Privacy Assurance</Text>
+                                            <Text className="text-xs text-blue-700 leading-5">
+                                                Your personal information is treated with the utmost confidentiality. We do not share, sell, or distribute your data to any third parties. Your privacy and data security are our top priorities.
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            )}
                             
                             <Text className="text-base text-gray-700 mb-2 font-semibold">Full Name</Text>
                             <TextInput className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.fullname ? 'border-red-400' : 'border-green-300'}`} placeholder="Enter your full name" value={formData.fullname} onChangeText={(val) => handleInputChange("fullname", val)}/>

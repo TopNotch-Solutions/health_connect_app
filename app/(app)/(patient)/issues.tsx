@@ -1,6 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as Linking from 'expo-linking';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -10,7 +9,7 @@ import { useAuth } from '../../../context/AuthContext';
 import apiClient from '../../../lib/api';
 
 // --- Type Definitions ---
-type Tab = 'report' | 'tickets' | 'faq' | 'contact';
+type Tab = 'report' | 'tickets' | 'faq';
 interface Issue { _id: string; title: string; description: string; date: string; }
 interface Faq { _id: string; question: string; answer: string; }
 
@@ -28,7 +27,6 @@ const tabs: { key: Tab, label: string }[] = [
     { key: 'report', label: 'Report' },
     { key: 'tickets', label: 'My Tickets' },
     { key: 'faq', label: 'FAQ' },
-    { key: 'contact', label: 'Contact' },
 ];
 
 const pickerStyle = {
@@ -170,9 +168,6 @@ export default function IssuesScreen() {
       }, [activeTab, fetchMyTickets, fetchFaqs])
     );
   
-    const handleEmailPress = () => Linking.openURL('mailto:support@healthconnect.com?subject=Support Request');
-    const handlePhonePress = () => Linking.openURL('tel:+264811234567');
-    
     // --- THIS SECTION CONTAINS THE JSX FOR THE TABS THAT DON'T HAVE LISTS ---
     const renderScrollViewContent = () => {
         switch(activeTab) {
@@ -255,33 +250,6 @@ export default function IssuesScreen() {
                         </TouchableOpacity>
                     </View>
                 );
-            case 'contact':
-                return (
-                    <View>
-                        <TouchableOpacity
-                            onPress={handleEmailPress}
-                            style={styles.contactCard}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.contactIconContainer}>
-                                <Feather name="mail" size={32} color="#10B981" />
-                            </View>
-                            <Text style={styles.contactTitle}>Contact Support</Text>
-                            <Text style={styles.contactText}>support@healthconnect.com</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={handlePhonePress}
-                            style={styles.contactCard}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.contactIconContainer}>
-                                <Feather name="phone" size={32} color="#10B981" />
-                            </View>
-                            <Text style={styles.contactTitle}>Call Us</Text>
-                            <Text style={styles.contactText}>+264 81 123 4567</Text>
-                        </TouchableOpacity>
-                    </View>
-                );
             default:
                 return null;
         }
@@ -350,7 +318,7 @@ export default function IssuesScreen() {
             />
         )}
 
-        {(activeTab === 'report' || activeTab === 'contact') && (
+        {activeTab === 'report' && (
             <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}>
                 {renderScrollViewContent()}
             </ScrollView>
@@ -489,38 +457,5 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 18,
         fontWeight: '700',
-    },
-    contactCard: {
-        backgroundColor: '#FFFFFF',
-        padding: 24,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        alignItems: 'center',
-        marginBottom: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    contactIconContainer: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: '#D1FAE5',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 16,
-    },
-    contactTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#111827',
-        marginBottom: 8,
-    },
-    contactText: {
-        fontSize: 16,
-        color: '#6B7280',
     },
 });

@@ -724,14 +724,14 @@ export default function PatientHomeScreen() {
             {/* Main Content Area */}
             <View className="px-4 mb-6">
               <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
-                <Text className="text-xl font-bold text-gray-800 flex-shrink">
+                <Text className="text-lg font-bold text-gray-800 flex-shrink">
                   What do you need help with today?
                 </Text>
                 <TouchableOpacity
                   onPress={() => router.push("/(app)/(patient)/all_ailments")}
                   className="flex-shrink-0"
                 >
-                  <Text className="font-bold text-blue-600 text-xl">
+                  <Text className="font-bold text-blue-600 text-lg">
                     See all
                   </Text>
                 </TouchableOpacity>
@@ -766,7 +766,7 @@ export default function PatientHomeScreen() {
             {/* Recent Activity / History Section (similar spacing to Ailments) */}
             <View className="px-4 mb-8">
               <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
-                <Text className="text-xl font-bold text-gray-800 flex-shrink">
+                <Text className="text-lg font-bold text-gray-800 flex-shrink">
                   Recent Activity
                 </Text>
                 <TouchableOpacity
@@ -775,7 +775,7 @@ export default function PatientHomeScreen() {
                   }
                   className="flex-shrink-0"
                 >
-                  <Text className="font-bold text-blue-600 text-xl">
+                  <Text className="font-bold text-blue-600 text-lg">
                     See all
                   </Text>
                 </TouchableOpacity>
@@ -944,7 +944,7 @@ export default function PatientHomeScreen() {
                   />
                 </View>
               ) : (
-                <View className="w-24 h-24 bg-yellow-100 rounded-full justify-center items-center mb-6">
+                <View className="w-24 h-24 bg-green-500 rounded-full justify-center items-center mb-6">
                   <MaterialCommunityIcons
                     name={onboardingSteps[currentOnboardingStep].icon}
                     size={48}
@@ -995,7 +995,7 @@ export default function PatientHomeScreen() {
                   key={step.id}
                   className={`w-2 h-2 rounded-full mx-1 ${
                     index === currentOnboardingStep
-                      ? "bg-yellow-400"
+                      ? "bg-green-500"
                       : "bg-gray-300"
                   }`}
                 />

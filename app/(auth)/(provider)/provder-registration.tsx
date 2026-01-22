@@ -7,17 +7,17 @@ import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Linking,
-  Modal,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    Linking,
+    Modal,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -234,6 +234,7 @@ export default function ProviderRegistrationScreen() {
   const [expirationDate, setExpirationDate] = useState<Date>(new Date());
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
 
   // Specializations from API
   const [allSpecializations, setAllSpecializations] = useState<Specialization[]>([]);
@@ -270,6 +271,7 @@ export default function ProviderRegistrationScreen() {
     specializations: [] as string[],
     yearsOfExperience: '',
     operationalZone: '',
+    address: '',
   });
 
   const [docErrors, setDocErrors] = useState<{
@@ -284,6 +286,7 @@ export default function ProviderRegistrationScreen() {
     yearsOfExperience?: string;
     operationalZone?: string;
     bio?: string;
+    address?: string;
   }>({});
 
   // Pre-fill phone number from previous screen
@@ -295,6 +298,17 @@ export default function ProviderRegistrationScreen() {
       }));
     }
   }, [params.cellphoneNumber]);
+
+  // Auto-hide disclaimer after 30 seconds
+  useEffect(() => {
+    if (showDisclaimer) {
+      const timer = setTimeout(() => {
+        setShowDisclaimer(false);
+      }, 30000); // 30 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [showDisclaimer]);
 
   // Set up callback for terms and conditions acceptance
   useEffect(() => {
@@ -449,6 +463,7 @@ export default function ProviderRegistrationScreen() {
         yearsOfExperience?: string;
         operationalZone?: string;
         bio?: string;
+        address?: string;
       } = {};
 
       if (!professionalDetails.specializations.length) {
@@ -459,6 +474,9 @@ export default function ProviderRegistrationScreen() {
       }
       if (!professionalDetails.yearsOfExperience.trim()) {
         newProfErrors.yearsOfExperience = 'Years of experience is required.';
+      }
+      if (!professionalDetails.address.trim()) {
+        newProfErrors.address = 'Practice address is required.';
       }
       if (!professionalDetails.operationalZone.trim()) {
         newProfErrors.operationalZone = 'Operational zone is required.';
@@ -510,7 +528,7 @@ export default function ProviderRegistrationScreen() {
       ['role', role],
       ['nationalId', accountInfo.nationalId || ''],
       ['gender', accountInfo.gender || ''],
-      ['address', ''],
+      ['address', professionalDetails.address || ''],
       ['governingCouncil', professionalDetails.governingCouncil],
       ['hpcnaNumber', professionalDetails.hpcnaNumber],
       ['bio', professionalDetails.bio],
@@ -603,6 +621,7 @@ export default function ProviderRegistrationScreen() {
       missing.push('HPCNA Registration Number');
     if (!professionalDetails.yearsOfExperience)
       missing.push('Years of Experience');
+    if (!professionalDetails.address) missing.push('Practice Address');
     if (!professionalDetails.operationalZone) missing.push('Operational Zone');
     if (!documents.idDocumentFront) missing.push('ID Front');
     if (!documents.idDocumentBack) missing.push('ID Back');
@@ -748,6 +767,20 @@ export default function ProviderRegistrationScreen() {
               <Text className="text-2xl font-bold text-text-main mb-6">
                 Account Information
               </Text>
+
+              {showDisclaimer && (
+                <View className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-6">
+                  <View className="flex-row items-start">
+                    <Feather name="shield" size={20} color="#3B82F6" style={{ marginRight: 12, marginTop: 2 }} />
+                    <View className="flex-1">
+                      <Text className="text-sm text-blue-900 font-semibold mb-1">Data Privacy Assurance</Text>
+                      <Text className="text-xs text-blue-700 leading-5">
+                        Your personal information is treated with the utmost confidentiality. We do not share, sell, or distribute your data to any third parties. Your privacy and data security are our top priorities.
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
 
               <Text className="text-base text-text-main mb-2 font-semibold">
                 Full Name
@@ -1104,6 +1137,27 @@ export default function ProviderRegistrationScreen() {
               {profErrors.yearsOfExperience ? (
                 <Text className="text-xs text-red-500 mb-2">
                   {profErrors.yearsOfExperience}
+                </Text>
+              ) : null}
+
+              {/* Practice Address */}
+              <Text className="text-base text-text-main mb-2 font-semibold">
+                Practice Address
+              </Text>
+              <TextInput
+                value={professionalDetails.address}
+                onChangeText={(t) =>
+                  setProfessionalDetails((p) => ({ ...p, address: t }))
+                }
+                placeholder="Street and number, area, town (e.g. 123 Independence Ave, Windhoek)"
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                  profErrors.address ? 'border-red-400' : 'border-green-300'
+                }`}
+                multiline
+              />
+              {profErrors.address ? (
+                <Text className="text-xs text-red-500 mb-2">
+                  {profErrors.address}
                 </Text>
               ) : null}
 

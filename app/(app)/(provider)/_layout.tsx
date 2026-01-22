@@ -1,10 +1,10 @@
 import { useAuth } from "@/context/AuthContext";
-import { Feather } from "@expo/vector-icons";
-import { Tabs, useRouter, useFocusEffect, usePathname } from "expo-router";
-import { TouchableOpacity, View, Text, StyleSheet } from "react-native";
-import React, { useState, useCallback, useEffect } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import apiClient from "@/lib/api";
+import { Feather } from "@expo/vector-icons";
+import { Tabs, useFocusEffect, usePathname, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ProviderTabsLayout() {
   const { logout, user } = useAuth();
@@ -46,10 +46,12 @@ export default function ProviderTabsLayout() {
   }, [pathname, fetchUnreadCount]);
 
   const handleLogout = async () => {
+    if (isLoggingOut) return;
     try {
       setIsLoggingOut(true);
       await logout();
-      router.replace("/sign-in"); // back to the sign-in screen
+      // Always navigate to the root sign-in route (outside the protected (app) group).
+      router.replace("/(root)/sign-in");
     } finally {
       setIsLoggingOut(false);
     }
