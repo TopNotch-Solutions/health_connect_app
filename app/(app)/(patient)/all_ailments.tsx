@@ -282,7 +282,7 @@ export default function AllAilmentsScreen() {
     ailmentCategoryId?: string;
     symptoms: string;
     paymentMethod: 'wallet' | 'cash';
-    dueCost: number;
+    estimatedCost: number;
     street: string;
     locality: string;
     region: string;
@@ -319,7 +319,7 @@ export default function AllAilmentsScreen() {
         ailmentCategoryId: requestData.ailmentCategoryId,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
-        estimatedCost: requestData.dueCost,
+        estimatedCost: requestData.estimatedCost,
         address: {
           route: requestData.street,
           locality: requestData.locality,

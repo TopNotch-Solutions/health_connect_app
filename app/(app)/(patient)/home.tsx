@@ -200,11 +200,24 @@ export default function PatientHomeScreen() {
             categories,
           );
           if (Array.isArray(categories) && categories.length > 0) {
-            setAilmentCategories(categories);
+            // Ensure provider field is properly set from specialization roles
+            const mappedCategories = categories.map((category: any) => {
+              // Extract unique roles from specializations
+              const roles = category.specialization?.map((spec: any) => spec.role) || [];
+              const uniqueRoles = [...new Set(roles)];
+              const provider = uniqueRoles.length > 0 ? uniqueRoles.join(', ') : 'Other';
+              
+              return {
+                ...category,
+                provider,
+              };
+            });
+            
+            setAilmentCategories(mappedCategories);
 
             // Prefetch ailment images for faster loading - prioritize first 6 for home page
             const AILMENT_IMAGE_BASE_URL = "http://13.51.207.99:4000/ailments/";
-            const categoriesToPrefetch = categories.slice(0, 6); // Only prefetch first 6 for home page
+            const categoriesToPrefetch = mappedCategories.slice(0, 6); // Only prefetch first 6 for home page
 
             // Prefetch in parallel for faster loading
             const prefetchPromises = categoriesToPrefetch.map(
@@ -938,9 +951,9 @@ export default function PatientHomeScreen() {
               {onboardingSteps[currentOnboardingStep].image ? (
                 <View className="w-40 h-40 rounded-full overflow-hidden mb-6 bg-gray-100">
                   <Image
-                    source={require("../../../assets/images/healthconnectlogo.png")}
+                    source={require("../../../assets/images/connectlogo.png")}
                     style={{ width: "100%", height: "100%" }}
-                    resizeMode="cover"
+                    resizeMode="contain"
                   />
                 </View>
               ) : (

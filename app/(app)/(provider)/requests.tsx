@@ -1,12 +1,19 @@
 import { Feather } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as Location from "expo-location";
 import { useAuth } from "../../../context/AuthContext";
-import socketService from "../../../lib/socket";
 import { useRoute } from "../../../context/RouteContext";
+import socketService from "../../../lib/socket";
 
 interface Request {
   _id: string;
@@ -17,13 +24,26 @@ interface Request {
     profileImage?: string;
   };
   providerId?: {
+    _id?: string;
     fullname?: string;
     profileImage?: string;
   };
-  ailmentCategoryId?: {
-    title: string;
-  } | string;
-  status: 'searching' | 'pending' | 'accepted' | 'rejected' | 'en_route' | 'arrived' | 'in_progress' | 'completed' | 'cancelled' | 'expired';
+  ailmentCategoryId?:
+    | {
+        title: string;
+      }
+    | string;
+  status:
+    | "searching"
+    | "pending"
+    | "accepted"
+    | "rejected"
+    | "en_route"
+    | "arrived"
+    | "in_progress"
+    | "completed"
+    | "cancelled"
+    | "expired";
   estimatedCost: number | string;
   symptoms?: string;
   address?: {
@@ -41,29 +61,32 @@ interface Request {
 }
 
 export default function ProviderRequests() {
-  const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'completed'>('all');
+  const [filter, setFilter] = useState<
+    "all" | "pending" | "accepted" | "completed"
+  >("all");
   const [requests, setRequests] = useState<Request[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { startRoute } = useRoute();
   const { user } = useAuth();
   const loadRequests = useCallback(async () => {
     if (!user?.userId) {
-      console.log('⚠️ No userId available');
+      console.log("⚠️ No userId available");
       setIsLoading(false);
       return;
     }
 
     try {
       setIsLoading(true);
-      console.log('📥 Fetching provider requests for:', user.userId);
+      console.log("📥 Fetching provider requests for:", user.userId);
 
       // This screen is authoritative for provider requests
-      const providerRequests = await socketService.getProviderRequests(user.userId);
-      console.log('✅ Fetched provider requests:', providerRequests);
+      const providerRequests = await socketService.getProviderRequests(
+        user.userId,
+      );
+      console.log("✅ Fetched provider requests:", providerRequests);
       setRequests(Array.isArray(providerRequests) ? providerRequests : []);
     } catch (error: any) {
-      console.error('❌ Error loading requests:', error);
-      Alert.alert('Error', 'Failed to load requests: ' + error.message);
+      console.error("❌ Error loading requests:", error);
     } finally {
       setIsLoading(false);
     }
@@ -72,26 +95,26 @@ export default function ProviderRequests() {
   // Connect to socket and load initial requests
   useEffect(() => {
     if (user?.userId) {
-      console.log('🔌 Connecting socket for requests tab');
+      console.log("🔌 Connecting socket for requests tab");
       // Default to doctor role, but should ideally use user.role if available
-      socketService.connect(user.userId, user.role as any || 'doctor');
-      
+      socketService.connect(user.userId, (user.role as any) || "doctor");
+
       const socket = socketService.getSocket();
-      
+
       const handleConnect = () => {
-        console.log('✅ Socket connected, loading requests');
+        console.log("✅ Socket connected, loading requests");
         loadRequests();
       };
 
       if (socket?.connected) {
-        console.log('✅ Socket already connected');
+        console.log("✅ Socket already connected");
         loadRequests();
       } else {
-        socket?.on('connect', handleConnect);
+        socket?.on("connect", handleConnect);
       }
 
       return () => {
-        socket?.off('connect', handleConnect);
+        socket?.off("connect", handleConnect);
       };
     }
   }, [user?.userId, user?.role, loadRequests]);
@@ -99,106 +122,155 @@ export default function ProviderRequests() {
   // Refresh requests when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('🔄 Requests screen came into focus, refreshing requests');
-      console.log('🔄 Current requests in state before reload:', requests.length);
+      console.log("🔄 Requests screen came into focus, refreshing requests");
+      console.log(
+        "🔄 Current requests in state before reload:",
+        requests.length,
+      );
       if (user?.userId) {
         loadRequests();
       }
-    }, [user?.userId, loadRequests, requests.length])
+    }, [user?.userId, loadRequests, requests.length]),
   );
 
   // Listen for new requests and status changes
   useEffect(() => {
     const handleNewRequest = (request: Request) => {
-      console.log('📨 New request available:', request);
-      setRequests((prev) => [request, ...prev.filter(r => r._id !== request._id)]);
+      console.log("📨 New request available:", request);
+      setRequests((prev) => [
+        request,
+        ...prev.filter((r) => r._id !== request._id),
+      ]);
     };
 
     const handleRequestHidden = (data: { requestId: string }) => {
-      console.log('🚫 Request hidden:', data.requestId);
+      console.log("🚫 Request hidden:", data.requestId);
       setRequests((prev) => prev.filter((req) => req._id !== data.requestId));
     };
 
-    const handleRequestStatusChanged = async (data: { requestId: string; status: string; request?: Request }) => {
-      console.log('📊 Request status changed:', data);
-      console.log('📊 Full request data:', data.request);
-      console.log('📊 Request timeline:', data.request?.timeline);
-      
+    const handleRequestStatusChanged = async (data: {
+      requestId: string;
+      status: string;
+      request?: Request;
+    }) => {
+      console.log("📊 Request status changed:", data);
+      console.log("📊 Full request data:", data.request);
+      console.log("📊 Request timeline:", data.request?.timeline);
+
       // WORKAROUND: If backend says cancelled but providerAccepted exists, it was actually accepted
-      let correctStatus = data.status as any;
-      if (data.status === 'cancelled' && data.request?.timeline?.providerAccepted) {
-        console.log('⚠️  Backend returned cancelled but providerAccepted exists - correcting status to accepted');
-        correctStatus = 'accepted';
+      let correctStatus: Request["status"] = data.status as Request["status"];
+      if (
+        data.status === "cancelled" &&
+        data.request?.timeline?.providerAccepted
+      ) {
+        console.log(
+          "⚠️  Backend returned cancelled but providerAccepted exists - correcting status to accepted",
+        );
+        correctStatus = "accepted";
       }
-      
+
       setRequests((prev) => {
         const updated = prev.map((req) =>
-          req._id === data.requestId 
-            ? { ...req, ...data.request, status: correctStatus }
-            : req
+          req._id === data.requestId
+            ? { ...req, ...(data.request || {}), status: correctStatus } as Request
+            : req,
         );
-        
+
         // Add request if it's not already in the list (e.g., status changed to accepted)
-        const exists = updated.some(r => r._id === data.requestId);
+        const exists = updated.some((r) => r._id === data.requestId);
         if (!exists && data.request) {
-          console.log('📌 Adding new request to state from status change:', data.request._id);
-          return [{ ...data.request, status: correctStatus }, ...updated];
+          console.log(
+            "📌 Adding new request to state from status change:",
+            data.request._id,
+          );
+          return [{ ...data.request, status: correctStatus } as Request, ...updated];
         }
-        
+
         return updated;
       });
-      
+
       // Note: persistence to AsyncStorage intentionally removed for Requests tab.
       // The Requests screen uses live data from the server (getProviderRequests)
       // so we only update local state here and avoid writing cached copies.
     };
 
-    socketService.getSocket()?.on('newRequestAvailable', handleNewRequest);
-    socketService.getSocket()?.on('requestHidden', handleRequestHidden);
-    socketService.getSocket()?.on('requestStatusChanged', handleRequestStatusChanged);
+    socketService.getSocket()?.on("newRequestAvailable", handleNewRequest);
+    socketService.getSocket()?.on("requestHidden", handleRequestHidden);
+    socketService
+      .getSocket()
+      ?.on("requestStatusChanged", handleRequestStatusChanged);
 
     return () => {
-      socketService.getSocket()?.off('newRequestAvailable', handleNewRequest);
-      socketService.getSocket()?.off('requestHidden', handleRequestHidden);
-      socketService.getSocket()?.off('requestStatusChanged', handleRequestStatusChanged);
+      socketService.getSocket()?.off("newRequestAvailable", handleNewRequest);
+      socketService.getSocket()?.off("requestHidden", handleRequestHidden);
+      socketService
+        .getSocket()
+        ?.off("requestStatusChanged", handleRequestStatusChanged);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.userId, user?.role, loadRequests]);
 
-  const filteredRequests = requests.filter(r => {
-    if (filter === 'all') return true;
-    if (filter === 'pending') return r.status === 'searching' || r.status === 'pending';
-    if (filter === 'accepted') return r.status === 'accepted' || r.status === 'in_progress' || r.status === 'arrived' || r.status === 'en_route';
-    if (filter === 'completed') return r.status === 'completed';
+  const filteredRequests = requests.filter((r) => {
+    if (filter === "all") return true;
+    if (filter === "pending")
+      return r.status === "searching" || r.status === "pending";
+    if (filter === "accepted")
+      return (
+        r.status === "accepted" ||
+        r.status === "in_progress" ||
+        r.status === "arrived" ||
+        r.status === "en_route"
+      );
+    if (filter === "completed") return r.status === "completed";
     return true;
   });
 
   const getStatusStyle = (status: string) => {
-    switch(status) {
-      case 'searching':
-      case 'pending': return { bg: 'bg-yellow-50', text: 'text-yellow-700', icon: 'clock' };
-      case 'accepted': return { bg: 'bg-blue-50', text: 'text-blue-700', icon: 'check-circle' };
-      case 'in_progress':
-      case 'arrived':
-      case 'en_route': return { bg: 'bg-purple-50', text: 'text-purple-700', icon: 'activity' };
-      case 'completed': return { bg: 'bg-green-50', text: 'text-green-700', icon: 'check-square' };
-      default: return { bg: 'bg-gray-50', text: 'text-gray-700', icon: 'circle' };
+    switch (status) {
+      case "searching":
+      case "pending":
+        return { bg: "bg-yellow-50", text: "text-yellow-700", icon: "clock" };
+      case "accepted":
+        return {
+          bg: "bg-blue-50",
+          text: "text-blue-700",
+          icon: "check-circle",
+        };
+      case "in_progress":
+      case "arrived":
+      case "en_route":
+        return {
+          bg: "bg-purple-50",
+          text: "text-purple-700",
+          icon: "activity",
+        };
+      case "completed":
+        return {
+          bg: "bg-green-50",
+          text: "text-green-700",
+          icon: "check-square",
+        };
+      default:
+        return { bg: "bg-gray-50", text: "text-gray-700", icon: "circle" };
     }
   };
 
   const getAilmentName = (ailment: any) => {
-    if (!ailment) return 'Consultation';
-    if (typeof ailment === 'string') return ailment;
-    return ailment.title || 'Consultation';
+    if (!ailment) return "Consultation";
+    if (typeof ailment === "string") return ailment;
+    return ailment.title || "Consultation";
   };
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Today';
+    if (!dateString) return "Today";
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
     } catch {
-      return 'Today';
+      return "Today";
     }
   };
 
@@ -206,13 +278,13 @@ export default function ProviderRequests() {
   const handleAccept = async (request: Request) => {
     // Double check user is available
     if (!user || !user.userId) {
-      console.error('Cannot accept request: user is not available');
-      Alert.alert('Error', 'User session not available. Please try again.');
+      console.error("Cannot accept request: user is not available");
+      Alert.alert("Error", "User session not available. Please try again.");
       return;
     }
 
     const currentUserId = user.userId; // Store userId to avoid issues if user becomes null
-    
+
     try {
       // 1) Accept on backend (assign provider)
       await socketService.acceptRequest(request._id, currentUserId);
@@ -225,88 +297,128 @@ export default function ProviderRequests() {
         try {
           // Re-check user in case it changed
           if (!user || !user.userId) {
-            console.warn('User not available in background task');
+            console.warn("User not available in background task");
             return;
           }
 
           const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== 'granted') {
-            console.warn('Location permission not granted; cannot send en_route with coordinates');
+          if (status !== "granted") {
+            console.warn(
+              "Location permission not granted; cannot send en_route with coordinates",
+            );
             return;
           }
 
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-          const providerCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          const providerCoords = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          };
 
-          await socketService.updateRequestStatus(request._id, currentUserId, 'en_route', providerCoords);
-          console.log('✅ Sent en_route with provider coordinates');
+          await socketService.updateRequestStatus(
+            request._id,
+            currentUserId,
+            "en_route",
+            providerCoords,
+          );
+          console.log("✅ Sent en_route with provider coordinates");
         } catch (bgError: any) {
-          console.warn('Failed to send en_route with coords:', bgError?.message || bgError);
+          console.warn(
+            "Failed to send en_route with coords:",
+            bgError?.message || bgError,
+          );
         }
       })();
 
       // 4) Remove request locally from requests list
       setRequests((prev) => prev.filter((req) => req._id !== request._id));
     } catch (error: any) {
-      console.error('Error accepting request:', error);
-      Alert.alert('Error', error.message || 'Failed to accept request');
+      console.error("Error accepting request:", error);
+      Alert.alert("Error", error.message || "Failed to accept request");
     }
   };
 
   // Handle mark route - open route tracking modal
   const handleMarkRoute = async (request: Request) => {
     // 1. Double-check assignment to current user to avoid backend 'not assigned' errors
-    const providerIdStr = request.providerId?._id ? String(request.providerId._id) : String(request.providerId || '');
+    const providerIdStr = request.providerId?._id
+      ? String(request.providerId._id)
+      : String(request.providerId || "");
     if (providerIdStr !== String(user?.userId)) {
-      console.error('State mismatch detected!');
-      console.error('Request providerId:', request.providerId);
-      console.error('Current userId:', user?.userId);
-      Alert.alert('Sync Error', 'This request is no longer assigned to you. Refreshing the list.', [{ text: 'OK', onPress: loadRequests }]);
+      console.error("State mismatch detected!");
+      console.error("Request providerId:", request.providerId);
+      console.error("Current userId:", user?.userId);
+      Alert.alert(
+        "Sync Error",
+        "This request is no longer assigned to you. Refreshing the list.",
+        [{ text: "OK", onPress: loadRequests }],
+      );
       return;
     }
 
     if (!user?.userId || !request.address?.coordinates) {
-      Alert.alert('Error', 'Patient location not available');
+      Alert.alert("Error", "Patient location not available");
       return;
     }
 
     try {
-      console.log('🚗 Opening route modal for request:', request._id);
+      console.log("🚗 Opening route modal for request:", request._id);
 
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        return Alert.alert('Permission Denied', 'Location permission is required.');
+      if (status !== "granted") {
+        return Alert.alert(
+          "Permission Denied",
+          "Location permission is required.",
+        );
       }
 
-      const providerLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const providerCoords = { latitude: providerLocation.coords.latitude, longitude: providerLocation.coords.longitude };
+      const providerLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const providerCoords = {
+        latitude: providerLocation.coords.latitude,
+        longitude: providerLocation.coords.longitude,
+      };
 
       // Only update status if it's the first time marking the route
-      if (request.status === 'accepted') {
-      await socketService.updateRequestStatus(request._id, user.userId, 'en_route', providerCoords);
+      if (request.status === "accepted") {
+        await socketService.updateRequestStatus(
+          request._id,
+          user.userId,
+          "en_route",
+          providerCoords,
+        );
         // Optimistically update the local state for immediate UI feedback
-        setRequests(prev => prev.map(req => req._id === request._id ? { ...req, status: 'en_route' as any } : req));
+        setRequests((prev) =>
+          prev.map((req) =>
+            req._id === request._id
+              ? { ...req, status: "en_route" as Request["status"] } as Request
+              : req,
+          ),
+        );
       }
 
       // Start global route modal via context with updated request status
-      startRoute({ ...request, status: 'en_route' as any });
+      startRoute({ ...request, status: "en_route" as Request["status"] } as Request);
     } catch (error: any) {
-      console.error('Error marking route:', error);
-      Alert.alert('Error', error.message || 'Failed to mark route');
+      console.error("Error marking route:", error);
+      Alert.alert("Error", error.message || "Failed to mark route");
     }
   };
 
   // Handle route completion
   const handleRouteComplete = useCallback(() => {
-    console.log('✅ Route completed');
+    console.log("✅ Route completed");
     try {
       // Reload requests after a small delay to ensure modal is closed first
       setTimeout(() => {
-        console.log('🔄 Reloading requests after route completion');
+        console.log("🔄 Reloading requests after route completion");
         loadRequests();
       }, 500);
     } catch (error) {
-      console.error('Error in handleRouteComplete:', error);
+      console.error("Error in handleRouteComplete:", error);
     }
   }, [loadRequests]);
 
@@ -315,20 +427,25 @@ export default function ProviderRequests() {
     if (!user?.userId) return;
 
     try {
-      console.log('✅ Completing request:', requestId);
-      await socketService.updateRequestStatus(requestId, user.userId, 'completed', undefined);
-      
+      console.log("✅ Completing request:", requestId);
+      await socketService.updateRequestStatus(
+        requestId,
+        user.userId,
+        "completed",
+        undefined,
+      );
+
       // Update local state
       setRequests((prev) =>
         prev.map((req) =>
-          req._id === requestId ? { ...req, status: 'completed' as any } : req
-        )
+          req._id === requestId ? { ...req, status: "completed" as Request["status"] } as Request : req,
+        ),
       );
-      
-      Alert.alert('Success', `Consultation completed for ${patientName}!`);
+
+      Alert.alert("Success", `Consultation completed for ${patientName}!`);
     } catch (error: any) {
-      console.error('Error completing request:', error);
-      Alert.alert('Error', error.message || 'Failed to complete request');
+      console.error("Error completing request:", error);
+      Alert.alert("Error", error.message || "Failed to complete request");
     }
   };
 
@@ -339,15 +456,21 @@ export default function ProviderRequests() {
     try {
       await socketService.rejectRequest(requestId, user.userId);
       setRequests((prev) => prev.filter((req) => req._id !== requestId));
-      Alert.alert('Declined', `Declined consultation request from ${patientName}`);
+      Alert.alert(
+        "Declined",
+        `Declined consultation request from ${patientName}`,
+      );
     } catch (error: any) {
-      console.error('Error declining request:', error);
-      Alert.alert('Error', error.message || 'Failed to decline request');
+      console.error("Error declining request:", error);
+      Alert.alert("Error", error.message || "Failed to decline request");
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={['bottom', 'left', 'right']}>
+    <SafeAreaView
+      className="flex-1 bg-gray-50"
+      edges={["bottom", "left", "right"]}
+    >
       <ScrollView className="flex-1">
         {/* Header */}
         <View className="bg-white pt-6 pb-4 px-6 border-b border-gray-200">
@@ -363,17 +486,21 @@ export default function ProviderRequests() {
         <View className="px-6 pt-4 pb-2">
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View className="flex-row" style={{ gap: 8 }}>
-              {['all', 'pending', 'accepted', 'completed'].map((f) => (
+              {["all", "pending", "accepted", "completed"].map((f) => (
                 <TouchableOpacity
                   key={f}
                   onPress={() => setFilter(f as any)}
                   className={`px-5 py-2.5 rounded-xl ${
-                    filter === f ? 'bg-blue-600' : 'bg-white border border-gray-200'
+                    filter === f
+                      ? "bg-blue-600"
+                      : "bg-white border border-gray-200"
                   }`}
                 >
-                  <Text className={`font-bold text-sm capitalize ${
-                    filter === f ? 'text-white' : 'text-gray-600'
-                  }`}>
+                  <Text
+                    className={`font-bold text-sm capitalize ${
+                      filter === f ? "text-white" : "text-gray-600"
+                    }`}
+                  >
                     {f}
                   </Text>
                 </TouchableOpacity>
@@ -387,7 +514,9 @@ export default function ProviderRequests() {
           {isLoading ? (
             <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
               <ActivityIndicator size="large" color="#3B82F6" />
-              <Text className="text-sm text-gray-500 mt-4">Loading requests...</Text>
+              <Text className="text-sm text-gray-500 mt-4">
+                Loading requests...
+              </Text>
             </View>
           ) : filteredRequests.length === 0 ? (
             <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
@@ -398,16 +527,17 @@ export default function ProviderRequests() {
                 No Requests
               </Text>
               <Text className="text-sm text-gray-500 text-center">
-                No {filter !== 'all' && filter} requests found
+                No {filter !== "all" && filter} requests found
               </Text>
             </View>
           ) : (
             filteredRequests.map((request) => {
               const statusStyle = getStatusStyle(request.status);
-              const patientName = request.patientId?.fullname || 'Unknown Patient';
+              const patientName =
+                request.patientId?.fullname || "Unknown Patient";
               const ailmentName = getAilmentName(request.ailmentCategoryId);
               const fee = `N$ ${request.estimatedCost || 0}`;
-              
+
               return (
                 <View
                   key={request._id}
@@ -419,7 +549,11 @@ export default function ProviderRequests() {
                         {patientName}
                       </Text>
                       <View className="flex-row items-center mb-1">
-                        <Feather name="alert-circle" size={14} color="#6B7280" />
+                        <Feather
+                          name="alert-circle"
+                          size={14}
+                          color="#6B7280"
+                        />
                         <Text className="text-sm text-gray-600 ml-1.5">
                           {ailmentName}
                         </Text>
@@ -431,25 +565,39 @@ export default function ProviderRequests() {
                         </Text>
                       </View>
                     </View>
-                    <View className={`${statusStyle.bg} px-3 py-1.5 rounded-full`}>
-                      <Text className={`${statusStyle.text} text-xs font-bold capitalize`}>
+                    <View
+                      className={`${statusStyle.bg} px-3 py-1.5 rounded-full`}
+                    >
+                      <Text
+                        className={`${statusStyle.text} text-xs font-bold capitalize`}
+                      >
                         {request.status}
                       </Text>
                     </View>
                   </View>
 
                   <View className="bg-gray-50 rounded-lg p-3 flex-row items-center justify-between mb-3">
-                    <Text className="text-xs text-gray-500">Consultation Fee</Text>
-                    <Text className="text-base font-bold text-gray-900">{fee}</Text>
+                    <Text className="text-xs text-gray-500">
+                      Consultation Fee
+                    </Text>
+                    <Text className="text-base font-bold text-gray-900">
+                      {fee}
+                    </Text>
                   </View>
 
                   {/* Location Information */}
                   {request.address && (
                     <View className="bg-blue-50 rounded-lg p-3 mb-3 flex-row items-start">
-                      <Feather name="map-pin" size={16} color="#3B82F6" style={{ marginTop: 2, marginRight: 8 }} />
+                      <Feather
+                        name="map-pin"
+                        size={16}
+                        color="#3B82F6"
+                        style={{ marginTop: 2, marginRight: 8 }}
+                      />
                       <View className="flex-1">
                         <Text className="text-xs text-blue-700 font-semibold">
-                          {request.address.locality}, {request.address.administrative_area_level_1}
+                          {request.address.locality},{" "}
+                          {request.address.administrative_area_level_1}
                         </Text>
                         <Text className="text-xs text-blue-600 mt-0.5">
                           {request.address.route}
@@ -458,36 +606,46 @@ export default function ProviderRequests() {
                     </View>
                   )}
 
-                  {request.status === 'searching' || request.status === 'pending' ? (
+                  {request.status === "searching" ||
+                  request.status === "pending" ? (
                     <View className="flex-row gap-2 mt-3">
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         onPress={() => handleDecline(request._id, patientName)}
                         className="flex-1 bg-gray-100 py-3 rounded-lg border border-gray-200"
                       >
-                        <Text className="text-gray-700 font-bold text-center">Decline</Text>
+                        <Text className="text-gray-700 font-bold text-center">
+                          Decline
+                        </Text>
                       </TouchableOpacity>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         onPress={() => handleAccept(request)}
                         className="flex-1 bg-blue-600 py-3 rounded-lg"
                       >
-                        <Text className="text-white font-bold text-center">Accept</Text>
+                        <Text className="text-white font-bold text-center">
+                          Accept
+                        </Text>
                       </TouchableOpacity>
                     </View>
-                  ) : (request.status === 'accepted' || request.status === 'en_route') ? (
-                    <TouchableOpacity 
+                  ) : request.status === "accepted" ||
+                    request.status === "en_route" ? (
+                    <TouchableOpacity
                       onPress={() => handleMarkRoute(request)}
-                      className={`py-3 rounded-lg mt-3 ${request.status === 'en_route' ? 'bg-purple-600' : 'bg-green-600'}`}
+                      className={`py-3 rounded-lg mt-3 ${request.status === "en_route" ? "bg-purple-600" : "bg-green-600"}`}
                     >
                       <Text className="text-white font-bold text-center">
-                        {request.status === 'en_route' ? 'Resume Route' : 'Mark Route'}
+                        {request.status === "en_route"
+                          ? "Resume Route"
+                          : "Mark Route"}
                       </Text>
                     </TouchableOpacity>
-                  ) : request.status === 'arrived' ? (
-                    <TouchableOpacity 
+                  ) : request.status === "arrived" ? (
+                    <TouchableOpacity
                       onPress={() => handleComplete(request._id, patientName)}
                       className="bg-emerald-600 py-3 rounded-lg mt-3"
                     >
-                      <Text className="text-white font-bold text-center">Complete Consultation</Text>
+                      <Text className="text-white font-bold text-center">
+                        Complete Consultation
+                      </Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>

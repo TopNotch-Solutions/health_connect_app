@@ -1,17 +1,59 @@
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";
 import { Feather } from "@expo/vector-icons";
-import { Tabs, useFocusEffect, usePathname, useRouter } from "expo-router";
+import { Tabs, useFocusEffect, usePathname, useRouter, useSegments } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// Separate component for header right to ensure proper re-rendering
+const HeaderRight = ({ unreadCount, isLoggingOut, onLogout, onNotificationsPress }: {
+  unreadCount: number;
+  isLoggingOut: boolean;
+  onLogout: () => void;
+  onNotificationsPress: () => void;
+}) => (
+  <View style={styles.headerContainer}>
+    {/* Notification button */}
+    <TouchableOpacity
+      onPress={onNotificationsPress}
+      style={styles.iconButton}
+      accessibilityRole="button"
+      accessibilityLabel="Open notifications"
+    >
+      <View style={styles.bellContainer}>
+        <Feather name="bell" size={22} />
+        {unreadCount > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {unreadCount > 100 ? '99+' : unreadCount.toString()}
+            </Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+
+    {/* Logout button */}
+    <TouchableOpacity
+      onPress={onLogout}
+      disabled={isLoggingOut}
+      style={styles.logoutButton}
+      accessibilityRole="button"
+      accessibilityLabel="Logout"
+    >
+      <Feather name="log-out" size={20} color="#fff" />
+    </TouchableOpacity>
+  </View>
+);
 
 export default function ProviderTabsLayout() {
   const { logout, user } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [headerKey, setHeaderKey] = useState(0);
   const router = useRouter();
   const pathname = usePathname();
+  const segments = useSegments();
   const insets = useSafeAreaInsets();
 
   // Fetch unread notification count
@@ -26,6 +68,7 @@ export default function ProviderTabsLayout() {
       const count = response.data?.data?.unReadCount || 0;
       console.log('Parsed unread count:', count);
       setUnreadCount(count); // Store actual count
+      setHeaderKey(prev => prev + 1); // Force header re-render
     } catch (error: any) {
       console.error("Error fetching unread count:", error);
       console.error("Error details:", error.response?.data);
@@ -45,6 +88,23 @@ export default function ProviderTabsLayout() {
     fetchUnreadCount();
   }, [pathname, fetchUnreadCount]);
 
+  // Fetch count when segments change (tab navigation)
+  useEffect(() => {
+    fetchUnreadCount();
+  }, [segments, fetchUnreadCount]);
+
+  // Refresh count when returning from notifications screen
+  useEffect(() => {
+    // If we're not on notifications page, refresh count
+    // This handles the case when user returns from notifications
+    if (!pathname.includes('notifications')) {
+      const timer = setTimeout(() => {
+        fetchUnreadCount();
+      }, 300); // Small delay to ensure navigation is complete
+      return () => clearTimeout(timer);
+    }
+  }, [pathname, fetchUnreadCount]);
+
   const handleLogout = async () => {
     if (isLoggingOut) return;
     try {
@@ -56,6 +116,17 @@ export default function ProviderTabsLayout() {
       setIsLoggingOut(false);
     }
   };
+
+  // Create headerRight function that will be recreated when unreadCount changes
+  const headerRightCallback = useCallback(() => (
+    <HeaderRight
+      key={headerKey}
+      unreadCount={unreadCount}
+      isLoggingOut={isLoggingOut}
+      onLogout={handleLogout}
+      onNotificationsPress={() => router.push("/notifications")}
+    />
+  ), [unreadCount, isLoggingOut, router, headerKey]);
 
   return (
     <Tabs
@@ -70,40 +141,7 @@ export default function ProviderTabsLayout() {
           fontSize: 12,
           marginBottom: 6,
         },
-        headerRight: () => (
-          <View style={styles.headerContainer}>
-            {/* Notification button */}
-            <TouchableOpacity
-              onPress={() => router.push("/notifications")}
-              style={styles.iconButton}
-              accessibilityRole="button"
-              accessibilityLabel="Open notifications"
-            >
-              <View style={styles.bellContainer}>
-                <Feather name="bell" size={22} />
-                {unreadCount > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>
-                      {unreadCount > 100 ? '99+' : unreadCount.toString()}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-
-            {/* Logout button */}
-            <TouchableOpacity
-              onPress={handleLogout}
-              disabled={isLoggingOut}
-              style={styles.logoutButton}
-              accessibilityRole="button"
-              accessibilityLabel="Logout"
-            >
-              <Feather name="log-out" size={20} color="#fff" />
-              
-            </TouchableOpacity>
-          </View>
-        ),
+        headerRight: headerRightCallback,
       }}
     >
       <Tabs.Screen

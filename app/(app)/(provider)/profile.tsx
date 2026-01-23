@@ -1,17 +1,18 @@
 import { Feather } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
 import React, { useMemo, useRef } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ChangePasswordModal from "../../../components/ChangePasswordModal";
@@ -74,6 +75,9 @@ export default function ProfileScreen() {
   const helpSupportSnapPoints = useMemo(() => ["85%"], []);
   const aboutHealthConnectSheetRef = useRef<BottomSheet>(null);
   const aboutHealthConnectSnapPoints = useMemo(() => ["90%"], []);
+  const editDocumentsSheetRef = useRef<BottomSheet>(null);
+  const editDocumentsSnapPoints = useMemo(() => ["85%"], []);
+  const [uploadingDocument, setUploadingDocument] = React.useState<string | null>(null);
 
   const IMAGE_BASE_URL = "http://13.51.207.99:4000/images/";
 
@@ -221,6 +225,132 @@ export default function ProfileScreen() {
   const handleAboutHealthConnectPress = () => {
     aboutHealthConnectSheetRef.current?.expand();
   };
+  const handleEditDocumentsPress = () => {
+    editDocumentsSheetRef.current?.expand();
+  };
+
+  const pickDocument = async (documentType: string) => {
+    try {
+      // ID documents should be images only, others should be PDF only
+      const allowedTypes =
+        documentType === "idDocumentFront" || documentType === "idDocumentBack"
+          ? ["image/*"]
+          : ["application/pdf"];
+
+      const result = await DocumentPicker.getDocumentAsync({
+        type: allowedTypes,
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await handleUploadDocument(documentType, result.assets[0]);
+      }
+    } catch (error: any) {
+      Alert.alert("Error", "Failed to pick document. Please try again.");
+      console.error("Document picker error:", error);
+    }
+  };
+
+  const handleUploadDocument = async (
+    documentType: string,
+    document: DocumentPicker.DocumentPickerAsset,
+  ) => {
+    if (!user?.userId) {
+      Alert.alert("Error", "User not found. Please try again.");
+      return;
+    }
+
+    // Validate file type before uploading
+    const mimeType = document.mimeType || "";
+    const fileName = document.name || "";
+    const isImageType = mimeType.startsWith("image/") || /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName);
+    const isPdfType = mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
+
+    // ID documents must be images
+    if (documentType === "idDocumentFront" || documentType === "idDocumentBack") {
+      if (!isImageType) {
+        Alert.alert(
+          "Invalid File Type",
+          "ID documents must be image files (JPG, PNG, etc.). Please select an image file.",
+        );
+        return;
+      }
+    } else {
+      // Other documents must be PDFs
+      if (!isPdfType) {
+        Alert.alert(
+          "Invalid File Type",
+          "This document must be a PDF file. Please select a PDF file.",
+        );
+        return;
+      }
+    }
+
+    setUploadingDocument(documentType);
+    try {
+      const formData = new FormData();
+      const fieldName =
+        documentType === "idDocumentFront"
+          ? "idDocumentFront"
+          : documentType === "idDocumentBack"
+            ? "idDocumentBack"
+            : documentType === "finalQualification"
+              ? "finalQualification"
+              : documentType === "HPCNAQualification"
+                ? "HPCNAQualification"
+                : "dispensingCertificateLicence";
+
+      // Determine file extension and MIME type based on document type
+      const isImage = documentType === "idDocumentFront" || documentType === "idDocumentBack";
+      const defaultExtension = isImage ? "jpg" : "pdf";
+      const defaultMimeType = isImage ? "image/jpeg" : "application/pdf";
+
+      formData.append(fieldName, {
+        uri: document.uri,
+        name: document.name || `${documentType}-${Date.now()}.${defaultExtension}`,
+        type: document.mimeType || defaultMimeType,
+      } as any);
+
+      let endpoint = "";
+      switch (documentType) {
+        case "idDocumentFront":
+          endpoint = "/app/auth/update-id-front";
+          break;
+        case "idDocumentBack":
+          endpoint = "/app/auth/update-id-back";
+          break;
+        case "finalQualification":
+          endpoint = "/app/auth/update-primary-qualification";
+          break;
+        case "HPCNAQualification":
+          endpoint = "/app/auth/update-annual-qualification";
+          break;
+        case "dispensingCertificateLicence":
+          endpoint = "/app/auth/update-prescribing-certificate";
+          break;
+        default:
+          Alert.alert("Error", "Invalid document type.");
+          return;
+      }
+
+      const response = await apiClient.patch(endpoint, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      Alert.alert("Success", "Document updated successfully!");
+    } catch (error: any) {
+      Alert.alert(
+        "Error",
+        error.response?.data?.message ||
+          "Failed to upload document. Please try again.",
+      );
+      console.error("Upload error:", error);
+    } finally {
+      setUploadingDocument(null);
+    }
+  };
 
   return (
     <SafeAreaView
@@ -297,6 +427,12 @@ export default function ProfileScreen() {
                 icon="edit-3"
                 label="Edit Profile"
                 onPress={() => setEditProfileVisible(true)}
+              />
+              <View className="h-px bg-gray-100 mx-4" />
+              <ProfileMenuItem
+                icon="file-text"
+                label="Edit Documents"
+                onPress={handleEditDocumentsPress}
               />
               <View className="h-px bg-gray-100 mx-4" />
               <ProfileMenuItem
@@ -622,6 +758,172 @@ export default function ProfileScreen() {
           </View>
         </BottomSheetScrollView>
       </BottomSheet>
+
+      {/* Edit Documents Bottom Sheet */}
+      <BottomSheet
+        ref={editDocumentsSheetRef}
+        index={-1}
+        snapPoints={editDocumentsSnapPoints}
+        enablePanDownToClose
+        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
+        handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
+      >
+        <BottomSheetScrollView
+          style={{ paddingTop: 24, paddingHorizontal: 24 }}
+        >
+          <Text style={styles.bottomSheetTitle}>Edit Documents</Text>
+          <Text style={styles.bottomSheetSubtitle}>
+            Update your professional documents
+          </Text>
+
+          {/* ID Front */}
+          <TouchableOpacity
+            onPress={() => pickDocument("idDocumentFront")}
+            disabled={uploadingDocument !== null}
+            style={[
+              styles.documentCard,
+              uploadingDocument === "idDocumentFront" && styles.documentCardUploading,
+            ]}
+            activeOpacity={0.7}
+          >
+            <View style={styles.documentCardContent}>
+              <View style={styles.documentIconContainer}>
+                <Feather name="file-text" size={24} color="#3B82F6" />
+              </View>
+              <View style={styles.documentTextContainer}>
+                <Text style={styles.documentTitle}>National ID (Front)</Text>
+                <Text style={styles.documentSubtitle}>
+                  Update your ID front document (Image only)
+                </Text>
+              </View>
+              {uploadingDocument === "idDocumentFront" ? (
+                <ActivityIndicator size="small" color="#3B82F6" />
+              ) : (
+                <Feather name="chevron-right" size={20} color="#9CA3AF" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* ID Back */}
+          <TouchableOpacity
+            onPress={() => pickDocument("idDocumentBack")}
+            disabled={uploadingDocument !== null}
+            style={[
+              styles.documentCard,
+              uploadingDocument === "idDocumentBack" && styles.documentCardUploading,
+            ]}
+            activeOpacity={0.7}
+          >
+            <View style={styles.documentCardContent}>
+              <View style={styles.documentIconContainer}>
+                <Feather name="file-text" size={24} color="#3B82F6" />
+              </View>
+              <View style={styles.documentTextContainer}>
+                <Text style={styles.documentTitle}>National ID (Back)</Text>
+                <Text style={styles.documentSubtitle}>
+                  Update your ID back document (Image only)
+                </Text>
+              </View>
+              {uploadingDocument === "idDocumentBack" ? (
+                <ActivityIndicator size="small" color="#3B82F6" />
+              ) : (
+                <Feather name="chevron-right" size={20} color="#9CA3AF" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Primary Qualification */}
+          <TouchableOpacity
+            onPress={() => pickDocument("finalQualification")}
+            disabled={uploadingDocument !== null}
+            style={[
+              styles.documentCard,
+              uploadingDocument === "finalQualification" && styles.documentCardUploading,
+            ]}
+            activeOpacity={0.7}
+          >
+            <View style={styles.documentCardContent}>
+              <View style={styles.documentIconContainer}>
+                <Feather name="award" size={24} color="#10B981" />
+              </View>
+              <View style={styles.documentTextContainer}>
+                <Text style={styles.documentTitle}>Primary Qualification</Text>
+                <Text style={styles.documentSubtitle}>
+                  Update your degree or diploma certificate (PDF only)
+                </Text>
+              </View>
+              {uploadingDocument === "finalQualification" ? (
+                <ActivityIndicator size="small" color="#10B981" />
+              ) : (
+                <Feather name="chevron-right" size={20} color="#9CA3AF" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Annual Qualification (HPCNA) */}
+          <TouchableOpacity
+            onPress={() => pickDocument("HPCNAQualification")}
+            disabled={uploadingDocument !== null}
+            style={[
+              styles.documentCard,
+              uploadingDocument === "HPCNAQualification" && styles.documentCardUploading,
+            ]}
+            activeOpacity={0.7}
+          >
+            <View style={styles.documentCardContent}>
+              <View style={styles.documentIconContainer}>
+                <Feather name="calendar" size={24} color="#F59E0B" />
+              </View>
+              <View style={styles.documentTextContainer}>
+                <Text style={styles.documentTitle}>
+                  Annual Qualification (HPCNA)
+                </Text>
+                <Text style={styles.documentSubtitle}>
+                  Update your HPCNA practicing certificate (PDF only)
+                </Text>
+              </View>
+              {uploadingDocument === "HPCNAQualification" ? (
+                <ActivityIndicator size="small" color="#F59E0B" />
+              ) : (
+                <Feather name="chevron-right" size={20} color="#9CA3AF" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Prescribing Certificate (Nurse only) */}
+          {user?.role?.toLowerCase() === "nurse" && (
+            <TouchableOpacity
+              onPress={() => pickDocument("dispensingCertificateLicence")}
+              disabled={uploadingDocument !== null}
+              style={[
+                styles.documentCard,
+                uploadingDocument === "dispensingCertificateLicence" &&
+                  styles.documentCardUploading,
+              ]}
+              activeOpacity={0.7}
+            >
+              <View style={styles.documentCardContent}>
+                <View style={styles.documentIconContainer}>
+                  <Feather name="file-text" size={24} color="#8B5CF6" />
+                </View>
+                <View style={styles.documentTextContainer}>
+                  <Text style={styles.documentTitle}>
+                    Prescribing Certificate
+                  </Text>
+                  <Text style={styles.documentSubtitle}>
+                    Update your dispensing licence (PDF only)
+                  </Text>
+                </View>
+                {uploadingDocument === "dispensingCertificateLicence" ? (
+                  <ActivityIndicator size="small" color="#8B5CF6" />
+                ) : (
+                  <Feather name="chevron-right" size={20} color="#9CA3AF" />
+                )}
+              </View>
+            </TouchableOpacity>
+          )}
+        </BottomSheetScrollView>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -781,5 +1083,47 @@ const styles = StyleSheet.create({
     color: "#1E40AF",
     lineHeight: 20,
     fontStyle: "italic",
+  },
+  documentCard: {
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  documentCardUploading: {
+    opacity: 0.6,
+  },
+  documentCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  documentIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  documentTextContainer: {
+    flex: 1,
+  },
+  documentTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  documentSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
   },
 });

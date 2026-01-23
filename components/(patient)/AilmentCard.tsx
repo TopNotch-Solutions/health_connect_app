@@ -3,7 +3,8 @@ import { TouchableOpacity, View, ActivityIndicator, Image, Text } from "react-na
 
 interface AilmentCardProps {
     item: {
-        id: string;
+        _id?: string;
+        id?: string;
         title: string;
         image?: string;
         provider?: string;

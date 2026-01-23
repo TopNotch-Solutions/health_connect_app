@@ -201,30 +201,80 @@ export default function NotificationsScreen() {
     const { user } = useAuth();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'unread'>('all');
     const [unreadCount, setUnreadCount] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-    // FIXED: Fetch notifications without userId in URL
-    const fetchNotifications = useCallback(async () => {
-        if (!user?.userId) return;
-        setIsLoading(true);
+    // FIXED: Fetch notifications with pagination
+    const fetchNotifications = useCallback(async (isRefresh = false, page = 1) => {
+        if (!user?.userId) {
+            setNotifications([]);
+            setIsLoading(false);
+            setIsRefreshing(false);
+            return;
+        }
+        
+        if (isRefresh) {
+            setIsRefreshing(true);
+            setCurrentPage(1);
+        } else if (page === 1) {
+            setIsLoading(true);
+        } else {
+            setIsLoadingMore(true);
+        }
+        
         try {
-            console.log('Fetching notifications...');
+            console.log(`Fetching notifications for userId: ${user.userId}, page: ${page}`);
             // Backend extracts userId from JWT token
-            const response = await apiClient.get('/app/notification/all-user-notification');
+            const response = await apiClient.get(`/app/notification/all-user-notification?page=${page}&limit=10`);
             console.log("Notifications Response:", response.data);
-            setNotifications(response.data.data || []);
+            const newNotifications = response.data.data || [];
+            const pagination = response.data.pagination || {};
+            
+            console.log("Pagination data:", pagination);
+            
+            if (isRefresh || page === 1) {
+                // Replace notifications on refresh or first page
+                setNotifications(newNotifications);
+            } else {
+                // Append notifications for pagination
+                setNotifications(prev => [...prev, ...newNotifications]);
+            }
+            
+            // Use pagination data from API response
+            const hasNext = pagination.hasNextPage === true;
+            const currentPageNum = pagination.currentPage || page;
+            const totalPagesNum = pagination.totalPages || 1;
+            console.log("Setting hasMore:", hasNext, "currentPage:", currentPageNum, "totalPages:", totalPagesNum, "newNotifications count:", newNotifications.length);
+            setHasMore(hasNext);
+            setCurrentPage(currentPageNum);
+            setTotalPages(totalPagesNum);
+            
+            // If no notifications returned and we're not on page 1, there are no more pages
+            if (newNotifications.length === 0 && page > 1) {
+                setHasMore(false);
+            }
         } catch (error: any) {
             console.error("Fetch Notifications Error:", {
                 message: error.message,
                 status: error.response?.status,
                 data: error.response?.data,
+                url: error.config?.url,
             });
-            setNotifications([]);
+            // Don't show alert on initial load, just set empty notifications
+            if (page === 1) {
+                setNotifications([]);
+            }
         } finally {
             setIsLoading(false);
+            setIsRefreshing(false);
+            setIsLoadingMore(false);
         }
-    }, [user]);
+    }, [user?.userId]);
 
     // FIXED: Fetch unread count from dedicated endpoint
     const fetchUnreadCount = useCallback(async () => {
@@ -267,9 +317,18 @@ export default function NotificationsScreen() {
         }
     }, [fetchUnreadCount]);
 
+    // Load more notifications for pagination (manual trigger)
+    const loadMoreNotifications = useCallback(() => {
+        if (!isLoadingMore && hasMore) {
+            const nextPage = currentPage + 1;
+            console.log('Loading more notifications, page:', nextPage);
+            fetchNotifications(false, nextPage);
+        }
+    }, [isLoadingMore, hasMore, currentPage, fetchNotifications]);
+
     useFocusEffect(
         useCallback(() => {
-            fetchNotifications();
+            fetchNotifications(false, 1);
             fetchUnreadCount();
         }, [fetchNotifications, fetchUnreadCount])
     );
@@ -365,9 +424,54 @@ export default function NotificationsScreen() {
                             </Text>
                         </View>
                     }
-                    onRefresh={fetchNotifications}
-                    refreshing={isLoading}
+                    ListFooterComponent={
+                        filteredNotifications.length > 0 ? (
+                            <View style={styles.paginationContainer}>
+                                <View style={styles.paginationDivider}>
+                                    <View style={styles.paginationLine} />
+                                    <View style={styles.paginationTextContainer}>
+                                        <Text style={styles.paginationText}>
+                                            Page {currentPage} of {totalPages}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.paginationLine} />
+                                </View>
+                                {hasMore && (
+                                    <TouchableOpacity
+                                        onPress={loadMoreNotifications}
+                                        disabled={isLoadingMore}
+                                        style={[
+                                            styles.loadMoreButton,
+                                            isLoadingMore && styles.loadMoreButtonDisabled,
+                                        ]}
+                                        activeOpacity={0.7}
+                                    >
+                                        {isLoadingMore ? (
+                                            <>
+                                                <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                                                <Text style={styles.loadMoreButtonText}>Loading...</Text>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Feather name="chevron-down" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
+                                                <Text style={styles.loadMoreButtonText}>Load More</Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                )}
+                                {!hasMore && totalPages > 1 && (
+                                    <View style={styles.allLoadedContainer}>
+                                        <Feather name="check-circle" size={16} color="#9CA3AF" style={{ marginRight: 6 }} />
+                                        <Text style={styles.allLoadedText}>All notifications loaded</Text>
+                                    </View>
+                                )}
+                            </View>
+                        ) : null
+                    }
+                    onRefresh={() => fetchNotifications(true, 1)}
+                    refreshing={isRefreshing}
                     showsVerticalScrollIndicator={false}
+                    removeClippedSubviews={false}
                 />
             )}
         </SafeAreaView>
@@ -572,5 +676,63 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         textAlign: 'center',
         lineHeight: 20,
+    },
+    paginationContainer: {
+        paddingVertical: 32,
+        alignItems: 'center',
+    },
+    paginationDivider: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+        width: '100%',
+    },
+    paginationLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#E5E7EB',
+    },
+    paginationTextContainer: {
+        paddingHorizontal: 16,
+    },
+    paginationText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#6B7280',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    loadMoreButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#10B981',
+        paddingVertical: 14,
+        paddingHorizontal: 32,
+        borderRadius: 16,
+        shadowColor: '#10B981',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    loadMoreButtonDisabled: {
+        opacity: 0.6,
+    },
+    loadMoreButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    allLoadedContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 8,
+    },
+    allLoadedText: {
+        fontSize: 14,
+        color: '#9CA3AF',
+        fontWeight: '500',
     },
 });
