@@ -1,9 +1,9 @@
 ﻿import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as Device from 'expo-device';
+import * as Device from "expo-device";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import * as Notifications from 'expo-notifications';
+import * as Notifications from "expo-notifications";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
@@ -17,7 +17,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 import RNPickerSelect from "react-native-picker-select";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -29,313 +29,421 @@ type DocFile = ImagePicker.ImagePickerAsset | null;
 type PdfFile = DocumentPicker.DocumentPickerAsset | null;
 
 // --- Reusable UI Components ---
-const UploadSquare = ({ label, file, onPick, icon }: { label: string; file: PdfFile; onPick: () => void; icon: any; }) => (
-    <TouchableOpacity onPress={onPick} className="bg-gray-100 border border-dashed border-gray-400 rounded-xl items-center justify-center h-32 flex-1">
-        {file ? (
-            <View className="items-center justify-center p-2">
-                 <Feather name="check-circle" size={32} color="#28A745" />
-                 <Text className="text-secondary font-semibold mt-2 text-center text-xs" numberOfLines={2}>{file.name}</Text>
-            </View>
-        ) : (
-            <View className="items-center justify-center p-2">
-                <Feather name={icon} size={32} color="#6C757D" />
-                <Text className="text-text-main font-semibold mt-2 text-center text-sm">{label}</Text>
-            </View>
-        )}
-    </TouchableOpacity>
+const UploadSquare = ({
+  label,
+  file,
+  onPick,
+  icon,
+}: {
+  label: string;
+  file: PdfFile;
+  onPick: () => void;
+  icon: any;
+}) => (
+  <TouchableOpacity
+    onPress={onPick}
+    className="bg-gray-100 border border-dashed border-gray-400 rounded-xl items-center justify-center h-32 flex-1"
+  >
+    {file ? (
+      <View className="items-center justify-center p-2">
+        <Feather name="check-circle" size={32} color="#28A745" />
+        <Text
+          className="text-secondary font-semibold mt-2 text-center text-xs"
+          numberOfLines={2}
+        >
+          {file.name}
+        </Text>
+      </View>
+    ) : (
+      <View className="items-center justify-center p-2">
+        <Feather name={icon} size={32} color="#6C757D" />
+        <Text className="text-text-main font-semibold mt-2 text-center text-sm">
+          {label}
+        </Text>
+      </View>
+    )}
+  </TouchableOpacity>
 );
 
 const ReviewRow = ({ label, value }: { label: string; value?: string }) => (
-    <View className="mb-3">
-        <Text className="text-sm text-gray-500">{label}</Text>
-        <Text className="text-base text-text-main font-semibold">{value || 'Not provided'}</Text>
-    </View>
+  <View className="mb-3">
+    <Text className="text-sm text-gray-500">{label}</Text>
+    <Text className="text-base text-text-main font-semibold">
+      {value || "Not provided"}
+    </Text>
+  </View>
 );
 
-const ReviewFileRow = ({ label, file }: { label: string; file: DocFile | PdfFile }) => (
-    <View className="mb-3">
-        <Text className="text-sm text-gray-500">{label}</Text>
-        <View className="flex-row items-center" style={{gap: 6}}>
-            <Feather name={file ? "check-circle" : "x-circle"} size={16} color={file ? "#28A745" : "#EF4444"} />
-            <Text className="text-base text-text-main font-semibold">{(file as any)?.fileName || (file as any)?.name || 'Not attached'}</Text>
-        </View>
+const ReviewFileRow = ({
+  label,
+  file,
+}: {
+  label: string;
+  file: DocFile | PdfFile;
+}) => (
+  <View className="mb-3">
+    <Text className="text-sm text-gray-500">{label}</Text>
+    <View className="flex-row items-center" style={{ gap: 6 }}>
+      <Feather
+        name={file ? "check-circle" : "x-circle"}
+        size={16}
+        color={file ? "#28A745" : "#EF4444"}
+      />
+      <Text className="text-base text-text-main font-semibold">
+        {(file as any)?.fileName || (file as any)?.name || "Not attached"}
+      </Text>
     </View>
+  </View>
 );
 
 const pickerStyle = {
-  inputIOS: { 
-    color: "black", 
-    fontSize: 16, 
-    paddingVertical: 12, 
+  inputIOS: {
+    color: "black",
+    fontSize: 16,
+    paddingVertical: 12,
     paddingHorizontal: 10,
     paddingRight: 30,
   },
-  inputAndroid: { 
-    color: "black", 
-    fontSize: 16, 
-    paddingHorizontal: 10, 
+  inputAndroid: {
+    color: "black",
+    fontSize: 16,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     paddingRight: 30,
   },
-  iconContainer: { 
-    top: 16, 
+  iconContainer: {
+    top: 16,
     right: 12,
   },
-  placeholder: { 
-    color: '#9CA3AF',
+  placeholder: {
+    color: "#9CA3AF",
   },
   modalViewMiddle: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
   modalViewBottom: {
-    backgroundColor: 'white',
+    backgroundColor: "white",
   },
   chevronContainer: {
-    display: 'none',
+    display: "none",
   },
 };
 
 export default function RegistrationScreen() {
-    const router = useRouter();
-    const params = useLocalSearchParams();
-    const [formData, setFormData] = useState({
-        fullname: "", email: "", password: "", confirmPassword: "", cellphoneNumber: "",
-        dateOfBirth: new Date(), gender: "", address: "", town: "", region: "", nationalId: "",
-        profileImage: null as DocFile,
-        idDocumentFront: null as PdfFile,
-        idDocumentBack: null as PdfFile,
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const [formData, setFormData] = useState({
+    fullname: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    cellphoneNumber: "",
+    dateOfBirth: new Date(),
+    gender: "",
+    address: "",
+    town: "",
+    region: "",
+    nationalId: "",
+    profileImage: null as DocFile,
+    idDocumentFront: null as PdfFile,
+    idDocumentBack: null as PdfFile,
+  });
+
+  const [step, setStep] = useState(1);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [availableTowns, setAvailableTowns] = useState<
+    { label: string; value: string }[]
+  >([]);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
+
+  // Set up global callback for terms acceptance
+  useEffect(() => {
+    global.acceptTermsCallback = (accepted: boolean) => {
+      setAcceptedTerms(accepted);
+    };
+    return () => {
+      delete global.acceptTermsCallback;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (params.cellphoneNumber && typeof params.cellphoneNumber === "string") {
+      setFormData((prev) => ({
+        ...prev,
+        cellphoneNumber: params.cellphoneNumber as string,
+      }));
+    }
+  }, [params.cellphoneNumber]);
+
+  useEffect(() => {
+    if (showDisclaimer) {
+      const timer = setTimeout(() => {
+        setShowDisclaimer(false);
+      }, 30000); // 30 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [showDisclaimer]);
+
+  const handleInputChange = (name: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "region") {
+      setAvailableTowns(townsByRegion[value] || []);
+      setFormData((prev) => ({ ...prev, town: "" }));
+    }
+  };
+
+  const pickImage = async (field: keyof typeof formData) => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      return Alert.alert(
+        "Permission Denied",
+        "We need camera roll permissions to select an image.",
+      );
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
     });
+    if (!result.canceled) {
+      handleInputChange(field, result.assets[0]);
+    }
+  };
 
-    const [step, setStep] = useState(1);
-    const [showDatePicker, setShowDatePicker] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [availableTowns, setAvailableTowns] = useState<{ label: string; value: string }[]>([]);
-    const [acceptedTerms, setAcceptedTerms] = useState(false);
-    const [showTermsModal, setShowTermsModal] = useState(false);
-    const [errors, setErrors] = useState<{[key: string]: string}>({});
-    const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [showDisclaimer, setShowDisclaimer] = useState(true);
+  const pickDocument = async (field: "idDocumentFront" | "idDocumentBack") => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/pdf",
+        copyToCacheDirectory: true,
+      });
 
-    // Set up global callback for terms acceptance
-    useEffect(() => {
-        global.acceptTermsCallback = (accepted: boolean) => {
-            setAcceptedTerms(accepted);
-        };
-        return () => {
-            delete global.acceptTermsCallback;
-        };
-    }, []);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        handleInputChange(field, result.assets[0]);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to pick document. Please try again.");
+    }
+  };
 
-    useEffect(() => {
-        if (params.cellphoneNumber && typeof params.cellphoneNumber === 'string') {
-            setFormData(prev => ({ ...prev, cellphoneNumber: params.cellphoneNumber as string }));
-        }
-    }, [params.cellphoneNumber]);
+  const onDateChange = (_: any, selectedDate?: Date) => {
+    const currentDate = selectedDate || formData.dateOfBirth;
+    setShowDatePicker(false);
+    handleInputChange("dateOfBirth", currentDate);
+  };
 
-    useEffect(() => {
-        if (showDisclaimer) {
-            const timer = setTimeout(() => {
-                setShowDisclaimer(false);
-            }, 30000); // 30 seconds
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
-            return () => clearTimeout(timer);
-        }
-    }, [showDisclaimer]);
+  const validatePassword = (
+    password: string,
+  ): { valid: boolean; message: string } => {
+    if (password.length < 8)
+      return {
+        valid: false,
+        message: "Password must be at least 8 characters long.",
+      };
+    if (!/[a-z]/.test(password))
+      return {
+        valid: false,
+        message: "Password must contain at least one lowercase letter.",
+      };
+    if (!/[A-Z]/.test(password))
+      return {
+        valid: false,
+        message: "Password must contain at least one uppercase letter.",
+      };
+    if (!/[0-9]/.test(password))
+      return {
+        valid: false,
+        message: "Password must contain at least one number.",
+      };
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password))
+      return {
+        valid: false,
+        message: "Password must contain at least one special character.",
+      };
+    return { valid: true, message: "Password is strong." };
+  };
 
-    const handleInputChange = (name: string, value: any) => {
-        setFormData(prev => ({ ...prev, [name]: value }));
-        if (name === "region") {
-            setAvailableTowns(townsByRegion[value] || []);
-            setFormData(prev => ({ ...prev, town: "" }));
-        }
-    };
+  const handleNext = () => {
+    const newErrors: { [key: string]: string } = {};
 
-    const pickImage = async (field: keyof typeof formData) => {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== "granted") {
-            return Alert.alert("Permission Denied", "We need camera roll permissions to select an image.");
-        }
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 1,
-        });
-        if (!result.canceled) {
-            handleInputChange(field, result.assets[0]);
-        }
-    };
+    if (step === 1) {
+      if (!formData.fullname) newErrors.fullname = "Full name is required";
+      if (!formData.email) newErrors.email = "Email is required";
+      else if (!validateEmail(formData.email))
+        newErrors.email = "Please enter a valid email address";
+      if (!formData.password) newErrors.password = "Password is required";
+      else {
+        const passwordCheck = validatePassword(formData.password);
+        if (!passwordCheck.valid) newErrors.password = passwordCheck.message;
+      }
+      if (!formData.confirmPassword)
+        newErrors.confirmPassword = "Please confirm your password";
+      else if (formData.password !== formData.confirmPassword)
+        newErrors.confirmPassword = "Passwords do not match";
+      if (!acceptedTerms)
+        newErrors.terms =
+          "You must read and accept the Terms and Conditions to continue";
 
-    const pickDocument = async (field: 'idDocumentFront' | 'idDocumentBack') => {
-        try {
-            const result = await DocumentPicker.getDocumentAsync({
-                type: 'application/pdf',
-                copyToCacheDirectory: true,
-            });
-            
-            if (!result.canceled && result.assets && result.assets.length > 0) {
-                handleInputChange(field, result.assets[0]);
-            }
-        } catch (error) {
-            Alert.alert("Error", "Failed to pick document. Please try again.");
-        }
-    };
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        return;
+      }
+    }
+    if (step === 2) {
+      if (!formData.gender) newErrors.gender = "Please select your gender";
+      if (!formData.nationalId.trim())
+        newErrors.nationalId = "National ID is required";
+      else if (!/^\d{11}$/.test(formData.nationalId))
+        newErrors.nationalId =
+          "National ID must be exactly 11 numeric characters";
+      if (!formData.idDocumentFront)
+        newErrors.idDocumentFront = "Please upload the front of your ID";
+      if (!formData.idDocumentBack)
+        newErrors.idDocumentBack = "Please upload the back of your ID";
 
-    const onDateChange = (_: any, selectedDate?: Date) => {
-        const currentDate = selectedDate || formData.dateOfBirth;
-        setShowDatePicker(false);
-        handleInputChange("dateOfBirth", currentDate);
-    };
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        return;
+      }
+    }
+    if (step === 3) {
+      if (!formData.address) newErrors.address = "Address is required";
+      if (!formData.region) newErrors.region = "Please select your region";
+      if (!formData.town) newErrors.town = "Please select your town";
 
-    const validateEmail = (email: string): boolean => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
-    };
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        return;
+      }
+    }
+    if (step === 4) {
+      if (!formData.profileImage)
+        newErrors.profileImage = "Please upload a profile picture";
 
-    const validatePassword = (password: string): { valid: boolean; message: string } => {
-        if (password.length < 8) return { valid: false, message: 'Password must be at least 8 characters long.' };
-        if (!/[a-z]/.test(password)) return { valid: false, message: 'Password must contain at least one lowercase letter.' };
-        if (!/[A-Z]/.test(password)) return { valid: false, message: 'Password must contain at least one uppercase letter.' };
-        if (!/[0-9]/.test(password)) return { valid: false, message: 'Password must contain at least one number.' };
-        if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) return { valid: false, message: 'Password must contain at least one special character.' };
-        return { valid: true, message: 'Password is strong.' };
-    };
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        return;
+      }
+    }
 
-    const handleNext = () => {
-        const newErrors: {[key: string]: string} = {};
-        
-        if (step === 1) {
-            if (!formData.fullname) newErrors.fullname = "Full name is required";
-            if (!formData.email) newErrors.email = "Email is required";
-            else if (!validateEmail(formData.email)) newErrors.email = "Please enter a valid email address";
-            if (!formData.password) newErrors.password = "Password is required";
-            else {
-                const passwordCheck = validatePassword(formData.password);
-                if (!passwordCheck.valid) newErrors.password = passwordCheck.message;
-            }
-            if (!formData.confirmPassword) newErrors.confirmPassword = "Please confirm your password";
-            else if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = "Passwords do not match";
-            if (!acceptedTerms) newErrors.terms = "You must read and accept the Terms and Conditions to continue";
-            
-            if (Object.keys(newErrors).length > 0) {
-                setErrors(newErrors);
-                return;
-            }
-        }
-        if (step === 2) {
-             if (!formData.gender) newErrors.gender = "Please select your gender";
-             if (!formData.nationalId.trim()) newErrors.nationalId = "National ID is required";
-             else if (!/^\d{11}$/.test(formData.nationalId)) newErrors.nationalId = "National ID must be exactly 11 numeric characters";
-             if (!formData.idDocumentFront) newErrors.idDocumentFront = "Please upload the front of your ID";
-             if (!formData.idDocumentBack) newErrors.idDocumentBack = "Please upload the back of your ID";
-             
-             if (Object.keys(newErrors).length > 0) {
-                setErrors(newErrors);
-                return;
-            }
-        }
-        if (step === 3) {
-            if (!formData.address) newErrors.address = "Address is required";
-            if (!formData.region) newErrors.region = "Please select your region";
-            if (!formData.town) newErrors.town = "Please select your town";
-            
-            if (Object.keys(newErrors).length > 0) {
-                setErrors(newErrors);
-                return;
-            }
-        }
-        if (step === 4) {
-            if (!formData.profileImage) newErrors.profileImage = "Please upload a profile picture";
-            
-            if (Object.keys(newErrors).length > 0) {
-                setErrors(newErrors);
-                return;
-            }
-        }
-        
-        setErrors({});
-        setStep(prev => prev + 1);
-    };
-  
-    const handleBack = () => {
-        setErrors({});
-        setStep(prev => prev - 1);
-    };
+    setErrors({});
+    setStep((prev) => prev + 1);
+  };
 
-    // In app/(auth)/registration.tsx
+  const handleBack = () => {
+    setErrors({});
+    setStep((prev) => prev - 1);
+  };
 
-const handleRegister = async () => {
+  // In app/(auth)/registration.tsx
+
+  const handleRegister = async () => {
     // Frontend validation remains the same
-    if (!formData.profileImage) return Alert.alert("Profile Image Required", "Please upload a profile picture.");
-    if (!formData.idDocumentFront) return Alert.alert("ID Document Required", "Please upload the front of your ID.");
-    if (!formData.idDocumentBack) return Alert.alert("ID Document Required", "Please upload the back of your ID.");
-    
+    if (!formData.profileImage)
+      return Alert.alert(
+        "Profile Image Required",
+        "Please upload a profile picture.",
+      );
+    if (!formData.idDocumentFront)
+      return Alert.alert(
+        "ID Document Required",
+        "Please upload the front of your ID.",
+      );
+    if (!formData.idDocumentBack)
+      return Alert.alert(
+        "ID Document Required",
+        "Please upload the back of your ID.",
+      );
+
     setIsLoading(true);
 
     // Get Push Token (Native FCM/APNS token)
     let pushToken = null;
     if (Device.isDevice) {
-        try {
-            // Configure Android notification channel for FCM
-            if (Platform.OS === 'android') {
-                await Notifications.setNotificationChannelAsync('default', {
-                    name: 'default',
-                    importance: Notifications.AndroidImportance.MAX,
-                    vibrationPattern: [0, 250, 250, 250],
-                    lightColor: '#FF231F7C',
-                });
-            }
-
-            // Request notification permissions
-            const { status: existingStatus } = await Notifications.getPermissionsAsync();
-            let finalStatus = existingStatus;
-            if (existingStatus !== 'granted') {
-                const { status } = await Notifications.requestPermissionsAsync();
-                finalStatus = status;
-            }
-            
-            if (finalStatus === 'granted') {
-                // Get the native device push token (FCM token on Android, APNS token on iOS)
-                const deviceToken = await Promise.race([
-                    Notifications.getDevicePushTokenAsync(),
-                    new Promise<never>((_, reject) => 
-                        setTimeout(() => reject(new Error('Push token request timeout')), 10000)
-                    )
-                ]);
-                
-                // On Android, this returns the FCM token directly
-                // On iOS, this returns the APNS token
-                pushToken = deviceToken.data;
-            }
-        } catch (e) {
-            console.log("Error getting push token:", e);
+      try {
+        // Configure Android notification channel for FCM
+        if (Platform.OS === "android") {
+          await Notifications.setNotificationChannelAsync("default", {
+            name: "default",
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: "#FF231F7C",
+          });
         }
+
+        // Request notification permissions
+        const { status: existingStatus } =
+          await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== "granted") {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+
+        if (finalStatus === "granted") {
+          // Get the native device push token (FCM token on Android, APNS token on iOS)
+          const deviceToken = await Promise.race([
+            Notifications.getDevicePushTokenAsync(),
+            new Promise<never>((_, reject) =>
+              setTimeout(
+                () => reject(new Error("Push token request timeout")),
+                10000,
+              ),
+            ),
+          ]);
+
+          // On Android, this returns the FCM token directly
+          // On iOS, this returns the APNS token
+          pushToken = deviceToken.data;
+        }
+      } catch (e) {
+        console.log("Error getting push token:", e);
+      }
     }
 
     const data = new FormData();
 
     if (pushToken) {
-        data.append('pushToken', pushToken);
+      data.append("pushToken", pushToken);
     }
 
     // --- THIS IS THE CORRECTED LOGIC ---
     // We now loop through all formData properties and append them.
-    (Object.keys(formData) as (keyof typeof formData)[]).forEach(key => {
-      if (key === 'confirmPassword') return; // The only field to exclude
+    (Object.keys(formData) as (keyof typeof formData)[]).forEach((key) => {
+      if (key === "confirmPassword") return; // The only field to exclude
 
       const value = formData[key];
-      
+
       if (value instanceof Date) {
-        data.append(key, value.toISOString().split('T')[0]);
-      } 
+        data.append(key, value.toISOString().split("T")[0]);
+      }
       // Check if it's a file object (has a 'uri' property)
-      else if (typeof value === 'object' && value?.uri) {
+      else if (typeof value === "object" && value?.uri) {
         data.append(key, {
           uri: value.uri,
-          name: (value as any).name || (value as any).fileName || `${key}.${key.includes('idDocument') ? 'pdf' : 'jpg'}`,
-          type: (value as any).mimeType || (key.includes('idDocument') ? 'application/pdf' : 'image/jpeg'),
+          name:
+            (value as any).name ||
+            (value as any).fileName ||
+            `${key}.${key.includes("idDocument") ? "pdf" : "jpg"}`,
+          type:
+            (value as any).mimeType ||
+            (key.includes("idDocument") ? "application/pdf" : "image/jpeg"),
         } as any);
-      } 
+      }
       // Append all other string/number values
       else if (value) {
         data.append(key, String(value));
@@ -344,497 +452,809 @@ const handleRegister = async () => {
     // ------------------------------------
 
     try {
-        // We only need this single API call now
-        const response = await apiClient.post("/app/auth/register-patient", data, {
-            headers: { "Content-Type": "multipart/form-data" },
-        });
+      // We only need this single API call now
+      const response = await apiClient.post(
+        "/app/auth/register-patient",
+        data,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
 
-        if (response.status === 201) {
-            Alert.alert("Registration Complete!", "Your account has been created successfully. Please sign in.", [{ text: 'OK', onPress: () => router.replace("/(root)/sign-in") }]);
-        } else {
-            // Handle cases where the server might respond with a non-201 success code
-            throw new Error(response.data.message || "An unknown error occurred.");
-        }
+      if (response.status === 201) {
+        Alert.alert(
+          "Registration Complete!",
+          "Your account has been created successfully. Please sign in.",
+          [{ text: "OK", onPress: () => router.replace("/(root)/sign-in") }],
+        );
+      } else {
+        // Handle cases where the server might respond with a non-201 success code
+        throw new Error(response.data.message || "An unknown error occurred.");
+      }
     } catch (error: any) {
-        const errorMessage = error?.response?.data?.message || "An unexpected error occurred during registration.";
-        Alert.alert("Registration Failed", errorMessage);
+      const errorMessage =
+        error?.response?.data?.message ||
+        "An unexpected error occurred during registration.";
+      Alert.alert("Registration Failed", errorMessage);
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
-};
+  };
 
-    return (
-        <SafeAreaView className="flex-1 bg-white">
-            <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
-                <View className="p-6">
-                    <View className="flex-row items-center mb-8">
-                        {/* UPDATED to 5 steps */}
-                        <Text className="text-base font-semibold text-text-main mr-4">Step {step} of 5</Text>
-                        <View className="flex-1 h-2 bg-gray-200 rounded-full"><View style={{ width: `${(step / 5) * 100}%` }} className="h-2 bg-green-600 rounded-full"/></View>
+  return (
+    <SafeAreaView className="flex-1 bg-white">
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+        <View className="p-6">
+          <View className="flex-row items-center mb-8">
+            {/* UPDATED to 5 steps */}
+            <Text className="text-base font-semibold text-text-main mr-4">
+              Step {step} of 5
+            </Text>
+            <View className="flex-1 h-2 bg-gray-200 rounded-full">
+              <View
+                style={{ width: `${(step / 5) * 100}%` }}
+                className="h-2 bg-green-600 rounded-full"
+              />
+            </View>
+          </View>
+
+          {step === 1 && (
+            <View>
+              <Text className="text-2xl font-bold text-blue-600 mb-6">
+                Account Information
+              </Text>
+
+              {showDisclaimer && (
+                <View className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-6">
+                  <View className="flex-row items-start">
+                    <Feather
+                      name="shield"
+                      size={20}
+                      color="#3B82F6"
+                      style={{ marginRight: 12, marginTop: 2 }}
+                    />
+                    <View className="flex-1">
+                      <Text className="text-sm text-blue-900 font-semibold mb-1">
+                        Data Privacy Assurance
+                      </Text>
+                      <Text className="text-xs text-blue-700 leading-5">
+                        Your personal information is treated with the utmost
+                        confidentiality. We do not share, sell, or distribute
+                        your data to any third parties. Your privacy and data
+                        security are our top priorities.
+                      </Text>
                     </View>
-
-                    {step === 1 && (
-                        <View>
-                            <Text className="text-2xl font-bold text-blue-600 mb-6">Account Information</Text>
-                            
-                            {showDisclaimer && (
-                                <View className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-6">
-                                    <View className="flex-row items-start">
-                                        <Feather name="shield" size={20} color="#3B82F6" style={{ marginRight: 12, marginTop: 2 }} />
-                                        <View className="flex-1">
-                                            <Text className="text-sm text-blue-900 font-semibold mb-1">Data Privacy Assurance</Text>
-                                            <Text className="text-xs text-blue-700 leading-5">
-                                                Your personal information is treated with the utmost confidentiality. We do not share, sell, or distribute your data to any third parties. Your privacy and data security are our top priorities.
-                                            </Text>
-                                        </View>
-                                    </View>
-                                </View>
-                            )}
-                            
-                            <Text className="text-base text-gray-700 mb-2 font-semibold">Full Name</Text>
-                            <TextInput className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.fullname ? 'border-red-400' : 'border-green-300'}`} placeholder="Enter your full name" value={formData.fullname} onChangeText={(val) => handleInputChange("fullname", val)}/>
-                            {errors.fullname && <Text className="text-red-500 text-sm mb-3">{errors.fullname}</Text>}
-                            {!errors.fullname && <View className="mb-3" />}
-                            
-                            <Text className="text-base text-gray-700 mb-2 font-semibold">Email</Text>
-                            <TextInput className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.email ? 'border-red-400' : 'border-green-300'}`} placeholder="youremail@example.com" value={formData.email} onChangeText={(val) => handleInputChange("email", val)} keyboardType="email-address" autoCapitalize="none"/>
-                            {errors.email && <Text className="text-red-500 text-sm mb-3">{errors.email}</Text>}
-                            {!errors.email && <View className="mb-3" />}
-                            
-                            <Text className="text-base text-gray-700 mb-2 font-semibold">Password</Text>
-                            <View className="relative">
-                                <TextInput 
-                                    className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.password ? 'border-red-400' : 'border-green-300'}`} 
-                                    placeholder="Create a strong password" 
-                                    value={formData.password} 
-                                    onChangeText={(val) => handleInputChange("password", val)} 
-                                    secureTextEntry={!showPassword}
-                                />
-                                <TouchableOpacity 
-                                    onPress={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-4"
-                                    style={{ height: 24, width: 24, justifyContent: 'center', alignItems: 'center' }}
-                                >
-                                    <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="#6B7280" />
-                                </TouchableOpacity>
-                            </View>
-                            {errors.password && <Text className="text-red-500 text-sm mb-3">{errors.password}</Text>}
-                            {!errors.password && <View className="mb-3" />}
-                            
-                            <Text className="text-base text-gray-700 mb-2 font-semibold">Confirm Password</Text>
-                            <View className="relative">
-                                <TextInput 
-                                    className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.confirmPassword ? 'border-red-400' : 'border-green-300'}`} 
-                                    placeholder="Confirm your password" 
-                                    value={formData.confirmPassword} 
-                                    onChangeText={(val) => handleInputChange("confirmPassword", val)} 
-                                    secureTextEntry={!showConfirmPassword}
-                                />
-                                <TouchableOpacity 
-                                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                                    className="absolute right-4 top-4"
-                                    style={{ height: 24, width: 24, justifyContent: 'center', alignItems: 'center' }}
-                                >
-                                    <Feather name={showConfirmPassword ? "eye" : "eye-off"} size={20} color="#6B7280" />
-                                </TouchableOpacity>
-                            </View>
-                            {errors.confirmPassword && <Text className="text-red-500 text-sm mb-3">{errors.confirmPassword}</Text>}
-                            {!errors.confirmPassword && <View className="mb-3" />}
-                            
-                            {/* Terms and Conditions Checkbox */}
-                            <TouchableOpacity 
-                                onPress={() => {
-                                    if (acceptedTerms) {
-                                        setAcceptedTerms(false);
-                                    } else {
-                                        setShowTermsModal(true);
-                                    }
-                                }}
-                                className="flex-row items-start p-4 bg-gray-50 rounded-xl border-2 border-gray-200 mt-2"
-                                activeOpacity={0.7}
-                            >
-                                <View className={`w-6 h-6 rounded-md mr-3 items-center justify-center border-2 ${acceptedTerms ? 'bg-green-600 border-green-600' : 'bg-white border-gray-300'}`}>
-                                    {acceptedTerms && <Feather name="check" size={16} color="white" />}
-                                </View>
-                                <View className="flex-1">
-                                    <Text className="text-gray-700 text-sm leading-5">
-                                        {acceptedTerms ? (
-                                            <Text className="text-green-600 font-semibold">
-                                                ✓ You have agreed to the Terms and Conditions and Privacy Policy (Tap to revoke)
-                                            </Text>
-                                        ) : (
-                                            <Text>
-                                                Tap to read and agree to the{' '}
-                                                <Text className="text-green-600 font-semibold underline">
-                                                    Terms and Conditions
-                                                </Text>
-                                                {' '}and{' '}
-                                                <Text className="text-green-600 font-semibold underline">
-                                                    Privacy Policy
-                                                </Text>
-                                            </Text>
-                                        )}
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
-                            {errors.terms && <Text className="text-red-500 text-sm mt-2">{errors.terms}</Text>}
-                        </View>
-                    )}
-
-                    {step === 2 && (
-                        <View>
-                          <Text className="text-2xl font-bold text-blue-600 mb-6">Personal Information</Text>
-                          
-                          <Text className="text-base text-gray-700 mb-2 font-semibold">Mobile</Text>
-                          <View className="bg-blue-50 p-4 rounded-xl mb-4 border-2 border-blue-100"><Text className="text-base text-gray-700">{formData.cellphoneNumber}</Text></View>
-                          
-                          <Text className="text-base text-gray-700 mb-2 font-semibold">Date of Birth</Text>
-                          <TouchableOpacity onPress={() => setShowDatePicker(true)} className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-200"><Text className="text-base text-gray-700">{formData.dateOfBirth.toLocaleDateString()}</Text></TouchableOpacity>
-                          {showDatePicker && (<DateTimePicker value={formData.dateOfBirth} mode="date" display="default" onChange={onDateChange}/>)}
-                          
-                          <Text className="text-base text-gray-700 mb-2 font-semibold">Gender</Text>
-                          {errors.gender && <Text className="text-red-500 text-sm mb-2">{errors.gender}</Text>}
-                          <View className="mb-4" style={{ gap: 12 }}>
-                            {["Male", "Female"].map((g) => (<TouchableOpacity key={g} className={`p-4 rounded-xl border-2 ${formData.gender === g ? "bg-blue-600 border-blue-600" : "bg-white border-gray-200"}`} onPress={() => handleInputChange("gender", g)}><Text className={`text-center font-semibold ${formData.gender === g ? "text-white" : "text-gray-700"}`}>{g}</Text></TouchableOpacity>))}
-                          </View>
-                          
-                          <Text className="text-base text-gray-700 mb-2 font-semibold">National ID Number</Text>
-                          <TextInput 
-                            className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.nationalId ? 'border-red-400' : 'border-green-300'}`} 
-                            placeholder="Enter your 11-digit National ID" 
-                            value={formData.nationalId} 
-                            onChangeText={(val) => {
-                              const numericOnly = val.replace(/[^0-9]/g, '');
-                              if (numericOnly.length <= 11) {
-                                handleInputChange("nationalId", numericOnly);
-                              }
-                            }}
-                            keyboardType="numeric"
-                            maxLength={11}
-                          />
-                          {errors.nationalId && <Text className="text-red-500 text-sm mb-3">{errors.nationalId}</Text>}
-                          {!errors.nationalId && <View className="mb-3" />}
-                          
-                          <Text className="text-base text-gray-700 mb-2 font-semibold">National ID Documents</Text>
-                          {(errors.idDocumentFront || errors.idDocumentBack) && <Text className="text-red-500 text-sm mb-2">{errors.idDocumentFront || errors.idDocumentBack}</Text>}
-                          <View className="flex-row mb-4" style={{ gap: 16 }}>
-                              <UploadSquare label="Upload ID (Front)" file={formData.idDocumentFront} onPick={() => pickDocument('idDocumentFront')} icon="file-text" />
-                              <UploadSquare label="Upload ID (Back)" file={formData.idDocumentBack} onPick={() => pickDocument('idDocumentBack')} icon="file-text" />
-                          </View>
-                          <Text className="text-xs text-gray-500 -mt-2 mb-4">Only PDF files are accepted</Text>
-                        </View>
-                    )}
-
-                    {step === 3 && (
-                        <View>
-                            <Text className="text-2xl font-bold text-blue-600 mb-6">Address Information</Text>
-                            
-                            <Text className="text-base text-gray-700 mb-2 font-semibold">Address</Text>
-                            <TextInput className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.address ? 'border-red-400' : 'border-green-300'}`} placeholder="Your street address or P.O. Box" value={formData.address} onChangeText={(val) => handleInputChange("address", val)}/>
-                            {errors.address && <Text className="text-red-500 text-sm mb-3">{errors.address}</Text>}
-                            {!errors.address && <View className="mb-3" />}
-                            
-                            <Text className="text-base text-gray-700 mb-2 font-semibold">Region</Text>
-                            {errors.region && <Text className="text-red-500 text-sm mb-2">{errors.region}</Text>}
-                            <View className="bg-white border-2 border-green-300 rounded-xl px-3 mb-4 relative" style={{ height: 56, justifyContent: "center" }}>
-                                <RNPickerSelect 
-                                    onValueChange={(value) => handleInputChange("region", value)} 
-                                    items={namibianRegions} 
-                                    placeholder={{ label: "Select a region...", value: null }} 
-                                    value={formData.region} 
-                                    style={pickerStyle as any}
-                                    useNativeAndroidPickerStyle={false}
-                                />
-                                <View className="absolute right-4 top-4" style={{ pointerEvents: 'none' }}>
-                                    <Feather name="chevron-down" size={20} color="#10B981" />
-                                </View>
-                            </View>
-                            
-                            <Text className="text-base text-gray-700 mb-2 font-semibold">Town</Text>
-                            {errors.town && <Text className="text-red-500 text-sm mb-2">{errors.town}</Text>}
-                            <View className="bg-white border-2 border-green-300 rounded-xl px-3 mb-4 relative" style={{ height: 56, justifyContent: "center" }}>
-                                <RNPickerSelect 
-                                    onValueChange={(value) => handleInputChange("town", value)} 
-                                    items={availableTowns} 
-                                    placeholder={{ label: "Select a town...", value: null }} 
-                                    value={formData.town} 
-                                    disabled={!formData.region} 
-                                    style={pickerStyle as any}
-                                    useNativeAndroidPickerStyle={false}
-                                />
-                                <View className="absolute right-4 top-4" style={{ pointerEvents: 'none' }}>
-                                    <Feather name="chevron-down" size={20} color={formData.region ? "#10B981" : "#D1D5DB"} />
-                                </View>
-                            </View>
-                        </View>
-                    )}
-
-                    {step === 4 && (
-                        <View>
-                            <Text className="text-2xl font-bold text-blue-600 mb-6">Profile Picture</Text>
-                            {errors.profileImage && <Text className="text-red-500 text-sm mb-3">{errors.profileImage}</Text>}
-                            
-                            <View className="items-center mb-6">
-                                <TouchableOpacity onPress={() => pickImage('profileImage')} className="w-40 h-40 rounded-full bg-gray-100 border-2 border-gray-300 justify-center items-center overflow-hidden" activeOpacity={0.7}>
-                                    {formData.profileImage ? (<Image source={{ uri: formData.profileImage.uri }} className="w-full h-full"/>) : (
-                                        <View className="items-center">
-                                            <Feather name="camera" size={32} color="#6B7280" />
-                                            <Text className="text-gray-500 text-sm mt-2 font-semibold">Tap to upload</Text>
-                                        </View>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
-                  {/* --- STEP 5: Review & Submit --- */}
-                    {step === 5 && (
-                        <View>
-                            <View className="items-center mb-6">
-                                <View className="w-20 h-20 rounded-full bg-blue-100 items-center justify-center mb-4">
-                                    <Feather name="check" size={36} color="#2563EB" />
-                                </View>
-                                <Text className="text-2xl font-bold text-blue-600 mb-2">Review & Submit</Text>
-                                <Text className="text-base text-gray-600 text-center px-4">Review your information before submitting</Text>
-                            </View>
-
-                            <View className="w-full bg-white p-5 rounded-xl border-2 border-gray-200 mb-6">
-                                {/* Account Info Review */}
-                                <View>
-                                    <Text className="text-lg font-bold text-blue-600 mb-3">Account</Text>
-                                    <ReviewRow label="Full Name" value={formData.fullname} />
-                                    <ReviewRow label="Email" value={formData.email} />
-                                </View>
-                                <View className="h-px bg-gray-200" />
-                                
-                                {/* Personal Info Review */}
-                                <View>
-                                    <Text className="text-lg font-bold text-blue-600 mb-3">Personal</Text>
-                                    <ReviewRow label="Mobile" value={formData.cellphoneNumber} />
-                                    <ReviewRow label="Date of Birth" value={formData.dateOfBirth.toLocaleDateString()} />
-                                    <ReviewRow label="Gender" value={formData.gender} />
-                                    <ReviewRow label="National ID" value={formData.nationalId} />
-                                </View>
-                                <View className="h-px bg-gray-200" />
-
-                                {/* Address Review */}
-                                <View>
-                                    <Text className="text-lg font-bold text-blue-600 mb-3">Address</Text>
-                                    <ReviewRow label="Region" value={formData.region} />
-                                    <ReviewRow label="Town" value={formData.town} />
-                                    <ReviewRow label="Street Address" value={formData.address} />
-                                </View>
-                                 <View className="h-px bg-gray-200" />
-
-                                {/* Documents & Profile Image Review */}
-                                <View>
-                                    <Text className="text-lg font-bold text-blue-600 mb-3">Documents & Photo</Text>
-                                    
-                                    {/* Profile Picture Preview */}
-                                    <View className="mb-4">
-                                        <Text className="text-sm text-gray-500 mb-2">Profile Picture</Text>
-                                        {formData.profileImage ? (
-                                            <View className="items-center">
-                                                <Image 
-                                                    source={{ uri: formData.profileImage.uri }} 
-                                                    className="w-32 h-32 rounded-full border-2 border-gray-200"
-                                                />
-                                            </View>
-                                        ) : (
-                                            <View className="flex-row items-center">
-                                                <Feather name="x-circle" size={16} color="#EF4444" />
-                                                <Text className="text-base text-gray-700 font-semibold ml-2">Not uploaded</Text>
-                                            </View>
-                                        )}
-                                    </View>
-
-                                    {/* ID Documents Preview */}
-                                    <View className="mb-4">
-                                        <Text className="text-sm text-gray-500 mb-2">National ID (Front)</Text>
-                                        {formData.idDocumentFront ? (
-                                            <View className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex-row items-center">
-                                                <Feather name="file-text" size={24} color="#10B981" />
-                                                <View className="ml-3 flex-1">
-                                                    <Text className="text-sm font-semibold text-gray-900">{formData.idDocumentFront.name}</Text>
-                                                    <Text className="text-xs text-gray-500">PDF Document</Text>
-                                                </View>
-                                                <Feather name="check-circle" size={20} color="#10B981" />
-                                            </View>
-                                        ) : (
-                                            <View className="flex-row items-center">
-                                                <Feather name="x-circle" size={16} color="#EF4444" />
-                                                <Text className="text-base text-gray-700 font-semibold ml-2">Not uploaded</Text>
-                                            </View>
-                                        )}
-                                    </View>
-
-                                    <View className="mb-3">
-                                        <Text className="text-sm text-gray-500 mb-2">National ID (Back)</Text>
-                                        {formData.idDocumentBack ? (
-                                            <View className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex-row items-center">
-                                                <Feather name="file-text" size={24} color="#10B981" />
-                                                <View className="ml-3 flex-1">
-                                                    <Text className="text-sm font-semibold text-gray-900">{formData.idDocumentBack.name}</Text>
-                                                    <Text className="text-xs text-gray-500">PDF Document</Text>
-                                                </View>
-                                                <Feather name="check-circle" size={20} color="#10B981" />
-                                            </View>
-                                        ) : (
-                                            <View className="flex-row items-center">
-                                                <Feather name="x-circle" size={16} color="#EF4444" />
-                                                <Text className="text-base text-gray-700 font-semibold ml-2">Not uploaded</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                </View>
-                            </View>
-                        </View>
-                    )}
+                  </View>
                 </View>
+              )}
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                Full Name
+              </Text>
+              <TextInput
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.fullname ? "border-red-400" : "border-gray-300"}`}
+                placeholder="Enter your full name"
+                value={formData.fullname}
+                onChangeText={(val) => handleInputChange("fullname", val)}
+              />
+              {errors.fullname && (
+                <Text className="text-red-500 text-sm mb-3">
+                  {errors.fullname}
+                </Text>
+              )}
+              {!errors.fullname && <View className="mb-3" />}
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                Email
+              </Text>
+              <TextInput
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.email ? "border-red-400" : "border-gray-300"}`}
+                placeholder="youremail@example.com"
+                value={formData.email}
+                onChangeText={(val) => handleInputChange("email", val)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              {errors.email && (
+                <Text className="text-red-500 text-sm mb-3">
+                  {errors.email}
+                </Text>
+              )}
+              {!errors.email && <View className="mb-3" />}
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                Password
+              </Text>
+              <View className="relative">
+                <TextInput
+                  className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.password ? "border-red-400" : "border-gray-300"}`}
+                  placeholder="Create a strong password"
+                  value={formData.password}
+                  onChangeText={(val) => handleInputChange("password", val)}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-4"
+                  style={{
+                    height: 24,
+                    width: 24,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Feather
+                    name={showPassword ? "eye" : "eye-off"}
+                    size={20}
+                    color="#6B7280"
+                  />
+                </TouchableOpacity>
+              </View>
+              {errors.password && (
+                <Text className="text-red-500 text-sm mb-3">
+                  {errors.password}
+                </Text>
+              )}
+              {!errors.password && <View className="mb-3" />}
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                Confirm Password
+              </Text>
+              <View className="relative">
+                <TextInput
+                  className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.confirmPassword ? "border-red-400" : "border-gray-300"}`}
+                  placeholder="Confirm your password"
+                  value={formData.confirmPassword}
+                  onChangeText={(val) =>
+                    handleInputChange("confirmPassword", val)
+                  }
+                  secureTextEntry={!showConfirmPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-4"
+                  style={{
+                    height: 24,
+                    width: 24,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Feather
+                    name={showConfirmPassword ? "eye" : "eye-off"}
+                    size={20}
+                    color="#6B7280"
+                  />
+                </TouchableOpacity>
+              </View>
+              {errors.confirmPassword && (
+                <Text className="text-red-500 text-sm mb-3">
+                  {errors.confirmPassword}
+                </Text>
+              )}
+              {!errors.confirmPassword && <View className="mb-3" />}
+
+              {/* Terms and Conditions Checkbox */}
+              <TouchableOpacity
+                onPress={() => {
+                  if (acceptedTerms) {
+                    setAcceptedTerms(false);
+                  } else {
+                    setShowTermsModal(true);
+                  }
+                }}
+                className="flex-row items-start p-4 bg-gray-50 rounded-xl border-2 border-gray-200 mt-2"
+                activeOpacity={0.7}
+              >
+                <View
+                  className={`w-6 h-6 rounded-md mr-3 items-center justify-center border-2 ${acceptedTerms ? "bg-green-600 border-green-600" : "bg-white border-gray-300"}`}
+                >
+                  {acceptedTerms && (
+                    <Feather name="check" size={16} color="white" />
+                  )}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-gray-700 text-sm leading-5">
+                    {acceptedTerms ? (
+                      <Text className="text-green-600 font-semibold">
+                        ✓ You have agreed to the Terms and Conditions and
+                        Privacy Policy (Tap to revoke)
+                      </Text>
+                    ) : (
+                      <Text>
+                        Tap to read and agree to the{" "}
+                        <Text className="text-green-600 font-semibold underline">
+                          Terms and Conditions
+                        </Text>{" "}
+                        and{" "}
+                        <Text className="text-green-600 font-semibold underline">
+                          Privacy Policy
+                        </Text>
+                      </Text>
+                    )}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              {errors.terms && (
+                <Text className="text-red-500 text-sm mt-2">
+                  {errors.terms}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {step === 2 && (
+            <View>
+              <Text className="text-2xl font-bold text-blue-600 mb-6">
+                Personal Information
+              </Text>
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                Mobile
+              </Text>
+              <View className="bg-blue-50 p-4 rounded-xl mb-4 border-2 border-blue-100">
+                <Text className="text-base text-gray-700">
+                  {formData.cellphoneNumber}
+                </Text>
+              </View>
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                Date of Birth
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(true)}
+                className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-200"
+              >
+                <Text className="text-base text-gray-700">
+                  {formData.dateOfBirth.toLocaleDateString()}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={formData.dateOfBirth}
+                  mode="date"
+                  display="default"
+                  onChange={onDateChange}
+                />
+              )}
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                Gender
+              </Text>
+              {errors.gender && (
+                <Text className="text-red-500 text-sm mb-2">
+                  {errors.gender}
+                </Text>
+              )}
+              <View className="mb-4" style={{ gap: 12 }}>
+                {["Male", "Female"].map((g) => (
+                  <TouchableOpacity
+                    key={g}
+                    className={`p-4 rounded-xl border-2 ${formData.gender === g ? "bg-blue-600 border-blue-600" : "bg-white border-gray-200"}`}
+                    onPress={() => handleInputChange("gender", g)}
+                  >
+                    <Text
+                      className={`text-center font-semibold ${formData.gender === g ? "text-white" : "text-gray-700"}`}
+                    >
+                      {g}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                National ID Number
+              </Text>
+              <TextInput
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.nationalId ? "border-red-400" : "border-gray-300"}`}
+                placeholder="Enter your 11-digit National ID"
+                value={formData.nationalId}
+                onChangeText={(val) => {
+                  const numericOnly = val.replace(/[^0-9]/g, "");
+                  if (numericOnly.length <= 11) {
+                    handleInputChange("nationalId", numericOnly);
+                  }
+                }}
+                keyboardType="numeric"
+                maxLength={11}
+              />
+              {errors.nationalId && (
+                <Text className="text-red-500 text-sm mb-3">
+                  {errors.nationalId}
+                </Text>
+              )}
+              {!errors.nationalId && <View className="mb-3" />}
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                National ID Documents
+              </Text>
+              {(errors.idDocumentFront || errors.idDocumentBack) && (
+                <Text className="text-red-500 text-sm mb-2">
+                  {errors.idDocumentFront || errors.idDocumentBack}
+                </Text>
+              )}
+              <View className="flex-row mb-4" style={{ gap: 16 }}>
+                <UploadSquare
+                  label="Upload ID (Front)"
+                  file={formData.idDocumentFront}
+                  onPick={() => pickDocument("idDocumentFront")}
+                  icon="file-text"
+                />
+                <UploadSquare
+                  label="Upload ID (Back)"
+                  file={formData.idDocumentBack}
+                  onPick={() => pickDocument("idDocumentBack")}
+                  icon="file-text"
+                />
+              </View>
+              <Text className="text-xs text-gray-500 -mt-2 mb-4">
+                Only PDF files are accepted
+              </Text>
+            </View>
+          )}
+
+          {step === 3 && (
+            <View>
+              <Text className="text-2xl font-bold text-blue-600 mb-6">
+                Address Information
+              </Text>
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                Address
+              </Text>
+              <TextInput
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.address ? "border-red-400" : "border-gray-300"}`}
+                placeholder="Your street address or P.O. Box"
+                value={formData.address}
+                onChangeText={(val) => handleInputChange("address", val)}
+              />
+              {errors.address && (
+                <Text className="text-red-500 text-sm mb-3">
+                  {errors.address}
+                </Text>
+              )}
+              {!errors.address && <View className="mb-3" />}
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                Region
+              </Text>
+              {errors.region && (
+                <Text className="text-red-500 text-sm mb-2">
+                  {errors.region}
+                </Text>
+              )}
+              <View
+                className="bg-white border-2 border-gray-300 rounded-xl px-3 mb-4 relative"
+                style={{ height: 56, justifyContent: "center" }}
+              >
+                <RNPickerSelect
+                  onValueChange={(value) => handleInputChange("region", value)}
+                  items={namibianRegions}
+                  placeholder={{ label: "Select a region...", value: null }}
+                  value={formData.region}
+                  style={pickerStyle as any}
+                  useNativeAndroidPickerStyle={false}
+                />
+                <View
+                  className="absolute right-4 top-4"
+                  style={{ pointerEvents: "none" }}
+                >
+                  <Feather name="chevron-down" size={20} color="#000000" />
+                </View>
+              </View>
+
+              <Text className="text-base text-gray-700 mb-2 font-semibold">
+                Town
+              </Text>
+              {errors.town && (
+                <Text className="text-red-500 text-sm mb-2">{errors.town}</Text>
+              )}
+              <View
+                className="bg-white border-2 border-gray-300 rounded-xl px-3 mb-4 relative"
+                style={{ height: 56, justifyContent: "center" }}
+              >
+                <RNPickerSelect
+                  onValueChange={(value) => handleInputChange("town", value)}
+                  items={availableTowns}
+                  placeholder={{ label: "Select a town...", value: null }}
+                  value={formData.town}
+                  disabled={!formData.region}
+                  style={pickerStyle as any}
+                  useNativeAndroidPickerStyle={false}
+                />
+                <View
+                  className="absolute right-4 top-4"
+                  style={{ pointerEvents: "none" }}
+                >
+                  <Feather
+                    name="chevron-down"
+                    size={20}
+                    color={formData.region ? "#000000" : "#D1D5DB"}
+                  />
+                </View>
+              </View>
+            </View>
+          )}
+
+          {step === 4 && (
+            <View>
+              <Text className="text-2xl font-bold text-blue-600 mb-6">
+                Profile Picture
+              </Text>
+              {errors.profileImage && (
+                <Text className="text-red-500 text-sm mb-3">
+                  {errors.profileImage}
+                </Text>
+              )}
+
+              <View className="items-center mb-6">
+                <TouchableOpacity
+                  onPress={() => pickImage("profileImage")}
+                  className="w-40 h-40 rounded-full bg-gray-100 border-2 border-gray-300 justify-center items-center overflow-hidden"
+                  activeOpacity={0.7}
+                >
+                  {formData.profileImage ? (
+                    <Image
+                      source={{ uri: formData.profileImage.uri }}
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <View className="items-center">
+                      <Feather name="camera" size={32} color="#6B7280" />
+                      <Text className="text-gray-500 text-sm mt-2 font-semibold">
+                        Tap to upload
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          {/* --- STEP 5: Review & Submit --- */}
+          {step === 5 && (
+            <View>
+              <View className="items-center mb-6">
+                <View className="w-20 h-20 rounded-full bg-blue-100 items-center justify-center mb-4">
+                  <Feather name="check" size={36} color="#2563EB" />
+                </View>
+                <Text className="text-2xl font-bold text-blue-600 mb-2">
+                  Review & Submit
+                </Text>
+                <Text className="text-base text-gray-600 text-center px-4">
+                  Review your information before submitting
+                </Text>
+              </View>
+
+              <View className="w-full bg-white p-5 rounded-xl border-2 border-gray-200 mb-6">
+                {/* Account Info Review */}
+                <View>
+                  <Text className="text-lg font-bold text-blue-600 mb-3">
+                    Account
+                  </Text>
+                  <ReviewRow label="Full Name" value={formData.fullname} />
+                  <ReviewRow label="Email" value={formData.email} />
+                </View>
+                <View className="h-px bg-gray-200" />
+
+                {/* Personal Info Review */}
+                <View>
+                  <Text className="text-lg font-bold text-blue-600 mb-3">
+                    Personal
+                  </Text>
+                  <ReviewRow label="Mobile" value={formData.cellphoneNumber} />
+                  <ReviewRow
+                    label="Date of Birth"
+                    value={formData.dateOfBirth.toLocaleDateString()}
+                  />
+                  <ReviewRow label="Gender" value={formData.gender} />
+                  <ReviewRow label="National ID" value={formData.nationalId} />
+                </View>
+                <View className="h-px bg-gray-200" />
+
+                {/* Address Review */}
+                <View>
+                  <Text className="text-lg font-bold text-blue-600 mb-3">
+                    Address
+                  </Text>
+                  <ReviewRow label="Region" value={formData.region} />
+                  <ReviewRow label="Town" value={formData.town} />
+                  <ReviewRow label="Street Address" value={formData.address} />
+                </View>
+                <View className="h-px bg-gray-200" />
+
+                {/* Documents & Profile Image Review */}
+                <View>
+                  <Text className="text-lg font-bold text-blue-600 mb-3">
+                    Documents & Photo
+                  </Text>
+
+                  {/* Profile Picture Preview */}
+                  <View className="mb-4">
+                    <Text className="text-sm text-gray-500 mb-2">
+                      Profile Picture
+                    </Text>
+                    {formData.profileImage ? (
+                      <View className="items-center">
+                        <Image
+                          source={{ uri: formData.profileImage.uri }}
+                          className="w-32 h-32 rounded-full border-2 border-gray-200"
+                        />
+                      </View>
+                    ) : (
+                      <View className="flex-row items-center">
+                        <Feather name="x-circle" size={16} color="#EF4444" />
+                        <Text className="text-base text-gray-700 font-semibold ml-2">
+                          Not uploaded
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* ID Documents Preview */}
+                  <View className="mb-4">
+                    <Text className="text-sm text-gray-500 mb-2">
+                      National ID (Front)
+                    </Text>
+                    {formData.idDocumentFront ? (
+                      <View className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex-row items-center">
+                        <Feather name="file-text" size={24} color="#10B981" />
+                        <View className="ml-3 flex-1">
+                          <Text className="text-sm font-semibold text-gray-900">
+                            {formData.idDocumentFront.name}
+                          </Text>
+                          <Text className="text-xs text-gray-500">
+                            PDF Document
+                          </Text>
+                        </View>
+                        <Feather
+                          name="check-circle"
+                          size={20}
+                          color="#10B981"
+                        />
+                      </View>
+                    ) : (
+                      <View className="flex-row items-center">
+                        <Feather name="x-circle" size={16} color="#EF4444" />
+                        <Text className="text-base text-gray-700 font-semibold ml-2">
+                          Not uploaded
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View className="mb-3">
+                    <Text className="text-sm text-gray-500 mb-2">
+                      National ID (Back)
+                    </Text>
+                    {formData.idDocumentBack ? (
+                      <View className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex-row items-center">
+                        <Feather name="file-text" size={24} color="#10B981" />
+                        <View className="ml-3 flex-1">
+                          <Text className="text-sm font-semibold text-gray-900">
+                            {formData.idDocumentBack.name}
+                          </Text>
+                          <Text className="text-xs text-gray-500">
+                            PDF Document
+                          </Text>
+                        </View>
+                        <Feather
+                          name="check-circle"
+                          size={20}
+                          color="#10B981"
+                        />
+                      </View>
+                    ) : (
+                      <View className="flex-row items-center">
+                        <Feather name="x-circle" size={16} color="#EF4444" />
+                        <Text className="text-base text-gray-700 font-semibold ml-2">
+                          Not uploaded
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* --- Sticky Buttons --- */}
+      <SafeAreaView
+        edges={["bottom"]}
+        className="absolute bottom-0 left-0 right-0 bg-white border-t-2 border-gray-100"
+      >
+        <View className="flex-row px-6 pt-4 pb-4" style={{ gap: 12 }}>
+          {step > 1 && (
+            <TouchableOpacity
+              onPress={handleBack}
+              className="py-5 rounded-2xl flex-1 items-center justify-center border-2"
+              style={{
+                backgroundColor: "#F3F4F6",
+                borderColor: "#D1D5DB",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+            >
+              <Text className="text-gray-700 text-xl font-semibold">Back</Text>
+            </TouchableOpacity>
+          )}
+          {step < 5 ? (
+            <TouchableOpacity
+              onPress={handleNext}
+              disabled={step === 1 && !acceptedTerms}
+              className="py-5 rounded-2xl flex-1 items-center justify-center"
+              style={{
+                backgroundColor:
+                  step === 1 && !acceptedTerms ? "#9CA3AF" : "#10B981",
+                shadowColor: "#10B981",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 6,
+              }}
+              activeOpacity={0.8}
+            >
+              <View className="flex-row items-center">
+                <Text className="text-white text-xl font-semibold mr-2">
+                  Next
+                </Text>
+                <Feather name="arrow-right" size={20} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={handleRegister}
+              disabled={isLoading}
+              className="py-5 rounded-2xl flex-1 items-center justify-center"
+              style={{
+                backgroundColor: isLoading ? "#9CA3AF" : "#10B981",
+                shadowColor: "#10B981",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 6,
+              }}
+              activeOpacity={0.8}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <View className="flex-row items-center">
+                  <Text className="text-white text-lg font-semibold mr-2">
+                    Register
+                  </Text>
+                  <Feather name="arrow-right" size={20} color="#FFFFFF" />
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
+      <StatusBar style="dark" />
+
+      {/* Terms and Conditions Modal */}
+      <Modal
+        visible={showTermsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowTermsModal(false)}
+      >
+        <SafeAreaView className="flex-1 bg-white">
+          <View className="flex-1 bg-white">
+            {/* Header */}
+            <View className="flex-row items-center justify-between p-6 border-b-2 border-gray-100">
+              <Text className="text-2xl font-bold text-black flex-1">
+                Terms & Conditions
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowTermsModal(false)}
+                className="p-2"
+              >
+                <Feather name="x" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Content */}
+            <ScrollView className="flex-1 p-6">
+              <Text className="text-lg font-bold text-red-600 mb-4">
+                Absolute Patient Waiver and Release of Liability
+              </Text>
+              <Text className="text-sm text-gray-700 mb-4 leading-6">
+                By clicking &quot;Accept&quot; and using the Health_Connect
+                platform, you (the &quot;User&quot;) confirm and irrevocably
+                agree to the following legally binding terms. Your acceptance
+                constitutes a complete and absolute waiver of your right to sue
+                the platform.
+              </Text>
+
+              <Text className="text-base font-bold text-gray-900 mb-3">
+                Technology Platform Status (Not a Healthcare Provider)
+              </Text>
+              <Text className="text-sm text-gray-700 mb-4 leading-6">
+                You acknowledge and agree that Kopano-Vertex Trading cc (trading
+                as Health_Connect) is exclusively a technology service provider.
+                The platform provides a logistical connection between you and
+                independent healthcare practitioners. Under no circumstances is
+                Health_Connect, its owners, directors, or employees a provider
+                of medical care, diagnosis, advice, or treatment.
+              </Text>
+
+              <Text className="text-base font-bold text-gray-900 mb-3">
+                Absolute Assumption of Risk and Release of Claims
+              </Text>
+              <Text className="text-sm text-gray-700 mb-4 leading-6">
+                You understand and agree that the entire responsibility and
+                liability for the clinical services, advice, and outcomes rests
+                solely and exclusively with the independent healthcare provider
+                you select.
+              </Text>
+
+              <Text className="text-base font-bold text-gray-900 mb-3">
+                Irrevocable Waiver
+              </Text>
+              <Text className="text-sm text-gray-700 mb-4 leading-6">
+                You hereby irrevocably and absolutely release, waive, and
+                forever discharge Kopano-Vertex Trading cc, its affiliates,
+                directors, owners, and employees from any and all claims,
+                demands, liabilities, suits, actions, and causes of action
+                whatsoever, whether in law or equity, which may arise from or
+                relate to the medical care, advice, diagnosis, treatment, or
+                judgment provided by any independent healthcare professional
+                connected through the platform.
+              </Text>
+
+              <Text className="text-base font-bold text-gray-900 mb-3">
+                No Recourse Against Platform
+              </Text>
+              <Text className="text-sm text-gray-700 mb-4 leading-6">
+                You acknowledge that your sole and exclusive recourse for any
+                claim of malpractice, negligence, misdiagnosis, or professional
+                error is directly against the independent healthcare provider
+                and not against Health_Connect.
+              </Text>
+
+              <Text className="text-base font-bold text-gray-900 mb-3">
+                Independent Contractor Status of Providers
+              </Text>
+              <Text className="text-sm text-gray-700 mb-4 leading-6">
+                You acknowledge and agree that the healthcare practitioners on
+                this platform are independent contractors and are not employees,
+                agents, partners, or representatives of Health_Connect.
+              </Text>
+
+              <Text className="text-base font-bold text-gray-900 mb-3">
+                Emergency Services Exclusion
+              </Text>
+              <Text className="text-sm text-gray-700 mb-6 leading-6">
+                You understand that this platform is NOT a substitute for
+                emergency medical care. You warrant that you will not use this
+                platform for any medical emergency, and you accept full
+                liability for any harm resulting from attempting to use this
+                service in an emergency.
+              </Text>
             </ScrollView>
 
-            {/* --- Sticky Buttons --- */}
-            <SafeAreaView edges={['bottom']} className="absolute bottom-0 left-0 right-0 bg-white border-t-2 border-gray-100">
-                <View className="flex-row px-6 pt-4 pb-4" style={{ gap: 12 }}>
-                    {step > 1 && (
-                        <TouchableOpacity 
-                            onPress={handleBack} 
-                            className="py-5 rounded-2xl flex-1 items-center justify-center border-2"
-                            style={{
-                                backgroundColor: '#F3F4F6',
-                                borderColor: '#D1D5DB',
-                                shadowColor: '#000',
-                                shadowOffset: { width: 0, height: 2 },
-                                shadowOpacity: 0.1,
-                                shadowRadius: 4,
-                                elevation: 2,
-                            }}
-                        >
-                            <Text className="text-gray-700 text-xl font-semibold">Back</Text>
-                        </TouchableOpacity>
-                    )}
-                    {step < 5 ? (
-                        <TouchableOpacity 
-                            onPress={handleNext} 
-                            disabled={step === 1 && !acceptedTerms}
-                            className="py-5 rounded-2xl flex-1 items-center justify-center"
-                            style={{
-                                backgroundColor: (step === 1 && !acceptedTerms) ? '#9CA3AF' : '#10B981',
-                                shadowColor: '#10B981',
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.3,
-                                shadowRadius: 8,
-                                elevation: 6,
-                            }}
-                            activeOpacity={0.8}
-                        >
-                            <View className="flex-row items-center">
-                                <Text className="text-white text-xl font-semibold mr-2">Next</Text>
-                                <Feather name="arrow-right" size={20} color="#FFFFFF" />
-                            </View>
-                        </TouchableOpacity>
-                    ) : (
-                        <TouchableOpacity 
-                            onPress={handleRegister} 
-                            disabled={isLoading} 
-                            className="py-5 rounded-2xl flex-1 items-center justify-center"
-                            style={{
-                                backgroundColor: isLoading ? '#9CA3AF' : '#10B981',
-                                shadowColor: '#10B981',
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.3,
-                                shadowRadius: 8,
-                                elevation: 6,
-                            }}
-                            activeOpacity={0.8}
-                        >
-                            {isLoading ? (
-                                <ActivityIndicator color="#fff" size="small" />
-                            ) : (
-                                <View className="flex-row items-center">
-                                    <Text className="text-white text-lg font-semibold mr-2">Register</Text>
-                                    <Feather name="arrow-right" size={20} color="#FFFFFF" />
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    )}
-                </View>
-            </SafeAreaView>
-            <StatusBar style="dark" />
-
-            {/* Terms and Conditions Modal */}
-            <Modal
-                visible={showTermsModal}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowTermsModal(false)}
-            >
-                <SafeAreaView className="flex-1 bg-white">
-                    <View className="flex-1 bg-white">
-                        {/* Header */}
-                        <View className="flex-row items-center justify-between p-6 border-b-2 border-gray-100">
-                            <Text className="text-2xl font-bold text-black flex-1">Terms & Conditions</Text>
-                            <TouchableOpacity 
-                                onPress={() => setShowTermsModal(false)}
-                                className="p-2"
-                            >
-                                <Feather name="x" size={24} color="#374151" />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Content */}
-                        <ScrollView className="flex-1 p-6">
-                            <Text className="text-lg font-bold text-red-600 mb-4">Absolute Patient Waiver and Release of Liability</Text>
-                            <Text className="text-sm text-gray-700 mb-4 leading-6">
-                                By clicking &quot;Accept&quot; and using the Health_Connect platform, you (the &quot;User&quot;) confirm and irrevocably agree to the following legally binding terms. Your acceptance constitutes a complete and absolute waiver of your right to sue the platform.
-                            </Text>
-
-                            <Text className="text-base font-bold text-gray-900 mb-3">Technology Platform Status (Not a Healthcare Provider)</Text>
-                            <Text className="text-sm text-gray-700 mb-4 leading-6">
-                                You acknowledge and agree that Kopano-Vertex Trading cc (trading as Health_Connect) is exclusively a technology service provider. The platform provides a logistical connection between you and independent healthcare practitioners. Under no circumstances is Health_Connect, its owners, directors, or employees a provider of medical care, diagnosis, advice, or treatment.
-                            </Text>
-
-                            <Text className="text-base font-bold text-gray-900 mb-3">Absolute Assumption of Risk and Release of Claims</Text>
-                            <Text className="text-sm text-gray-700 mb-4 leading-6">
-                                You understand and agree that the entire responsibility and liability for the clinical services, advice, and outcomes rests solely and exclusively with the independent healthcare provider you select.
-                            </Text>
-
-                            <Text className="text-base font-bold text-gray-900 mb-3">Irrevocable Waiver</Text>
-                            <Text className="text-sm text-gray-700 mb-4 leading-6">
-                                You hereby irrevocably and absolutely release, waive, and forever discharge Kopano-Vertex Trading cc, its affiliates, directors, owners, and employees from any and all claims, demands, liabilities, suits, actions, and causes of action whatsoever, whether in law or equity, which may arise from or relate to the medical care, advice, diagnosis, treatment, or judgment provided by any independent healthcare professional connected through the platform.
-                            </Text>
-
-                            <Text className="text-base font-bold text-gray-900 mb-3">No Recourse Against Platform</Text>
-                            <Text className="text-sm text-gray-700 mb-4 leading-6">
-                                You acknowledge that your sole and exclusive recourse for any claim of malpractice, negligence, misdiagnosis, or professional error is directly against the independent healthcare provider and not against Health_Connect.
-                            </Text>
-
-                            <Text className="text-base font-bold text-gray-900 mb-3">Independent Contractor Status of Providers</Text>
-                            <Text className="text-sm text-gray-700 mb-4 leading-6">
-                                You acknowledge and agree that the healthcare practitioners on this platform are independent contractors and are not employees, agents, partners, or representatives of Health_Connect.
-                            </Text>
-
-                            <Text className="text-base font-bold text-gray-900 mb-3">Emergency Services Exclusion</Text>
-                            <Text className="text-sm text-gray-700 mb-6 leading-6">
-                                You understand that this platform is NOT a substitute for emergency medical care. You warrant that you will not use this platform for any medical emergency, and you accept full liability for any harm resulting from attempting to use this service in an emergency.
-                            </Text>
-                        </ScrollView>
-
-                        {/* Footer with Accept Button */}
-                        <View className="p-6 border-t-2 border-gray-100 bg-white">
-                            <TouchableOpacity 
-                                onPress={() => {
-                                    setAcceptedTerms(true);
-                                    setShowTermsModal(false);
-                                }}
-                                className="bg-green-600 p-4 rounded-xl"
-                            >
-                                <Text className="text-white text-center text-lg font-bold">I Accept</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </SafeAreaView>
-            </Modal>
+            {/* Footer with Accept Button */}
+            <View className="p-6 border-t-2 border-gray-100 bg-white">
+              <TouchableOpacity
+                onPress={() => {
+                  setAcceptedTerms(true);
+                  setShowTermsModal(false);
+                }}
+                className="bg-green-600 p-4 rounded-xl"
+              >
+                <Text className="text-white text-center text-lg font-bold">
+                  I Accept
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </SafeAreaView>
-    );
-};
-
+      </Modal>
+    </SafeAreaView>
+  );
+}
