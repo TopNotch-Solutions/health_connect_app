@@ -200,24 +200,11 @@ export default function PatientHomeScreen() {
             categories,
           );
           if (Array.isArray(categories) && categories.length > 0) {
-            // Ensure provider field is properly set from specialization roles
-            const mappedCategories = categories.map((category: any) => {
-              // Extract unique roles from specializations
-              const roles = category.specialization?.map((spec: any) => spec.role) || [];
-              const uniqueRoles = [...new Set(roles)];
-              const provider = uniqueRoles.length > 0 ? uniqueRoles.join(', ') : 'Other';
-              
-              return {
-                ...category,
-                provider,
-              };
-            });
-            
-            setAilmentCategories(mappedCategories);
+            setAilmentCategories(categories);
 
             // Prefetch ailment images for faster loading - prioritize first 6 for home page
             const AILMENT_IMAGE_BASE_URL = "http://13.51.207.99:4000/ailments/";
-            const categoriesToPrefetch = mappedCategories.slice(0, 6); // Only prefetch first 6 for home page
+            const categoriesToPrefetch = categories.slice(0, 6); // Only prefetch first 6 for home page
 
             // Prefetch in parallel for faster loading
             const prefetchPromises = categoriesToPrefetch.map(

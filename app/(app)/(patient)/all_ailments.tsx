@@ -3,14 +3,14 @@ import * as Location from 'expo-location';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  SafeAreaView,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    SafeAreaView,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import CreateRequestModal from '../../../components/(patient)/CreateRequestModal';
 import { useAuth } from '../../../context/AuthContext';
@@ -282,7 +282,7 @@ export default function AllAilmentsScreen() {
     ailmentCategoryId?: string;
     symptoms: string;
     paymentMethod: 'wallet' | 'cash';
-    estimatedCost: number;
+    dueCost: number;
     street: string;
     locality: string;
     region: string;
@@ -319,7 +319,7 @@ export default function AllAilmentsScreen() {
         ailmentCategoryId: requestData.ailmentCategoryId,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
-        estimatedCost: requestData.estimatedCost,
+        estimatedCost: requestData.dueCost,
         address: {
           route: requestData.street,
           locality: requestData.locality,
