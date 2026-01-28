@@ -3,16 +3,16 @@ import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Clipboard,
-    FlatList,
-    Keyboard,
-    Platform,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Clipboard,
+  FlatList,
+  Keyboard,
+  Platform,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
@@ -125,6 +125,7 @@ export default function TransactionsScreen() {
   const [totalPages, setTotalPages] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const isLoadingRef = useRef(false);
 
   const addMoneySheetRef = useRef<BottomSheet>(null);
   const fundOthersSheetRef = useRef<BottomSheet>(null);
@@ -212,7 +213,7 @@ export default function TransactionsScreen() {
           `Fetching transactions for userId: ${user.userId}, page: ${page}`,
         );
         const response = await apiClient.get(
-          "/app/transaction/transaction-history/?page=${page}&limit=10",
+          `/app/transaction/transaction-history/?page=${page}&limit=10`,
         );
         // console.log("Transactions Response:", response.data);
         const newTransactions = response.data.data || [];
@@ -279,14 +280,6 @@ export default function TransactionsScreen() {
     }
   }, [isLoadingMore, hasMore, currentPage, fetchTransactions]);
 
-  // --- THIS IS THE CORRECTED useFocusEffect HOOK ---
-  useFocusEffect(
-    useCallback(() => {
-      fetchTransactions(false, 1);
-    }, [fetchTransactions]),
-  );
-  // ---------------------------------------------
-
   // Helper function to fetch and update user details
   const fetchAndUpdateUserDetails = useCallback(async () => {
     if (!user?.userId) return;
@@ -300,6 +293,28 @@ export default function TransactionsScreen() {
       console.error("Error fetching user details:", error);
     }
   }, [user?.userId, updateUser]);
+
+  // --- THIS IS THE CORRECTED useFocusEffect HOOK ---
+  useFocusEffect(
+    useCallback(() => {
+      // Prevent multiple simultaneous calls
+      if (isLoadingRef.current) return;
+      
+      isLoadingRef.current = true;
+      
+      const loadData = async () => {
+        try {
+          await fetchAndUpdateUserDetails();
+          await fetchTransactions(false, 1);
+        } finally {
+          isLoadingRef.current = false;
+        }
+      };
+      
+      loadData();
+    }, [fetchAndUpdateUserDetails, fetchTransactions]),
+  );
+  // ---------------------------------------------
 
   // --- FULLY IMPLEMENTED handleAddMoney ---
   const handleAddMoney = async () => {

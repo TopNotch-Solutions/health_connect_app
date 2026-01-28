@@ -4,6 +4,7 @@ import { normalizeCoordinateOrUndefined } from "@/lib/coordinate";
 import { calculateDistance } from "@/lib/distance";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Linking from "expo-linking";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -65,6 +66,15 @@ export default function ProviderHome() {
     longitude: number;
   } | null>(null);
   const locationWatcherRef = useRef<any>(null);
+  const socketListenersSetupRef = useRef(false);
+  const socketConnectedRef = useRef(false);
+  const socketListenersCleanupRef = useRef<(() => void) | null>(null);
+  const socketHandlersRef = useRef<{
+    handleNewRequest?: (request: any) => void;
+    handleRequestStatusChanged?: (data: any) => void;
+    handleRequestUpdated?: (data: any) => void;
+    handleRequestHidden?: (data: any) => void;
+  }>({});
   const { startRoute } = useRoute();
 
   const onboardingSteps: {
@@ -177,7 +187,10 @@ export default function ProviderHome() {
     } catch (error) {
       console.error("Error fetching user details:", error);
     }
-  }, [user?.userId, updateUser]);
+  }, []);
+
+  // Use ref to prevent multiple simultaneous loads
+  const isLoadingRequestsRef = useRef(false);
 
   // Define loadAvailableRequests before using it in useEffect
   const loadAvailableRequests = useCallback(async () => {
@@ -186,10 +199,18 @@ export default function ProviderHome() {
       return;
     }
 
+    // Prevent multiple simultaneous loads
+    if (isLoadingRequestsRef.current) {
+      console.log("⚠️ Request load already in progress, skipping");
+      return;
+    }
+
     console.log(
       "📥 Starting to load available requests for provider:",
       user.userId,
     );
+
+    isLoadingRequestsRef.current = true;
 
     try {
       setIsLoadingRequests(true);
@@ -206,12 +227,18 @@ export default function ProviderHome() {
       setRequests(Array.isArray(availableRequests) ? availableRequests : []);
     } catch (error: any) {
       console.error("❌ Error loading requests:", error);
-      Alert.alert(
-        "Error",
-        "Failed to load available requests: " + error.message,
-      );
+      // Don't show alert on initial load, just log
+      if (requests.length === 0) {
+        console.warn("Failed to load requests, will retry on next focus");
+      } else {
+        Alert.alert(
+          "Error",
+          "Failed to load available requests: " + error.message,
+        );
+      }
     } finally {
       setIsLoadingRequests(false);
+      isLoadingRequestsRef.current = false;
       console.log("✅ Loading complete, isLoadingRequests set to false");
     }
   }, [user?.userId]);
@@ -219,88 +246,142 @@ export default function ProviderHome() {
   // Connect socket and fetch available requests only when online
   useEffect(() => {
     if (user?.userId && isOnline) {
-      console.log("🔌 Connecting socket for provider:", user.userId);
-      // Default to doctor role, but should ideally use user.role if available
-      socketService.connect(user.userId, (user.role as any) || "doctor");
-
+      // Only connect if not already connected for this online session
       const socket = socketService.getSocket();
-      console.log("📡 Initial socket state:", socket?.connected);
-
-      // Listen for connect event
-      const handleConnect = () => {
-        console.log("✅ Socket connected event fired, loading requests...");
-        loadAvailableRequests();
-      };
-
-      // If already connected, wait a bit and try loading
-      if (socket?.connected) {
-        console.log("✅ Socket already connected, loading requests...");
-        loadAvailableRequests();
+      if (!socket?.connected) {
+        console.log("🔌 Connecting socket for provider:", user.userId);
+        // Default to doctor role, but should ideally use user.role if available
+        socketService.connect(user.userId, (user.role as any) || "doctor");
       } else {
-        console.log(
-          "⏳ Socket not yet connected, waiting for connect event...",
-        );
-        socket?.on("connect", handleConnect);
+        console.log("✅ Socket already connected, reusing existing connection");
       }
 
-      return () => {
-        socket?.off("connect", handleConnect);
-      };
-    }
-  }, [user?.userId, user?.role, isOnline, loadAvailableRequests]);
+      const currentSocket = socketService.getSocket();
+      console.log("📡 Socket state:", currentSocket?.connected);
 
-  // Get provider device location and watch while provider is online
+      // Only set up connect handler if we haven't already handled it for this online session
+      if (!socketConnectedRef.current) {
+        // Listen for connect event - only load once per online toggle
+        const handleConnect = () => {
+          if (socketConnectedRef.current || !isOnline) {
+            console.log(
+              "⚠️ Already handled connect event or went offline, skipping",
+            );
+            return;
+          }
+          socketConnectedRef.current = true;
+          console.log("✅ Socket connected event fired, loading requests...");
+          // Small delay to ensure socket is fully ready
+          setTimeout(() => {
+            if (!isLoadingRequestsRef.current && isOnline) {
+              loadAvailableRequests();
+            }
+          }, 500);
+        };
+
+        // If already connected, load requests immediately
+        if (currentSocket?.connected) {
+          socketConnectedRef.current = true;
+          console.log("✅ Socket already connected, loading requests...");
+          setTimeout(() => {
+            if (!isLoadingRequestsRef.current && isOnline) {
+              loadAvailableRequests();
+            }
+          }, 500);
+        } else {
+          console.log(
+            "⏳ Socket not yet connected, waiting for connect event...",
+          );
+          currentSocket?.once("connect", handleConnect);
+        }
+
+        return () => {
+          currentSocket?.off("connect", handleConnect);
+          // Don't reset socketConnectedRef here - let it reset when going offline
+        };
+      }
+    } else if (!isOnline) {
+      // Clean up when going offline
+      console.log("📴 Provider went offline, cleaning up socket listeners");
+      setRequests([]);
+      isLoadingRequestsRef.current = false;
+      socketConnectedRef.current = false;
+
+      // Clean up socket listeners if they were set up
+      if (socketListenersCleanupRef.current) {
+        console.log("🧹 Executing socket listeners cleanup on offline");
+        try {
+          socketListenersCleanupRef.current();
+        } catch (error) {
+          console.error("Error during socket listeners cleanup:", error);
+        }
+        socketListenersCleanupRef.current = null;
+      }
+      socketListenersSetupRef.current = false;
+      socketHandlersRef.current = {};
+    }
+    // Remove loadAvailableRequests from dependencies to prevent loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.userId, user?.role, isOnline]);
+
+  // Get provider device location once when provider goes online
+  // (continuous route tracking is handled in the GlobalRouteModal / RouteContext)
   useEffect(() => {
     let mounted = true;
-    const startWatch = async () => {
+
+    const loadInitialLocation = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
           console.warn("Location permission not granted for provider map");
+
+          Alert.alert(
+            "Location Permission Required",
+            "HealthConnect needs access to your location so we can show nearby patient requests. Please enable location in your device settings.",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Open Settings",
+                onPress: () => {
+                  try {
+                    // Open the OS settings page for this app
+                    Linking.openSettings();
+                  } catch (err) {
+                    console.error("Failed to open app settings:", err);
+                  }
+                },
+              },
+            ],
+          );
           return;
         }
 
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         });
+
         if (!mounted) return;
+
         setProviderLocation({
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
         });
-
-        // Start watching position but do not spam server here; ProviderRouteModal handles emitting during active route
-        locationWatcherRef.current = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.Balanced,
-            distanceInterval: 25,
-            timeInterval: 10000,
-          },
-          (position) => {
-            if (!mounted) return;
-            setProviderLocation({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            });
-          },
-        );
       } catch (e) {
-        console.error("Error initializing provider location watch", e);
+        console.error("Error getting provider initial location:", e);
+        Alert.alert(
+          "Location Error",
+          "We could not get your current location. Please check that location services are enabled and try again.",
+        );
       }
     };
 
-    if (isOnline) startWatch();
+    if (isOnline) {
+      // Only get location once per online toggle (no continuous watcher)
+      loadInitialLocation();
+    }
 
     return () => {
       mounted = false;
-      if (locationWatcherRef.current) {
-        try {
-          locationWatcherRef.current.remove();
-        } catch (e) {
-          /* ignore */
-        }
-        locationWatcherRef.current = null;
-      }
     };
   }, [isOnline]);
 
@@ -309,12 +390,33 @@ export default function ProviderHome() {
     useCallback(() => {
       console.log("🔄 ProviderHome came into focus");
 
-      // Only fetch user details on focus (not requests, as socket handles those)
+      // Fetch user details and earnings
       fetchAndUpdateUserDetails();
       loadMonthlyEarnings();
 
-      // Requests are loaded automatically via the socket useEffect when online changes
-    }, [fetchAndUpdateUserDetails, loadMonthlyEarnings]),
+      // If online, refresh requests to get latest state (only if not already loading)
+      if (isOnline && user?.userId && !isLoadingRequestsRef.current) {
+        console.log("🔄 Provider is online, refreshing requests on focus");
+        const socket = socketService.getSocket();
+        if (socket?.connected) {
+          // Small delay to ensure socket is ready
+          setTimeout(() => {
+            if (!isLoadingRequestsRef.current) {
+              loadAvailableRequests();
+            }
+          }, 300);
+        } else {
+          console.warn(
+            "⚠️ Socket not connected on focus, will wait for connection",
+          );
+        }
+      }
+    }, [
+      fetchAndUpdateUserDetails,
+      loadMonthlyEarnings,
+      isOnline,
+      user?.userId,
+    ]),
   );
 
   // Universal refresh function
@@ -325,8 +427,8 @@ export default function ProviderHome() {
       await fetchAndUpdateUserDetails();
       // Then refresh earnings
       await loadMonthlyEarnings();
-      // Then refresh requests if online
-      if (isOnline) {
+      // Then refresh requests if online (only if not already loading)
+      if (isOnline && !isLoadingRequestsRef.current) {
         await loadAvailableRequests();
       }
     } catch (error) {
@@ -334,23 +436,167 @@ export default function ProviderHome() {
     } finally {
       setRefreshing(false);
     }
-  }, [fetchAndUpdateUserDetails, isOnline, loadAvailableRequests]);
+  }, [fetchAndUpdateUserDetails, loadMonthlyEarnings, isOnline]);
 
-  // Listen for new request notifications
+  // Listen for real-time socket events - set up once when online, clean up when offline
   useEffect(() => {
-    if (!isOnline) return;
+    if (!isOnline || !user?.userId) {
+      return; // Cleanup is handled in the socket connection useEffect when going offline
+    }
 
-    const handleNewRequest = (request: any) => {
-      console.log("New request received:", request);
-      setRequests((prev) => [request, ...prev]);
-    };
+    // Prevent setting up listeners multiple times for the same online session
+    if (socketListenersSetupRef.current) {
+      console.log(
+        "⚠️ Socket listeners already set up for this online session, skipping",
+      );
+      return;
+    }
 
-    socketService.getSocket()?.on("newRequestAvailable", handleNewRequest);
+    const socket = socketService.getSocket();
+    if (!socket?.connected) {
+      console.warn(
+        "⚠️ Socket not connected, will set up listeners when connected",
+      );
+      // Wait for socket to connect - use once to prevent multiple setups
+      const checkConnection = () => {
+        const currentSocket = socketService.getSocket();
+        if (
+          currentSocket?.connected &&
+          !socketListenersSetupRef.current &&
+          isOnline
+        ) {
+          setupListeners(currentSocket);
+        }
+      };
+      socket?.once("connect", checkConnection);
+      return () => {
+        socket?.off("connect", checkConnection);
+      };
+    }
 
+    // Set up listeners immediately if socket is connected
+    setupListeners(socket);
+
+    function setupListeners(socketInstance: any) {
+      if (socketListenersSetupRef.current) {
+        console.log("⚠️ Listeners already set up, skipping duplicate setup");
+        return;
+      }
+
+      socketListenersSetupRef.current = true;
+      console.log(
+        "🔔 Setting up real-time socket listeners for provider (ONLINE mode)",
+      );
+
+      // Handle new requests coming in real-time
+      const handleNewRequest = (request: any) => {
+        if (!isOnline) return; // Ignore if went offline
+        console.log("✅ New request received in real-time:", request);
+        setRequests((prev) => {
+          // Check if request already exists to avoid duplicates
+          const exists = prev.some((req) => req._id === request._id);
+          if (exists) {
+            console.log("⚠️ Request already exists, skipping duplicate");
+            return prev;
+          }
+          return [request, ...prev];
+        });
+      };
+
+      // Handle request status changes (e.g., accepted by another provider, cancelled)
+      const handleRequestStatusChanged = (data: any) => {
+        if (!isOnline) return; // Ignore if went offline
+        console.log("🔄 Request status changed:", data);
+        if (data.requestId) {
+          setRequests((prev) =>
+            prev.filter((req) => req._id !== data.requestId),
+          );
+        }
+      };
+
+      // Handle request updates (when request is accepted/rejected/cancelled)
+      const handleRequestUpdated = (data: any) => {
+        if (!isOnline) return; // Ignore if went offline
+        console.log("📝 Request updated:", data);
+        if (data._id) {
+          // Remove the request from available list if it's been accepted or cancelled
+          if (
+            data.status === "accepted" ||
+            data.status === "cancelled" ||
+            data.status === "completed"
+          ) {
+            setRequests((prev) => prev.filter((req) => req._id !== data._id));
+          }
+        }
+      };
+
+      // Handle request hidden (when rejected)
+      const handleRequestHidden = (data: any) => {
+        if (!isOnline) return; // Ignore if went offline
+        console.log("👁️ Request hidden:", data);
+        if (data.requestId) {
+          setRequests((prev) =>
+            prev.filter((req) => req._id !== data.requestId),
+          );
+        }
+      };
+
+      // Store handlers in ref for cleanup
+      socketHandlersRef.current = {
+        handleNewRequest,
+        handleRequestStatusChanged,
+        handleRequestUpdated,
+        handleRequestHidden,
+      };
+
+      // Register all listeners - use socketService methods for proper tracking
+      socketService.onNewRequestAvailable(handleNewRequest);
+      socketService.onRequestStatusChanged(handleRequestStatusChanged);
+      socketService.onRequestUpdated(handleRequestUpdated);
+      socketInstance.on("requestHidden", handleRequestHidden);
+
+      // Create and store cleanup function
+      const cleanup = () => {
+        console.log("🧹 Cleaning up real-time socket listeners (OFFLINE mode)");
+        const handlers = socketHandlersRef.current;
+        if (handlers.handleNewRequest) {
+          socketService.off("newRequestAvailable", handlers.handleNewRequest);
+        }
+        if (handlers.handleRequestStatusChanged) {
+          socketService.off(
+            "requestStatusChanged",
+            handlers.handleRequestStatusChanged,
+          );
+        }
+        if (handlers.handleRequestUpdated) {
+          socketService.off("requestUpdated", handlers.handleRequestUpdated);
+        }
+        if (handlers.handleRequestHidden) {
+          socketInstance.off("requestHidden", handlers.handleRequestHidden);
+        }
+        socketListenersSetupRef.current = false;
+        socketHandlersRef.current = {};
+      };
+
+      socketListenersCleanupRef.current = cleanup;
+    }
+
+    // Return cleanup function for this effect
     return () => {
-      socketService.getSocket()?.off("newRequestAvailable", handleNewRequest);
+      // Cleanup listeners when effect unmounts or isOnline changes to false
+      if (socketListenersCleanupRef.current) {
+        console.log("🧹 Cleaning up socket listeners from effect cleanup");
+        try {
+          socketListenersCleanupRef.current();
+        } catch (error) {
+          console.error("Error during socket listeners cleanup:", error);
+        }
+        socketListenersCleanupRef.current = null;
+        socketListenersSetupRef.current = false;
+        socketHandlersRef.current = {};
+      }
     };
-  }, [isOnline]);
+  }, [isOnline, user?.userId]);
 
   // Route modal handling moved to GlobalRouteModal via RouteContext.
   // Route arrival/cancel handlers moved to GlobalRouteModal via RouteContext.
@@ -433,8 +679,11 @@ export default function ProviderHome() {
         }
       })();
 
-      // 4) Remove request locally from home list
-      await loadAvailableRequests();
+      // 4) Remove request locally from home list (real-time update)
+      setRequests((prev) => prev.filter((req) => req._id !== request._id));
+
+      // Optionally refresh to get latest state
+      // await loadAvailableRequests();
     } catch (error: any) {
       console.error("Error accepting request:", error);
       Alert.alert("Error", error.message || "Failed to accept request");
@@ -446,6 +695,7 @@ export default function ProviderHome() {
 
     try {
       await socketService.rejectRequest(requestId, user.userId);
+      // Remove request locally (real-time update)
       setRequests((prev) => prev.filter((req) => req._id !== requestId));
       setSelectedRequest(null);
       Alert.alert(
@@ -916,7 +1166,7 @@ export default function ProviderHome() {
               {onboardingSteps[currentOnboardingStep].image ? (
                 <View className="w-40 h-40 rounded-full overflow-hidden mb-6 bg-gray-100">
                   <Image
-                    source={require("../../../assets/images/healthconnectlogo.png")}
+                    source={require("../../../assets/images/connectlogo.png")}
                     style={{ width: "100%", height: "100%" }}
                     resizeMode="cover"
                   />

@@ -78,7 +78,7 @@ const IntroSplash = () => {
         style={{
           flex: 1,
           backgroundColor: "#FFFFFF",
-          paddingHorizontal: 32,
+          paddingHorizontal: 50,
           paddingBottom: 40,
           paddingTop: 24,
           justifyContent: "center",

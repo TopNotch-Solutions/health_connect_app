@@ -77,7 +77,9 @@ export default function ProfileScreen() {
   const aboutHealthConnectSnapPoints = useMemo(() => ["90%"], []);
   const editDocumentsSheetRef = useRef<BottomSheet>(null);
   const editDocumentsSnapPoints = useMemo(() => ["85%"], []);
-  const [uploadingDocument, setUploadingDocument] = React.useState<string | null>(null);
+  const [uploadingDocument, setUploadingDocument] = React.useState<
+    string | null
+  >(null);
 
   const IMAGE_BASE_URL = "http://13.51.207.99:4000/images/";
 
@@ -125,7 +127,7 @@ export default function ProfileScreen() {
         type: image.mimeType || "image/jpeg",
       } as any);
 
-      const response = await apiClient.put(
+      const response = await apiClient.patch(
         "/app/auth/upload-profile-image/",
         formData,
         {
@@ -263,11 +265,17 @@ export default function ProfileScreen() {
     // Validate file type before uploading
     const mimeType = document.mimeType || "";
     const fileName = document.name || "";
-    const isImageType = mimeType.startsWith("image/") || /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName);
-    const isPdfType = mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
+    const isImageType =
+      mimeType.startsWith("image/") ||
+      /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName);
+    const isPdfType =
+      mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
 
     // ID documents must be images
-    if (documentType === "idDocumentFront" || documentType === "idDocumentBack") {
+    if (
+      documentType === "idDocumentFront" ||
+      documentType === "idDocumentBack"
+    ) {
       if (!isImageType) {
         Alert.alert(
           "Invalid File Type",
@@ -301,13 +309,15 @@ export default function ProfileScreen() {
                 : "dispensingCertificateLicence";
 
       // Determine file extension and MIME type based on document type
-      const isImage = documentType === "idDocumentFront" || documentType === "idDocumentBack";
+      const isImage =
+        documentType === "idDocumentFront" || documentType === "idDocumentBack";
       const defaultExtension = isImage ? "jpg" : "pdf";
       const defaultMimeType = isImage ? "image/jpeg" : "application/pdf";
 
       formData.append(fieldName, {
         uri: document.uri,
-        name: document.name || `${documentType}-${Date.now()}.${defaultExtension}`,
+        name:
+          document.name || `${documentType}-${Date.now()}.${defaultExtension}`,
         type: document.mimeType || defaultMimeType,
       } as any);
 
@@ -782,7 +792,8 @@ export default function ProfileScreen() {
             disabled={uploadingDocument !== null}
             style={[
               styles.documentCard,
-              uploadingDocument === "idDocumentFront" && styles.documentCardUploading,
+              uploadingDocument === "idDocumentFront" &&
+                styles.documentCardUploading,
             ]}
             activeOpacity={0.7}
           >
@@ -810,7 +821,8 @@ export default function ProfileScreen() {
             disabled={uploadingDocument !== null}
             style={[
               styles.documentCard,
-              uploadingDocument === "idDocumentBack" && styles.documentCardUploading,
+              uploadingDocument === "idDocumentBack" &&
+                styles.documentCardUploading,
             ]}
             activeOpacity={0.7}
           >
@@ -838,7 +850,8 @@ export default function ProfileScreen() {
             disabled={uploadingDocument !== null}
             style={[
               styles.documentCard,
-              uploadingDocument === "finalQualification" && styles.documentCardUploading,
+              uploadingDocument === "finalQualification" &&
+                styles.documentCardUploading,
             ]}
             activeOpacity={0.7}
           >
@@ -866,7 +879,8 @@ export default function ProfileScreen() {
             disabled={uploadingDocument !== null}
             style={[
               styles.documentCard,
-              uploadingDocument === "HPCNAQualification" && styles.documentCardUploading,
+              uploadingDocument === "HPCNAQualification" &&
+                styles.documentCardUploading,
             ]}
             activeOpacity={0.7}
           >
