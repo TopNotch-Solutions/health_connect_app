@@ -13,18 +13,48 @@ const HistoryCard = ({ item }: { item: HistoryItem }) => {
     const getStatusConfig = (status: string) => {
     switch (status) {
         case 'completed':
-            return { color: '#10B981', bgColor: '#D1FAE5', icon: 'check-circle' };
+            return { 
+                color: '#10B981', 
+                bgColor: '#D1FAE5', 
+                gradientStart: '#10B981', 
+                gradientEnd: '#059669',
+                icon: 'check-circle' 
+            };
         case 'cancelled':
-            return { color: '#EF4444', bgColor: '#FEE2E2', icon: 'x-circle' };
+            return { 
+                color: '#EF4444', 
+                bgColor: '#FEE2E2', 
+                gradientStart: '#EF4444', 
+                gradientEnd: '#DC2626',
+                icon: 'x-circle' 
+            };
         case 'pending':
         case 'searching':
-            return { color: '#F59E0B', bgColor: '#FEF3C7', icon: 'clock' };
+            return { 
+                color: '#F59E0B', 
+                bgColor: '#FEF3C7', 
+                gradientStart: '#F59E0B', 
+                gradientEnd: '#D97706',
+                icon: 'clock' 
+            };
         case 'accepted':
         case 'en_route':
         case 'arrived':
-            return { color: '#3B82F6', bgColor: '#DBEAFE', icon: 'navigation' };
+            return { 
+                color: '#3B82F6', 
+                bgColor: '#DBEAFE', 
+                gradientStart: '#3B82F6', 
+                gradientEnd: '#2563EB',
+                icon: 'navigation' 
+            };
         default:
-            return { color: '#6B7280', bgColor: '#F3F4F6', icon: 'info' };
+            return { 
+                color: '#6B7280', 
+                bgColor: '#F3F4F6', 
+                gradientStart: '#6B7280', 
+                gradientEnd: '#4B5563',
+                icon: 'info' 
+            };
         }
     };
 
@@ -33,57 +63,133 @@ const HistoryCard = ({ item }: { item: HistoryItem }) => {
 
     return (
         <View 
-            className="w-[48%] bg-white rounded-2xl mb-4 overflow-hidden"
+            className="w-[48%] mb-4 rounded-2xl overflow-hidden"
             style={{
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 8,
-                elevation: 3,
+                height: 150,
                 borderWidth: 1,
                 borderColor: '#E5E7EB',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 8,
+                elevation: 4,
             }}
         >
-        <View style={{ padding: 12 }}>
-            <Text 
-                className="text-sm font-bold text-gray-800 mb-2" 
-                numberOfLines={2}
-                style={{ minHeight: 40 }}
+            {/* Background with gradient-like effect */}
+            <View 
+                style={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: statusConfig.gradientStart,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                }}
             >
-                {item.ailment}
-            </Text>
-        
-            <View style={{ 
-                flexDirection: 'row', 
-                alignItems: 'center', 
-                marginBottom: 8,
-                backgroundColor: statusConfig.bgColor,
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 6,
-                alignSelf: 'flex-start',
-            }}>
-                <Feather name={statusConfig.icon as any} size={12} color={statusConfig.color} />
-                <Text
+                {/* Decorative pattern overlay */}
+                <View 
                     style={{
-                    fontSize: 11,
-                    fontWeight: '600',
-                    color: statusConfig.color,
-                    marginLeft: 4,
+                        position: 'absolute',
+                        top: -20,
+                        right: -20,
+                        width: 80,
+                        height: 80,
+                        borderRadius: 40,
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    }}
+                />
+                <View 
+                    style={{
+                        position: 'absolute',
+                        bottom: -30,
+                        left: -30,
+                        width: 100,
+                        height: 100,
+                        borderRadius: 50,
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    }}
+                />
+                
+                {/* Large icon in center */}
+                <View 
+                    style={{
+                        width: 60,
+                        height: 60,
+                        borderRadius: 30,
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        justifyContent: 'center',
+                        alignItems: 'center',
                     }}
                 >
-                    {statusText}
-                </Text>
+                    <Feather 
+                        name={statusConfig.icon as any} 
+                        size={32} 
+                        color="#FFFFFF" 
+                    />
+                </View>
             </View>
-        
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <Feather name="calendar" size={12} color="#9CA3AF" />
-                <Text style={{ fontSize: 11, color: '#6B7280', marginLeft: 4 }}>
-                    {item.date}
+            
+            {/* Blurred overlay at the bottom with content */}
+            <View
+                style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                    paddingVertical: 12,
+                    paddingHorizontal: 12,
+                }}
+            >
+                <Text 
+                    style={{
+                        fontSize: 14,
+                        fontWeight: '700',
+                        color: '#FFFFFF',
+                        textShadowColor: 'rgba(0, 0, 0, 0.75)',
+                        textShadowOffset: { width: 0, height: 1 },
+                        textShadowRadius: 3,
+                        marginBottom: 6,
+                    }}
+                    numberOfLines={1}
+                >
+                    {item.ailment}
                 </Text>
+                
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                    <Feather name={statusConfig.icon as any} size={12} color="#FFFFFF" />
+                    <Text
+                        style={{
+                            fontSize: 11,
+                            fontWeight: '600',
+                            color: '#FFFFFF',
+                            marginLeft: 4,
+                            textShadowColor: 'rgba(0, 0, 0, 0.75)',
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: 3,
+                        }}
+                    >
+                        {statusText}
+                    </Text>
+                </View>
+                
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Feather name="calendar" size={11} color="#E5E7EB" />
+                    <Text 
+                        style={{ 
+                            fontSize: 10, 
+                            color: '#E5E7EB', 
+                            marginLeft: 4,
+                            textShadowColor: 'rgba(0, 0, 0, 0.75)',
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: 3,
+                        }}
+                    >
+                        {item.date}
+                    </Text>
+                </View>
             </View>
         </View>
-    </View>
     );
 };
 

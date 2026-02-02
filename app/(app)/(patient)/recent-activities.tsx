@@ -7,8 +7,7 @@ import {
   FlatList,
   RefreshControl,
   Text,
-  TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../../context/AuthContext';
@@ -263,6 +262,7 @@ export default function RecentActivities() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
+      {/* Top Bar with Back Arrow */}
       <FlatList
         data={sortedRequests}
         keyExtractor={(item) => item.request._id}
@@ -270,13 +270,7 @@ export default function RecentActivities() {
         contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
         ListHeaderComponent={
           <View className="mb-4">
-            <View className="flex-row items-center mb-4">
-              <TouchableOpacity onPress={() => router.back()}>
-                <Feather name="arrow-left" size={24} color="#1F2937" />
-              </TouchableOpacity>
-              <Text className="text-2xl font-bold ml-3">Recent Activities</Text>
-            </View>
-            <Text className="text-sm text-gray-600">
+            <Text className="text-xl font-bold text-gray-600">
               All your healthcare requests and their status
             </Text>
           </View>

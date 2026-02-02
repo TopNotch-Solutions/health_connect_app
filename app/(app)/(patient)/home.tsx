@@ -180,13 +180,18 @@ export default function PatientHomeScreen() {
   const loadAilmentCategories = useCallback(async () => {
     setIsLoadingAilments(true);
     try {
-      const socket = socketService.getSocket();
+      // Wait for socket to be connected before proceeding
+      console.log("⏳ Waiting for socket to connect...");
+      await socketService.waitForConnection(10000);
 
+      const socket = socketService.getSocket();
       if (!socket?.connected) {
-        console.warn("⚠️ Socket not connected");
+        console.warn("⚠️ Socket not connected after waiting");
         setIsLoadingAilments(false);
         return;
       }
+
+      console.log("✅ Socket is ready, fetching ailment categories");
 
       return new Promise<void>((resolve) => {
         let resolved = false;
@@ -223,6 +228,9 @@ export default function PatientHomeScreen() {
             Promise.all(prefetchPromises).then(() => {
               console.log("✅ Prefetched first 6 ailment images");
             });
+          } else {
+            // If no categories received, set empty array
+            setAilmentCategories([]);
           }
           socket?.off("ailmentCategories", handleAilmentCategories);
           setIsLoadingAilments(false);
@@ -386,16 +394,10 @@ export default function PatientHomeScreen() {
         // Connect with patient role
         socketService.connect(user.userId, "patient");
 
-        // Load ailment categories after a brief delay to ensure socket is connected
-        const timer = setTimeout(() => {
-          try {
-            loadAilmentCategories();
-          } catch (error) {
-            console.error("Error loading ailment categories:", error);
-          }
-        }, 1000);
-
-        return () => clearTimeout(timer);
+        // Load ailment categories (will wait for socket connection internally)
+        loadAilmentCategories().catch((error) => {
+          console.error("Error loading ailment categories:", error);
+        });
       } catch (error) {
         console.error("Error connecting to socket:", error);
       }

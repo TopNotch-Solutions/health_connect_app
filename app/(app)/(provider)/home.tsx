@@ -385,6 +385,19 @@ export default function ProviderHome() {
     };
   }, [isOnline]);
 
+  // Automatically set provider offline if document verification is lost
+  useEffect(() => {
+    if (user?.isDocumentVerified === false && isOnline) {
+      console.log("⚠️ Document verification lost, automatically setting provider offline");
+      setIsOnline(false);
+      Alert.alert(
+        "Account Verification Required",
+        "Your account verification status has changed. You have been automatically set to offline. Please wait for admin approval before going online again.",
+        [{ text: "OK" }],
+      );
+    }
+  }, [user?.isDocumentVerified, isOnline]);
+
   // Refresh user details and requests when screen comes into focus
   useFocusEffect(
     useCallback(() => {
@@ -801,7 +814,7 @@ export default function ProviderHome() {
                   <Feather name="users" size={16} color="#3B82F6" />
                 </View>
               </View>
-              <Text className="text-3xl font-bold text-gray-900">
+              <Text className="text-2xl font-bold text-gray-900">
                 {requests.length}
               </Text>
               <Text className="text-xs text-gray-500 mt-1">Pending</Text>
@@ -819,7 +832,7 @@ export default function ProviderHome() {
                   <Feather name="dollar-sign" size={16} color="#10B981" />
                 </View>
               </View>
-              <Text className="text-3xl font-bold text-gray-900">
+              <Text className="text-2xl font-bold text-gray-900">
                 N$ {monthlyEarnings.toFixed(2)}
               </Text>
               <Text className="text-xs text-gray-500 mt-1">This Month</Text>

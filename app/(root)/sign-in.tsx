@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  Linking,
   Text,
   TextInput,
   TouchableOpacity,
@@ -546,6 +547,17 @@ const SignInScreen = () => {
               </View>
             )}
           </TouchableOpacity>
+          <View className="flex-row justify-center items-center">
+            <Text className="text-gray-600 text-xs mt-4">
+              A digital health solution by{" "}
+              <Text
+                className="text-blue-600"
+                onPress={() => Linking.openURL("https://kopanovertex.com")}
+              >
+                Kopano-Vertex Trading cc
+              </Text>
+            </Text>
+          </View>
         </SafeAreaView>
         <StatusBar backgroundColor="#EFF6FF" style="dark" />
       </SafeAreaView>
