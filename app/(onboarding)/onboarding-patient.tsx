@@ -1,10 +1,10 @@
-import { Feather } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect } from "react";
+import { Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const OnboardingPatientScreen = () => {
   const router = useRouter();
@@ -12,12 +12,12 @@ const OnboardingPatientScreen = () => {
   useEffect(() => {
     const checkOnboarding = async () => {
       try {
-        const completed = await AsyncStorage.getItem('onboarding-completed-v1');
-        if (completed === 'true') {
-          router.replace('/(root)/sign-in');
+        const completed = await AsyncStorage.getItem("onboarding-completed-v1");
+        if (completed === "true") {
+          router.replace("/(root)/sign-in");
         }
       } catch (e) {
-        console.error('Error checking onboarding flag (patient):', e);
+        console.error("Error checking onboarding flag (patient):", e);
       }
     };
 
@@ -26,15 +26,15 @@ const OnboardingPatientScreen = () => {
 
   const completeOnboardingAndGoToSignIn = async () => {
     try {
-      await AsyncStorage.setItem('onboarding-completed-v1', 'true');
+      await AsyncStorage.setItem("onboarding-completed-v1", "true");
     } catch (e) {
-      console.error('Error saving onboarding flag (patient):', e);
+      console.error("Error saving onboarding flag (patient):", e);
     }
-    router.replace('/(root)/sign-in');
+    router.replace("/(root)/sign-in");
   };
 
   const handleNext = () => {
-    router.push('/onboarding-provider');
+    router.push("/onboarding-provider");
   };
 
   const handleSkip = () => {
@@ -44,7 +44,6 @@ const OnboardingPatientScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
       <View className="flex-1">
-        
         {/* Skip Button */}
         <View className="items-end px-6 pt-4">
           <TouchableOpacity onPress={handleSkip} className="py-2 px-4">
@@ -54,13 +53,12 @@ const OnboardingPatientScreen = () => {
 
         {/* Content */}
         <View className="flex-1 px-6 justify-center items-center">
-          
           {/* Illustration */}
           <View className="items-center mb-6">
-            <View 
+            <View
               className="w-56 h-56 bg-blue-100 rounded-full items-center justify-center mb-4"
               style={{
-                shadowColor: '#3B82F6',
+                shadowColor: "#3B82F6",
                 shadowOffset: { width: 0, height: 8 },
                 shadowOpacity: 0.2,
                 shadowRadius: 16,
@@ -68,9 +66,10 @@ const OnboardingPatientScreen = () => {
               }}
             >
               <Feather name="heart" size={90} color="#3B82F6" />
-              <View className="absolute bottom-12 right-12 w-14 h-14 bg-white rounded-full items-center justify-center"
+              <View
+                className="absolute bottom-12 right-12 w-14 h-14 bg-white rounded-full items-center justify-center"
                 style={{
-                  shadowColor: '#000',
+                  shadowColor: "#000",
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.15,
                   shadowRadius: 8,
@@ -79,9 +78,10 @@ const OnboardingPatientScreen = () => {
               >
                 <Feather name="phone" size={20} color="#10B981" />
               </View>
-              <View className="absolute top-10 left-12 w-12 h-12 bg-white rounded-full items-center justify-center"
+              <View
+                className="absolute top-10 left-12 w-12 h-12 bg-white rounded-full items-center justify-center"
                 style={{
-                  shadowColor: '#000',
+                  shadowColor: "#000",
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.15,
                   shadowRadius: 8,
@@ -99,7 +99,8 @@ const OnboardingPatientScreen = () => {
               Your Health, On Demand
             </Text>
             <Text className="text-base text-gray-600 text-center px-6 leading-6">
-              Connect with healthcare providers instantly. Book appointments, manage prescriptions, and track your wellness journey—all in one place.
+              Connect with healthcare providers instantly. Book instant
+              appointments, and track your wellness journey—all in one place.
             </Text>
           </View>
 
@@ -109,31 +110,36 @@ const OnboardingPatientScreen = () => {
               <View className="w-10 h-10 bg-green-100 rounded-full items-center justify-center mr-3">
                 <Feather name="check" size={20} color="#10B981" />
               </View>
-              <Text className="text-base text-gray-700 flex-1">24/7 Access to healthcare professionals</Text>
+              <Text className="text-base text-gray-700 flex-1">
+                24/7 Access to healthcare professionals
+              </Text>
             </View>
             <View className="flex-row items-center">
               <View className="w-10 h-10 bg-green-100 rounded-full items-center justify-center mr-3">
                 <Feather name="check" size={20} color="#10B981" />
               </View>
-              <Text className="text-base text-gray-700 flex-1">Secure digital health records</Text>
+              <Text className="text-base text-gray-700 flex-1">
+                Secure digital health plateform
+              </Text>
             </View>
             <View className="flex-row items-center">
               <View className="w-10 h-10 bg-green-100 rounded-full items-center justify-center mr-3">
                 <Feather name="check" size={20} color="#10B981" />
               </View>
-              <Text className="text-base text-gray-700 flex-1">Easy appointment scheduling</Text>
+              <Text className="text-base text-gray-700 flex-1">
+                Easy instant appointment scheduling
+              </Text>
             </View>
           </View>
-
         </View>
 
         {/* Bottom Navigation */}
         <View className="px-6 pb-6">
           {/* Next Button */}
           <TouchableOpacity
-            className="w-full py-4 rounded-2xl items-center justify-center flex-row bg-blue-600 mb-3"
+            className="w-full py-4 rounded-2xl items-center justify-center flex-row bg-green-600 mb-3"
             style={{
-              shadowColor: '#3B82F6',
+              shadowColor: "#10B981",
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.3,
               shadowRadius: 8,
@@ -142,18 +148,22 @@ const OnboardingPatientScreen = () => {
             onPress={handleNext}
             activeOpacity={0.8}
           >
-            <Text className="text-white text-center text-xl font-semibold mr-2">Next</Text>
+            <Text className="text-white text-center text-xl font-semibold mr-2">
+              Next
+            </Text>
             <Feather name="arrow-right" size={20} color="#FFFFFF" />
           </TouchableOpacity>
 
           {/* Pagination Dots */}
-          <View className="flex-row justify-center items-center" style={{ gap: 8 }}>
-            <View className="w-8 h-2 bg-blue-600 rounded-full" />
+          <View
+            className="flex-row justify-center items-center"
+            style={{ gap: 8 }}
+          >
+            <View className="w-8 h-2 bg-green-600 rounded-full" />
             <View className="w-2 h-2 bg-gray-300 rounded-full" />
             <View className="w-2 h-2 bg-gray-300 rounded-full" />
           </View>
         </View>
-
       </View>
       <StatusBar backgroundColor="#EFF6FF" style="dark" />
     </SafeAreaView>

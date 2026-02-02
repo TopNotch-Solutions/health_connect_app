@@ -1,10 +1,10 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect } from "react";
+import { Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const OnboardingSummaryScreen = () => {
   const router = useRouter();
@@ -12,12 +12,12 @@ const OnboardingSummaryScreen = () => {
   useEffect(() => {
     const checkOnboarding = async () => {
       try {
-        const completed = await AsyncStorage.getItem('onboarding-completed-v1');
-        if (completed === 'true') {
-          router.replace('/(root)/sign-in');
+        const completed = await AsyncStorage.getItem("onboarding-completed-v1");
+        if (completed === "true") {
+          router.replace("/(root)/sign-in");
         }
       } catch (e) {
-        console.error('Error checking onboarding flag (summary):', e);
+        console.error("Error checking onboarding flag (summary):", e);
       }
     };
 
@@ -26,11 +26,11 @@ const OnboardingSummaryScreen = () => {
 
   const completeOnboardingAndGoToSignIn = async () => {
     try {
-      await AsyncStorage.setItem('onboarding-completed-v1', 'true');
+      await AsyncStorage.setItem("onboarding-completed-v1", "true");
     } catch (e) {
-      console.error('Error saving onboarding flag (summary):', e);
+      console.error("Error saving onboarding flag (summary):", e);
     }
-    router.replace('/(root)/sign-in');
+    router.replace("/(root)/sign-in");
   };
 
   const handleGetStarted = () => {
@@ -58,7 +58,7 @@ const OnboardingSummaryScreen = () => {
             <View
               className="w-56 h-56 bg-indigo-100 rounded-full items-center justify-center mb-4"
               style={{
-                shadowColor: '#4F46E5',
+                shadowColor: "#4F46E5",
                 shadowOffset: { width: 0, height: 8 },
                 shadowOpacity: 0.2,
                 shadowRadius: 16,
@@ -69,7 +69,7 @@ const OnboardingSummaryScreen = () => {
               <View
                 className="absolute bottom-12 right-12 w-14 h-14 bg-white rounded-full items-center justify-center"
                 style={{
-                  shadowColor: '#000',
+                  shadowColor: "#000",
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.15,
                   shadowRadius: 8,
@@ -81,7 +81,7 @@ const OnboardingSummaryScreen = () => {
               <View
                 className="absolute top-10 left-12 w-12 h-12 bg-white rounded-full items-center justify-center"
                 style={{
-                  shadowColor: '#000',
+                  shadowColor: "#000",
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.15,
                   shadowRadius: 8,
@@ -99,7 +99,8 @@ const OnboardingSummaryScreen = () => {
               Stay Connected & In Control
             </Text>
             <Text className="text-base text-gray-600 text-center px-6 leading-6">
-              Get real-time updates, reminders, and secure access to your health journey wherever you are.
+              Get real-time updates, reminders, and secure access to your health
+              journey wherever you are.
             </Text>
           </View>
 
@@ -109,19 +110,25 @@ const OnboardingSummaryScreen = () => {
               <View className="w-10 h-10 bg-indigo-100 rounded-full items-center justify-center mr-3">
                 <Feather name="check" size={20} color="#4F46E5" />
               </View>
-              <Text className="text-base text-gray-700 flex-1">Real-time notifications and updates</Text>
+              <Text className="text-base text-gray-700 flex-1">
+                Real-time notifications and updates
+              </Text>
             </View>
             <View className="flex-row items-center">
               <View className="w-10 h-10 bg-indigo-100 rounded-full items-center justify-center mr-3">
                 <Feather name="check" size={20} color="#4F46E5" />
               </View>
-              <Text className="text-base text-gray-700 flex-1">Secure and encrypted data protection</Text>
+              <Text className="text-base text-gray-700 flex-1">
+                Secure and encrypted data protection
+              </Text>
             </View>
             <View className="flex-row items-center">
               <View className="w-10 h-10 bg-indigo-100 rounded-full items-center justify-center mr-3">
                 <Feather name="check" size={20} color="#4F46E5" />
               </View>
-              <Text className="text-base text-gray-700 flex-1">Access your health records anywhere</Text>
+              <Text className="text-base text-gray-700 flex-1">
+                Access your health records anywhere
+              </Text>
             </View>
           </View>
         </View>
@@ -130,9 +137,9 @@ const OnboardingSummaryScreen = () => {
         <View className="px-6 pb-6">
           {/* Get Started Button */}
           <TouchableOpacity
-            className="w-full py-4 rounded-2xl items-center justify-center flex-row bg-indigo-600 mb-3"
+            className="w-full py-4 rounded-2xl items-center justify-center flex-row bg-green-600 mb-3"
             style={{
-              shadowColor: '#4F46E5',
+              shadowColor: "#10B981",
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.3,
               shadowRadius: 8,
@@ -141,18 +148,22 @@ const OnboardingSummaryScreen = () => {
             onPress={handleGetStarted}
             activeOpacity={0.8}
           >
-            <Text className="text-white text-center text-xl font-semibold mr-2">Get Started</Text>
+            <Text className="text-white text-center text-xl font-semibold mr-2">
+              Get Started
+            </Text>
             <Feather name="arrow-right" size={20} color="#FFFFFF" />
           </TouchableOpacity>
 
           {/* Pagination Dots */}
-          <View className="flex-row justify-center items-center" style={{ gap: 8 }}>
+          <View
+            className="flex-row justify-center items-center"
+            style={{ gap: 8 }}
+          >
             <View className="w-2 h-2 bg-gray-300 rounded-full" />
             <View className="w-2 h-2 bg-gray-300 rounded-full" />
-            <View className="w-8 h-2 bg-indigo-600 rounded-full" />
+            <View className="w-8 h-2 bg-green-600 rounded-full" />
           </View>
         </View>
-
       </View>
       <StatusBar backgroundColor="#E0E7FF" style="dark" />
     </SafeAreaView>
@@ -160,5 +171,3 @@ const OnboardingSummaryScreen = () => {
 };
 
 export default OnboardingSummaryScreen;
-
-
