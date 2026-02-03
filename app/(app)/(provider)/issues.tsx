@@ -19,7 +19,7 @@ import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 
 // --- Type Definitions ---
-type Tab = "report" | "tickets" | "faq";
+type Tab = "report" | "tickets" | "faq" | "safety-tips";
 type IssueStatus = "Open" | "Closed" | "In Progress";
 interface Issue {
   _id: string;
@@ -51,6 +51,75 @@ const tabs: { key: Tab; label: string }[] = [
   { key: "report", label: "Report" },
   { key: "tickets", label: "My Tickets" },
   { key: "faq", label: "FAQ" },
+  { key: "safety-tips", label: "Safety Tips" },
+];
+
+// Helper function to get color scheme for safety tip icons
+const getSafetyTipColor = (icon: string) => {
+  const colorMap: { [key: string]: { bg: string; icon: string } } = {
+    users: { bg: "#DBEAFE", icon: "#3B82F6" },
+    "user-check": { bg: "#D1FAE5", icon: "#10B981" },
+    lock: { bg: "#E0E7FF", icon: "#6366F1" },
+    "alert-triangle": { bg: "#FEE2E2", icon: "#EF4444" },
+    "file-text": { bg: "#FEF3C7", icon: "#F59E0B" },
+    "credit-card": { bg: "#FCE7F3", icon: "#EC4899" },
+    shield: { bg: "#DBEAFE", icon: "#3B82F6" },
+    book: { bg: "#E0E7FF", icon: "#6366F1" },
+  };
+  return colorMap[icon] || { bg: "#D1FAE5", icon: "#10B981" };
+};
+
+// Safety Tips for Providers
+const providerSafetyTips = [
+  {
+    id: "1",
+    title: "Maintain Professional Boundaries",
+    description:
+      "Always maintain professional boundaries with patients. Avoid sharing personal contact information or communicating outside the platform for non-emergency matters.",
+    icon: "users" as const,
+  },
+  {
+    id: "2",
+    title: "Verify Patient Identity",
+    description:
+      "Verify patient identity before providing services, especially for home visits. Confirm their name, date of birth, and appointment details.",
+    icon: "user-check" as const,
+  },
+  {
+    id: "3",
+    title: "Secure Patient Information",
+    description:
+      "Protect patient confidentiality at all times. Never share patient information with unauthorized parties. Follow HIPAA and local privacy regulations.",
+    icon: "lock" as const,
+  },
+  {
+    id: "4",
+    title: "Report Safety Concerns",
+    description:
+      "If you feel unsafe during a home visit or encounter suspicious behavior, report it immediately through the Report tab. Your safety is paramount.",
+    icon: "alert-triangle" as const,
+  },
+  {
+    id: "5",
+    title: "Keep Documentation Updated",
+    description:
+      "Ensure your professional credentials, licenses, and certifications are always up to date. Expired credentials may affect your ability to provide services.",
+    icon: "file-text" as const,
+  },
+  {
+    id: "6",
+    title: "Maintain Professional Insurance",
+    description:
+      "Keep your professional liability insurance current and valid. This protects both you and your patients in case of unforeseen circumstances.",
+    icon: "shield" as const,
+  },
+  {
+    id: "7",
+    title: "Follow Clinical Guidelines",
+    description:
+      "Always follow evidence-based clinical guidelines and best practices. Stay updated with continuing education and professional development requirements.",
+    icon: "book" as const,
+  },
 ];
 
 const pickerStyle = {
@@ -104,14 +173,14 @@ export default function IssuesScreen() {
     issueTitle: "",
     issueDescription: "",
   });
-  
+
   // Pagination state for tickets
   const [ticketsCurrentPage, setTicketsCurrentPage] = useState(1);
   const [ticketsTotalPages, setTicketsTotalPages] = useState(1);
   const [ticketsHasMore, setTicketsHasMore] = useState(true);
   const [ticketsIsLoadingMore, setTicketsIsLoadingMore] = useState(false);
   const [ticketsIsRefreshing, setTicketsIsRefreshing] = useState(false);
-  
+
   // Pagination state for FAQs
   const [faqsCurrentPage, setFaqsCurrentPage] = useState(1);
   const [faqsTotalPages, setFaqsTotalPages] = useState(1);
@@ -186,56 +255,59 @@ export default function IssuesScreen() {
     }
   };
 
-  const fetchMyTickets = useCallback(async (isRefresh = false, page = 1) => {
-    if (!user?.userId) {
-      setMyTickets([]);
-      setIsLoading(false);
-      setTicketsIsRefreshing(false);
-      return;
-    }
-    
-    if (isRefresh) {
-      setTicketsIsRefreshing(true);
-      setTicketsCurrentPage(1);
-    } else if (page === 1) {
-      setIsLoading(true);
-    } else {
-      setTicketsIsLoadingMore(true);
-    }
-    
-    try {
-      const GET_ISSUES_ENDPOINT = `/app/issue/all-issues?page=${page}&limit=10`;
-      const response = await apiClient.get(GET_ISSUES_ENDPOINT);
-      const newTickets = response.data.data || [];
-      const pagination = response.data.pagination || {};
-      
-      if (isRefresh || page === 1) {
-        setMyTickets(newTickets);
-      } else {
-        setMyTickets(prev => [...prev, ...newTickets]);
-      }
-      
-      const hasNext = pagination.hasNextPage === true;
-      const currentPageNum = pagination.currentPage || page;
-      const totalPagesNum = pagination.totalPages || 1;
-      setTicketsHasMore(hasNext);
-      setTicketsCurrentPage(currentPageNum);
-      setTicketsTotalPages(totalPagesNum);
-      
-      if (newTickets.length === 0 && page > 1) {
-        setTicketsHasMore(false);
-      }
-    } catch (error: any) {
-      Alert.alert("Error", "Could not fetch your tickets.");
-      if (page === 1) {
+  const fetchMyTickets = useCallback(
+    async (isRefresh = false, page = 1) => {
+      if (!user?.userId) {
         setMyTickets([]);
+        setIsLoading(false);
+        setTicketsIsRefreshing(false);
+        return;
       }
-    } finally {
-      setIsLoading(false);
-      setTicketsIsRefreshing(false);
-      setTicketsIsLoadingMore(false);
-    }
-  }, [user?.userId]);
+
+      if (isRefresh) {
+        setTicketsIsRefreshing(true);
+        setTicketsCurrentPage(1);
+      } else if (page === 1) {
+        setIsLoading(true);
+      } else {
+        setTicketsIsLoadingMore(true);
+      }
+
+      try {
+        const GET_ISSUES_ENDPOINT = `/app/issue/all-issues?page=${page}&limit=10`;
+        const response = await apiClient.get(GET_ISSUES_ENDPOINT);
+        const newTickets = response.data.data || [];
+        const pagination = response.data.pagination || {};
+
+        if (isRefresh || page === 1) {
+          setMyTickets(newTickets);
+        } else {
+          setMyTickets((prev) => [...prev, ...newTickets]);
+        }
+
+        const hasNext = pagination.hasNextPage === true;
+        const currentPageNum = pagination.currentPage || page;
+        const totalPagesNum = pagination.totalPages || 1;
+        setTicketsHasMore(hasNext);
+        setTicketsCurrentPage(currentPageNum);
+        setTicketsTotalPages(totalPagesNum);
+
+        if (newTickets.length === 0 && page > 1) {
+          setTicketsHasMore(false);
+        }
+      } catch (error: any) {
+        Alert.alert("Error", "Could not fetch your tickets.");
+        if (page === 1) {
+          setMyTickets([]);
+        }
+      } finally {
+        setIsLoading(false);
+        setTicketsIsRefreshing(false);
+        setTicketsIsLoadingMore(false);
+      }
+    },
+    [user?.userId],
+  );
 
   const fetchFaqs = useCallback(async (isRefresh = false, page = 1) => {
     if (isRefresh) {
@@ -246,25 +318,27 @@ export default function IssuesScreen() {
     } else {
       setFaqsIsLoadingMore(true);
     }
-    
+
     try {
-      const response = await apiClient.get(`/app/faq/all-faq?page=${page}&limit=10`);
+      const response = await apiClient.get(
+        `/app/faq/all-faq?page=${page}&limit=10`,
+      );
       const newFaqs = response.data.data || [];
       const pagination = response.data.pagination || {};
-      
+
       if (isRefresh || page === 1) {
         setFaqs(newFaqs);
       } else {
-        setFaqs(prev => [...prev, ...newFaqs]);
+        setFaqs((prev) => [...prev, ...newFaqs]);
       }
-      
+
       const hasNext = pagination.hasNextPage === true;
       const currentPageNum = pagination.currentPage || page;
       const totalPagesNum = pagination.totalPages || 1;
       setFaqsHasMore(hasNext);
       setFaqsCurrentPage(currentPageNum);
       setFaqsTotalPages(totalPagesNum);
-      
+
       if (newFaqs.length === 0 && page > 1) {
         setFaqsHasMore(false);
       }
@@ -286,7 +360,12 @@ export default function IssuesScreen() {
       const nextPage = ticketsCurrentPage + 1;
       fetchMyTickets(false, nextPage);
     }
-  }, [ticketsIsLoadingMore, ticketsHasMore, ticketsCurrentPage, fetchMyTickets]);
+  }, [
+    ticketsIsLoadingMore,
+    ticketsHasMore,
+    ticketsCurrentPage,
+    fetchMyTickets,
+  ]);
 
   const loadMoreFaqs = useCallback(() => {
     if (!faqsIsLoadingMore && faqsHasMore) {
@@ -534,7 +613,10 @@ export default function IssuesScreen() {
                       style={{ marginRight: 4 }}
                     />
                     <Text
-                      style={[styles.statusText, { color: statusConfig.textColor }]}
+                      style={[
+                        styles.statusText,
+                        { color: statusConfig.textColor },
+                      ]}
                     >
                       {item.status || "Open"}
                     </Text>
@@ -590,12 +672,23 @@ export default function IssuesScreen() {
                   >
                     {ticketsIsLoadingMore ? (
                       <>
-                        <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-                        <Text style={styles.loadMoreButtonText}>Loading...</Text>
+                        <ActivityIndicator
+                          size="small"
+                          color="#FFFFFF"
+                          style={{ marginRight: 8 }}
+                        />
+                        <Text style={styles.loadMoreButtonText}>
+                          Loading...
+                        </Text>
                       </>
                     ) : (
                       <>
-                        <Feather name="chevron-down" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Feather
+                          name="chevron-down"
+                          size={20}
+                          color="#FFFFFF"
+                          style={{ marginRight: 6 }}
+                        />
                         <Text style={styles.loadMoreButtonText}>Load More</Text>
                       </>
                     )}
@@ -603,7 +696,12 @@ export default function IssuesScreen() {
                 )}
                 {!ticketsHasMore && ticketsTotalPages > 1 && (
                   <View style={styles.allLoadedContainer}>
-                    <Feather name="check-circle" size={16} color="#9CA3AF" style={{ marginRight: 6 }} />
+                    <Feather
+                      name="check-circle"
+                      size={16}
+                      color="#9CA3AF"
+                      style={{ marginRight: 6 }}
+                    />
                     <Text style={styles.allLoadedText}>All tickets loaded</Text>
                   </View>
                 )}
@@ -660,7 +758,9 @@ export default function IssuesScreen() {
             <View style={styles.emptyContainer}>
               <Feather name="help-circle" size={64} color="#CBD5E1" />
               <Text style={styles.emptyText}>No FAQs available.</Text>
-              <Text style={styles.emptySubtext}>Check back later for updates.</Text>
+              <Text style={styles.emptySubtext}>
+                Check back later for updates.
+              </Text>
             </View>
           }
           ListFooterComponent={
@@ -687,12 +787,23 @@ export default function IssuesScreen() {
                   >
                     {faqsIsLoadingMore ? (
                       <>
-                        <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-                        <Text style={styles.loadMoreButtonText}>Loading...</Text>
+                        <ActivityIndicator
+                          size="small"
+                          color="#FFFFFF"
+                          style={{ marginRight: 8 }}
+                        />
+                        <Text style={styles.loadMoreButtonText}>
+                          Loading...
+                        </Text>
                       </>
                     ) : (
                       <>
-                        <Feather name="chevron-down" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Feather
+                          name="chevron-down"
+                          size={20}
+                          color="#FFFFFF"
+                          style={{ marginRight: 6 }}
+                        />
                         <Text style={styles.loadMoreButtonText}>Load More</Text>
                       </>
                     )}
@@ -700,7 +811,12 @@ export default function IssuesScreen() {
                 )}
                 {!faqsHasMore && faqsTotalPages > 1 && (
                   <View style={styles.allLoadedContainer}>
-                    <Feather name="check-circle" size={16} color="#9CA3AF" style={{ marginRight: 6 }} />
+                    <Feather
+                      name="check-circle"
+                      size={16}
+                      color="#9CA3AF"
+                      style={{ marginRight: 6 }}
+                    />
                     <Text style={styles.allLoadedText}>All FAQs loaded</Text>
                   </View>
                 )}
@@ -718,6 +834,28 @@ export default function IssuesScreen() {
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}
         >
           {renderScrollViewContent()}
+        </ScrollView>
+      )}
+
+      {activeTab === "safety-tips" && (
+        <ScrollView
+          contentContainerStyle={{
+            paddingHorizontal: 24,
+            paddingTop: 16,
+            paddingBottom: 24,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          {providerSafetyTips.map((item) => (
+            <View key={item.id} style={styles.safetyTipCard}>
+              <View style={styles.safetyTipTextWrapper}>
+                <Text style={styles.safetyTipTitle}>{item.title}</Text>
+                <Text style={styles.safetyTipDescription}>
+                  {item.description}
+                </Text>
+              </View>
+            </View>
+          ))}
         </ScrollView>
       )}
       {/* ------------------------------------------- */}
@@ -1047,5 +1185,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#9CA3AF",
     fontWeight: "500",
+  },
+  safetyTipCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginBottom: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  safetyTipTextWrapper: {
+    flex: 1,
+  },
+  safetyTipTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 6,
+    lineHeight: 22,
+  },
+  safetyTipDescription: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
   },
 });

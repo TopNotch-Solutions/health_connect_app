@@ -154,7 +154,9 @@ const UploadBox = ({
               className="text-secondary font-semibold mt-2 text-center"
               numberOfLines={2}
             >
-              {(file as any)?.name || (file as any)?.fileName || "Selected file"}
+              {(file as any)?.name ||
+                (file as any)?.fileName ||
+                "Selected file"}
             </Text>
           </View>
         )}
@@ -189,9 +191,11 @@ const ReviewRow = ({
 const DocRow = ({
   label,
   file,
+  showOpen = false,
 }: {
   label: string;
   file?: PickedImage | DocFile | null;
+  showOpen?: boolean;
 }) => {
   const image = isImageAsset(file);
   return (
@@ -231,10 +235,12 @@ const DocRow = ({
       </View>
 
       {/* Right: action */}
-      {file ? (
+      {showOpen && file ? (
         <TouchableOpacity onPress={() => openFile(file)}>
           <Text className="text-primary font-semibold">Open</Text>
         </TouchableOpacity>
+      ) : file ? (
+        <Feather name="check-circle" size={20} color="#28A745" />
       ) : (
         <Text className="text-gray-400 text-xs">—</Text>
       )}
@@ -438,7 +444,8 @@ export default function ProviderRegistrationScreen() {
   const pickDocument = async (field: keyof typeof documents) => {
     // For ID documents, use ImagePicker instead of DocumentPicker
     if (field === "idDocumentFront" || field === "idDocumentBack") {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
         return Alert.alert(
           "Permission Denied",
@@ -568,7 +575,8 @@ export default function ProviderRegistrationScreen() {
         if (newErrors.password) accountErrors.password = newErrors.password;
         if (newErrors.confirmPassword)
           accountErrors.confirmPassword = newErrors.confirmPassword;
-        if (newErrors.nationalId) accountErrors.nationalId = newErrors.nationalId;
+        if (newErrors.nationalId)
+          accountErrors.nationalId = newErrors.nationalId;
         if (newErrors.gender) accountErrors.gender = newErrors.gender;
         if (newErrors.terms) accountErrors.terms = newErrors.terms;
 
@@ -949,7 +957,12 @@ export default function ProviderRegistrationScreen() {
 
             {/* Step 1: Account Information */}
             {step === 1 && (
-              <View>
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 150 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
                 <Text className="text-2xl font-bold text-text-main mb-6">
                   Account Information
                 </Text>
@@ -995,7 +1008,9 @@ export default function ProviderRegistrationScreen() {
                   }}
                   placeholder="Enter your full name"
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
-                    accountErrors.fullname ? "border-red-400" : "border-gray-300"
+                    accountErrors.fullname
+                      ? "border-red-400"
+                      : "border-gray-300"
                   }`}
                 />
                 {accountErrors.fullname && (
@@ -1128,7 +1143,10 @@ export default function ProviderRegistrationScreen() {
                   onChangeText={(t) => {
                     const numericOnly = t.replace(/[^0-9]/g, "");
                     if (numericOnly.length <= 11) {
-                      setAccountInfo((p) => ({ ...p, nationalId: numericOnly }));
+                      setAccountInfo((p) => ({
+                        ...p,
+                        nationalId: numericOnly,
+                      }));
                     }
                     if (accountErrors.nationalId) {
                       setAccountErrors((prev) => {
@@ -1298,12 +1316,17 @@ export default function ProviderRegistrationScreen() {
                   </Text>
                 )}
                 {!accountErrors.terms && <View className="mb-3" />}
-              </View>
+              </ScrollView>
             )}
 
             {/* Step 2: Documents & Qualifications */}
             {step === 2 && (
-              <View>
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 150 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
                 <Text className="text-2xl font-bold text-text-main mb-6">
                   Documents & Qualifications
                 </Text>
@@ -1369,12 +1392,17 @@ export default function ProviderRegistrationScreen() {
                     />
                   </>
                 )}
-              </View>
+              </ScrollView>
             )}
 
             {/* Step 3: Professional Details */}
             {step === 3 && (
-              <View>
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 150 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
                 <Text className="text-2xl font-bold text-text-main mb-6">
                   Professional Details
                 </Text>
@@ -1637,7 +1665,7 @@ export default function ProviderRegistrationScreen() {
                   </Text>
                 )}
                 {!profErrors.bio && <View className="mb-3" />}
-              </View>
+              </ScrollView>
             )}
 
             {/* Step 4: Review & Submit */}
@@ -1725,21 +1753,36 @@ export default function ProviderRegistrationScreen() {
                   <Text className="text-lg font-semibold text-text-main mb-2">
                     Uploaded Files
                   </Text>
-                  <DocRow label="Profile Photo" file={documents.profileImage} />
-                  <DocRow label="ID (Front)" file={documents.idDocumentFront} />
-                  <DocRow label="ID (Back)" file={documents.idDocumentBack} />
+                  <DocRow
+                    label="Profile Photo"
+                    file={documents.profileImage}
+                    showOpen={false}
+                  />
+                  <DocRow
+                    label="ID (Front)"
+                    file={documents.idDocumentFront}
+                    showOpen={false}
+                  />
+                  <DocRow
+                    label="ID (Back)"
+                    file={documents.idDocumentBack}
+                    showOpen={false}
+                  />
                   <DocRow
                     label="Final Qualification"
                     file={documents.finalQualification}
+                    showOpen={false}
                   />
                   <DocRow
                     label="HPCNA Practicing Certificate"
                     file={documents.HPCNAQualification}
+                    showOpen={false}
                   />
                   {params?.providerType === "nurse" && (
                     <DocRow
                       label="Dispensing Certification Licence"
                       file={documents.dispensingCertificateLicence}
+                      showOpen={false}
                     />
                   )}
                 </View>
