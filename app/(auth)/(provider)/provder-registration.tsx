@@ -123,32 +123,44 @@ const UploadBox = ({
   onPick,
   icon,
   error,
+  isImage = false,
 }: {
   label: string;
   file: PickedImage | DocFile;
   onPick: () => void;
   icon: React.ComponentProps<typeof Feather>["name"];
   error?: string;
+  isImage?: boolean;
 }) => (
   <TouchableOpacity
     onPress={onPick}
     activeOpacity={0.85}
-    className={`bg-gray-100 border rounded-xl items-center justify-center h-32 flex-1 ${
+    className={`bg-gray-100 border rounded-xl items-center justify-center h-32 flex-1 overflow-hidden ${
       error ? "border-red-400" : "border-gray-200"
     }`}
   >
     {file ? (
-      <View className="items-center justify-center p-2">
-        <Feather name="check-circle" size={32} color="#28A745" />
-        <Text
-          className="text-secondary font-semibold mt-2 text-center"
-          numberOfLines={2}
-        >
-          {(file as any)?.name || (file as any)?.fileName || "Selected file"}
-        </Text>
-      </View>
+      <>
+        {isImage && (file as PickedImage)?.uri ? (
+          <Image
+            source={{ uri: (file as PickedImage)!.uri }}
+            className="w-full h-full"
+            resizeMode="cover"
+          />
+        ) : (
+          <View className="items-center justify-center p-2 w-full h-full">
+            <Feather name="check-circle" size={32} color="#28A745" />
+            <Text
+              className="text-secondary font-semibold mt-2 text-center"
+              numberOfLines={2}
+            >
+              {(file as any)?.name || (file as any)?.fileName || "Selected file"}
+            </Text>
+          </View>
+        )}
+      </>
     ) : (
-      <View className="items-center justify-center">
+      <View className="items-center justify-center w-full h-full">
         <Feather name={icon} size={32} color="#6C757D" />
         <Text className="text-text-main font-semibold mt-2 text-center">
           {label}
@@ -287,6 +299,18 @@ export default function ProviderRegistrationScreen() {
     profileImage?: string;
     finalQualification?: string;
     HPCNAQualification?: string;
+    idDocumentFront?: string;
+    idDocumentBack?: string;
+  }>({});
+
+  const [accountErrors, setAccountErrors] = useState<{
+    fullname?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+    nationalId?: string;
+    gender?: string;
+    terms?: string;
   }>({});
 
   const [profErrors, setProfErrors] = useState<{
@@ -386,21 +410,90 @@ export default function ProviderRegistrationScreen() {
 
   // --- Picker Handlers ---
   const pickImage = async (field: keyof typeof documents) => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      return Alert.alert(
+        "Permission Denied",
+        "We need camera roll permissions to select an image.",
+      );
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 1,
     });
-    if (!result.canceled)
+    if (!result.canceled) {
       setDocuments((prev) => ({ ...prev, [field]: result.assets[0] }));
+      // Clear error for this field when image is selected
+      if (field === "profileImage" && docErrors.profileImage) {
+        setDocErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors.profileImage;
+          return newErrors;
+        });
+      }
+    }
   };
 
   const pickDocument = async (field: keyof typeof documents) => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["image/*", "application/pdf"],
-    });
-    if (!result.canceled && result.assets && result.assets.length)
-      setDocuments((prev) => ({ ...prev, [field]: result.assets[0] as any }));
+    // For ID documents, use ImagePicker instead of DocumentPicker
+    if (field === "idDocumentFront" || field === "idDocumentBack") {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        return Alert.alert(
+          "Permission Denied",
+          "We need camera roll permissions to select an image.",
+        );
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      if (!result.canceled) {
+        setDocuments((prev) => ({ ...prev, [field]: result.assets[0] as any }));
+        // Clear error for this field when document is selected
+        if (field === "idDocumentFront" && docErrors.idDocumentFront) {
+          setDocErrors((prev) => {
+            const newErrors = { ...prev };
+            delete newErrors.idDocumentFront;
+            return newErrors;
+          });
+        }
+        if (field === "idDocumentBack" && docErrors.idDocumentBack) {
+          setDocErrors((prev) => {
+            const newErrors = { ...prev };
+            delete newErrors.idDocumentBack;
+            return newErrors;
+          });
+        }
+      }
+    } else {
+      // For final qualification, HPCNA qualification, and dispensing license, use DocumentPicker with PDF only
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/pdf",
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets && result.assets.length) {
+        setDocuments((prev) => ({ ...prev, [field]: result.assets[0] as any }));
+        // Clear error for this field when document is selected
+        if (field === "finalQualification" && docErrors.finalQualification) {
+          setDocErrors((prev) => {
+            const newErrors = { ...prev };
+            delete newErrors.finalQualification;
+            return newErrors;
+          });
+        }
+        if (field === "HPCNAQualification" && docErrors.HPCNAQualification) {
+          setDocErrors((prev) => {
+            const newErrors = { ...prev };
+            delete newErrors.HPCNAQualification;
+            return newErrors;
+          });
+        }
+      }
+    }
   };
 
   // --- date change ---
@@ -422,31 +515,78 @@ export default function ProviderRegistrationScreen() {
           : [...prev.specializations, specTitle],
       };
     });
+    // Clear error when user selects a specialization
+    if (profErrors.specializations) {
+      setProfErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.specializations;
+        return newErrors;
+      });
+    }
   };
 
   // --- Navigation Logic ---
   const handleNext = () => {
-    // Step 1: basic account info + strong password rules
+    // Step 1: basic account info + strong password rules + ID documents
     if (step === 1) {
-      if (!accountInfo.password || !accountInfo.confirmPassword) {
-        Alert.alert(
-          "Missing password",
-          "Please enter and confirm your password.",
-        );
-        return;
-      }
+      const newErrors: {
+        [key: string]: string;
+      } = {};
 
-      const check = validatePassword(accountInfo.password);
-      if (!check.valid) {
-        Alert.alert("Weak password", check.message);
-        return;
+      if (!accountInfo.fullname) newErrors.fullname = "Full name is required";
+      if (!accountInfo.email) newErrors.email = "Email is required";
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accountInfo.email))
+        newErrors.email = "Please enter a valid email address";
+      if (!accountInfo.password) newErrors.password = "Password is required";
+      else {
+        const check = validatePassword(accountInfo.password);
+        if (!check.valid) newErrors.password = check.message;
       }
+      if (!accountInfo.confirmPassword)
+        newErrors.confirmPassword = "Please confirm your password";
+      else if (accountInfo.password !== accountInfo.confirmPassword)
+        newErrors.confirmPassword = "Passwords do not match";
+      if (!accountInfo.nationalId.trim())
+        newErrors.nationalId = "National ID is required";
+      else if (!/^\d{11}$/.test(accountInfo.nationalId))
+        newErrors.nationalId =
+          "National ID must be exactly 11 numeric characters";
+      if (!accountInfo.gender) newErrors.gender = "Please select your gender";
+      if (!documents.idDocumentFront)
+        newErrors.idDocumentFront = "Please upload the front of your ID";
+      if (!documents.idDocumentBack)
+        newErrors.idDocumentBack = "Please upload the back of your ID";
+      if (!accountInfo.agreeToTerms)
+        newErrors.terms =
+          "You must read and accept the Terms and Conditions to continue";
 
-      if (accountInfo.password !== accountInfo.confirmPassword) {
-        Alert.alert(
-          "Password mismatch",
-          "Password and Confirm Password do not match.",
-        );
+      if (Object.keys(newErrors).length > 0) {
+        // Set account errors
+        const accountErrors: { [key: string]: string } = {};
+        if (newErrors.fullname) accountErrors.fullname = newErrors.fullname;
+        if (newErrors.email) accountErrors.email = newErrors.email;
+        if (newErrors.password) accountErrors.password = newErrors.password;
+        if (newErrors.confirmPassword)
+          accountErrors.confirmPassword = newErrors.confirmPassword;
+        if (newErrors.nationalId) accountErrors.nationalId = newErrors.nationalId;
+        if (newErrors.gender) accountErrors.gender = newErrors.gender;
+        if (newErrors.terms) accountErrors.terms = newErrors.terms;
+
+        // Set document errors
+        const newDocErrors: {
+          profileImage?: string;
+          finalQualification?: string;
+          HPCNAQualification?: string;
+          idDocumentFront?: string;
+          idDocumentBack?: string;
+        } = {};
+        if (newErrors.idDocumentFront)
+          newDocErrors.idDocumentFront = newErrors.idDocumentFront;
+        if (newErrors.idDocumentBack)
+          newDocErrors.idDocumentBack = newErrors.idDocumentBack;
+
+        setDocErrors(newDocErrors);
+        setAccountErrors(accountErrors);
         return;
       }
     }
@@ -521,7 +661,12 @@ export default function ProviderRegistrationScreen() {
 
     setStep((prev) => Math.min(prev + 1, 4) as Step);
   };
-  const handleBack = () => setStep((prev) => Math.max(prev - 1, 1) as Step);
+  const handleBack = () => {
+    setAccountErrors({});
+    setDocErrors({});
+    setProfErrors({});
+    setStep((prev) => Math.max(prev - 1, 1) as Step);
+  };
 
   // --- helpers for submission ---
   const normalizeCell = (raw: string) => {
@@ -838,26 +983,56 @@ export default function ProviderRegistrationScreen() {
                 </Text>
                 <TextInput
                   value={accountInfo.fullname}
-                  onChangeText={(t) =>
-                    setAccountInfo((p) => ({ ...p, fullname: t }))
-                  }
+                  onChangeText={(t) => {
+                    setAccountInfo((p) => ({ ...p, fullname: t }));
+                    if (accountErrors.fullname) {
+                      setAccountErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors.fullname;
+                        return newErrors;
+                      });
+                    }
+                  }}
                   placeholder="Enter your full name"
-                  className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-300"
+                  className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                    accountErrors.fullname ? "border-red-400" : "border-gray-300"
+                  }`}
                 />
+                {accountErrors.fullname && (
+                  <Text className="text-red-500 text-sm mb-3">
+                    {accountErrors.fullname}
+                  </Text>
+                )}
+                {!accountErrors.fullname && <View className="mb-3" />}
 
                 <Text className="text-base text-text-main mb-2 font-semibold">
                   Email
                 </Text>
                 <TextInput
                   value={accountInfo.email}
-                  onChangeText={(t) =>
-                    setAccountInfo((p) => ({ ...p, email: t }))
-                  }
+                  onChangeText={(t) => {
+                    setAccountInfo((p) => ({ ...p, email: t }));
+                    if (accountErrors.email) {
+                      setAccountErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors.email;
+                        return newErrors;
+                      });
+                    }
+                  }}
                   placeholder="youremail@example.com"
-                  className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-300"
+                  className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                    accountErrors.email ? "border-red-400" : "border-gray-300"
+                  }`}
                   autoCapitalize="none"
                   keyboardType="email-address"
                 />
+                {accountErrors.email && (
+                  <Text className="text-red-500 text-sm mb-3">
+                    {accountErrors.email}
+                  </Text>
+                )}
+                {!accountErrors.email && <View className="mb-3" />}
 
                 <Text className="text-base text-text-main mb-2 font-semibold">
                   Password
@@ -865,11 +1040,22 @@ export default function ProviderRegistrationScreen() {
                 <View className="relative">
                   <TextInput
                     value={accountInfo.password}
-                    onChangeText={(t) =>
-                      setAccountInfo((p) => ({ ...p, password: t }))
-                    }
+                    onChangeText={(t) => {
+                      setAccountInfo((p) => ({ ...p, password: t }));
+                      if (accountErrors.password) {
+                        setAccountErrors((prev) => {
+                          const newErrors = { ...prev };
+                          delete newErrors.password;
+                          return newErrors;
+                        });
+                      }
+                    }}
                     placeholder="Create a strong password"
-                    className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-300 pr-12"
+                    className={`bg-white p-4 rounded-xl mb-1 border-2 pr-12 ${
+                      accountErrors.password
+                        ? "border-red-400"
+                        : "border-gray-300"
+                    }`}
                     secureTextEntry={!showPassword}
                   />
                   <TouchableOpacity
@@ -884,6 +1070,12 @@ export default function ProviderRegistrationScreen() {
                     />
                   </TouchableOpacity>
                 </View>
+                {accountErrors.password && (
+                  <Text className="text-red-500 text-sm mb-3">
+                    {accountErrors.password}
+                  </Text>
+                )}
+                {!accountErrors.password && <View className="mb-3" />}
 
                 <Text className="text-base text-text-main mb-2 font-semibold">
                   Confirm Password
@@ -891,11 +1083,22 @@ export default function ProviderRegistrationScreen() {
                 <View className="relative">
                   <TextInput
                     value={accountInfo.confirmPassword}
-                    onChangeText={(t) =>
-                      setAccountInfo((p) => ({ ...p, confirmPassword: t }))
-                    }
+                    onChangeText={(t) => {
+                      setAccountInfo((p) => ({ ...p, confirmPassword: t }));
+                      if (accountErrors.confirmPassword) {
+                        setAccountErrors((prev) => {
+                          const newErrors = { ...prev };
+                          delete newErrors.confirmPassword;
+                          return newErrors;
+                        });
+                      }
+                    }}
                     placeholder="Confirm your password"
-                    className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-300 pr-12"
+                    className={`bg-white p-4 rounded-xl mb-1 border-2 pr-12 ${
+                      accountErrors.confirmPassword
+                        ? "border-red-400"
+                        : "border-gray-300"
+                    }`}
                     secureTextEntry={!showConfirmPassword}
                   />
                   <TouchableOpacity
@@ -910,37 +1113,74 @@ export default function ProviderRegistrationScreen() {
                     />
                   </TouchableOpacity>
                 </View>
+                {accountErrors.confirmPassword && (
+                  <Text className="text-red-500 text-sm mb-3">
+                    {accountErrors.confirmPassword}
+                  </Text>
+                )}
+                {!accountErrors.confirmPassword && <View className="mb-3" />}
 
                 <Text className="text-base text-text-main mb-2 font-semibold">
                   National ID Number
                 </Text>
                 <TextInput
                   value={accountInfo.nationalId}
-                  onChangeText={(t) =>
-                    setAccountInfo((p) => ({ ...p, nationalId: t }))
-                  }
+                  onChangeText={(t) => {
+                    const numericOnly = t.replace(/[^0-9]/g, "");
+                    if (numericOnly.length <= 11) {
+                      setAccountInfo((p) => ({ ...p, nationalId: numericOnly }));
+                    }
+                    if (accountErrors.nationalId) {
+                      setAccountErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors.nationalId;
+                        return newErrors;
+                      });
+                    }
+                  }}
                   placeholder="Enter your 11-digit National ID"
-                  className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-300"
+                  className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                    accountErrors.nationalId
+                      ? "border-red-400"
+                      : "border-gray-300"
+                  }`}
+                  keyboardType="numeric"
+                  maxLength={11}
                 />
+                {accountErrors.nationalId && (
+                  <Text className="text-red-500 text-sm mb-3">
+                    {accountErrors.nationalId}
+                  </Text>
+                )}
+                {!accountErrors.nationalId && <View className="mb-3" />}
 
                 <Text className="text-base text-text-main mb-2 font-semibold">
                   Gender
                 </Text>
-                <View className="mb-4" style={{ gap: 12 }}>
+                <View className="mb-1" style={{ gap: 12 }}>
                   {["Male", "Female"].map((g) => (
                     <TouchableOpacity
                       key={g}
                       className={`p-4 rounded-xl border-2 ${
                         accountInfo.gender === g
                           ? "bg-blue-600 border-blue-600"
-                          : "bg-white border-gray-200"
+                          : accountErrors.gender
+                            ? "bg-white border-red-400"
+                            : "bg-white border-gray-200"
                       }`}
-                      onPress={() =>
+                      onPress={() => {
                         setAccountInfo((p) => ({
                           ...p,
                           gender: g,
-                        }))
-                      }
+                        }));
+                        if (accountErrors.gender) {
+                          setAccountErrors((prev) => {
+                            const newErrors = { ...prev };
+                            delete newErrors.gender;
+                            return newErrors;
+                          });
+                        }
+                      }}
                       activeOpacity={0.85}
                     >
                       <Text
@@ -955,21 +1195,52 @@ export default function ProviderRegistrationScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+                {accountErrors.gender && (
+                  <Text className="text-red-500 text-sm mb-3">
+                    {accountErrors.gender}
+                  </Text>
+                )}
+                {!accountErrors.gender && <View className="mb-3" />}
 
-                <View className="flex-row" style={{ gap: 16 }}>
-                  <UploadBox
-                    label="Upload Identification (front)"
-                    file={documents.idDocumentFront}
-                    onPick={() => pickDocument("idDocumentFront")}
-                    icon="file-text"
-                  />
-                  <UploadBox
-                    label="Upload Identification (back)"
-                    file={documents.idDocumentBack}
-                    onPick={() => pickDocument("idDocumentBack")}
-                    icon="file-text"
-                  />
+                <Text className="text-base text-text-main mb-2 font-semibold">
+                  National ID Documents
+                </Text>
+                <View className="flex-row mb-1" style={{ gap: 16 }}>
+                  <View className="flex-1">
+                    <UploadBox
+                      label="Upload ID (Front)"
+                      file={documents.idDocumentFront}
+                      onPick={() => pickDocument("idDocumentFront")}
+                      icon="camera"
+                      error={docErrors.idDocumentFront}
+                      isImage={true}
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <UploadBox
+                      label="Upload ID (Back)"
+                      file={documents.idDocumentBack}
+                      onPick={() => pickDocument("idDocumentBack")}
+                      icon="camera"
+                      error={docErrors.idDocumentBack}
+                      isImage={true}
+                    />
+                  </View>
                 </View>
+                {docErrors.idDocumentFront && (
+                  <Text className="text-red-500 text-sm mb-1">
+                    {docErrors.idDocumentFront}
+                  </Text>
+                )}
+                {docErrors.idDocumentBack && (
+                  <Text className="text-red-500 text-sm mb-1">
+                    {docErrors.idDocumentBack}
+                  </Text>
+                )}
+                <Text className="text-xs text-gray-500 mb-4">
+                  Upload clear photos of the front and back of your ID (JPG or
+                  PNG)
+                </Text>
 
                 {/* Terms and Conditions Checkbox */}
                 <TouchableOpacity
@@ -979,8 +1250,17 @@ export default function ProviderRegistrationScreen() {
                     } else {
                       setShowTermsModal(true);
                     }
+                    if (accountErrors.terms) {
+                      setAccountErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors.terms;
+                        return newErrors;
+                      });
+                    }
                   }}
-                  className="flex-row items-start p-4 bg-gray-50 rounded-xl border-2 border-gray-200 mb-6 mt-4"
+                  className={`flex-row items-start p-4 bg-gray-50 rounded-xl border-2 mb-1 mt-4 ${
+                    accountErrors.terms ? "border-red-400" : "border-gray-200"
+                  }`}
                   activeOpacity={0.7}
                 >
                   <View
@@ -1012,6 +1292,12 @@ export default function ProviderRegistrationScreen() {
                     </Text>
                   </View>
                 </TouchableOpacity>
+                {accountErrors.terms && (
+                  <Text className="text-red-500 text-sm mt-2 mb-3">
+                    {accountErrors.terms}
+                  </Text>
+                )}
+                {!accountErrors.terms && <View className="mb-3" />}
               </View>
             )}
 
@@ -1022,22 +1308,24 @@ export default function ProviderRegistrationScreen() {
                   Documents & Qualifications
                 </Text>
 
-                <View className="mb-2">
+                <View className="mb-1">
                   <UploadBox
                     label="Upload Photo"
                     file={documents.profileImage}
                     onPick={() => pickImage("profileImage")}
                     icon="camera"
                     error={docErrors.profileImage}
+                    isImage={true}
                   />
-                  {docErrors.profileImage ? (
-                    <Text className="mt-1 text-xs text-red-500">
+                  {docErrors.profileImage && (
+                    <Text className="text-red-500 text-sm mb-3">
                       {docErrors.profileImage}
                     </Text>
-                  ) : null}
+                  )}
+                  {!docErrors.profileImage && <View className="mb-3" />}
                 </View>
 
-                <View className="mb-2">
+                <View className="mb-1">
                   <UploadBox
                     label="Upload Final Qualification (e.g. Degree/Diploma)"
                     file={documents.finalQualification}
@@ -1045,14 +1333,15 @@ export default function ProviderRegistrationScreen() {
                     icon="award"
                     error={docErrors.finalQualification}
                   />
-                  {docErrors.finalQualification ? (
-                    <Text className="mt-1 text-xs text-red-500">
+                  {docErrors.finalQualification && (
+                    <Text className="text-red-500 text-sm mb-3">
                       {docErrors.finalQualification}
                     </Text>
-                  ) : null}
+                  )}
+                  {!docErrors.finalQualification && <View className="mb-3" />}
                 </View>
 
-                <View className="mb-2">
+                <View className="mb-1">
                   <UploadBox
                     label="Upload HPCNA Practicing Certificate"
                     file={documents.HPCNAQualification}
@@ -1060,11 +1349,12 @@ export default function ProviderRegistrationScreen() {
                     icon="calendar"
                     error={docErrors.HPCNAQualification}
                   />
-                  {docErrors.HPCNAQualification ? (
-                    <Text className="mt-1 text-xs text-red-500">
+                  {docErrors.HPCNAQualification && (
+                    <Text className="text-red-500 text-sm mb-3">
                       {docErrors.HPCNAQualification}
                     </Text>
-                  ) : null}
+                  )}
+                  {!docErrors.HPCNAQualification && <View className="mb-3" />}
                 </View>
                 {params?.providerType === "nurse" && (
                   <>
@@ -1110,11 +1400,12 @@ export default function ProviderRegistrationScreen() {
                       : "border-gray-300"
                   }`}
                 />
-                {profErrors.specializations ? (
-                  <Text className="text-xs text-red-500 mb-2">
+                {profErrors.specializations && (
+                  <Text className="text-red-500 text-sm mb-3">
                     {profErrors.specializations}
                   </Text>
-                ) : null}
+                )}
+                {!profErrors.specializations && <View className="mb-3" />}
 
                 {loadingSpecializations ? (
                   <View className="py-4">
@@ -1166,9 +1457,16 @@ export default function ProviderRegistrationScreen() {
                 </Text>
                 <TextInput
                   value={professionalDetails.hpcnaNumber}
-                  onChangeText={(t) =>
-                    setProfessionalDetails((p) => ({ ...p, hpcnaNumber: t }))
-                  }
+                  onChangeText={(t) => {
+                    setProfessionalDetails((p) => ({ ...p, hpcnaNumber: t }));
+                    if (profErrors.hpcnaNumber) {
+                      setProfErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors.hpcnaNumber;
+                        return newErrors;
+                      });
+                    }
+                  }}
                   placeholder="Enter your HPCNA registration number"
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     profErrors.hpcnaNumber
@@ -1176,23 +1474,31 @@ export default function ProviderRegistrationScreen() {
                       : "border-gray-300"
                   }`}
                 />
-                {profErrors.hpcnaNumber ? (
-                  <Text className="text-xs text-red-500 mb-2">
+                {profErrors.hpcnaNumber && (
+                  <Text className="text-red-500 text-sm mb-3">
                     {profErrors.hpcnaNumber}
                   </Text>
-                ) : null}
+                )}
+                {!profErrors.hpcnaNumber && <View className="mb-3" />}
 
                 <Text className="text-base text-text-main mb-2 font-semibold">
                   Years of Experience
                 </Text>
                 <TextInput
                   value={professionalDetails.yearsOfExperience}
-                  onChangeText={(t) =>
+                  onChangeText={(t) => {
                     setProfessionalDetails((p) => ({
                       ...p,
                       yearsOfExperience: t,
-                    }))
-                  }
+                    }));
+                    if (profErrors.yearsOfExperience) {
+                      setProfErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors.yearsOfExperience;
+                        return newErrors;
+                      });
+                    }
+                  }}
                   placeholder="Enter years of experience"
                   keyboardType="number-pad"
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
@@ -1201,11 +1507,12 @@ export default function ProviderRegistrationScreen() {
                       : "border-gray-300"
                   }`}
                 />
-                {profErrors.yearsOfExperience ? (
-                  <Text className="text-xs text-red-500 mb-2">
+                {profErrors.yearsOfExperience && (
+                  <Text className="text-red-500 text-sm mb-3">
                     {profErrors.yearsOfExperience}
                   </Text>
-                ) : null}
+                )}
+                {!profErrors.yearsOfExperience && <View className="mb-3" />}
 
                 {/* Practice Address */}
                 <Text className="text-base text-text-main mb-2 font-semibold">
@@ -1213,20 +1520,28 @@ export default function ProviderRegistrationScreen() {
                 </Text>
                 <TextInput
                   value={professionalDetails.address}
-                  onChangeText={(t) =>
-                    setProfessionalDetails((p) => ({ ...p, address: t }))
-                  }
+                  onChangeText={(t) => {
+                    setProfessionalDetails((p) => ({ ...p, address: t }));
+                    if (profErrors.address) {
+                      setProfErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors.address;
+                        return newErrors;
+                      });
+                    }
+                  }}
                   placeholder="Street and number, area, town (e.g. 123 Independence Ave, Windhoek)"
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     profErrors.address ? "border-red-400" : "border-gray-300"
                   }`}
                   multiline
                 />
-                {profErrors.address ? (
-                  <Text className="text-xs text-red-500 mb-2">
+                {profErrors.address && (
+                  <Text className="text-red-500 text-sm mb-3">
                     {profErrors.address}
                   </Text>
-                ) : null}
+                )}
+                {!profErrors.address && <View className="mb-3" />}
 
                 <Text className="text-base text-text-main mb-2 font-semibold">
                   Operational Zone
@@ -1240,12 +1555,19 @@ export default function ProviderRegistrationScreen() {
                   style={{ height: 56, justifyContent: "center" }}
                 >
                   <RNPickerSelect
-                    onValueChange={(v) =>
+                    onValueChange={(v) => {
                       setProfessionalDetails((p) => ({
                         ...p,
                         operationalZone: String(v || ""),
-                      }))
-                    }
+                      }));
+                      if (profErrors.operationalZone) {
+                        setProfErrors((prev) => {
+                          const newErrors = { ...prev };
+                          delete newErrors.operationalZone;
+                          return newErrors;
+                        });
+                      }
+                    }}
                     value={professionalDetails.operationalZone}
                     items={namibianRegions}
                     placeholder={{ label: "Select region…", value: "" }}
@@ -1258,11 +1580,12 @@ export default function ProviderRegistrationScreen() {
                     }}
                   />
                 </View>
-                {profErrors.operationalZone ? (
-                  <Text className="text-xs text-red-500 mb-2">
+                {profErrors.operationalZone && (
+                  <Text className="text-red-500 text-sm mb-3">
                     {profErrors.operationalZone}
                   </Text>
-                ) : null}
+                )}
+                {!profErrors.operationalZone && <View className="mb-3" />}
 
                 {/* Date of Expiration */}
                 <Text className="text-base text-text-main mb-2 font-semibold">
@@ -1291,9 +1614,16 @@ export default function ProviderRegistrationScreen() {
                 </Text>
                 <TextInput
                   value={professionalDetails.bio}
-                  onChangeText={(t) =>
-                    setProfessionalDetails((p) => ({ ...p, bio: t }))
-                  }
+                  onChangeText={(t) => {
+                    setProfessionalDetails((p) => ({ ...p, bio: t }));
+                    if (profErrors.bio) {
+                      setProfErrors((prev) => {
+                        const newErrors = { ...prev };
+                        delete newErrors.bio;
+                        return newErrors;
+                      });
+                    }
+                  }}
                   placeholder="Tell us about your professional experience and expertise"
                   className={`bg-white p-4 rounded-xl mb-1 border-2 h-24 ${
                     profErrors.bio ? "border-red-400" : "border-gray-300"
@@ -1301,11 +1631,12 @@ export default function ProviderRegistrationScreen() {
                   multiline
                   textAlignVertical="top"
                 />
-                {profErrors.bio ? (
-                  <Text className="text-xs text-red-500 mb-2">
+                {profErrors.bio && (
+                  <Text className="text-red-500 text-sm mb-3">
                     {profErrors.bio}
                   </Text>
-                ) : null}
+                )}
+                {!profErrors.bio && <View className="mb-3" />}
               </View>
             )}
 

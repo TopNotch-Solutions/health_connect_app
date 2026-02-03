@@ -8,16 +8,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Modal,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import RNPickerSelect from "react-native-picker-select";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -34,28 +34,42 @@ const UploadSquare = ({
   file,
   onPick,
   icon,
+  isImage = false,
+  hasError = false,
 }: {
   label: string;
-  file: PdfFile;
+  file: DocFile | PdfFile;
   onPick: () => void;
   icon: any;
+  isImage?: boolean;
+  hasError?: boolean;
 }) => (
   <TouchableOpacity
     onPress={onPick}
-    className="bg-gray-100 border border-dashed border-gray-400 rounded-xl items-center justify-center h-32 flex-1"
+    className={`bg-gray-100 border border-dashed ${hasError ? "border-red-400" : "border-gray-400"} rounded-xl items-center justify-center h-32 flex-1 overflow-hidden`}
   >
     {file ? (
-      <View className="items-center justify-center p-2">
-        <Feather name="check-circle" size={32} color="#28A745" />
-        <Text
-          className="text-secondary font-semibold mt-2 text-center text-xs"
-          numberOfLines={2}
-        >
-          {file.name}
-        </Text>
-      </View>
+      <>
+        {isImage && (file as DocFile)?.uri ? (
+          <Image
+            source={{ uri: (file as DocFile)!.uri }}
+            className="w-full h-full"
+            resizeMode="cover"
+          />
+        ) : (
+          <View className="items-center justify-center p-2 w-full h-full">
+            <Feather name="check-circle" size={32} color="#28A745" />
+            <Text
+              className="text-secondary font-semibold mt-2 text-center text-xs"
+              numberOfLines={2}
+            >
+              {(file as any).name || (file as any).fileName || "File uploaded"}
+            </Text>
+          </View>
+        )}
+      </>
     ) : (
-      <View className="items-center justify-center p-2">
+      <View className="items-center justify-center p-2 w-full h-full">
         <Feather name={icon} size={32} color="#6C757D" />
         <Text className="text-text-main font-semibold mt-2 text-center text-sm">
           {label}
@@ -147,8 +161,8 @@ export default function RegistrationScreen() {
     region: "",
     nationalId: "",
     profileImage: null as DocFile,
-    idDocumentFront: null as PdfFile,
-    idDocumentBack: null as PdfFile,
+    idDocumentFront: null as DocFile,
+    idDocumentBack: null as DocFile,
   });
 
   const [step, setStep] = useState(1);
@@ -195,6 +209,14 @@ export default function RegistrationScreen() {
 
   const handleInputChange = (name: string, value: any) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // Clear error for this field when user starts typing/selecting
+    if (errors[name]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
     if (name === "region") {
       setAvailableTowns(townsByRegion[value] || []);
       setFormData((prev) => ({ ...prev, town: "" }));
@@ -217,21 +239,41 @@ export default function RegistrationScreen() {
     });
     if (!result.canceled) {
       handleInputChange(field, result.assets[0]);
+      // Clear error for this field when image is selected
+      if (errors[field]) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[field];
+          return newErrors;
+        });
+      }
     }
   };
 
   const pickDocument = async (field: "idDocumentFront" | "idDocumentBack") => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "application/pdf",
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        handleInputChange(field, result.assets[0]);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      return Alert.alert(
+        "Permission Denied",
+        "We need camera roll permissions to select an image.",
+      );
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      handleInputChange(field, result.assets[0]);
+      // Clear error for this field when document is selected
+      if (errors[field]) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[field];
+          return newErrors;
+        });
       }
-    } catch (error) {
-      Alert.alert("Error", "Failed to pick document. Please try again.");
     }
   };
 
@@ -438,10 +480,11 @@ export default function RegistrationScreen() {
           name:
             (value as any).name ||
             (value as any).fileName ||
-            `${key}.${key.includes("idDocument") ? "pdf" : "jpg"}`,
+            `${key}.jpg`,
           type:
             (value as any).mimeType ||
-            (key.includes("idDocument") ? "application/pdf" : "image/jpeg"),
+            (value as any).type ||
+            "image/jpeg",
         } as any);
       }
       // Append all other string/number values
@@ -499,7 +542,12 @@ export default function RegistrationScreen() {
           </View>
 
           {step === 1 && (
-            <View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 150 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <Text className="text-2xl font-bold text-blue-600 mb-6">
                 Account Information
               </Text>
@@ -642,8 +690,16 @@ export default function RegistrationScreen() {
                   } else {
                     setShowTermsModal(true);
                   }
+                  // Clear error when user interacts with terms
+                  if (errors.terms) {
+                    setErrors((prev) => {
+                      const newErrors = { ...prev };
+                      delete newErrors.terms;
+                      return newErrors;
+                    });
+                  }
                 }}
-                className="flex-row items-start p-4 bg-gray-50 rounded-xl border-2 border-gray-200 mt-2"
+                className={`flex-row items-start p-4 bg-gray-50 rounded-xl border-2 ${errors.terms ? "border-red-400" : "border-gray-200"} mt-2`}
                 activeOpacity={0.7}
               >
                 <View
@@ -680,11 +736,16 @@ export default function RegistrationScreen() {
                   {errors.terms}
                 </Text>
               )}
-            </View>
+            </ScrollView>
           )}
 
           {step === 2 && (
-            <View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 150 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <Text className="text-2xl font-bold text-blue-600 mb-6">
                 Personal Information
               </Text>
@@ -721,16 +782,11 @@ export default function RegistrationScreen() {
               <Text className="text-base text-gray-700 mb-2 font-semibold">
                 Gender
               </Text>
-              {errors.gender && (
-                <Text className="text-red-500 text-sm mb-2">
-                  {errors.gender}
-                </Text>
-              )}
-              <View className="mb-4" style={{ gap: 12 }}>
+              <View className="mb-1" style={{ gap: 12 }}>
                 {["Male", "Female"].map((g) => (
                   <TouchableOpacity
                     key={g}
-                    className={`p-4 rounded-xl border-2 ${formData.gender === g ? "bg-blue-600 border-blue-600" : "bg-white border-gray-200"}`}
+                    className={`p-4 rounded-xl border-2 ${formData.gender === g ? "bg-blue-600 border-blue-600" : errors.gender ? "bg-white border-red-400" : "bg-white border-gray-200"}`}
                     onPress={() => handleInputChange("gender", g)}
                   >
                     <Text
@@ -741,6 +797,12 @@ export default function RegistrationScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              {errors.gender && (
+                <Text className="text-red-500 text-sm mb-3">
+                  {errors.gender}
+                </Text>
+              )}
+              {!errors.gender && <View className="mb-3" />}
 
               <Text className="text-base text-gray-700 mb-2 font-semibold">
                 National ID Number
@@ -768,33 +830,52 @@ export default function RegistrationScreen() {
               <Text className="text-base text-gray-700 mb-2 font-semibold">
                 National ID Documents
               </Text>
-              {(errors.idDocumentFront || errors.idDocumentBack) && (
-                <Text className="text-red-500 text-sm mb-2">
-                  {errors.idDocumentFront || errors.idDocumentBack}
+              <View className="flex-row mb-1" style={{ gap: 16 }}>
+                <View className="flex-1">
+                  <UploadSquare
+                    label="Upload ID (Front)"
+                    file={formData.idDocumentFront}
+                    onPick={() => pickDocument("idDocumentFront")}
+                    icon="camera"
+                    isImage={true}
+                    hasError={!!errors.idDocumentFront}
+                  />
+                </View>
+                <View className="flex-1">
+                  <UploadSquare
+                    label="Upload ID (Back)"
+                    file={formData.idDocumentBack}
+                    onPick={() => pickDocument("idDocumentBack")}
+                    icon="camera"
+                    isImage={true}
+                    hasError={!!errors.idDocumentBack}
+                  />
+                </View>
+              </View>
+              {errors.idDocumentFront && (
+                <Text className="text-red-500 text-sm mb-1">
+                  {errors.idDocumentFront}
                 </Text>
               )}
-              <View className="flex-row mb-4" style={{ gap: 16 }}>
-                <UploadSquare
-                  label="Upload ID (Front)"
-                  file={formData.idDocumentFront}
-                  onPick={() => pickDocument("idDocumentFront")}
-                  icon="file-text"
-                />
-                <UploadSquare
-                  label="Upload ID (Back)"
-                  file={formData.idDocumentBack}
-                  onPick={() => pickDocument("idDocumentBack")}
-                  icon="file-text"
-                />
-              </View>
-              <Text className="text-xs text-gray-500 -mt-2 mb-4">
-                Only PDF files are accepted
+              {errors.idDocumentBack && (
+                <Text className="text-red-500 text-sm mb-1">
+                  {errors.idDocumentBack}
+                </Text>
+              )}
+              <Text className="text-xs text-gray-500 mb-4">
+                Upload clear photos of the front and back of your ID (JPG or
+                PNG)
               </Text>
-            </View>
+            </ScrollView>
           )}
 
           {step === 3 && (
-            <View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 150 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <Text className="text-2xl font-bold text-blue-600 mb-6">
                 Address Information
               </Text>
@@ -807,6 +888,9 @@ export default function RegistrationScreen() {
                 placeholder="Your street address or P.O. Box"
                 value={formData.address}
                 onChangeText={(val) => handleInputChange("address", val)}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
               />
               {errors.address && (
                 <Text className="text-red-500 text-sm mb-3">
@@ -818,13 +902,9 @@ export default function RegistrationScreen() {
               <Text className="text-base text-gray-700 mb-2 font-semibold">
                 Region
               </Text>
-              {errors.region && (
-                <Text className="text-red-500 text-sm mb-2">
-                  {errors.region}
-                </Text>
-              )}
+
               <View
-                className="bg-white border-2 border-gray-300 rounded-xl px-3 mb-4 relative"
+                className={`bg-white border-2 ${errors.region ? "border-red-400" : "border-gray-300"} rounded-xl px-3 ${errors.region ? "mb-1" : "mb-4"} relative`}
                 style={{ height: 56, justifyContent: "center" }}
               >
                 <RNPickerSelect
@@ -842,15 +922,18 @@ export default function RegistrationScreen() {
                   <Feather name="chevron-down" size={20} color="#000000" />
                 </View>
               </View>
+              {errors.region && (
+                <Text className="text-red-500 text-sm mb-2">
+                  {errors.region}
+                </Text>
+              )}
 
               <Text className="text-base text-gray-700 mb-2 font-semibold">
                 Town
               </Text>
-              {errors.town && (
-                <Text className="text-red-500 text-sm mb-2">{errors.town}</Text>
-              )}
+
               <View
-                className="bg-white border-2 border-gray-300 rounded-xl px-3 mb-4 relative"
+                className={`bg-white border-2 ${errors.town ? "border-red-400" : "border-gray-300"} rounded-xl px-3 ${errors.town ? "mb-1" : "mb-4"} relative`}
                 style={{ height: 56, justifyContent: "center" }}
               >
                 <RNPickerSelect
@@ -873,24 +956,27 @@ export default function RegistrationScreen() {
                   />
                 </View>
               </View>
-            </View>
+              {errors.town && (
+                <Text className="text-red-500 text-sm mb-2">{errors.town}</Text>
+              )}
+            </ScrollView>
           )}
 
           {step === 4 && (
-            <View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 150 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <Text className="text-2xl font-bold text-blue-600 mb-6">
                 Profile Picture
               </Text>
-              {errors.profileImage && (
-                <Text className="text-red-500 text-sm mb-3">
-                  {errors.profileImage}
-                </Text>
-              )}
 
-              <View className="items-center mb-6">
+              <View className="items-center mb-1">
                 <TouchableOpacity
                   onPress={() => pickImage("profileImage")}
-                  className="w-40 h-40 rounded-full bg-gray-100 border-2 border-gray-300 justify-center items-center overflow-hidden"
+                  className={`w-40 h-40 rounded-full bg-gray-100 border-2 ${errors.profileImage ? "border-red-400" : "border-gray-300"} justify-center items-center overflow-hidden`}
                   activeOpacity={0.7}
                 >
                   {formData.profileImage ? (
@@ -908,11 +994,22 @@ export default function RegistrationScreen() {
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
+              {errors.profileImage && (
+                <Text className="text-red-500 text-sm mb-3 text-center">
+                  {errors.profileImage}
+                </Text>
+              )}
+              {!errors.profileImage && <View className="mb-3" />}
+            </ScrollView>
           )}
           {/* --- STEP 5: Review & Submit --- */}
           {step === 5 && (
-            <View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 150 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <View className="items-center mb-6">
                 <View className="w-20 h-20 rounded-full bg-blue-100 items-center justify-center mb-4">
                   <Feather name="check" size={36} color="#2563EB" />
@@ -996,20 +1093,11 @@ export default function RegistrationScreen() {
                       National ID (Front)
                     </Text>
                     {formData.idDocumentFront ? (
-                      <View className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex-row items-center">
-                        <Feather name="file-text" size={24} color="#10B981" />
-                        <View className="ml-3 flex-1">
-                          <Text className="text-sm font-semibold text-gray-900">
-                            {formData.idDocumentFront.name}
-                          </Text>
-                          <Text className="text-xs text-gray-500">
-                            PDF Document
-                          </Text>
-                        </View>
-                        <Feather
-                          name="check-circle"
-                          size={20}
-                          color="#10B981"
+                      <View className="items-center">
+                        <Image
+                          source={{ uri: formData.idDocumentFront.uri }}
+                          className="w-full h-48 rounded-xl border-2 border-gray-200"
+                          resizeMode="contain"
                         />
                       </View>
                     ) : (
@@ -1027,20 +1115,11 @@ export default function RegistrationScreen() {
                       National ID (Back)
                     </Text>
                     {formData.idDocumentBack ? (
-                      <View className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex-row items-center">
-                        <Feather name="file-text" size={24} color="#10B981" />
-                        <View className="ml-3 flex-1">
-                          <Text className="text-sm font-semibold text-gray-900">
-                            {formData.idDocumentBack.name}
-                          </Text>
-                          <Text className="text-xs text-gray-500">
-                            PDF Document
-                          </Text>
-                        </View>
-                        <Feather
-                          name="check-circle"
-                          size={20}
-                          color="#10B981"
+                      <View className="items-center">
+                        <Image
+                          source={{ uri: formData.idDocumentBack.uri }}
+                          className="w-full h-48 rounded-xl border-2 border-gray-200"
+                          resizeMode="contain"
                         />
                       </View>
                     ) : (
@@ -1054,7 +1133,7 @@ export default function RegistrationScreen() {
                   </View>
                 </View>
               </View>
-            </View>
+            </ScrollView>
           )}
         </View>
       </ScrollView>
