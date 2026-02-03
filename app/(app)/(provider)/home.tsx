@@ -113,6 +113,13 @@ export default function ProviderHome() {
         "Keep an eye on your current month earnings and completed consultations.",
       icon: "wallet-outline",
     },
+    {
+      id: 5,
+      title: "Kit Check",
+      description:
+        "Your first aid kit is your responsibility. Ensure all tools are functional and compliant with local standards before proceeding. This platform provides guidance only and does not verify your physical equipment.",
+      icon: "medical-bag",
+    },
   ];
 
   // First-time user welcome modal (provider)

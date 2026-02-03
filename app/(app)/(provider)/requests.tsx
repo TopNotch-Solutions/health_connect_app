@@ -422,6 +422,33 @@ export default function ProviderRequests() {
     }
   }, [loadRequests]);
 
+  // Handle start consultation
+  const handleStartConsultation = async (requestId: string, patientName: string) => {
+    if (!user?.userId) return;
+
+    try {
+      console.log("✅ Starting consultation:", requestId);
+      await socketService.updateRequestStatus(
+        requestId,
+        user.userId,
+        "in_progress",
+        undefined,
+      );
+
+      // Update local state
+      setRequests((prev) =>
+        prev.map((req) =>
+          req._id === requestId ? { ...req, status: "in_progress" as Request["status"] } as Request : req,
+        ),
+      );
+
+      Alert.alert("Success", `Consultation started for ${patientName}!`);
+    } catch (error: any) {
+      console.error("Error starting consultation:", error);
+      Alert.alert("Error", error.message || "Failed to start consultation");
+    }
+  };
+
   // Handle complete request
   const handleComplete = async (requestId: string, patientName: string) => {
     if (!user?.userId) return;
@@ -639,6 +666,15 @@ export default function ProviderRequests() {
                       </Text>
                     </TouchableOpacity>
                   ) : request.status === "arrived" ? (
+                    <TouchableOpacity
+                      onPress={() => handleStartConsultation(request._id, patientName)}
+                      className="bg-blue-600 py-3 rounded-lg mt-3"
+                    >
+                      <Text className="text-white font-bold text-center">
+                        Start Consultation
+                      </Text>
+                    </TouchableOpacity>
+                  ) : request.status === "in_progress" ? (
                     <TouchableOpacity
                       onPress={() => handleComplete(request._id, patientName)}
                       className="bg-emerald-600 py-3 rounded-lg mt-3"

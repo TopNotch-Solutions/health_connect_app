@@ -278,13 +278,16 @@ export default function NotificationsScreen() {
 
     // FIXED: Fetch unread count from dedicated endpoint
     const fetchUnreadCount = useCallback(async () => {
-        if (!user?.userId) return;
+        if (!user?.userId) return 0;
         try {
             const response = await apiClient.get('/app/notification/unread-count');
             console.log("Unread Count Response:", response.data);
-            setUnreadCount(response.data.data?.unReadCount || 0);
+            const count = response.data.data?.unReadCount || 0;
+            setUnreadCount(count);
+            return count;
         } catch (error: any) {
             console.error("Fetch Unread Count Error:", error.message);
+            return 0;
         }
     }, [user]);
 
@@ -328,9 +331,16 @@ export default function NotificationsScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            fetchNotifications(false, 1);
-            fetchUnreadCount();
-        }, [fetchNotifications, fetchUnreadCount])
+            const loadData = async () => {
+                await fetchNotifications(false, 1);
+                const count = await fetchUnreadCount();
+                // Automatically mark all as read if there are unread notifications
+                if (count > 0) {
+                    await markAllAsRead();
+                }
+            };
+            loadData();
+        }, [fetchNotifications, fetchUnreadCount, markAllAsRead])
     );
 
     const filteredNotifications = notifications.filter(n => {
