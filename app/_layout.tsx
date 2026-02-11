@@ -320,9 +320,7 @@ const ProtectedLayout = () => {
         <Stack.Screen name="index" />
         <Stack.Screen name="(onboarding)" />
         <Stack.Screen name="(root)" />
-        <Stack.Screen name="(auth)" />
         <Stack.Screen name="(verification)" />
-        <Stack.Screen name="(app)" />
       </Stack>
     </View>
   );
