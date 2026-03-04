@@ -1,22 +1,32 @@
 import React from "react";
-import { TouchableOpacity, View, ActivityIndicator, Image, Text } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface AilmentCardProps {
-    item: {
-        id: string;
-        title: string;
-        image?: string;
-        provider?: string;
-    };
-    onPress: () => void;
+  item: {
+    id: string;
+    title: string;
+    image?: string;
+    provider?: string;
+  };
+  onPress: () => void;
 }
 
 const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
-    const AILMENT_IMAGE_BASE_URL = 'http://13.51.207.99:4000/ailments/';
-    const imageUri = item.image ? `${AILMENT_IMAGE_BASE_URL}${item.image}` : null;
-    const [imageLoading, setImageLoading] = React.useState(false);
-    const [imageError, setImageError] = React.useState(false);
-    const loadingTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const AILMENT_IMAGE_BASE_URL =
+    "https://apihealthconnect.kopanovertex.com/ailments/";
+  const imageUri = item.image ? `${AILMENT_IMAGE_BASE_URL}${item.image}` : null;
+  console.log("AilmentCard imageUri:", imageUri);
+  const [imageLoading, setImageLoading] = React.useState(false);
+  const [imageError, setImageError] = React.useState(false);
+  const loadingTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // Image is already prefetched when categories load, so start with loading false
   // Only show loading if image actually takes time to load
@@ -25,7 +35,7 @@ const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
       setImageError(true);
       setImageLoading(false);
     }
-    
+
     return () => {
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
@@ -34,14 +44,14 @@ const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
   }, [imageUri]);
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       onPress={onPress}
       className="w-[48%] mb-4 rounded-2xl overflow-hidden"
       style={{
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: "#E5E7EB",
         height: 150,
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 8,
@@ -52,23 +62,25 @@ const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
       {imageUri && !imageError ? (
         <>
           {imageLoading && (
-            <View style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              backgroundColor: '#F3F4F6',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 1,
-            }}>
+            <View
+              style={{
+                position: "absolute",
+                width: "100%",
+                height: "100%",
+                backgroundColor: "#F3F4F6",
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 1,
+              }}
+            >
               <ActivityIndicator size="small" color="#10B981" />
             </View>
           )}
-          <Image 
-            source={{ uri: imageUri }} 
+          <Image
+            source={{ uri: imageUri }}
             style={{
-              width: '100%',
-              height: '100%',
+              width: "100%",
+              height: "100%",
             }}
             resizeMode="cover"
             onLoadStart={() => {
@@ -99,27 +111,29 @@ const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
           />
         </>
       ) : (
-        <View style={{ width: '100%', height: '100%', backgroundColor: '#F3F4F6' }} />
+        <View
+          style={{ width: "100%", height: "100%", backgroundColor: "#F3F4F6" }}
+        />
       )}
-      
+
       {/* Blurred overlay at the bottom with title */}
       <View
         style={{
-          position: 'absolute',
+          position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          backgroundColor: "rgba(0, 0, 0, 0.6)",
           paddingVertical: 12,
           paddingHorizontal: 12,
         }}
       >
-        <Text 
+        <Text
           style={{
             fontSize: 14,
-            fontWeight: '700',
-            color: '#FFFFFF',
-            textShadowColor: 'rgba(0, 0, 0, 0.75)',
+            fontWeight: "700",
+            color: "#FFFFFF",
+            textShadowColor: "rgba(0, 0, 0, 0.75)",
             textShadowOffset: { width: 0, height: 1 },
             textShadowRadius: 3,
           }}
@@ -128,12 +142,12 @@ const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
           {item.title}
         </Text>
         {item.provider && (
-          <Text 
+          <Text
             style={{
               fontSize: 12,
-              color: '#E5E7EB',
+              color: "#E5E7EB",
               marginTop: 4,
-              textShadowColor: 'rgba(0, 0, 0, 0.75)',
+              textShadowColor: "rgba(0, 0, 0, 0.75)",
               textShadowOffset: { width: 0, height: 1 },
               textShadowRadius: 3,
             }}

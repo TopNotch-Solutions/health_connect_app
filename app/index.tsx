@@ -1,11 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const STORAGE_KEY = 'hasSeenOnboarding';
+const STORAGE_KEY = "hasSeenOnboarding";
 
 const IndexScreen = () => {
   const router = useRouter();
@@ -14,15 +14,15 @@ const IndexScreen = () => {
     (async () => {
       try {
         const seen = await AsyncStorage.getItem(STORAGE_KEY);
-        if (seen === 'true') {
+        if (seen === "true") {
           // Returning user - go directly to sign-in
-          router.replace('/(root)/sign-in');
+          router.replace("/(root)/sign-in");
         } else {
           // First time user - show onboarding
-          router.replace('/onboarding-patient');
+          router.replace("/onboarding-patient");
         }
       } catch {
-        router.replace('/onboarding-patient');
+        router.replace("/onboarding-patient");
       }
     })();
   }, []);

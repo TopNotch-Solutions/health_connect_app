@@ -1,11 +1,22 @@
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
-import * as SecureStore from 'expo-secure-store';
-import Constants from 'expo-constants';
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, AppStateStatus, Linking, Platform } from 'react-native';
-import apiClient from '../lib/api';
-import socketService from '../lib/socket';
+import Constants from "expo-constants";
+import * as Device from "expo-device";
+import * as Notifications from "expo-notifications";
+import * as SecureStore from "expo-secure-store";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  AppState,
+  AppStateStatus,
+  Platform
+} from "react-native";
+import apiClient from "../lib/api";
+import socketService from "../lib/socket";
 
 // Updated User interface with all health provider fields
 export interface User {
@@ -13,10 +24,17 @@ export interface User {
   userId: string;
   fullname: string;
   email: string;
-  role: 'patient' | 'provider' | 'doctor' | 'nurse' | 'physiotherapist' | 'socialworker';
+  role:
+    | "patient"
+    | "provider"
+    | "doctor"
+    | "nurse"
+    | "physiotherapist"
+    | "socialworker";
+  consultations?: number; // New field for available consultations
   cellphoneNumber?: string;
   walletID?: string;
-  gender?: 'Male' | 'Female' | 'Other';
+  gender?: "Male" | "Female" | "Other";
   dateOfBirth?: string;
   balance?: number;
   profileImage?: string;
@@ -26,7 +44,7 @@ export interface User {
   nationalId?: string;
   isAccountVerified?: boolean;
   isPushNotificationEnabled?: boolean;
-  
+
   // Health provider specific fields
   isDocumentVerified?: boolean;
   isDocumentsSubmitted?: boolean;
@@ -44,7 +62,7 @@ export interface User {
 }
 
 const SESSION_TIMEOUT = 5 * 60 * 1000;
-const LAST_ACTIVITY_KEY = 'lastActivityTime';
+const LAST_ACTIVITY_KEY = "lastActivityTime";
 
 interface AuthContextType {
   user: User | null;
@@ -65,75 +83,82 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const getPushToken = async (): Promise<string | null> => {
     try {
       if (!Device.isDevice) {
-        console.log('⚠️  Not a physical device - skipping push notifications');
+        console.log("⚠️  Not a physical device - skipping push notifications");
         return null;
       }
 
       // Request notification permissions
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
-      if (existingStatus !== 'granted') {
-        console.log('🔔 Requesting push notification permissions...');
+      if (existingStatus !== "granted") {
+        console.log("🔔 Requesting push notification permissions...");
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
-        console.log('🔔 Permission result:', status);
+        console.log("🔔 Permission result:", status);
       }
 
-      if (finalStatus !== 'granted') {
-        console.log('⚠️  Push notification permission denied by user');
+      if (finalStatus !== "granted") {
+        console.log("⚠️  Push notification permission denied by user");
         return null;
       }
 
       // Configure Android notification channel for FCM
-      if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('default', {
-          name: 'default',
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "default",
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FF231F7C',
+          lightColor: "#FF231F7C",
         });
       }
 
       // Get the project ID from app config using Constants
       const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-      
+
       if (!projectId) {
-        console.error('❌ Project ID not found in app config');
-        console.warn('⚠️  Make sure your app.json has:');
-        console.warn('   "extra": { "eas": { "projectId": "your-project-id" } }');
+        console.error("❌ Project ID not found in app config");
+        console.warn("⚠️  Make sure your app.json has:");
+        console.warn(
+          '   "extra": { "eas": { "projectId": "your-project-id" } }',
+        );
         return null;
       }
 
       // Get Expo push token with project ID
-      console.log('🔄 Requesting Expo push token with project:', projectId);
+      console.log("🔄 Requesting Expo push token with project:", projectId);
       const pushTokenData = await Promise.race([
-        Notifications.getExpoPushTokenAsync({ 
-          projectId: projectId 
+        Notifications.getExpoPushTokenAsync({
+          projectId: projectId,
         }),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Push token request timeout')), 10000)
-        )
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Push token request timeout")),
+            10000,
+          ),
+        ),
       ]);
-      
+
       const pushToken = pushTokenData.data;
-      console.log('✅ Expo Push Token obtained successfully');
-      console.log('📝 Token preview:', pushToken.substring(0, 50) + '...');
+      console.log("✅ Expo Push Token obtained successfully");
+      console.log("📝 Token preview:", pushToken.substring(0, 50) + "...");
       return pushToken;
-      
     } catch (error: any) {
-      console.error('❌ Error getting push token:', error.message);
-      console.error('Error code:', error.code);
-      
+      console.error("❌ Error getting push token:", error.message);
+      console.error("Error code:", error.code);
+
       // Provide helpful error messages
-      if (error.message?.includes('timeout')) {
-        console.warn('⚠️  Network timeout - check your internet connection');
-      } else if (error.message?.includes('projectId')) {
-        console.warn('⚠️  Missing project ID - run: npx eas init');
-      } else if (error.code === 'ERR_NOTIFICATIONS_UNSUPPORTED') {
-        console.warn('⚠️  Push notifications not supported on this device/emulator');
+      if (error.message?.includes("timeout")) {
+        console.warn("⚠️  Network timeout - check your internet connection");
+      } else if (error.message?.includes("projectId")) {
+        console.warn("⚠️  Missing project ID - run: npx eas init");
+      } else if (error.code === "ERR_NOTIFICATIONS_UNSUPPORTED") {
+        console.warn(
+          "⚠️  Push notifications not supported on this device/emulator",
+        );
       }
-      
+
       return null;
     }
   };
@@ -145,20 +170,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = useCallback(async () => {
     try {
-      const token = await SecureStore.getItemAsync('authToken');
+      const token = await SecureStore.getItemAsync("authToken");
       if (token) {
         try {
-          await apiClient.patch('/app/auth/logout');
+          await apiClient.patch("/app/auth/logout");
         } catch (error) {
-          console.error('Failed to call logout endpoint:', error);
+          console.error("Failed to call logout endpoint:", error);
         }
       }
 
       socketService.disconnect();
-      
+
       setUser(null);
-      await SecureStore.deleteItemAsync('user');
-      await SecureStore.deleteItemAsync('authToken');
+      await SecureStore.deleteItemAsync("user");
+      await SecureStore.deleteItemAsync("authToken");
       await SecureStore.deleteItemAsync(LAST_ACTIVITY_KEY);
     } catch (error) {
       console.error("Failed to logout:", error);
@@ -172,7 +197,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (lastActivity) {
         const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
         if (timeSinceLastActivity > SESSION_TIMEOUT) {
-          console.log('Session expired after 5 minutes of inactivity');
+          console.log("Session expired after 5 minutes of inactivity");
           await logout();
           return true;
         }
@@ -187,7 +212,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const storedUser = await SecureStore.getItemAsync('user');
+        const storedUser = await SecureStore.getItemAsync("user");
         if (storedUser) {
           const expired = await checkSessionTimeout();
           if (!expired) {
@@ -205,19 +230,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [checkSessionTimeout, updateLastActivity]);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === 'active' &&
-        user
-      ) {
-        const expired = await checkSessionTimeout();
-        if (!expired) {
-          await updateLastActivity();
+    const subscription = AppState.addEventListener(
+      "change",
+      async (nextAppState: AppStateStatus) => {
+        if (
+          appState.current.match(/inactive|background/) &&
+          nextAppState === "active" &&
+          user
+        ) {
+          const expired = await checkSessionTimeout();
+          if (!expired) {
+            await updateLastActivity();
+          }
         }
-      }
-      appState.current = nextAppState;
-    });
+        appState.current = nextAppState;
+      },
+    );
 
     return () => {
       subscription.remove();
@@ -227,20 +255,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const fetchAppToken = async () => {
       try {
-        const existingToken = await SecureStore.getItemAsync('appToken');
+        const existingToken = await SecureStore.getItemAsync("appToken");
         if (!existingToken) {
-          console.log('🔑 Fetching app token...');
-          const response = await apiClient.get('/app/auth/retrieve-jwt-token');
+          console.log("🔑 Fetching app token...");
+          const response = await apiClient.get("/app/auth/retrieve-jwt-token");
           const data = response.data;
 
           if (data && data.token) {
-            await SecureStore.setItemAsync('appToken', data.token);
-            console.log('✅ App token saved successfully');
+            await SecureStore.setItemAsync("appToken", data.token);
+            console.log("✅ App token saved successfully");
           } else {
-            console.error('❌ No app token in response');
+            console.error("❌ No app token in response");
           }
         } else {
-          console.log('✅ App token already exists');
+          console.log("✅ App token already exists");
         }
       } catch (error) {
         console.error("❌ Failed to fetch app token:", error);
@@ -251,79 +279,85 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (email: string, password: string): Promise<User> => {
     try {
-      console.log('🔐 Starting login process...');
-      
+      console.log("🔐 Starting login process...");
+
       // Ensure app token exists before login
-      let appToken = await SecureStore.getItemAsync('appToken');
+      let appToken: any = await SecureStore.getItemAsync("appToken");
       if (!appToken) {
-        console.log('⚠️  No app token found, fetching...');
+        console.log("⚠️  No app token found, fetching...");
         try {
-          const response = await apiClient.get('/app/auth/retrieve-jwt-token');
+          const response = await apiClient.get("/app/auth/retrieve-jwt-token");
           if (response.data && response.data.token) {
             appToken = response.data.token;
-            await SecureStore.setItemAsync('appToken', appToken);
-            console.log('✅ App token fetched and saved');
+            await SecureStore.setItemAsync("appToken", appToken);
+            console.log("✅ App token fetched and saved");
           } else {
-            throw new Error('Failed to get app token from server');
+            throw new Error("Failed to get app token from server");
           }
         } catch (tokenError) {
-          console.error('❌ Failed to fetch app token:', tokenError);
-          throw new Error('Cannot connect to server. Please check your internet connection.');
+          console.error("❌ Failed to fetch app token:", tokenError);
+          throw new Error(
+            "Cannot connect to server. Please check your internet connection.",
+          );
         }
       }
-      
+
       // Get push token from device (non-blocking)
       const pushToken = await getPushToken();
       if (pushToken) {
-        console.log('✅ Push token obtained');
+        console.log("✅ Push token obtained");
       } else {
-        console.log('⚠️  Continuing login without push token');
+        console.log("⚠️  Continuing login without push token");
       }
 
       // Call login endpoint with email, password, and pushToken
-      console.log('🌐 Calling login API...');
-      const response = await apiClient.post('/app/auth/login', { 
-        email, 
+      console.log("🌐 Calling login API...");
+      const response = await apiClient.post("/app/auth/login", {
+        email,
         password,
         pushToken: pushToken || undefined,
       });
-      
-      console.log('✅ Login API call successful');
-      console.log('📦 Response status:', response.status);
-      
+
+      console.log("✅ Login API call successful");
+      console.log("📦 Response status:", response.status);
+
       if (!response.data || !response.data.user) {
-        throw new Error('Invalid response from server');
+        throw new Error("Invalid response from server");
       }
 
       const userDataFromBackend = response.data.user;
-      
+
       // Get JWT token from response
       let authToken = null;
-      
+
       // Check for token in response
       if (response.data.token) {
         authToken = response.data.token;
-        console.log('✅ Token found in response.data.token');
+        console.log("✅ Token found in response.data.token");
       } else if (userDataFromBackend.token) {
         authToken = userDataFromBackend.token;
-        console.log('✅ Token found in response.data.user.token');
+        console.log("✅ Token found in response.data.user.token");
       }
-      
+
       // If no token in response, the backend's login function is missing the token return
       if (!authToken) {
-        console.error('❌ Backend login response missing token');
-        console.log('⚠️  Backend needs to return token in login response');
-        throw new Error('Server error: Authentication token not provided');
+        console.error("❌ Backend login response missing token");
+        console.log("⚠️  Backend needs to return token in login response");
+        throw new Error("Server error: Authentication token not provided");
       }
-      
-      console.log('🔑 Auth token obtained:', authToken.substring(0, 30) + '...');
-      
+
+      console.log(
+        "🔑 Auth token obtained:",
+        authToken.substring(0, 30) + "...",
+      );
+
       // Create user object with ALL fields (exclude token from user data)
       const userData: User = {
         userId: userDataFromBackend.userId,
         fullname: userDataFromBackend.fullname,
         email: userDataFromBackend.email,
         role: userDataFromBackend.role,
+        consultations: userDataFromBackend.consultations,
         cellphoneNumber: userDataFromBackend.cellphoneNumber,
         walletID: userDataFromBackend.walletID,
         gender: userDataFromBackend.gender,
@@ -335,8 +369,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         town: userDataFromBackend.town,
         nationalId: userDataFromBackend.nationalId,
         isAccountVerified: userDataFromBackend.isAccountVerified,
-        isPushNotificationEnabled: userDataFromBackend.isPushNotificationEnabled,
-        
+        isPushNotificationEnabled:
+          userDataFromBackend.isPushNotificationEnabled,
+
         // Health provider specific fields
         isDocumentVerified: userDataFromBackend.isDocumentVerified,
         isDocumentsSubmitted: userDataFromBackend.isDocumentsSubmitted,
@@ -354,58 +389,69 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       // Save token FIRST
-      await SecureStore.setItemAsync('authToken', authToken);
-      console.log('✅ Auth token saved to SecureStore');
-      
+      await SecureStore.setItemAsync("authToken", authToken);
+      console.log("✅ Auth token saved to SecureStore");
+
       // Save user data
-      await SecureStore.setItemAsync('user', JSON.stringify(userData));
-      console.log('✅ User data saved to SecureStore');
-      
+      await SecureStore.setItemAsync("user", JSON.stringify(userData));
+      console.log("✅ User data saved to SecureStore");
+
       // Set initial activity timestamp
       await updateLastActivity();
       setUser(userData);
-      
+
       // If we didn't get a push token during login, try again in the background
       if (!pushToken) {
-        console.log('🔄 Retrying push token setup in background...');
+        console.log("🔄 Retrying push token setup in background...");
         setTimeout(async () => {
           try {
             const retryToken = await getPushToken();
             if (retryToken) {
-              console.log('✅ Push token obtained on retry, updating...');
-              await apiClient.patch('/app/auth/update-push-token', {
+              console.log("✅ Push token obtained on retry, updating...");
+              await apiClient.patch("/app/auth/update-push-token", {
                 pushToken: retryToken,
               });
-              console.log('✅ Push token updated successfully');
+              console.log("✅ Push token updated successfully");
             }
           } catch (retryError) {
-            console.log('⚠️  Background push token update failed:', retryError);
+            console.log("⚠️  Background push token update failed:", retryError);
           }
         }, 3000);
       }
-      
-      console.log('🎉 Login successful and fully authenticated!');
+
+      console.log("🎉 Login successful and fully authenticated!");
       return userData;
-      
     } catch (error: any) {
-      console.error("❌ Login failed:", error.response?.data?.message || error.message);
+      console.error(
+        "❌ Login failed:",
+        error.response?.data?.message || error.message,
+      );
       setUser(null);
-      await SecureStore.deleteItemAsync('user').catch(() => {});
-      await SecureStore.deleteItemAsync('authToken').catch(() => {});
+      await SecureStore.deleteItemAsync("user").catch(() => {});
+      await SecureStore.deleteItemAsync("authToken").catch(() => {});
       throw error;
     }
   };
-  
+
   const updateUser = async (updatedUserData: Partial<User>) => {
-    if (!user) return; 
+    if (!user) return;
 
     const newUser = { ...user, ...updatedUserData };
     setUser(newUser);
-    await SecureStore.setItemAsync('user', JSON.stringify(newUser));
+    await SecureStore.setItemAsync("user", JSON.stringify(newUser));
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, updateUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        logout,
+        updateUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -414,7 +460,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };

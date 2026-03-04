@@ -1,7 +1,13 @@
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { Tabs, useFocusEffect, usePathname, useRouter, useSegments } from "expo-router";
+import {
+  Tabs,
+  useFocusEffect,
+  usePathname,
+  useRouter,
+  useSegments,
+} from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,13 +25,13 @@ export default function PatientTabLayout() {
   const fetchUnreadCount = useCallback(async () => {
     if (!user?.userId) return;
     try {
-      console.log('Fetching unread count...');
-      const response = await apiClient.get('/app/notification/unread-count/');
-      console.log('Unread count response:', response.data);
-      
+      console.log("Fetching unread count...");
+      const response = await apiClient.get("/app/notification/unread-count/");
+      console.log("Unread count response:", response.data);
+
       // API response structure: { status: true, data: { unReadCount: number } }
       const count = response.data?.data?.unReadCount || 0;
-      console.log('Parsed unread count:', count);
+      console.log("Parsed unread count:", count);
       setUnreadCount(count); // Store actual count
     } catch (error: any) {
       console.error("Error fetching unread count:", error.message);
@@ -38,7 +44,7 @@ export default function PatientTabLayout() {
   useFocusEffect(
     useCallback(() => {
       fetchUnreadCount();
-    }, [fetchUnreadCount])
+    }, [fetchUnreadCount]),
   );
 
   // Fetch count when route changes (user navigates between tabs/pages)
@@ -55,7 +61,7 @@ export default function PatientTabLayout() {
   useEffect(() => {
     // If we're not on notifications page, refresh count
     // This handles the case when user returns from notifications
-    if (!pathname.includes('notifications')) {
+    if (!pathname.includes("notifications")) {
       const timer = setTimeout(() => {
         fetchUnreadCount();
       }, 300); // Small delay to ensure navigation is complete
@@ -74,44 +80,47 @@ export default function PatientTabLayout() {
   };
 
   // Memoize headerRight to ensure it re-renders when unreadCount changes
-  const headerRight = useMemo(() => () => (
-    <View style={styles.headerContainer}>
-      {/* Notification button */}
-      <TouchableOpacity
-        onPress={() => router.push("/notifications")}
-        style={styles.iconButton}
-        accessibilityRole="button"
-        accessibilityLabel="Open notifications"
-      >
-        <View style={styles.bellContainer}>
-          <Feather name="bell" size={22} />
-          {unreadCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {unreadCount > 100 ? '99+' : unreadCount.toString()}
-              </Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
+  const headerRight = useMemo(
+    () => () => (
+      <View style={styles.headerContainer}>
+        {/* Notification button */}
+        <TouchableOpacity
+          onPress={() => router.push("/notifications")}
+          style={styles.iconButton}
+          accessibilityRole="button"
+          accessibilityLabel="Open notifications"
+        >
+          <View style={styles.bellContainer}>
+            <Feather name="bell" size={22} />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 100 ? "99+" : unreadCount.toString()}
+                </Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
 
-      {/* Logout button */}
-      <TouchableOpacity
-        onPress={handleLogout}
-        disabled={isLoggingOut}
-        style={styles.logoutButton}
-        accessibilityRole="button"
-        accessibilityLabel="Logout"
-      >
-        <Feather name="log-out" size={20} color="#fff" />
-      </TouchableOpacity>
-    </View>
-  ), [unreadCount, isLoggingOut, router]);
+        {/* Logout button */}
+        <TouchableOpacity
+          onPress={handleLogout}
+          disabled={isLoggingOut}
+          style={styles.logoutButton}
+          accessibilityRole="button"
+          accessibilityLabel="Logout"
+        >
+          <Feather name="log-out" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+    ),
+    [unreadCount, isLoggingOut, router],
+  );
 
   return (
     <Tabs
       screenOptions={{
-        tabBarShowLabel: true, 
+        tabBarShowLabel: true,
         tabBarStyle: {
           height: 64 + insets.bottom,
           paddingTop: 6,
@@ -128,55 +137,50 @@ export default function PatientTabLayout() {
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({color, size}) => (
-            <MaterialCommunityIcons name="home" color={color} size={size}/>
-          )
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="home" color={color} size={size} />
+          ),
         }}
       />
-      <Tabs.Screen 
+      <Tabs.Screen
         name="waiting-room"
         options={{
           title: "Waiting Room",
-          tabBarIcon: ({color, size}) => (
-            <MaterialCommunityIcons name="clock" color={color} size={size}/>
-          )
-        }}
-      />
-
-      <Tabs.Screen
-        name="transactions"
-        options={{
-          title: "Transactions",
-          tabBarIcon: ({color, size}) => (
-            <MaterialCommunityIcons name="credit-card" color={color} size={size}/>
-          )
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="clock" color={color} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
         name="issues"
         options={{
           title: "Issues",
-          tabBarIcon: ({color, size}) => (
-            <MaterialCommunityIcons name="book" color={color} size={size}/>
-          )
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="book" color={color} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({color, size}) => (
-            <MaterialCommunityIcons name="account" color={color} size={size}/>
-          )
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="account" color={color} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
         name="all_ailments"
         options={{
           href: null,
-          title: '',
+          title: "",
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }} accessibilityRole="button" accessibilityLabel="Go back">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ padding: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
               <Feather name="arrow-left" size={30} />
             </TouchableOpacity>
           ),
@@ -192,9 +196,14 @@ export default function PatientTabLayout() {
         name="recent-activities"
         options={{
           href: null,
-          title: '',
+          title: "",
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }} accessibilityRole="button" accessibilityLabel="Go back">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ padding: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
               <Feather name="arrow-left" size={30} />
             </TouchableOpacity>
           ),

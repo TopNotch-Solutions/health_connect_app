@@ -49,8 +49,9 @@ const CARDS: {
 ];
 
 export default function ProviderTypeScreen() {
-  const { cellphoneNumber = "" } =
-    useLocalSearchParams<{ cellphoneNumber?: string }>();
+  const { cellphoneNumber = "" } = useLocalSearchParams<{
+    cellphoneNumber?: string;
+  }>();
 
   const go = (t: ProviderType) =>
     router.push({
@@ -62,7 +63,6 @@ export default function ProviderTypeScreen() {
     <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
         <View className="flex-1 px-6 justify-center py-6">
-          
           {/* Logo Section */}
           <View className="items-center mb-6">
             <Image
@@ -87,7 +87,7 @@ export default function ProviderTypeScreen() {
                   key={c.type}
                   className="flex-1 bg-white p-4 rounded-3xl border-2 border-gray-200 items-center"
                   style={{
-                    shadowColor: '#000',
+                    shadowColor: "#000",
                     shadowOffset: { width: 0, height: 6 },
                     shadowOpacity: 0.25,
                     shadowRadius: 12,
@@ -96,14 +96,18 @@ export default function ProviderTypeScreen() {
                   onPress={() => go(c.type)}
                   activeOpacity={0.7}
                 >
-                  <View 
+                  <View
                     className="w-16 h-16 rounded-full items-center justify-center mb-3"
                     style={{ backgroundColor: c.bgColor }}
                   >
                     <Feather name={c.icon} size={30} color={c.color} />
                   </View>
-                  <Text className="text-lg font-bold text-gray-900 mb-1 text-center">{c.title}</Text>
-                  <Text className="text-sm text-gray-700 text-center font-medium">{c.desc}</Text>
+                  <Text className="text-lg font-bold text-gray-900 mb-1 text-center">
+                    {c.title}
+                  </Text>
+                  <Text className="text-sm text-gray-700 text-center font-medium">
+                    {c.desc}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -115,7 +119,7 @@ export default function ProviderTypeScreen() {
                   key={c.type}
                   className="flex-1 bg-white p-4 rounded-3xl border-2 border-gray-200 items-center"
                   style={{
-                    shadowColor: '#000',
+                    shadowColor: "#000",
                     shadowOffset: { width: 0, height: 6 },
                     shadowOpacity: 0.25,
                     shadowRadius: 12,
@@ -124,14 +128,18 @@ export default function ProviderTypeScreen() {
                   onPress={() => go(c.type)}
                   activeOpacity={0.7}
                 >
-                  <View 
+                  <View
                     className="w-16 h-16 rounded-full items-center justify-center mb-3"
                     style={{ backgroundColor: c.bgColor }}
                   >
                     <Feather name={c.icon} size={30} color={c.color} />
                   </View>
-                  <Text className="text-lg font-bold text-gray-900 mb-1 text-center">{c.title}</Text>
-                  <Text className="text-sm text-gray-700 text-center font-medium">{c.desc}</Text>
+                  <Text className="text-lg font-bold text-gray-900 mb-1 text-center">
+                    {c.title}
+                  </Text>
+                  <Text className="text-sm text-gray-700 text-center font-medium">
+                    {c.desc}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>

@@ -3,15 +3,15 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import RNPickerSelect from "react-native-picker-select";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -840,27 +840,27 @@ export default function IssuesScreen() {
         </ScrollView>
       )}
 
-       {activeTab === "safety-tips" && (
-         <ScrollView
-           contentContainerStyle={{
-             paddingHorizontal: 24,
-             paddingTop: 16,
-             paddingBottom: 24,
-           }}
-           showsVerticalScrollIndicator={false}
-         >
-           {patientSafetyTips.map((item) => (
-             <View key={item.id} style={styles.safetyTipCard}>
-               <View style={styles.safetyTipTextWrapper}>
-                 <Text style={styles.safetyTipTitle}>{item.title}</Text>
-                 <Text style={styles.safetyTipDescription}>
-                   {item.description}
-                 </Text>
-               </View>
-             </View>
-           ))}
-         </ScrollView>
-       )}
+      {activeTab === "safety-tips" && (
+        <ScrollView
+          contentContainerStyle={{
+            paddingHorizontal: 24,
+            paddingTop: 16,
+            paddingBottom: 24,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          {patientSafetyTips.map((item) => (
+            <View key={item.id} style={styles.safetyTipCard}>
+              <View style={styles.safetyTipTextWrapper}>
+                <Text style={styles.safetyTipTitle}>{item.title}</Text>
+                <Text style={styles.safetyTipDescription}>
+                  {item.description}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      )}
       {/* ------------------------------------------- */}
     </SafeAreaView>
   );
@@ -1189,32 +1189,32 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontWeight: "500",
   },
-   safetyTipCard: {
-     backgroundColor: "#FFFFFF",
-     borderRadius: 12,
-     marginBottom: 16,
-     padding: 16,
-     borderWidth: 1,
-     borderColor: "#E5E7EB",
-     shadowColor: "#000",
-     shadowOffset: { width: 0, height: 1 },
-     shadowOpacity: 0.05,
-     shadowRadius: 3,
-     elevation: 2,
-   },
-   safetyTipTextWrapper: {
-     flex: 1,
-   },
-   safetyTipTitle: {
-     fontSize: 16,
-     fontWeight: "600",
-     color: "#111827",
-     marginBottom: 6,
-     lineHeight: 22,
-   },
-   safetyTipDescription: {
-     fontSize: 14,
-     color: "#6B7280",
-     lineHeight: 20,
-   },
+  safetyTipCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginBottom: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  safetyTipTextWrapper: {
+    flex: 1,
+  },
+  safetyTipTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 6,
+    lineHeight: 22,
+  },
+  safetyTipDescription: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+  },
 });

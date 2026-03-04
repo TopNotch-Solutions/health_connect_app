@@ -1,61 +1,85 @@
 // In app/(auth)/reset-password.tsx
 
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import apiClient from '../../../lib/api';
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { SafeAreaView } from "react-native-safe-area-context";
+import apiClient from "../../../lib/api";
 
 // Define the primary color for clarity
-const PRIMARY_COLOR = '#10B981'; // Mint Green (Emerald-500)
-const BORDER_COLOR = '#D1D5DB'; // Gray-300
-const ACTIVE_BORDER_COLOR = '#34D399'; // Emerald-400
+const PRIMARY_COLOR = "#10B981"; // Mint Green (Emerald-500)
+const BORDER_COLOR = "#D1D5DB"; // Gray-300
+const ACTIVE_BORDER_COLOR = "#34D399"; // Emerald-400
 
 const ResetPasswordScreen = () => {
   const router = useRouter();
   const { userId } = useLocalSearchParams(); // Get userId from the previous screen
 
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // State for focusing
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
-  const [isConfirmPasswordFocused, setIsConfirmPasswordFocused] = useState(false);
-
+  const [isConfirmPasswordFocused, setIsConfirmPasswordFocused] =
+    useState(false);
 
   const handleResetPassword = async () => {
     if (!password || !confirmPassword) {
-      return Alert.alert('Error', 'Please enter and confirm your new password.');
+      return Alert.alert(
+        "Error",
+        "Please enter and confirm your new password.",
+      );
     }
     // Basic password strength check for better UX (client-side)
     if (password.length < 8) {
-      return Alert.alert('Error', 'Password must be at least 8 characters long.');
+      return Alert.alert(
+        "Error",
+        "Password must be at least 8 characters long.",
+      );
     }
     if (password !== confirmPassword) {
-      return Alert.alert('Error', 'Passwords do not match.');
+      return Alert.alert("Error", "Passwords do not match.");
     }
-    if (!userId || typeof userId !== 'string') {
-      return Alert.alert('Error', 'User ID is missing. Please restart the process.');
+    if (!userId || typeof userId !== "string") {
+      return Alert.alert(
+        "Error",
+        "User ID is missing. Please restart the process.",
+      );
     }
 
     setIsLoading(true);
     try {
-      const response = await apiClient.post(`/app/auth/forgot-password-reset/${userId}`, {
-        password,
-        confirmPassword,
-      });
+      const response = await apiClient.post(
+        `/app/auth/forgot-password-reset/${userId}`,
+        {
+          password,
+          confirmPassword,
+        },
+      );
 
       if (response.status === 200) {
-        Alert.alert('Success', 'Your password has been reset successfully. Please log in.');
+        Alert.alert(
+          "Success",
+          "Your password has been reset successfully. Please log in.",
+        );
         // Assuming sign-in route is correct for replacement
-        router.replace('/sign-in'); 
+        router.replace("/sign-in");
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Failed to reset password. Please try again.';
-      Alert.alert('Error', errorMessage);
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to reset password. Please try again.";
+      Alert.alert("Error", errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -63,13 +87,13 @@ const ResetPasswordScreen = () => {
 
   return (
     // Use a soft, subtle background
-    <SafeAreaView className="flex-1 bg-gray-50"> 
+    <SafeAreaView className="flex-1 bg-gray-50">
       <KeyboardAwareScrollView
         contentContainerStyle={{
           flexGrow: 1,
           paddingHorizontal: 24,
           paddingVertical: 40, // Increased top padding for better flow
-          justifyContent: 'space-between',
+          justifyContent: "space-between",
         }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -79,10 +103,10 @@ const ResetPasswordScreen = () => {
       >
         {/* Content Section - Card with title and fields */}
         <View>
-          <View 
+          <View
             className="bg-white rounded-3xl p-8 shadow-2xl" // More padding and a stronger, modern shadow
             style={{
-              shadowColor: '#000',
+              shadowColor: "#000",
               shadowOffset: { width: 0, height: 12 }, // Deeper shadow effect
               shadowOpacity: 0.05,
               shadowRadius: 20,
@@ -94,7 +118,8 @@ const ResetPasswordScreen = () => {
                 🔐 Set New Password
               </Text>
               <Text className="text-base text-gray-600 text-center px-0">
-                Choose a strong, unique password to keep your HealthConnect account secure.
+                Choose a strong, unique password to keep your HealthConnect
+                account secure.
               </Text>
             </View>
 
@@ -104,11 +129,16 @@ const ResetPasswordScreen = () => {
                 New Password
               </Text>
               <View
-                className={`flex-row items-center bg-gray-50 rounded-xl px-4 py-4 border-2 transition-all duration-200
+                className={
+                  `flex-row items-center bg-gray-50 rounded-xl px-4 py-4 border-2 transition-all duration-200
                   ${isPasswordFocused ? `border-[${ACTIVE_BORDER_COLOR}]` : `border-gray-200`}` // Dynamic border color
                 }
               >
-                <MaterialCommunityIcons name="lock-outline" size={20} color={isPasswordFocused ? PRIMARY_COLOR : '#9CA3AF'} />
+                <MaterialCommunityIcons
+                  name="lock-outline"
+                  size={20}
+                  color={isPasswordFocused ? PRIMARY_COLOR : "#9CA3AF"}
+                />
                 <TextInput
                   className="flex-1 ml-3 text-base text-gray-900"
                   placeholder="Enter new password (min 8 characters)"
@@ -128,11 +158,16 @@ const ResetPasswordScreen = () => {
                 Confirm New Passwordsd
               </Text>
               <View
-                className={`flex-row items-center bg-gray-50 rounded-xl px-4 py-4 border-2 transition-all duration-200
+                className={
+                  `flex-row items-center bg-gray-50 rounded-xl px-4 py-4 border-2 transition-all duration-200
                   ${isConfirmPasswordFocused ? `border-[${ACTIVE_BORDER_COLOR}]` : `border-gray-200`}` // Dynamic border color
                 }
               >
-                <MaterialCommunityIcons name="lock-check" size={20} color={isConfirmPasswordFocused ? PRIMARY_COLOR : '#9CA3AF'} />
+                <MaterialCommunityIcons
+                  name="lock-check"
+                  size={20}
+                  color={isConfirmPasswordFocused ? PRIMARY_COLOR : "#9CA3AF"}
+                />
                 <TextInput
                   className="flex-1 ml-3 text-base text-gray-900"
                   placeholder="Re-enter new password"
@@ -147,18 +182,19 @@ const ResetPasswordScreen = () => {
             </View>
 
             <Text className="text-xs text-gray-500 mt-2 text-center">
-              A strong password uses at least 8 characters, including a number and a symbol.
+              A strong password uses at least 8 characters, including a number
+              and a symbol.
             </Text>
           </View>
         </View>
 
         {/* Bottom Button - Kept outside the scroll view for a fixed feel (or inside for simplicity) */}
-        <SafeAreaView edges={['bottom']} className="px-0 pt-8"> 
+        <SafeAreaView edges={["bottom"]} className="px-0 pt-8">
           <TouchableOpacity
             className="w-full py-4 rounded-xl items-center justify-center transition-opacity duration-200"
             style={{
               // Use a more intense shadow for the button
-              backgroundColor: isLoading ? '#A7F3D0' : PRIMARY_COLOR, // Light green for loading
+              backgroundColor: isLoading ? "#A7F3D0" : PRIMARY_COLOR, // Light green for loading
               shadowColor: PRIMARY_COLOR,
               shadowOffset: { width: 0, height: 6 },
               shadowOpacity: 0.35,

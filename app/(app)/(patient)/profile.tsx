@@ -4,14 +4,14 @@ import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
 import React, { useMemo, useRef } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ChangePasswordModal from "../../../components/ChangePasswordModal";
@@ -79,7 +79,7 @@ export default function ProfileScreen() {
   // This is the base URL where your backend serves images.
   // YOU MUST CONFIRM THIS from your backend's `server.js` or `app.js` file.
   // It's often where you see a line like `app.use(express.static('public'))`.
-  const IMAGE_BASE_URL = "http://13.51.207.99:4000/images/";
+  const IMAGE_BASE_URL = "https://apihealthconnect.kopanovertex.com/images/";
 
   const handlePickImage = async () => {
     try {

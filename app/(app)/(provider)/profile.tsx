@@ -81,7 +81,7 @@ export default function ProfileScreen() {
     string | null
   >(null);
 
-  const IMAGE_BASE_URL = "http://13.51.207.99:4000/images/";
+  const IMAGE_BASE_URL = "https://apihealthconnect.kopanovertex.com/images/";
 
   const handlePickImage = async () => {
     try {

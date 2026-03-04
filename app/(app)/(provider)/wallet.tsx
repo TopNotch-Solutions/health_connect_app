@@ -1,11 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
-import { useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Clipboard,
   FlatList,
   Keyboard,
   Platform,
@@ -26,6 +24,12 @@ interface Transaction {
   status: string;
   time: string;
   walletID?: string;
+}
+interface PackageItem {
+  _id: string;
+  provider: string;
+  amount: number;
+  consultations: number;
 }
 
 // --- Reusable Components ---
@@ -126,6 +130,11 @@ export default function TransactionsScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const isLoadingRef = useRef(false);
+  const [packages, setPackages] = useState<PackageItem[]>([]);
+  const [selectedPackage, setSelectedPackage] = useState<PackageItem | null>(
+    null,
+  );
+  const [isFetchingPackages, setIsFetchingPackages] = useState(false);
 
   const addMoneySheetRef = useRef<BottomSheet>(null);
   const fundOthersSheetRef = useRef<BottomSheet>(null);
@@ -189,6 +198,24 @@ export default function TransactionsScreen() {
       keyboardWillHideListener.remove();
     };
   }, []);
+  const fetchPackages = useCallback(async () => {
+    if (!user?.role) return;
+
+    setIsFetchingPackages(true);
+    try {
+      const response = await apiClient.get(
+        `/app/packages/all/${user.role.toLowerCase()}`,
+      );
+      console.log("Packages Response:", response.data);
+      if (response.data?.status === "SUCCESS") {
+        setPackages(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Fetch Packages Error:", error);
+    } finally {
+      setIsFetchingPackages(false);
+    }
+  }, [user?.role]);
 
   const fetchTransactions = useCallback(
     async (isRefresh = false, page = 1) => {
@@ -294,27 +321,24 @@ export default function TransactionsScreen() {
     }
   }, [user?.userId, updateUser]);
 
-  // --- THIS IS THE CORRECTED useFocusEffect HOOK ---
-  useFocusEffect(
-    useCallback(() => {
-      // Prevent multiple simultaneous calls
-      if (isLoadingRef.current) return;
-      
-      isLoadingRef.current = true;
-      
-      const loadData = async () => {
-        try {
-          await fetchAndUpdateUserDetails();
-          await fetchTransactions(false, 1);
-        } finally {
-          isLoadingRef.current = false;
-        }
-      };
-      
-      loadData();
-    }, [fetchAndUpdateUserDetails, fetchTransactions]),
-  );
-  // ---------------------------------------------
+  // --- Load data when screen/component mounts ---
+  useEffect(() => {
+    if (isLoadingRef.current) return;
+
+    isLoadingRef.current = true;
+
+    const loadData = async () => {
+      try {
+        await fetchAndUpdateUserDetails();
+        await fetchTransactions(false, 1);
+        await fetchPackages();
+      } finally {
+        isLoadingRef.current = false;
+      }
+    };
+
+    loadData();
+  }, [fetchAndUpdateUserDetails, fetchTransactions, fetchPackages]);
 
   // --- FULLY IMPLEMENTED handleAddMoney ---
   const handleAddMoney = async () => {
@@ -574,53 +598,36 @@ export default function TransactionsScreen() {
               <>
                 <View className="p-6 mb-6 border-2 border-green-600 rounded-2xl">
                   <View className="mb-6">
-                    <Text className="text-gray-600 text-lg">Your Balance</Text>
+                    <Text className="text-gray-600 text-lg">
+                      Available Consultations
+                    </Text>
                     <Text className="text-gray-900 text-4xl font-bold mt-1">
-                      N$ {user?.balance?.toFixed(2)}
+                      {user?.consultations || 0}
                     </Text>
                   </View>
-                  {user?.walletID && (
-                    <TouchableOpacity
-                      onPress={() => {
-                        try {
-                          Clipboard.setString(user.walletID!);
-                          Alert.alert(
-                            "Copied",
-                            "Wallet ID copied to clipboard!",
-                          );
-                        } catch {
-                          Alert.alert("Error", "Failed to copy wallet ID");
-                        }
-                      }}
-                    >
-                      <Text className="text-gray-600 text-sm font-semibold mb-2">
-                        Your Wallet ID
-                      </Text>
-                      <Text className="text-gray-900 text-base font-bold break-words">
-                        {user.walletID}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
                 </View>
                 <View className="flex-row mb-6" style={{ gap: 16 }}>
                   <ActionButton
                     icon="plus-circle"
-                    label="Fund Wallet"
-                    onPress={() => addMoneySheetRef.current?.expand()}
+                    label="Select package"
+                    onPress={() => {
+                      setSelectedPackage(null);
+                      addMoneySheetRef.current?.expand();
+                    }}
                   />
-                  <ActionButton
+                  {/* <ActionButton
                     icon="send"
                     label="Send Funds"
                     onPress={() => fundOthersSheetRef.current?.expand()}
-                  />
+                  /> */}
                 </View>
-                <View className="flex-row mb-6" style={{ gap: 16 }}>
+                {/* <View className="flex-row mb-6" style={{ gap: 16 }}>
                   <ActionButton
                     icon="arrow-up-right"
                     label="Withdraw"
                     onPress={() => withdrawSheetRef.current?.expand()}
                   />
-                </View>
+                </View> */}
                 <Text className="text-xl font-bold text-text-main mb-4">
                   Recent Activity
                 </Text>
@@ -637,7 +644,6 @@ export default function TransactionsScreen() {
           />
         )}
       </SafeAreaView>
-
       <BottomSheet
         ref={addMoneySheetRef}
         index={-1}
@@ -649,162 +655,500 @@ export default function TransactionsScreen() {
         backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
         handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
       >
-        <BottomSheetScrollView
-          style={{ paddingTop: 24, paddingHorizontal: 24 }}
-          contentContainerStyle={{
-            paddingBottom: Math.max(24, keyboardHeight + 20),
-          }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={true}
-        >
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-2xl font-bold text-text-main">
-              Add Money to Wallet
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                setAddMoneyErrors({});
-                setAddMoneyForm({
-                  amount: "",
-                  cardNumber: "",
-                  expiryDate: "",
-                  cvv: "",
-                  cardHolder: "",
-                });
-                addMoneySheetRef.current?.close();
-              }}
+        <View className="flex-1 bg-white">
+          {/* ========================= */}
+          {/* IF NO PACKAGE SELECTED   */}
+          {/* ========================= */}
+          {!selectedPackage ? (
+            <BottomSheetScrollView
+              style={{ paddingTop: 24, paddingHorizontal: 24 }}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              <Feather name="x" size={24} color="#374151" />
-            </TouchableOpacity>
-          </View>
-          <Text className="text-sm font-semibold text-gray-700 mb-1.5">
-            Amount
-          </Text>
-          <TextInput
-            value={addMoneyForm.amount}
-            onChangeText={(v) => {
-              setAddMoneyForm((p) => ({ ...p, amount: v }));
-              setAddMoneyErrors((e) => ({ ...e, amount: undefined }));
-            }}
-            placeholder="Amount (N$)"
-            className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.amount ? "border-red-500" : "border-gray-200"}`}
-            keyboardType="numeric"
-            placeholderTextColor="#9CA3AF"
-          />
-          {addMoneyErrors.amount && (
-            <Text className="text-xs text-red-500 mb-2">
-              {addMoneyErrors.amount}
-            </Text>
-          )}
-          <Text className="text-sm font-semibold text-gray-700 mb-1.5 mt-2">
-            Cardholder Name
-          </Text>
-          <TextInput
-            value={addMoneyForm.cardHolder}
-            onChangeText={(v) => {
-              setAddMoneyForm((p) => ({ ...p, cardHolder: v }));
-              setAddMoneyErrors((e) => ({ ...e, cardHolder: undefined }));
-            }}
-            placeholder="Cardholder Name"
-            className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.cardHolder ? "border-red-500" : "border-gray-200"}`}
-            placeholderTextColor="#9CA3AF"
-          />
-          {addMoneyErrors.cardHolder && (
-            <Text className="text-xs text-red-500 mb-2">
-              {addMoneyErrors.cardHolder}
-            </Text>
-          )}
-          <Text className="text-sm font-semibold text-gray-700 mb-1.5 mt-2">
-            Card Number
-          </Text>
-          <TextInput
-            value={addMoneyForm.cardNumber}
-            onChangeText={(v) => {
-              setAddMoneyForm((p) => ({ ...p, cardNumber: v }));
-              setAddMoneyErrors((e) => ({ ...e, cardNumber: undefined }));
-            }}
-            placeholder="Card Number"
-            className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.cardNumber ? "border-red-500" : "border-gray-200"}`}
-            keyboardType="numeric"
-            placeholderTextColor="#9CA3AF"
-          />
-          {addMoneyErrors.cardNumber && (
-            <Text className="text-xs text-red-500 mb-2">
-              {addMoneyErrors.cardNumber}
-            </Text>
-          )}
-          <View className="flex-row mt-2" style={{ gap: 12 }}>
-            <View className="flex-1">
-              <Text className="text-sm font-semibold text-gray-700 mb-1.5">
-                Expiry Date
+              <View className="flex-row justify-between items-center mb-6">
+                <Text className="text-2xl font-bold text-text-main">
+                  Select Package
+                </Text>
+
+                <TouchableOpacity
+                  onPress={() => addMoneySheetRef.current?.close()}
+                >
+                  <Feather name="x" size={24} color="#374151" />
+                </TouchableOpacity>
+              </View>
+
+              {isFetchingPackages ? (
+                <View className="mt-10 items-center">
+                  <ActivityIndicator size="large" color="#16a34a" />
+                  <Text className="text-gray-500 mt-3">
+                    Loading packages...
+                  </Text>
+                </View>
+              ) : packages.length === 0 ? (
+                <Text className="text-gray-500 text-center mt-10">
+                  No packages available.
+                </Text>
+              ) : (
+                <View className="mt-2">
+                  {packages.map((pkg, index) => {
+                    const isBestValue = index === 1; // highlight middle option
+                    return (
+                      <TouchableOpacity
+                        key={pkg._id}
+                        activeOpacity={0.9}
+                        className={`mb-4 rounded-3xl overflow-hidden border border-gray-200 shadow-sm`}
+                        onPress={() => {
+                          setSelectedPackage(pkg);
+                          setAddMoneyForm((prev) => ({
+                            ...prev,
+                            amount: String(pkg.amount),
+                          }));
+                        }}
+                      >
+                        <View
+                          className={`p-5 bg-white
+                            `}
+                        >
+                          <View className="flex-row justify-between items-center mb-2">
+                            <View>
+                              <Text
+                                className={`text-xs font-semibold uppercase tracking-wide text-gray-90`}
+                              >
+                                {pkg.consultations} Consultation
+                                {pkg.consultations > 1 ? "s" : ""}
+                              </Text>
+                              <Text
+                                className={`text-2xl font-extrabold text-gray-900`}
+                              >
+                                N$ {pkg.amount}
+                              </Text>
+                            </View>
+
+                            <View className="items-end">
+                              {isBestValue && (
+                                <View className="px-3 py-1 rounded-full bg-emerald-100/90 mb-2">
+                                  <Text className="text-[11px] font-semibold text-black">
+                                    Most Popular
+                                  </Text>
+                                </View>
+                              )}
+                              <View
+                                className={`w-10 h-10 rounded-full items-center justify-center bg-green-50`}
+                              >
+                                <Feather
+                                  name="plus-circle"
+                                  size={22}
+                                  color={"#16A34A"}
+                                />
+                              </View>
+                            </View>
+                          </View>
+
+                          <View className="flex-row justify-between items-center mt-2">
+                            <Text
+                              className={`text-xs text-gray-500`}
+                            >
+                              Ideal for{" "}
+                              <Text className="font-semibold">
+                                {pkg.consultations} session
+                                {pkg.consultations > 1 ? "s" : ""}
+                              </Text>
+                            </Text>
+                            <Text
+                              className={`text-[11px] font-medium text-gray-500`}
+                            >
+                              Tap to continue
+                            </Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </BottomSheetScrollView>
+          ) : (
+            <BottomSheetScrollView
+              style={{ paddingTop: 24, paddingHorizontal: 24 }}
+              contentContainerStyle={{
+                paddingBottom: Math.max(24, keyboardHeight + 20),
+              }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* ========================= */}
+              {/* PURCHASE VIEW             */}
+              {/* ========================= */}
+
+              <View className="flex-row justify-between items-center mb-6">
+                <Text className="text-2xl font-bold text-text-main">
+                  Purchase
+                </Text>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedPackage(null);
+                    setAddMoneyErrors({});
+                    addMoneySheetRef.current?.close();
+                  }}
+                >
+                  <Feather name="x" size={24} color="#374151" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Selected Package Summary - matches selection card style */}
+              <View className="mb-6 rounded-3xl overflow-hidden border border-gray-200 shadow-sm bg-white">
+                <View className="p-5">
+                  <View className="flex-row justify-between items-center mb-2">
+                    <View>
+                      <Text className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Selected Package
+                      </Text>
+                      <Text className="text-2xl font-extrabold text-gray-900 mt-1">
+                        N$ {selectedPackage.amount}
+                      </Text>
+                      <Text className="text-xs font-medium text-gray-500 mt-1">
+                        {selectedPackage.consultations} Consultation
+                        {selectedPackage.consultations > 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <View className="px-3 py-1 rounded-full bg-emerald-100/90 mb-2">
+                        <Text className="text-[11px] font-semibold text-black">
+                          Selected
+                        </Text>
+                      </View>
+                      <View className="w-10 h-10 rounded-full items-center justify-center bg-green-50">
+                        <Feather name="check-circle" size={22} color="#16A34A" />
+                      </View>
+                    </View>
+                  </View>
+                  <View className="flex-row justify-between items-center mt-2">
+                    <Text className="text-xs text-gray-500">
+                      You are purchasing{" "}
+                      <Text className="font-semibold">
+                        {selectedPackage.consultations} session
+                        {selectedPackage.consultations > 1 ? "s" : ""}
+                      </Text>
+                    </Text>
+                    <Text className="text-[11px] font-medium text-gray-500">
+                      Billed once-off
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Change Package */}
+              <TouchableOpacity
+                onPress={() => setSelectedPackage(null)}
+                className="mb-6"
+              >
+                <Text className="text-green-600 font-semibold">
+                  ← Change Package
+                </Text>
+              </TouchableOpacity>
+
+              {/* Card Details - modern layout */}
+              <Text className="text-sm font-semibold text-gray-700 mb-2">
+                Card Details
+              </Text>
+
+              {/* Card Holder */}
+              <Text className="text-xs font-medium text-gray-500 mb-1">
+                Card holder name
               </Text>
               <TextInput
-                value={addMoneyForm.expiryDate}
-                onChangeText={(v) => {
-                  setAddMoneyForm((p) => ({
-                    ...p,
-                    expiryDate: formatExpiryDate(v),
-                  }));
-                  setAddMoneyErrors((e) => ({ ...e, expiryDate: undefined }));
-                }}
-                placeholder="MM/YY"
-                className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.expiryDate ? "border-red-500" : "border-gray-200"}`}
-                maxLength={5}
-                placeholderTextColor="#9CA3AF"
+                placeholder="Card Holder Name"
+                value={addMoneyForm.cardHolder}
+                onChangeText={(text) =>
+                  setAddMoneyForm({ ...addMoneyForm, cardHolder: text })
+                }
+                className="bg-white p-4 rounded-2xl mb-3 border border-gray-200"
               />
-            </View>
-            <View className="flex-1">
-              <Text className="text-sm font-semibold text-gray-700 mb-1.5">
-                CVV
+              {addMoneyErrors.cardHolder && (
+                <Text className="text-xs text-red-500 mb-2">
+                  {addMoneyErrors.cardHolder}
+                </Text>
+              )}
+
+              {/* Card Number */}
+              <Text className="text-xs font-medium text-gray-500 mb-1 mt-1">
+                Card number
               </Text>
               <TextInput
-                value={addMoneyForm.cvv}
-                onChangeText={(v) => {
-                  setAddMoneyForm((p) => ({ ...p, cvv: v }));
-                  setAddMoneyErrors((e) => ({ ...e, cvv: undefined }));
-                }}
-                placeholder="CVV"
-                className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.cvv ? "border-red-500" : "border-gray-200"}`}
+                placeholder="Card Number"
                 keyboardType="numeric"
-                secureTextEntry
-                placeholderTextColor="#9CA3AF"
+                value={addMoneyForm.cardNumber}
+                onChangeText={(text) =>
+                  setAddMoneyForm({ ...addMoneyForm, cardNumber: text })
+                }
+                className="bg-white p-4 rounded-2xl mb-3 border border-gray-200"
               />
-            </View>
-          </View>
-          {(addMoneyErrors.expiryDate || addMoneyErrors.cvv) && (
-            <View className="flex-row justify-between mb-2">
-              <View className="flex-1 pr-1">
-                {addMoneyErrors.expiryDate && (
-                  <Text className="text-xs text-red-500">
-                    {addMoneyErrors.expiryDate}
+              {addMoneyErrors.cardNumber && (
+                <Text className="text-xs text-red-500 mb-2">
+                  {addMoneyErrors.cardNumber}
+                </Text>
+              )}
+
+              {/* Expiry Date */}
+              <View className="flex-row" style={{ gap: 12 }}>
+                <View className="flex-1">
+                  <Text className="text-xs font-medium text-gray-500 mb-1">
+                    Expiry date
                   </Text>
-                )}
-              </View>
-              <View className="flex-1 pl-1">
-                {addMoneyErrors.cvv && (
-                  <Text className="text-xs text-red-500 text-right">
-                    {addMoneyErrors.cvv}
+                  <TextInput
+                    placeholder="MM/YY"
+                    value={addMoneyForm.expiryDate}
+                    onChangeText={(text) =>
+                      setAddMoneyForm({ ...addMoneyForm, expiryDate: text })
+                    }
+                    className="bg-white p-4 rounded-2xl mb-1 border border-gray-200"
+                  />
+                  {addMoneyErrors.expiryDate && (
+                    <Text className="text-xs text-red-500 mb-2">
+                      {addMoneyErrors.expiryDate}
+                    </Text>
+                  )}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xs font-medium text-gray-500 mb-1">
+                    CVV
                   </Text>
-                )}
+                  <TextInput
+                    placeholder="CVV"
+                    keyboardType="numeric"
+                    secureTextEntry
+                    value={addMoneyForm.cvv}
+                    onChangeText={(text) =>
+                      setAddMoneyForm({ ...addMoneyForm, cvv: text })
+                    }
+                    className="bg-white p-4 rounded-2xl mb-1 border border-gray-200"
+                  />
+                  {addMoneyErrors.cvv && (
+                    <Text className="text-xs text-red-500 mb-2">
+                      {addMoneyErrors.cvv}
+                    </Text>
+                  )}
+                </View>
               </View>
-            </View>
+
+              {/* Confirm Button */}
+              <TouchableOpacity
+                className="bg-green-600 p-4 rounded-2xl items-center mt-4"
+                onPress={handleAddMoney}
+              >
+                <Text className="text-white font-bold text-lg">
+                  Confirm Payment
+                </Text>
+              </TouchableOpacity>
+            </BottomSheetScrollView>
           )}
-          <TouchableOpacity
-            onPress={handleAddMoney}
-            disabled={isSubmitting}
-            className={`bg-green-600 p-4 rounded-xl mb-4 ${isSubmitting && "opacity-50"}`}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="white" />
+        </View>
+      </BottomSheet>
+
+      {/* <BottomSheet
+        ref={addMoneySheetRef}
+        index={-1}
+        snapPoints={addMoneySnapPoints}
+        enablePanDownToClose
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
+        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
+        handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
+      >
+        {!selectedPackage ? (
+          <>
+            <Text className="text-xl font-bold mb-4">Select a Package</Text>
+
+            {isFetchingPackages ? (
+              <ActivityIndicator />
             ) : (
-              <Text className="text-white font-semibold text-center text-lg">
-                Confirm Deposit
+              packages.map((pkg) => (
+                <TouchableOpacity
+                  key={pkg._id}
+                  onPress={() => {
+                    setSelectedPackage(pkg);
+                    setAddMoneyForm((prev) => ({
+                      ...prev,
+                      amount: String(pkg.amount),
+                    }));
+                  }}
+                  className="border border-gray-200 p-4 rounded-xl mb-3"
+                >
+                  <Text className="font-bold text-lg">N$ {pkg.amount}</Text>
+                  <Text className="text-gray-600">
+                    {pkg.consultations} Consultations
+                  </Text>
+                </TouchableOpacity>
+              ))
+            )}
+          </>
+        ) : (
+          <BottomSheetScrollView
+            style={{ paddingTop: 24, paddingHorizontal: 24 }}
+            contentContainerStyle={{
+              paddingBottom: Math.max(24, keyboardHeight + 20),
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+          >
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-lg font-bold mb-2">Selected Package</Text>
+
+              <View className="bg-gray-100 p-4 rounded-xl mb-4">
+                <Text className="font-bold">N$ {selectedPackage.amount}</Text>
+                <Text>{selectedPackage.consultations} Consultations</Text>
+              </View>
+              <Text className="text-2xl font-bold text-text-main">
+                Purchase
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setAddMoneyErrors({});
+                  setAddMoneyForm({
+                    amount: "",
+                    cardNumber: "",
+                    expiryDate: "",
+                    cvv: "",
+                    cardHolder: "",
+                  });
+                  addMoneySheetRef.current?.close();
+                }}
+              >
+                <Feather name="x" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <Text className="text-sm font-semibold text-gray-700 mb-1.5">
+              Amount
+            </Text>
+            <TextInput
+              value={addMoneyForm.amount}
+              onChangeText={(v) => {
+                setAddMoneyForm((p) => ({ ...p, amount: v }));
+                setAddMoneyErrors((e) => ({ ...e, amount: undefined }));
+              }}
+              placeholder="Amount (N$)"
+              className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.amount ? "border-red-500" : "border-gray-200"}`}
+              keyboardType="numeric"
+              placeholderTextColor="#9CA3AF"
+            />
+            {addMoneyErrors.amount && (
+              <Text className="text-xs text-red-500 mb-2">
+                {addMoneyErrors.amount}
               </Text>
             )}
-          </TouchableOpacity>
-          <View style={{ height: Math.max(100, keyboardHeight + 50) }} />
-        </BottomSheetScrollView>
-      </BottomSheet>
+            <Text className="text-sm font-semibold text-gray-700 mb-1.5 mt-2">
+              Cardholder Name
+            </Text>
+            <TextInput
+              value={addMoneyForm.cardHolder}
+              onChangeText={(v) => {
+                setAddMoneyForm((p) => ({ ...p, cardHolder: v }));
+                setAddMoneyErrors((e) => ({ ...e, cardHolder: undefined }));
+              }}
+              placeholder="Cardholder Name"
+              className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.cardHolder ? "border-red-500" : "border-gray-200"}`}
+              placeholderTextColor="#9CA3AF"
+            />
+            {addMoneyErrors.cardHolder && (
+              <Text className="text-xs text-red-500 mb-2">
+                {addMoneyErrors.cardHolder}
+              </Text>
+            )}
+            <Text className="text-sm font-semibold text-gray-700 mb-1.5 mt-2">
+              Card Number
+            </Text>
+            <TextInput
+              value={addMoneyForm.cardNumber}
+              onChangeText={(v) => {
+                setAddMoneyForm((p) => ({ ...p, cardNumber: v }));
+                setAddMoneyErrors((e) => ({ ...e, cardNumber: undefined }));
+              }}
+              placeholder="Card Number"
+              className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.cardNumber ? "border-red-500" : "border-gray-200"}`}
+              keyboardType="numeric"
+              placeholderTextColor="#9CA3AF"
+            />
+            {addMoneyErrors.cardNumber && (
+              <Text className="text-xs text-red-500 mb-2">
+                {addMoneyErrors.cardNumber}
+              </Text>
+            )}
+            <View className="flex-row mt-2" style={{ gap: 12 }}>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-gray-700 mb-1.5">
+                  Expiry Date
+                </Text>
+                <TextInput
+                  value={addMoneyForm.expiryDate}
+                  onChangeText={(v) => {
+                    setAddMoneyForm((p) => ({
+                      ...p,
+                      expiryDate: formatExpiryDate(v),
+                    }));
+                    setAddMoneyErrors((e) => ({ ...e, expiryDate: undefined }));
+                  }}
+                  placeholder="MM/YY"
+                  className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.expiryDate ? "border-red-500" : "border-gray-200"}`}
+                  maxLength={5}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-gray-700 mb-1.5">
+                  CVV
+                </Text>
+                <TextInput
+                  value={addMoneyForm.cvv}
+                  onChangeText={(v) => {
+                    setAddMoneyForm((p) => ({ ...p, cvv: v }));
+                    setAddMoneyErrors((e) => ({ ...e, cvv: undefined }));
+                  }}
+                  placeholder="CVV"
+                  className={`bg-white p-4 rounded-2xl mb-1 border ${addMoneyErrors.cvv ? "border-red-500" : "border-gray-200"}`}
+                  keyboardType="numeric"
+                  secureTextEntry
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            </View>
+            {(addMoneyErrors.expiryDate || addMoneyErrors.cvv) && (
+              <View className="flex-row justify-between mb-2">
+                <View className="flex-1 pr-1">
+                  {addMoneyErrors.expiryDate && (
+                    <Text className="text-xs text-red-500">
+                      {addMoneyErrors.expiryDate}
+                    </Text>
+                  )}
+                </View>
+                <View className="flex-1 pl-1">
+                  {addMoneyErrors.cvv && (
+                    <Text className="text-xs text-red-500 text-right">
+                      {addMoneyErrors.cvv}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+            <TouchableOpacity
+              onPress={handleAddMoney}
+              disabled={isSubmitting}
+              className={`bg-green-600 p-4 rounded-xl mb-4 ${isSubmitting && "opacity-50"}`}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-white font-semibold text-center text-lg">
+                  Confirm Deposit
+                </Text>
+              )}
+            </TouchableOpacity>
+            <View style={{ height: Math.max(100, keyboardHeight + 50) }} />
+          </BottomSheetScrollView>
+        )}
+      </BottomSheet> */}
 
       <BottomSheet
         ref={fundOthersSheetRef}

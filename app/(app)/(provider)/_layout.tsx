@@ -1,13 +1,24 @@
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/lib/api";
 import { Feather } from "@expo/vector-icons";
-import { Tabs, useFocusEffect, usePathname, useRouter, useSegments } from "expo-router";
+import {
+  Tabs,
+  useFocusEffect,
+  usePathname,
+  useRouter,
+  useSegments,
+} from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Separate component for header right to ensure proper re-rendering
-const HeaderRight = ({ unreadCount, isLoggingOut, onLogout, onNotificationsPress }: {
+const HeaderRight = ({
+  unreadCount,
+  isLoggingOut,
+  onLogout,
+  onNotificationsPress,
+}: {
   unreadCount: number;
   isLoggingOut: boolean;
   onLogout: () => void;
@@ -26,7 +37,7 @@ const HeaderRight = ({ unreadCount, isLoggingOut, onLogout, onNotificationsPress
         {unreadCount > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>
-              {unreadCount > 100 ? '99+' : unreadCount.toString()}
+              {unreadCount > 100 ? "99+" : unreadCount.toString()}
             </Text>
           </View>
         )}
@@ -60,15 +71,15 @@ export default function ProviderTabsLayout() {
   const fetchUnreadCount = useCallback(async () => {
     if (!user?.userId) return;
     try {
-      console.log('Fetching unread count for user:', user.userId);
-      const response = await apiClient.get('/app/notification/unread-count/');
-      console.log('Unread count response:', response.data);
-      
+      console.log("Fetching unread count for user:", user.userId);
+      const response = await apiClient.get("/app/notification/unread-count/");
+      console.log("Unread count response:", response.data);
+
       // API response structure: { status: true, data: { unReadCount: number } }
       const count = response.data?.data?.unReadCount || 0;
-      console.log('Parsed unread count:', count);
+      console.log("Parsed unread count:", count);
       setUnreadCount(count); // Store actual count
-      setHeaderKey(prev => prev + 1); // Force header re-render
+      setHeaderKey((prev) => prev + 1); // Force header re-render
     } catch (error: any) {
       console.error("Error fetching unread count:", error);
       console.error("Error details:", error.response?.data);
@@ -80,7 +91,7 @@ export default function ProviderTabsLayout() {
   useFocusEffect(
     useCallback(() => {
       fetchUnreadCount();
-    }, [fetchUnreadCount])
+    }, [fetchUnreadCount]),
   );
 
   // Fetch count when route changes (user navigates between tabs/pages)
@@ -97,7 +108,7 @@ export default function ProviderTabsLayout() {
   useEffect(() => {
     // If we're not on notifications page, refresh count
     // This handles the case when user returns from notifications
-    if (!pathname.includes('notifications')) {
+    if (!pathname.includes("notifications")) {
       const timer = setTimeout(() => {
         fetchUnreadCount();
       }, 300); // Small delay to ensure navigation is complete
@@ -118,15 +129,18 @@ export default function ProviderTabsLayout() {
   };
 
   // Create headerRight function that will be recreated when unreadCount changes
-  const headerRightCallback = useCallback(() => (
-    <HeaderRight
-      key={headerKey}
-      unreadCount={unreadCount}
-      isLoggingOut={isLoggingOut}
-      onLogout={handleLogout}
-      onNotificationsPress={() => router.push("/notifications")}
-    />
-  ), [unreadCount, isLoggingOut, router, headerKey]);
+  const headerRightCallback = useCallback(
+    () => (
+      <HeaderRight
+        key={headerKey}
+        unreadCount={unreadCount}
+        isLoggingOut={isLoggingOut}
+        onLogout={handleLogout}
+        onNotificationsPress={() => router.push("/notifications")}
+      />
+    ),
+    [unreadCount, isLoggingOut, router, headerKey],
+  );
 
   return (
     <Tabs
@@ -167,7 +181,7 @@ export default function ProviderTabsLayout() {
       <Tabs.Screen
         name="wallet"
         options={{
-          title: "Wallet",
+          title: "Account",
           tabBarIcon: ({ color, size }) => (
             <Feather name="credit-card" color={color} size={size} />
           ),

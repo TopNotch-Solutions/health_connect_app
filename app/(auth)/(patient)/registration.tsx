@@ -477,14 +477,8 @@ export default function RegistrationScreen() {
       else if (typeof value === "object" && value?.uri) {
         data.append(key, {
           uri: value.uri,
-          name:
-            (value as any).name ||
-            (value as any).fileName ||
-            `${key}.jpg`,
-          type:
-            (value as any).mimeType ||
-            (value as any).type ||
-            "image/jpeg",
+          name: (value as any).name || (value as any).fileName || `${key}.jpg`,
+          type: (value as any).mimeType || (value as any).type || "image/jpeg",
         } as any);
       }
       // Append all other string/number values
@@ -503,7 +497,7 @@ export default function RegistrationScreen() {
           headers: { "Content-Type": "multipart/form-data" },
         },
       );
-
+      console.log("Registration response:", response.data);
       if (response.status === 201) {
         Alert.alert(
           "Registration Complete!",
@@ -515,6 +509,7 @@ export default function RegistrationScreen() {
         throw new Error(response.data.message || "An unknown error occurred.");
       }
     } catch (error: any) {
+      console.error("Registration error:", error);
       const errorMessage =
         error?.response?.data?.message ||
         "An unexpected error occurred during registration.";

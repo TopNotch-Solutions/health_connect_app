@@ -46,9 +46,7 @@ export default function CreateRequestModal({
   const ailmentCategoryId = selectedAilment?._id;
 
   const [ailmentCategory, setAilmentCategory] = useState(ailmentTitle);
-  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "cash">(
-    "wallet",
-  );
+  const [paymentMethod, setPaymentMethod] = useState<"cash">("cash");
   const [dueCost, setDueCost] = useState("");
   const [street, setStreet] = useState("");
   const [locality, setLocality] = useState("");
@@ -179,7 +177,7 @@ export default function CreateRequestModal({
 
       // Reset form on success
       setAilmentCategory("");
-      setPaymentMethod("wallet");
+      setPaymentMethod("cash");
       setDueCost("0");
       setStreet("");
       setLocality("");
@@ -207,7 +205,7 @@ export default function CreateRequestModal({
   };
 
   const paymentOptions = [
-    { value: "wallet", label: "Wallet", icon: "credit-card" },
+    // { value: "wallet", label: "Wallet", icon: "credit-card" },
     { value: "cash", label: "Cash", icon: "dollar-sign" },
   ];
 

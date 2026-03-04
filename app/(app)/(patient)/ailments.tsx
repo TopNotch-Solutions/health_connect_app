@@ -1,19 +1,19 @@
-import { Feather } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
-import React, { useState, useCallback, useEffect } from 'react';
+import { Feather } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   SafeAreaView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
-} from 'react-native';
-import CreateRequestModal from '../../../components/(patient)/CreateRequestModal';
-import { useAuth } from '../../../context/AuthContext';
-import socketService from '../../../lib/socket';
-import * as Location from 'expo-location';
+} from "react-native";
+import CreateRequestModal from "../../../components/(patient)/CreateRequestModal";
+import { useAuth } from "../../../context/AuthContext";
+import socketService from "../../../lib/socket";
 
 interface Ailment {
   _id: string;
@@ -23,14 +23,14 @@ interface Ailment {
   linkedSpecializations?: string[];
 }
 
-const AilmentCard = ({ 
-  item, 
-  onPress 
-}: { 
-  item: Ailment; 
+const AilmentCard = ({
+  item,
+  onPress,
+}: {
+  item: Ailment;
   onPress: () => void;
 }) => (
-  <TouchableOpacity 
+  <TouchableOpacity
     onPress={onPress}
     className="w-[48%] bg-white rounded-lg p-4 mb-4 border-2 border-gray-200"
   >
@@ -43,10 +43,13 @@ const AilmentCard = ({
 export default function AilmentsScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedAilment, setSelectedAilment] = useState('');
-  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [selectedAilment, setSelectedAilment] = useState("");
+  const [location, setLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [ailments, setAilments] = useState<Ailment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -55,9 +58,9 @@ export default function AilmentsScreen() {
     setIsLoading(true);
     try {
       const socket = socketService.getSocket();
-      
+
       if (!socket?.connected) {
-        console.warn('⚠️ Socket not connected');
+        console.warn("⚠️ Socket not connected");
         setIsLoading(false);
         return;
       }
@@ -68,12 +71,15 @@ export default function AilmentsScreen() {
         const handleAilmentCategories = (categories: any) => {
           if (resolved) return;
           resolved = true;
-          
-          console.log('📋 Received ailment categories from backend:', categories);
+
+          console.log(
+            "📋 Received ailment categories from backend:",
+            categories,
+          );
           if (Array.isArray(categories) && categories.length > 0) {
             setAilments(categories);
           }
-          socket?.off('ailmentCategories', handleAilmentCategories);
+          socket?.off("ailmentCategories", handleAilmentCategories);
           setIsLoading(false);
           resolve();
         };
@@ -81,21 +87,21 @@ export default function AilmentsScreen() {
         const timeout = setTimeout(() => {
           if (resolved) return;
           resolved = true;
-          
-          console.warn('⚠️ Ailment categories request timeout');
-          socket?.off('ailmentCategories', handleAilmentCategories);
+
+          console.warn("⚠️ Ailment categories request timeout");
+          socket?.off("ailmentCategories", handleAilmentCategories);
           setIsLoading(false);
           resolve();
         }, 5000);
 
-        socket?.on('ailmentCategories', handleAilmentCategories);
-        console.log('📤 Emitting getAilmentCategories request');
-        socket?.emit('getAilmentCategories');
+        socket?.on("ailmentCategories", handleAilmentCategories);
+        console.log("📤 Emitting getAilmentCategories request");
+        socket?.emit("getAilmentCategories");
 
         return () => clearTimeout(timeout);
       });
     } catch (error) {
-      console.error('Error loading ailment categories:', error);
+      console.error("Error loading ailment categories:", error);
       setIsLoading(false);
     }
   }, []);
@@ -103,37 +109,38 @@ export default function AilmentsScreen() {
   // Connect to socket on mount
   useEffect(() => {
     if (user?.userId) {
-      socketService.connect(user.userId, 'patient');
+      socketService.connect(user.userId, "patient");
     }
   }, [user?.userId]);
 
   useFocusEffect(
     useCallback(() => {
       fetchAilments();
-    }, [fetchAilments])
+    }, [fetchAilments]),
   );
 
   // Filter and sort ailments based on search and provider order
   const providerOrder: Record<string, number> = {
-    'Doctor': 1,
-    'Nurse': 2,
-    'Physiotherapist': 3,
-    'Social Worker': 4,
+    Doctor: 1,
+    Nurse: 2,
+    Physiotherapist: 3,
+    "Social Worker": 4,
   };
 
   const filteredAilments = ailments
-    .filter((ailment: Ailment) =>
-      ailment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ailment.provider.toLowerCase().includes(searchQuery.toLowerCase())
+    .filter(
+      (ailment: Ailment) =>
+        ailment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ailment.provider.toLowerCase().includes(searchQuery.toLowerCase()),
     )
     .sort((a: Ailment, b: Ailment) => {
       const orderA = providerOrder[a.provider] || 999;
       const orderB = providerOrder[b.provider] || 999;
-      
+
       if (orderA !== orderB) {
         return orderA - orderB;
       }
-      
+
       // If same provider, sort by title alphabetically
       return a.title.localeCompare(b.title);
     });
@@ -147,7 +154,7 @@ export default function AilmentsScreen() {
     ailmentCategory: string;
     ailmentCategoryId?: string;
     symptoms: string;
-    paymentMethod: 'wallet' | 'cash';
+    paymentMethod: "wallet" | "cash";
     dueCost: number;
     street: string;
     locality: string;
@@ -157,7 +164,7 @@ export default function AilmentsScreen() {
   }) => {
     // Use coordinates from the modal if provided, otherwise try to get current location
     let currentLocation = requestData.coordinates || location;
-    
+
     if (!currentLocation) {
       try {
         const loc = await Location.getCurrentPositionAsync({
@@ -169,12 +176,14 @@ export default function AilmentsScreen() {
         };
         setLocation(currentLocation);
       } catch {
-        throw new Error('Location is required to create a request. Please enable location services and try again.');
+        throw new Error(
+          "Location is required to create a request. Please enable location services and try again.",
+        );
       }
     }
 
     if (!user?.userId) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
 
     try {
@@ -198,9 +207,9 @@ export default function AilmentsScreen() {
         preferredTime: requestData.preferredTime,
       });
 
-      console.log('Request created:', request);
+      console.log("Request created:", request);
     } catch (error: any) {
-      throw new Error(error.message || 'Failed to create request');
+      throw new Error(error.message || "Failed to create request");
     }
   };
 
@@ -213,7 +222,9 @@ export default function AilmentsScreen() {
             <TouchableOpacity onPress={() => router.back()}>
               <Feather name="arrow-left" size={24} color="#1F2937" />
             </TouchableOpacity>
-            <Text className="text-2xl font-bold text-gray-800">All Ailments</Text>
+            <Text className="text-2xl font-bold text-gray-800">
+              All Ailments
+            </Text>
           </View>
 
           {/* Search Bar */}
@@ -246,10 +257,17 @@ export default function AilmentsScreen() {
             data={filteredAilments}
             keyExtractor={(item) => item._id}
             numColumns={2}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}
-            columnWrapperStyle={{ justifyContent: 'space-between' }}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingTop: 16,
+              paddingBottom: 24,
+            }}
+            columnWrapperStyle={{ justifyContent: "space-between" }}
             renderItem={({ item }) => (
-              <AilmentCard item={item} onPress={() => handleAilmentSelect(item)} />
+              <AilmentCard
+                item={item}
+                onPress={() => handleAilmentSelect(item)}
+              />
             )}
           />
         )}
@@ -260,7 +278,7 @@ export default function AilmentsScreen() {
         visible={modalVisible}
         onClose={() => {
           setModalVisible(false);
-          setSelectedAilment('');
+          setSelectedAilment("");
         }}
         onSubmit={handleCreateRequest}
         selectedAilment={selectedAilment}

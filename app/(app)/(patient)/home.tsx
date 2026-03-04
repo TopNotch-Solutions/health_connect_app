@@ -60,7 +60,7 @@ export default function PatientHomeScreen() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [currentOnboardingStep, setCurrentOnboardingStep] = useState(0);
 
-  const IMAGE_BASE_URL = "http://13.51.207.99:4000/adverts/";
+  const IMAGE_BASE_URL = "https://apihealthconnect.kopanovertex.com/adverts/";
 
   const onboardingSteps: {
     id: number;
@@ -156,7 +156,8 @@ export default function PatientHomeScreen() {
         setAdverts(response.data.adverts);
 
         // Prefetch all advert images for faster loading
-        const IMAGE_BASE_URL = "http://13.51.207.99:4000/adverts/";
+        const IMAGE_BASE_URL =
+          "https://apihealthconnect.kopanovertex.com/adverts/";
         response.data.adverts.forEach((advert: Advert) => {
           if (advert.image) {
             const imageUri = `${IMAGE_BASE_URL}${advert.image}`;
@@ -208,7 +209,8 @@ export default function PatientHomeScreen() {
             setAilmentCategories(categories);
 
             // Prefetch ailment images for faster loading - prioritize first 6 for home page
-            const AILMENT_IMAGE_BASE_URL = "http://13.51.207.99:4000/ailments/";
+            const AILMENT_IMAGE_BASE_URL =
+              "https://apihealthconnect.kopanovertex.com/ailments/";
             const categoriesToPrefetch = categories.slice(0, 6); // Only prefetch first 6 for home page
 
             // Prefetch in parallel for faster loading
