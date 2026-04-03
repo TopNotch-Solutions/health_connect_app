@@ -262,7 +262,8 @@ const ProtectedLayout = () => {
               user?.role === "doctor" ||
               user?.role === "nurse" ||
               user?.role === "physiotherapist" ||
-              user?.role === "socialworker"
+              user?.role === "socialworker" ||
+              user?.role === "pharmacist"
             ) {
               router.replace("/(app)/(provider)/home");
             } else {
@@ -282,7 +283,8 @@ const ProtectedLayout = () => {
               (user?.role === "doctor" ||
                 user?.role === "nurse" ||
                 user?.role === "physiotherapist" ||
-                user?.role === "socialworker") &&
+                user?.role === "socialworker" ||
+                user?.role === "pharmacist") &&
               inPatient
             ) {
               // Provider trying to access patient area

@@ -3,16 +3,17 @@ import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
-import React, { useMemo, useRef } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useMemo, useRef } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ChangePasswordModal from "../../../components/ChangePasswordModal";
@@ -82,6 +83,23 @@ export default function ProfileScreen() {
   >(null);
 
   const IMAGE_BASE_URL = "https://apihealthconnect.kopanovertex.com/images/";
+
+  const fetchLatestUserDetails = useCallback(async () => {
+    try {
+      const response = await apiClient.get("/app/auth/user-details/");
+      if (response.data?.status && response.data?.user) {
+        await updateUser(response.data.user);
+      }
+    } catch (error) {
+      console.error("Error refreshing provider profile details:", error);
+    }
+  }, [updateUser]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchLatestUserDetails();
+    }, [fetchLatestUserDetails]),
+  );
 
   const handlePickImage = async () => {
     try {

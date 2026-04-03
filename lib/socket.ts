@@ -132,6 +132,7 @@ class SocketService {
     location: { latitude: number; longitude: number };
     ailmentCategory: string;
     ailmentCategoryId?: string;
+    consultationMode?: "house_visit" | "video_consultation";
     paymentMethod: "wallet" | "cash";
     symptoms?: string;
     estimatedCost: number;
@@ -168,6 +169,7 @@ class SocketService {
         ailmentCategory: requestData.ailmentCategory,
         ailmentCategoryId:
           requestData.ailmentCategoryId || "67455f1b8c8e9b5c3f2e1d6a",
+        consultationMode: requestData.consultationMode || "house_visit",
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms || "No symptoms provided",
         estimatedCost: requestData.estimatedCost,

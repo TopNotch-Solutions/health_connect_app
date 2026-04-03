@@ -47,6 +47,9 @@ export default function ProviderHome() {
 
   // Online/Offline toggle - provider can manually toggle, but only if verified
   const [isOnline, setIsOnline] = useState(false);
+  const providerOnlineStorageKey = user?.userId
+    ? `provider-online-state-${user.userId}`
+    : null;
 
   const toggleOnline = () => {
     if (!user?.isDocumentVerified) {
@@ -59,6 +62,46 @@ export default function ProviderHome() {
     }
     setIsOnline((prev) => !prev);
   };
+
+  // Load persisted online/offline state for this provider
+  useEffect(() => {
+    const loadPersistedOnlineState = async () => {
+      if (!providerOnlineStorageKey) return;
+      try {
+        const stored = await AsyncStorage.getItem(providerOnlineStorageKey);
+        const parsed = stored === "true";
+
+        // If verification is missing, always force offline
+        if (!user?.isDocumentVerified) {
+          setIsOnline(false);
+          await AsyncStorage.setItem(providerOnlineStorageKey, "false");
+          return;
+        }
+
+        setIsOnline(parsed);
+      } catch (error) {
+        console.error("Error loading provider online state:", error);
+      }
+    };
+
+    loadPersistedOnlineState();
+  }, [providerOnlineStorageKey, user?.isDocumentVerified]);
+
+  // Persist online/offline state whenever it changes
+  useEffect(() => {
+    const persistOnlineState = async () => {
+      if (!providerOnlineStorageKey) return;
+      try {
+        await AsyncStorage.setItem(
+          providerOnlineStorageKey,
+          String(isOnline && !!user?.isDocumentVerified),
+        );
+      } catch (error) {
+        console.error("Error persisting provider online state:", error);
+      }
+    };
+    persistOnlineState();
+  }, [isOnline, providerOnlineStorageKey, user?.isDocumentVerified]);
 
   const [selectedRequest, setSelectedRequest] = useState<null | any>(null);
   const [providerLocation, setProviderLocation] = useState<{
@@ -721,6 +764,35 @@ export default function ProviderHome() {
     }
   };
 
+  const confirmAccept = (request: any) => {
+    const patientName = request?.patientId?.fullname || "this patient";
+    Alert.alert(
+      "Accept Request",
+      `Are you sure you want to accept the request from ${patientName}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Accept", onPress: () => handleAccept(request) },
+      ],
+      { cancelable: true },
+    );
+  };
+
+  const confirmDecline = (requestId: string, patientName: string) => {
+    Alert.alert(
+      "Decline Request",
+      `Are you sure you want to decline the request from ${patientName}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Decline",
+          style: "destructive",
+          onPress: () => handleDecline(requestId, patientName),
+        },
+      ],
+      { cancelable: true },
+    );
+  };
+
   const greeting = getGreeting();
 
   return (
@@ -844,40 +916,88 @@ export default function ProviderHome() {
 
         {/* Incoming Consultation Requests */}
         <View className="px-6 pb-6">
-          <Text className="text-lg font-bold text-gray-900 mb-4">
-            Incoming Requests
-          </Text>
+          <View className="flex-row items-center justify-between mb-4">
+            <View>
+              <Text className="text-lg font-bold text-gray-900">
+                Incoming Requests
+              </Text>
+              <Text className="text-xs text-gray-500 mt-0.5">
+                {isOnline
+                  ? "New requests appear here in real time."
+                  : "Go online to start receiving requests."}
+              </Text>
+            </View>
+            <View className="flex-row items-center" style={{ gap: 8 }}>
+              <View
+                className={`px-3 py-1 rounded-full border ${
+                  isOnline
+                    ? "bg-green-50 border-green-200"
+                    : "bg-gray-50 border-gray-200"
+                }`}
+              >
+                <Text
+                  className={`text-xs font-bold ${
+                    isOnline ? "text-green-700" : "text-gray-600"
+                  }`}
+                >
+                  {isOnline ? "ONLINE" : "OFFLINE"}
+                </Text>
+              </View>
+              <View className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
+                <Text className="text-xs font-bold text-blue-700">
+                  {isOnline ? requests.length : 0}
+                </Text>
+              </View>
+            </View>
+          </View>
 
           {!isOnline ? (
-            <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
-              <View className="w-16 h-16 bg-gray-100 rounded-full items-center justify-center mb-4">
-                <Feather name="power" size={32} color="#6B7280" />
+            <View className="bg-white rounded-2xl border border-gray-200 p-6">
+              <View className="flex-row items-start">
+                <View className="w-12 h-12 bg-gray-100 rounded-2xl items-center justify-center mr-4">
+                  <Feather name="power" size={22} color="#6B7280" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-bold text-gray-900">
+                    You’re offline
+                  </Text>
+                  <Text className="text-sm text-gray-600 mt-1 leading-5">
+                    Switch to online to receive nearby consultation requests.
+                  </Text>
+                </View>
               </View>
-              <Text className="text-lg font-semibold text-gray-900 mb-1">
-                You are Offline
-              </Text>
-              <Text className="text-sm text-gray-500 text-center">
-                Go online to start receiving consultation requests
-              </Text>
             </View>
           ) : isLoadingRequests ? (
-            <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
-              <ActivityIndicator size="large" color="#3B82F6" />
-              <Text className="text-sm text-gray-500 mt-4">
-                Loading requests...
-              </Text>
+            <View className="bg-white rounded-2xl border border-gray-200 p-6">
+              <View className="flex-row items-center">
+                <View className="w-12 h-12 bg-blue-50 rounded-2xl items-center justify-center mr-4">
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-bold text-gray-900">
+                    Checking for new requests…
+                  </Text>
+                  <Text className="text-sm text-gray-600 mt-1">
+                    Please wait a moment.
+                  </Text>
+                </View>
+              </View>
             </View>
           ) : requests.length === 0 ? (
-            <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
-              <View className="w-16 h-16 bg-green-50 rounded-full items-center justify-center mb-4">
-                <Feather name="check-circle" size={32} color="#10B981" />
+            <View className="bg-white rounded-2xl border border-gray-200 p-6">
+              <View className="flex-row items-start">
+                <View className="w-12 h-12 bg-green-50 rounded-2xl items-center justify-center mr-4">
+                  <Feather name="check-circle" size={22} color="#10B981" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-bold text-gray-900">
+                    You’re all caught up
+                  </Text>
+                  <Text className="text-sm text-gray-600 mt-1 leading-5">
+                    No pending consultation requests right now.
+                  </Text>
+                </View>
               </View>
-              <Text className="text-lg font-semibold text-gray-900 mb-1">
-                All Caught Up!
-              </Text>
-              <Text className="text-sm text-gray-500 text-center">
-                No pending consultation requests
-              </Text>
             </View>
           ) : (
             requests.map((request) => {
@@ -885,7 +1005,26 @@ export default function ProviderHome() {
                 request.patientId?.fullname || "Unknown Patient";
               const ailment = request.ailmentCategory || "Consultation";
               const fee = `N$ ${request.estimatedCost || 0}`;
-              const commission = `N$ ${Math.round((request.estimatedCost || 0) * 0.1)}`; // 10% commission
+              const consultationMode: "house_visit" | "video_consultation" =
+                request.consultationMode === "video_consultation"
+                  ? "video_consultation"
+                  : "house_visit";
+              const consultationModeMeta =
+                consultationMode === "video_consultation"
+                  ? {
+                      label: "Video Consultation",
+                      icon: "video",
+                      bgClass: "bg-blue-50 border-blue-200",
+                      textClass: "text-blue-700",
+                      iconColor: "#1D4ED8",
+                    }
+                  : {
+                      label: "House Visit",
+                      icon: "home",
+                      bgClass: "bg-emerald-50 border-emerald-200",
+                      textClass: "text-emerald-700",
+                      iconColor: "#047857",
+                    };
 
               let distance = "-- km";
               const patientCoords = normalizeCoordinateOrUndefined(
@@ -906,76 +1045,83 @@ export default function ProviderHome() {
                 <TouchableOpacity
                   key={request._id}
                   onPress={() => setSelectedRequest(request)}
-                  className="bg-white rounded-xl border border-gray-200 p-4 mb-3 shadow-sm"
+                  className="bg-white rounded-xl border border-gray-200 p-4 mb-3"
                 >
-                  <View className="flex-row items-start justify-between mb-3">
+                  <View className="flex-row items-start justify-between mb-2">
                     <View className="flex-1">
-                      <Text className="text-lg font-bold text-gray-900 mb-1">
+                      <Text className="text-base font-bold text-gray-900">
                         {patientName}
                       </Text>
-                      <View className="flex-row items-center mb-2">
-                        <Feather
-                          name="alert-circle"
-                          size={14}
-                          color="#6B7280"
-                        />
-                        <Text className="text-sm text-gray-600 ml-1.5">
-                          {ailment}
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center">
-                        <Feather name="map-pin" size={14} color="#6B7280" />
-                        <Text className="text-sm text-gray-500 ml-1.5">
-                          {distance}
-                        </Text>
-                      </View>
                     </View>
-                    <View className="bg-blue-50 px-3 py-1.5 rounded-full">
-                      <Text className="text-blue-600 text-xs font-bold">
-                        NEW
+                    <View className="bg-blue-50 px-2.5 py-1 rounded-md">
+                      <Text className="text-blue-700 text-[11px] font-semibold">
+                        New
                       </Text>
                     </View>
                   </View>
 
-                  <View className="flex-row bg-gray-50 rounded-lg p-3 mb-3">
-                    <View className="flex-1">
-                      <Text className="text-xs text-gray-500 mb-0.5">Fee</Text>
-                      <Text className="text-base font-bold text-gray-900">
-                        {fee}
-                      </Text>
-                    </View>
-                    <View className="flex-1 border-l border-gray-200 pl-4">
-                      <Text className="text-xs text-gray-500 mb-0.5">
-                        Commission
-                      </Text>
-                      <Text className="text-base font-bold text-gray-900">
-                        {commission}
-                      </Text>
-                    </View>
+                  <View className="flex-row items-center mb-2">
+                    <Feather name="alert-circle" size={14} color="#6B7280" />
+                    <Text className="text-sm text-gray-700 ml-2">{ailment}</Text>
+                  </View>
+                  <View className="flex-row items-center mb-3">
+                    <Feather name="map-pin" size={14} color="#6B7280" />
+                    <Text className="text-sm text-gray-600 ml-2">{distance}</Text>
                   </View>
 
-                  <View className="flex-row" style={{ gap: 8 }}>
+                  <View className="flex-row items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 mb-3">
+                    <View
+                      className={`${consultationModeMeta.bgClass} border px-2.5 py-1 rounded-md flex-row items-center`}
+                    >
+                      <Feather
+                        name={consultationModeMeta.icon as any}
+                        size={12}
+                        color={consultationModeMeta.iconColor}
+                      />
+                      <Text
+                        className={`text-xs font-semibold ml-1.5 ${consultationModeMeta.textClass}`}
+                      >
+                        {consultationModeMeta.label}
+                      </Text>
+                    </View>
+                    <Text className="text-sm font-semibold text-gray-500">
+                      Fee:
+                    </Text>
+                    <Text className="text-base text-gray-900 font-bold">
+                      {fee}
+                    </Text>
+                  </View>
+
+                  <View className="flex-row" style={{ gap: 10 }}>
                     <TouchableOpacity
                       onPress={(e) => {
                         e.stopPropagation();
-                        handleDecline(request._id, patientName);
+                        confirmDecline(request._id, patientName);
                       }}
                       className="flex-1 bg-gray-100 py-3 rounded-lg border border-gray-200"
+                      activeOpacity={0.85}
                     >
-                      <Text className="text-gray-700 font-bold text-center">
-                        Decline
-                      </Text>
+                      <View className="flex-row items-center justify-center">
+                        <Feather name="x" size={16} color="#374151" />
+                        <Text className="text-gray-800 font-semibold text-center ml-2">
+                          Decline
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={(e) => {
                         e.stopPropagation();
-                        handleAccept(request);
+                        confirmAccept(request);
                       }}
-                      className="flex-1 bg-blue-600 py-3 rounded-lg"
+                      className="flex-1 bg-blue-600 py-3 rounded-xl"
+                      activeOpacity={0.9}
                     >
-                      <Text className="text-white font-bold text-center">
-                        Accept
-                      </Text>
+                      <View className="flex-row items-center justify-center">
+                        <Feather name="check" size={16} color="#fff" />
+                        <Text className="text-white font-semibold text-center ml-2">
+                          Accept
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
@@ -1023,6 +1169,38 @@ export default function ProviderHome() {
                     {selectedRequest.ailmentCategory}
                   </Text>
                 </View>
+                <View
+                  className={`self-start mb-2 px-3 py-1 rounded-full border flex-row items-center ${
+                    selectedRequest.consultationMode === "video_consultation"
+                      ? "bg-blue-50 border-blue-200"
+                      : "bg-emerald-50 border-emerald-200"
+                  }`}
+                >
+                  <Feather
+                    name={
+                      selectedRequest.consultationMode === "video_consultation"
+                        ? "video"
+                        : "home"
+                    }
+                    size={12}
+                    color={
+                      selectedRequest.consultationMode === "video_consultation"
+                        ? "#1D4ED8"
+                        : "#047857"
+                    }
+                  />
+                  <Text
+                    className={`text-xs font-bold ml-1.5 ${
+                      selectedRequest.consultationMode === "video_consultation"
+                        ? "text-blue-700"
+                        : "text-emerald-700"
+                    }`}
+                  >
+                    {selectedRequest.consultationMode === "video_consultation"
+                      ? "Video Consultation"
+                      : "House Visit"}
+                  </Text>
+                </View>
                 {selectedRequest.symptoms && (
                   <View className="mt-2">
                     <Text className="text-xs text-gray-500 mb-1">
@@ -1049,22 +1227,6 @@ export default function ProviderHome() {
                   </Text>
                   <Text className="text-base font-bold text-gray-900">
                     N$ {selectedRequest.estimatedCost || 0}
-                  </Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-sm text-gray-700">
-                    Platform Commission:
-                  </Text>
-                  <Text className="text-base font-bold text-gray-900">
-                    N$ {Math.round((selectedRequest.estimatedCost || 0) * 0.1)}
-                  </Text>
-                </View>
-                <View className="flex-row justify-between mt-3 pt-3 border-t border-blue-100">
-                  <Text className="text-sm font-bold text-gray-900">
-                    Your Earnings:
-                  </Text>
-                  <Text className="text-base font-bold text-blue-600">
-                    N$ {Math.round((selectedRequest.estimatedCost || 0) * 0.9)}
                   </Text>
                 </View>
               </View>
@@ -1115,7 +1277,7 @@ export default function ProviderHome() {
               <View className="flex-row" style={{ gap: 10 }}>
                 <TouchableOpacity
                   onPress={() =>
-                    handleDecline(
+                    confirmDecline(
                       selectedRequest._id,
                       selectedRequest.patientId?.fullname || "Unknown",
                     )
@@ -1127,7 +1289,7 @@ export default function ProviderHome() {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => handleAccept(selectedRequest)}
+                  onPress={() => confirmAccept(selectedRequest)}
                   className="flex-1 bg-blue-600 py-3.5 rounded-xl"
                 >
                   <Text className="text-white font-bold text-center">

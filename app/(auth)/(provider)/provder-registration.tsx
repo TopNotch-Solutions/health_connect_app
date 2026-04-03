@@ -1,4 +1,4 @@
-﻿import { Feather } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Device from "expo-device";
 import * as DocumentPicker from "expo-document-picker";
@@ -251,6 +251,8 @@ const DocRow = ({
 export default function ProviderRegistrationScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const providerType = String(params?.providerType ?? "").toLowerCase();
+  const isPharmacist = providerType === "pharmacist";
   const [step, setStep] = useState<Step>(1);
   const [isLoading, setIsLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -286,10 +288,18 @@ export default function ProviderRegistrationScreen() {
     profileImage: null as PickedImage,
     idDocumentFront: null as DocFile,
     idDocumentBack: null as DocFile,
+    // NOTE: For pharmacists this is the Bachelor certificate (backend expects `finalQualification`)
     finalQualification: null as DocFile,
     HPCNAQualification: null as DocFile,
     dispensingCertificateLicence: null as DocFile,
+    // Pharmacist-specific documents (match backend upload.fields names)
+    trainingCertificate: null as DocFile,
+    NQAEvaluation: null as DocFile,
   });
+
+  const [qualificationOrigin, setQualificationOrigin] = useState<
+    "namibia" | "foreign"
+  >("namibia");
 
   const [professionalDetails, setProfessionalDetails] = useState({
     governingCouncil: "Health Professionals Council of Namibia",
@@ -307,6 +317,8 @@ export default function ProviderRegistrationScreen() {
     HPCNAQualification?: string;
     idDocumentFront?: string;
     idDocumentBack?: string;
+    trainingCertificate?: string;
+    NQAEvaluation?: string;
   }>({});
 
   const [accountErrors, setAccountErrors] = useState<{
@@ -605,18 +617,37 @@ export default function ProviderRegistrationScreen() {
         profileImage?: string;
         finalQualification?: string;
         HPCNAQualification?: string;
+        trainingCertificate?: string;
+        NQAEvaluation?: string;
       } = {};
 
       if (!documents.profileImage) {
         newDocErrors.profileImage = "Profile photo is required.";
       }
-      if (!documents.finalQualification) {
-        newDocErrors.finalQualification =
-          "Final qualification document is required.";
-      }
-      if (!documents.HPCNAQualification) {
-        newDocErrors.HPCNAQualification =
-          "HPCNA practicing certificate is required.";
+      if (isPharmacist) {
+        if (!documents.finalQualification) {
+          newDocErrors.finalQualification = "Bachelor certificate is required.";
+        }
+        if (!documents.trainingCertificate) {
+          newDocErrors.trainingCertificate =
+            "Practicing training certificate is required.";
+        }
+        if (!documents.HPCNAQualification) {
+          newDocErrors.HPCNAQualification = "HPCNA certificate is required.";
+        }
+        if (qualificationOrigin === "foreign" && !documents.NQAEvaluation) {
+          newDocErrors.NQAEvaluation =
+            "NQA evaluation is required for foreign qualifications.";
+        }
+      } else {
+        if (!documents.finalQualification) {
+          newDocErrors.finalQualification =
+            "Final qualification document is required.";
+        }
+        if (!documents.HPCNAQualification) {
+          newDocErrors.HPCNAQualification =
+            "HPCNA practicing certificate is required.";
+        }
       }
 
       setDocErrors(newDocErrors);
@@ -762,6 +793,9 @@ export default function ProviderRegistrationScreen() {
       [documents.finalQualification, "finalQualification"],
       [documents.HPCNAQualification, "HPCNAQualification"],
       [documents.dispensingCertificateLicence, "dispensingCertificateLicence"],
+      // Pharmacist files (backend upload.fields keys)
+      [documents.trainingCertificate, "trainingCertificate"],
+      [documents.NQAEvaluation, "NQAEvaluation"],
     ];
 
     files.forEach(([f, key]) => {
@@ -813,9 +847,18 @@ export default function ProviderRegistrationScreen() {
     if (!documents.idDocumentFront) missing.push("ID Front");
     if (!documents.idDocumentBack) missing.push("ID Back");
     if (!documents.profileImage) missing.push("Photo");
-    if (!documents.finalQualification) missing.push("Final Qualification");
-    if (!documents.HPCNAQualification)
-      missing.push("HPCNA Practicing Certificate");
+    if (isPharmacist) {
+      if (!documents.finalQualification) missing.push("Bachelor Certificate");
+      if (!documents.trainingCertificate)
+        missing.push("Practicing Training Certificate");
+      if (!documents.HPCNAQualification) missing.push("HPCNA Certificate");
+      if (qualificationOrigin === "foreign" && !documents.NQAEvaluation)
+        missing.push("NQA Evaluation");
+    } else {
+      if (!documents.finalQualification) missing.push("Final Qualification");
+      if (!documents.HPCNAQualification)
+        missing.push("HPCNA Practicing Certificate");
+    }
     // Dispensing certification is optional, do NOT treat as missing
 
     if (missing.length) {
@@ -884,22 +927,9 @@ export default function ProviderRegistrationScreen() {
       console.log("✅ Registration response:", res.status);
 
       if (res && (res.status === 201 || res.status === 200)) {
-        // Show success message
-        Alert.alert(
-          "Registration Successful",
-          "Your account has been created successfully. Please sign in to continue.",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                // Reset navigation stack and redirect to sign-in
-                // Using replace prevents going back to registration page
-                router.replace("/(root)/sign-in");
-              },
-            },
-          ],
-          { cancelable: false },
-        );
+        // Reset navigation stack and redirect to sign-in
+        // Using replace prevents going back to registration page
+        router.replace("/(root)/sign-in");
       } else {
         const errorMsg = res?.data?.message ?? "Unable to register.";
         console.error("❌ Registration error:", errorMsg);
@@ -1333,7 +1363,7 @@ export default function ProviderRegistrationScreen() {
 
                 <View className="mb-1">
                   <UploadBox
-                    label="Upload Photo"
+                    label="Profile Picture"
                     file={documents.profileImage}
                     onPick={() => pickImage("profileImage")}
                     icon="camera"
@@ -1348,25 +1378,129 @@ export default function ProviderRegistrationScreen() {
                   {!docErrors.profileImage && <View className="mb-3" />}
                 </View>
 
-                <View className="mb-1">
-                  <UploadBox
-                    label="Upload Final Qualification (e.g. Degree/Diploma)"
-                    file={documents.finalQualification}
-                    onPick={() => pickDocument("finalQualification")}
-                    icon="award"
-                    error={docErrors.finalQualification}
-                  />
-                  {docErrors.finalQualification && (
-                    <Text className="text-red-500 text-sm mb-3">
-                      {docErrors.finalQualification}
+                {isPharmacist ? (
+                  <>
+                    <View className="mb-1">
+                      <UploadBox
+                        label="Upload Bachelor Certificate"
+                        file={documents.finalQualification}
+                        onPick={() => pickDocument("finalQualification")}
+                        icon="award"
+                        error={docErrors.finalQualification}
+                      />
+                      {docErrors.finalQualification && (
+                        <Text className="text-red-500 text-sm mb-3">
+                          {docErrors.finalQualification}
+                        </Text>
+                      )}
+                      {!docErrors.finalQualification && (
+                        <View className="mb-3" />
+                      )}
+                    </View>
+
+                    <View className="mb-1">
+                      <UploadBox
+                        label="Upload Practicing Training Certificate"
+                        file={documents.trainingCertificate}
+                        onPick={() =>
+                          pickDocument("trainingCertificate")
+                        }
+                        icon="file-text"
+                        error={docErrors.trainingCertificate}
+                      />
+                      {docErrors.trainingCertificate && (
+                        <Text className="text-red-500 text-sm mb-3">
+                          {docErrors.trainingCertificate}
+                        </Text>
+                      )}
+                      {!docErrors.trainingCertificate && (
+                        <View className="mb-3" />
+                      )}
+                    </View>
+
+                    <Text className="text-base text-text-main mb-2 font-semibold">
+                      Qualification Origin
                     </Text>
-                  )}
-                  {!docErrors.finalQualification && <View className="mb-3" />}
-                </View>
+                    <View className="mb-4" style={{ gap: 12 }}>
+                      {[
+                        { label: "Namibian Qualification", value: "namibia" },
+                        { label: "Foreign Qualification", value: "foreign" },
+                      ].map((o) => (
+                        <TouchableOpacity
+                          key={o.value}
+                          className={`p-4 rounded-xl border-2 ${
+                            qualificationOrigin === (o.value as any)
+                              ? "bg-blue-600 border-blue-600"
+                              : "bg-white border-gray-200"
+                          }`}
+                          onPress={() => {
+                            setQualificationOrigin(o.value as any);
+                            if (docErrors.NQAEvaluation) {
+                              setDocErrors((prev) => {
+                                const next = { ...prev };
+                                delete next.NQAEvaluation;
+                                return next;
+                              });
+                            }
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Text
+                            className={`text-center font-semibold ${
+                              qualificationOrigin === (o.value as any)
+                                ? "text-white"
+                                : "text-gray-700"
+                            }`}
+                          >
+                            {o.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {qualificationOrigin === "foreign" && (
+                      <View className="mb-1">
+                        <UploadBox
+                          label="Upload NQA Evaluation"
+                          file={documents.NQAEvaluation}
+                          onPick={() => pickDocument("NQAEvaluation")}
+                          icon="file-text"
+                          error={docErrors.NQAEvaluation}
+                        />
+                        {docErrors.NQAEvaluation && (
+                          <Text className="text-red-500 text-sm mb-3">
+                            {docErrors.NQAEvaluation}
+                          </Text>
+                        )}
+                        {!docErrors.NQAEvaluation && <View className="mb-3" />}
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  <View className="mb-1">
+                    <UploadBox
+                      label="Upload Final Qualification (e.g. Degree/Diploma)"
+                      file={documents.finalQualification}
+                      onPick={() => pickDocument("finalQualification")}
+                      icon="award"
+                      error={docErrors.finalQualification}
+                    />
+                    {docErrors.finalQualification && (
+                      <Text className="text-red-500 text-sm mb-3">
+                        {docErrors.finalQualification}
+                      </Text>
+                    )}
+                    {!docErrors.finalQualification && <View className="mb-3" />}
+                  </View>
+                )}
 
                 <View className="mb-1">
                   <UploadBox
-                    label="Upload HPCNA Practicing Certificate"
+                    label={
+                      isPharmacist
+                        ? "Upload HPCNA Certificate"
+                        : "Upload HPCNA Practicing Certificate"
+                    }
                     file={documents.HPCNAQualification}
                     onPick={() => pickDocument("HPCNAQualification")}
                     icon="calendar"
@@ -1768,16 +1902,46 @@ export default function ProviderRegistrationScreen() {
                     file={documents.idDocumentBack}
                     showOpen={false}
                   />
-                  <DocRow
-                    label="Final Qualification"
-                    file={documents.finalQualification}
-                    showOpen={false}
-                  />
-                  <DocRow
-                    label="HPCNA Practicing Certificate"
-                    file={documents.HPCNAQualification}
-                    showOpen={false}
-                  />
+                  {!isPharmacist ? (
+                    <>
+                      <DocRow
+                        label="Final Qualification"
+                        file={documents.finalQualification}
+                        showOpen={false}
+                      />
+                      <DocRow
+                        label="HPCNA Practicing Certificate"
+                        file={documents.HPCNAQualification}
+                        showOpen={false}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <DocRow
+                        label="Bachelor Certificate"
+                        file={documents.finalQualification}
+                        showOpen={false}
+                      />
+                      <DocRow
+                        label="Practicing Training Certificate"
+                        file={documents.trainingCertificate}
+                        showOpen={false}
+                      />
+                      <DocRow
+                        label="HPCNA Certificate"
+                        file={documents.HPCNAQualification}
+                        showOpen={false}
+                      />
+                      {qualificationOrigin === "foreign" && (
+                        <DocRow
+                          label="NQA Evaluation"
+                          file={documents.NQAEvaluation}
+                          showOpen={false}
+                        />
+                      )}
+                    </>
+                  )}
+                  {isPharmacist && <>{/* pharmacist docs shown above */}</>}
                   {params?.providerType === "nurse" && (
                     <DocRow
                       label="Dispensing Certification Licence"

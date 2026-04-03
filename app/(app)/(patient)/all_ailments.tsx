@@ -308,9 +308,10 @@ export default function AllAilmentsScreen() {
   const handleCreateRequest = async (requestData: {
     ailmentCategory: string;
     ailmentCategoryId?: string;
+    consultationMode: "house_visit" | "video_consultation";
     symptoms: string;
     paymentMethod: "wallet" | "cash";
-    dueCost: number;
+    estimatedCost: number;
     street: string;
     locality: string;
     region: string;
@@ -342,14 +343,21 @@ export default function AllAilmentsScreen() {
     }
 
     try {
+      const safeAilmentCategoryId =
+        requestData.ailmentCategoryId &&
+        /^[0-9a-fA-F]{24}$/.test(requestData.ailmentCategoryId)
+          ? requestData.ailmentCategoryId
+          : undefined;
+
       const request = await socketService.createRequest({
         patientId: user.userId,
         location: currentLocation,
         ailmentCategory: requestData.ailmentCategory,
-        ailmentCategoryId: requestData.ailmentCategoryId,
+        ailmentCategoryId: safeAilmentCategoryId,
+        consultationMode: requestData.consultationMode,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
-        estimatedCost: requestData.dueCost,
+        estimatedCost: requestData.estimatedCost,
         address: {
           route: requestData.street,
           locality: requestData.locality,
@@ -384,7 +392,7 @@ export default function AllAilmentsScreen() {
           <View className="flex-row items-center bg-white border-2 border-gray-200 rounded-lg px-3 py-2">
             <Feather name="search" size={20} color="#6B7280" />
             <TextInput
-              placeholder="Search ailments..."
+              placeholder="Search services ..."
               className="flex-1 ml-3 text-base"
               value={searchQuery}
               onChangeText={setSearchQuery}

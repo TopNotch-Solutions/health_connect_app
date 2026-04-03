@@ -4,14 +4,14 @@ import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
 import React, { useMemo, useRef } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ChangePasswordModal from "../../../components/ChangePasswordModal";

@@ -1,10 +1,10 @@
 import React from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 interface AilmentCardProps {

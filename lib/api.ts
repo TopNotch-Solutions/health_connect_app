@@ -3,7 +3,7 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 
-// const API_BASE_URL = 'http://13.51.207.99:4000/api';
+// const API_BASE_URL = 'https://apihealthconnect.kopanovertex.com/api';
 const API_BASE_URL = "https://apihealthconnect.kopanovertex.com/api"; // Local testing URL
 
 const apiClient = axios.create({

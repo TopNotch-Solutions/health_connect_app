@@ -493,6 +493,7 @@ export default function PatientHomeScreen() {
   const handleCreateRequest = async (requestData: {
     ailmentCategory: string;
     ailmentCategoryId?: string;
+    consultationMode: "house_visit" | "video_consultation";
     symptoms: string;
     paymentMethod: "wallet" | "cash";
     estimatedCost: number;
@@ -542,6 +543,7 @@ export default function PatientHomeScreen() {
         location: currentLocation,
         ailmentCategory: requestData.ailmentCategory,
         ailmentCategoryId: safeAilmentCategoryId,
+        consultationMode: requestData.consultationMode,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
         estimatedCost: requestData.estimatedCost,
@@ -588,6 +590,7 @@ export default function PatientHomeScreen() {
       // Refresh recent requests to show the newly created request
       loadRecentRequests();
     } catch (error: any) {
+      console.log(error);
       throw new Error(error.message || "Failed to create request");
     }
   };

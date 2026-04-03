@@ -153,6 +153,7 @@ export default function AilmentsScreen() {
   const handleCreateRequest = async (requestData: {
     ailmentCategory: string;
     ailmentCategoryId?: string;
+    consultationMode: "house_visit" | "video_consultation";
     symptoms: string;
     paymentMethod: "wallet" | "cash";
     dueCost: number;
@@ -192,6 +193,7 @@ export default function AilmentsScreen() {
         location: currentLocation,
         ailmentCategory: requestData.ailmentCategory,
         ailmentCategoryId: requestData.ailmentCategoryId,
+        consultationMode: requestData.consultationMode,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
         estimatedCost: requestData.dueCost,

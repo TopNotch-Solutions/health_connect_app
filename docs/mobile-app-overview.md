@@ -31,7 +31,7 @@ See dependencies in [health-connect/package.json](../package.json).
 
 ## Architecture
 
-- Entry and layout: [health-connect/app/_layout.tsx](../app/_layout.tsx)
+- Entry and layout: [health-connect/app/\_layout.tsx](../app/_layout.tsx)
   - Wraps app with `GestureHandlerRootView`, `AuthProvider`, `RouteProvider`, and renders a protected stack.
   - Redirects based on auth state and user role (patient vs provider) and keeps users inside their role silo.
 - Index bootstrap: [health-connect/app/index.tsx](../app/index.tsx)
@@ -44,16 +44,16 @@ See dependencies in [health-connect/package.json](../package.json).
     - Stores an active provider route context (e.g., current request being navigated to).
 - Networking:
   - Axios client: [health-connect/lib/api.ts](../lib/api.ts)
-    - Base URL: `http://13.51.207.99:4000/api` with 120s default timeout; 180s for file uploads; timeout error normalization.
+    - Base URL: `https://apihealthconnect.kopanovertex.com/api` with 120s default timeout; 180s for file uploads; timeout error normalization.
 - Realtime:
   - Socket service: [health-connect/lib/socket.ts](../lib/socket.ts)
-    - Connects to `http://13.51.207.99:4000`, supports `connect/join/disconnect`, ensures cleanup of event listeners on disconnect.
+    - Connects to `https://apihealthconnect.kopanovertex.com`, supports `connect/join/disconnect`, ensures cleanup of event listeners on disconnect.
     - Exposes helpers for creating requests, fetching available/patient requests, and subscribing to updates (e.g., `requestUpdated`, `newRequestAvailable`).
 - Notifications:
   - Hook: [health-connect/hooks/usePushNotifications.ts](../hooks/usePushNotifications.ts)
     - Requests permissions, registers device for push, and PATCHes `/app/auth/update-push-token/:userId` to backend.
 - Screens (selection):
-  - Onboarding Stack: [health-connect/app/(onboarding)/_layout.tsx](../app/(onboarding)/_layout.tsx)
+  - Onboarding Stack: [health-connect/app/(onboarding)/\_layout.tsx](<../app/(onboarding)/_layout.tsx>)
   - Wallet placeholder: [health-connect/app/wallet.tsx](../app/wallet.tsx)
   - Notifications: [health-connect/app/notifications.tsx](../app/notifications.tsx)
   - Auth, verification, and role-based app routes under `app/(root)`, `app/(auth)`, `app/(verification)`, `app/(app)/(patient)` and `app/(app)/(provider)`.
@@ -98,11 +98,12 @@ See dependencies in [health-connect/package.json](../package.json).
 
 ## Environment & Secrets
 
-- API base: [lib/api.ts](../lib/api.ts) currently points to `http://13.51.207.99:4000/api`.
-- Socket base: [lib/socket.ts](../lib/socket.ts) points to `http://13.51.207.99:4000`.
+- API base: [lib/api.ts](../lib/api.ts) currently points to `https://apihealthconnect.kopanovertex.com/api`.
+- Socket base: [lib/socket.ts](../lib/socket.ts) points to `https://apihealthconnect.kopanovertex.com`.
 - Google Maps API key is embedded in `app.json` for Android.
 
 Recommendations:
+
 - Move sensitive keys and service URLs to environment config (EAS secrets or runtime config) and avoid committing raw keys.
 - Consider HTTPS endpoints and certificate/network security configuration for production.
 

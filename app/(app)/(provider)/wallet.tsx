@@ -1,6 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -136,7 +142,9 @@ export default function TransactionsScreen() {
   );
   const [isFetchingPackages, setIsFetchingPackages] = useState(false);
 
-  const addMoneySheetRef = useRef<BottomSheet>(null);
+  // Bottom sheets
+  const addMoneySheetRef = useRef<BottomSheet>(null); // package selection
+  const purchaseSheetRef = useRef<BottomSheet>(null); // card details / purchase
   const fundOthersSheetRef = useRef<BottomSheet>(null);
   const withdrawSheetRef = useRef<BottomSheet>(null);
   // Snap points with extra space for keyboard
@@ -314,7 +322,17 @@ export default function TransactionsScreen() {
       const userResponse = await apiClient.get("/app/auth/user-details/");
       console.log("User Details Response:", userResponse.data);
       if (userResponse.data?.status && userResponse.data?.user) {
+        console.log("Updating user details:", userResponse.data.user);
         updateUser(userResponse.data.user);
+        const backendUser = userResponse.data.user;
+
+        // Ensure consultations is refreshed from backend response
+        await updateUser({
+          consultations:
+            typeof backendUser.consultations === "number"
+              ? backendUser.consultations
+              : user?.consultations,
+        });
       }
     } catch (error) {
       console.error("Error fetching user details:", error);
@@ -349,6 +367,11 @@ export default function TransactionsScreen() {
       cvv?: string;
       cardHolder?: string;
     } = {};
+    // Ensure a package is selected so we can send its id
+    if (!selectedPackage?._id) {
+      Alert.alert("Missing package", "Please select a package first.");
+      return;
+    }
     if (!addMoneyForm.amount) errors.amount = "Amount is required";
     if (!addMoneyForm.cardHolder)
       errors.cardHolder = "Cardholder name is required";
@@ -363,15 +386,30 @@ export default function TransactionsScreen() {
 
     setIsSubmitting(true);
     try {
+      // include selected package id in the payload
+      const payload = {
+        ...addMoneyForm,
+        packageId: selectedPackage._id,
+      };
+
       const response = await apiClient.post(
         "/app/transaction/fund-wallet/",
-        addMoneyForm,
+        payload,
       );
 
       // Treat any 2xx as success
       if (response.status >= 200 && response.status < 300) {
+        // Optimistically update available consultations in AuthContext
+        if (selectedPackage?.consultations) {
+          await updateUser({
+            consultations:
+              (user?.consultations || 0) + selectedPackage.consultations,
+          });
+        }
+
         // Close sheet and clear fields immediately
-        addMoneySheetRef.current?.close();
+        purchaseSheetRef.current?.close();
+        setSelectedPackage(null);
         setAddMoneyForm({
           amount: "",
           cardNumber: "",
@@ -644,6 +682,7 @@ export default function TransactionsScreen() {
           />
         )}
       </SafeAreaView>
+      {/* Bottom sheet 1: Package selection */}
       <BottomSheet
         ref={addMoneySheetRef}
         index={-1}
@@ -656,294 +695,331 @@ export default function TransactionsScreen() {
         handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
       >
         <View className="flex-1 bg-white">
-          {/* ========================= */}
-          {/* IF NO PACKAGE SELECTED   */}
-          {/* ========================= */}
-          {!selectedPackage ? (
-            <BottomSheetScrollView
-              style={{ paddingTop: 24, paddingHorizontal: 24 }}
-              contentContainerStyle={{ paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <View className="flex-row justify-between items-center mb-6">
-                <Text className="text-2xl font-bold text-text-main">
-                  Select Package
-                </Text>
+          <BottomSheetScrollView
+            style={{ paddingTop: 24, paddingHorizontal: 24 }}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-2xl font-bold text-text-main">
+                Select Package
+              </Text>
 
-                <TouchableOpacity
-                  onPress={() => addMoneySheetRef.current?.close()}
-                >
-                  <Feather name="x" size={24} color="#374151" />
-                </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => addMoneySheetRef.current?.close()}
+              >
+                <Feather name="x" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+
+            {isFetchingPackages ? (
+              <View className="mt-10 items-center">
+                <ActivityIndicator size="large" color="#16a34a" />
+                <Text className="text-gray-500 mt-3">Loading packages...</Text>
               </View>
-
-              {isFetchingPackages ? (
-                <View className="mt-10 items-center">
-                  <ActivityIndicator size="large" color="#16a34a" />
-                  <Text className="text-gray-500 mt-3">
-                    Loading packages...
-                  </Text>
-                </View>
-              ) : packages.length === 0 ? (
-                <Text className="text-gray-500 text-center mt-10">
-                  No packages available.
-                </Text>
-              ) : (
-                <View className="mt-2">
-                  {packages.map((pkg, index) => {
-                    const isBestValue = index === 1; // highlight middle option
-                    return (
-                      <TouchableOpacity
-                        key={pkg._id}
-                        activeOpacity={0.9}
-                        className={`mb-4 rounded-3xl overflow-hidden border border-gray-200 shadow-sm`}
-                        onPress={() => {
-                          setSelectedPackage(pkg);
-                          setAddMoneyForm((prev) => ({
-                            ...prev,
-                            amount: String(pkg.amount),
-                          }));
-                        }}
-                      >
-                        <View
-                          className={`p-5 bg-white
-                            `}
-                        >
-                          <View className="flex-row justify-between items-center mb-2">
-                            <View>
-                              <Text
-                                className={`text-xs font-semibold uppercase tracking-wide text-gray-90`}
-                              >
-                                {pkg.consultations} Consultation
-                                {pkg.consultations > 1 ? "s" : ""}
-                              </Text>
-                              <Text
-                                className={`text-2xl font-extrabold text-gray-900`}
-                              >
-                                N$ {pkg.amount}
-                              </Text>
-                            </View>
-
-                            <View className="items-end">
-                              {isBestValue && (
-                                <View className="px-3 py-1 rounded-full bg-emerald-100/90 mb-2">
-                                  <Text className="text-[11px] font-semibold text-black">
-                                    Most Popular
-                                  </Text>
-                                </View>
-                              )}
-                              <View
-                                className={`w-10 h-10 rounded-full items-center justify-center bg-green-50`}
-                              >
-                                <Feather
-                                  name="plus-circle"
-                                  size={22}
-                                  color={"#16A34A"}
-                                />
-                              </View>
-                            </View>
+            ) : packages.length === 0 ? (
+              <Text className="text-gray-500 text-center mt-10">
+                No packages available.
+              </Text>
+            ) : (
+              <View className="mt-2">
+                {packages.map((pkg, index) => {
+                  const isBestValue = index === 1; // highlight middle option
+                  return (
+                    <TouchableOpacity
+                      key={pkg._id}
+                      activeOpacity={0.9}
+                      className={`mb-4 rounded-3xl overflow-hidden border border-gray-200 shadow-sm`}
+                      onPress={() => {
+                        setSelectedPackage(pkg);
+                        setAddMoneyForm((prev) => ({
+                          ...prev,
+                          amount: String(pkg.amount),
+                        }));
+                        addMoneySheetRef.current?.close();
+                        purchaseSheetRef.current?.expand();
+                      }}
+                    >
+                      <View className="p-5 bg-white">
+                        <View className="flex-row justify-between items-center mb-2">
+                          <View>
+                            <Text className="text-xs font-semibold uppercase tracking-wide text-gray-90">
+                              {pkg.consultations} Consultation
+                              {pkg.consultations > 1 ? "s" : ""}
+                            </Text>
+                            <Text className="text-2xl font-extrabold text-gray-900">
+                              N$ {pkg.amount}
+                            </Text>
                           </View>
 
-                          <View className="flex-row justify-between items-center mt-2">
-                            <Text
-                              className={`text-xs text-gray-500`}
-                            >
-                              Ideal for{" "}
-                              <Text className="font-semibold">
-                                {pkg.consultations} session
-                                {pkg.consultations > 1 ? "s" : ""}
-                              </Text>
-                            </Text>
-                            <Text
-                              className={`text-[11px] font-medium text-gray-500`}
-                            >
-                              Tap to continue
-                            </Text>
+                          <View className="items-end">
+                            {isBestValue && (
+                              <View className="px-3 py-1 rounded-full bg-emerald-100/90 mb-2">
+                                <Text className="text-[11px] font-semibold text-black">
+                                  Most Popular
+                                </Text>
+                              </View>
+                            )}
+                            <View className="w-10 h-10 rounded-full items-center justify-center bg-green-50">
+                              <Feather
+                                name="plus-circle"
+                                size={22}
+                                color={"#16A34A"}
+                              />
+                            </View>
                           </View>
                         </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-            </BottomSheetScrollView>
-          ) : (
-            <BottomSheetScrollView
-              style={{ paddingTop: 24, paddingHorizontal: 24 }}
-              contentContainerStyle={{
-                paddingBottom: Math.max(24, keyboardHeight + 20),
-              }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {/* ========================= */}
-              {/* PURCHASE VIEW             */}
-              {/* ========================= */}
 
-              <View className="flex-row justify-between items-center mb-6">
-                <Text className="text-2xl font-bold text-text-main">
-                  Purchase
+                        <View className="flex-row justify-between items-center mt-2">
+                          <Text className="text-xs text-gray-500">
+                            Ideal for{" "}
+                            <Text className="font-semibold">
+                              {pkg.consultations} session
+                              {pkg.consultations > 1 ? "s" : ""}
+                            </Text>
+                          </Text>
+                          <Text className="text-[11px] font-medium text-gray-500">
+                            Tap to continue
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </BottomSheetScrollView>
+        </View>
+      </BottomSheet>
+
+      {/* Bottom sheet 2: Purchase & card details */}
+      <BottomSheet
+        ref={purchaseSheetRef}
+        index={-1}
+        snapPoints={addMoneySnapPoints}
+        enablePanDownToClose
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
+        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
+        handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
+      >
+        <View className="flex-1 bg-white">
+          <BottomSheetScrollView
+            style={{ paddingTop: 24, paddingHorizontal: 24 }}
+            contentContainerStyle={{
+              paddingBottom: Math.max(24, keyboardHeight + 20),
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {!selectedPackage ? (
+              <View className="items-center mt-10">
+                <Text className="text-base text-gray-600 mb-4">
+                  No package selected.
                 </Text>
-
                 <TouchableOpacity
+                  className="bg-green-600 px-4 py-2 rounded-2xl"
                   onPress={() => {
-                    setSelectedPackage(null);
-                    setAddMoneyErrors({});
-                    addMoneySheetRef.current?.close();
+                    purchaseSheetRef.current?.close();
+                    addMoneySheetRef.current?.expand();
                   }}
                 >
-                  <Feather name="x" size={24} color="#374151" />
+                  <Text className="text-white font-semibold">
+                    Choose a package
+                  </Text>
                 </TouchableOpacity>
               </View>
+            ) : (
+              <>
+                <View className="flex-row justify-between items-center mb-6">
+                  <Text className="text-2xl font-bold text-text-main">
+                    Purchase
+                  </Text>
 
-              {/* Selected Package Summary - matches selection card style */}
-              <View className="mb-6 rounded-3xl overflow-hidden border border-gray-200 shadow-sm bg-white">
-                <View className="p-5">
-                  <View className="flex-row justify-between items-center mb-2">
-                    <View>
-                      <Text className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Selected Package
-                      </Text>
-                      <Text className="text-2xl font-extrabold text-gray-900 mt-1">
-                        N$ {selectedPackage.amount}
-                      </Text>
-                      <Text className="text-xs font-medium text-gray-500 mt-1">
-                        {selectedPackage.consultations} Consultation
-                        {selectedPackage.consultations > 1 ? "s" : ""}
-                      </Text>
-                    </View>
-                    <View className="items-end">
-                      <View className="px-3 py-1 rounded-full bg-emerald-100/90 mb-2">
-                        <Text className="text-[11px] font-semibold text-black">
-                          Selected
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedPackage(null);
+                      setAddMoneyErrors({});
+                      purchaseSheetRef.current?.close();
+                    }}
+                  >
+                    <Feather name="x" size={24} color="#374151" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Selected Package Summary - matches selection card style */}
+                <View className="mb-6 rounded-3xl overflow-hidden border border-gray-200 shadow-sm bg-white">
+                  <View className="p-5">
+                    <View className="flex-row justify-between items-center mb-2">
+                      <View>
+                        <Text className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          Selected Package
+                        </Text>
+                        <Text className="text-2xl font-extrabold text-gray-900 mt-1">
+                          N$ {selectedPackage.amount}
+                        </Text>
+                        <Text className="text-xs font-medium text-gray-500 mt-1">
+                          {selectedPackage.consultations} Consultation
+                          {selectedPackage.consultations > 1 ? "s" : ""}
                         </Text>
                       </View>
-                      <View className="w-10 h-10 rounded-full items-center justify-center bg-green-50">
-                        <Feather name="check-circle" size={22} color="#16A34A" />
+                      <View className="items-end">
+                        <View className="px-3 py-1 rounded-full bg-emerald-100/90 mb-2">
+                          <Text className="text-[11px] font-semibold text-black">
+                            Selected
+                          </Text>
+                        </View>
+                        <View className="w-10 h-10 rounded-full items-center justify-center bg-green-50">
+                          <Feather
+                            name="check-circle"
+                            size={22}
+                            color="#16A34A"
+                          />
+                        </View>
                       </View>
                     </View>
-                  </View>
-                  <View className="flex-row justify-between items-center mt-2">
-                    <Text className="text-xs text-gray-500">
-                      You are purchasing{" "}
-                      <Text className="font-semibold">
-                        {selectedPackage.consultations} session
-                        {selectedPackage.consultations > 1 ? "s" : ""}
+                    <View className="flex-row justify-between items-center mt-2">
+                      <Text className="text-xs text-gray-500">
+                        You are purchasing{" "}
+                        <Text className="font-semibold">
+                          {selectedPackage.consultations} session
+                          {selectedPackage.consultations > 1 ? "s" : ""}
+                        </Text>
                       </Text>
-                    </Text>
-                    <Text className="text-[11px] font-medium text-gray-500">
-                      Billed once-off
-                    </Text>
+                      <Text className="text-[11px] font-medium text-gray-500">
+                        Billed once-off
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              {/* Change Package */}
-              <TouchableOpacity
-                onPress={() => setSelectedPackage(null)}
-                className="mb-6"
-              >
-                <Text className="text-green-600 font-semibold">
-                  ← Change Package
-                </Text>
-              </TouchableOpacity>
-
-              {/* Card Details - modern layout */}
-              <Text className="text-sm font-semibold text-gray-700 mb-2">
-                Card Details
-              </Text>
-
-              {/* Card Holder */}
-              <Text className="text-xs font-medium text-gray-500 mb-1">
-                Card holder name
-              </Text>
-              <TextInput
-                placeholder="Card Holder Name"
-                value={addMoneyForm.cardHolder}
-                onChangeText={(text) =>
-                  setAddMoneyForm({ ...addMoneyForm, cardHolder: text })
-                }
-                className="bg-white p-4 rounded-2xl mb-3 border border-gray-200"
-              />
-              {addMoneyErrors.cardHolder && (
-                <Text className="text-xs text-red-500 mb-2">
-                  {addMoneyErrors.cardHolder}
-                </Text>
-              )}
-
-              {/* Card Number */}
-              <Text className="text-xs font-medium text-gray-500 mb-1 mt-1">
-                Card number
-              </Text>
-              <TextInput
-                placeholder="Card Number"
-                keyboardType="numeric"
-                value={addMoneyForm.cardNumber}
-                onChangeText={(text) =>
-                  setAddMoneyForm({ ...addMoneyForm, cardNumber: text })
-                }
-                className="bg-white p-4 rounded-2xl mb-3 border border-gray-200"
-              />
-              {addMoneyErrors.cardNumber && (
-                <Text className="text-xs text-red-500 mb-2">
-                  {addMoneyErrors.cardNumber}
-                </Text>
-              )}
-
-              {/* Expiry Date */}
-              <View className="flex-row" style={{ gap: 12 }}>
-                <View className="flex-1">
-                  <Text className="text-xs font-medium text-gray-500 mb-1">
-                    Expiry date
+                {/* Change Package */}
+                <TouchableOpacity
+                  onPress={() => {
+                    purchaseSheetRef.current?.close();
+                    addMoneySheetRef.current?.expand();
+                  }}
+                  className="mb-6"
+                >
+                  <Text className="text-green-600 font-semibold">
+                    ← Change Package
                   </Text>
-                  <TextInput
-                    placeholder="MM/YY"
-                    value={addMoneyForm.expiryDate}
-                    onChangeText={(text) =>
-                      setAddMoneyForm({ ...addMoneyForm, expiryDate: text })
-                    }
-                    className="bg-white p-4 rounded-2xl mb-1 border border-gray-200"
-                  />
-                  {addMoneyErrors.expiryDate && (
-                    <Text className="text-xs text-red-500 mb-2">
-                      {addMoneyErrors.expiryDate}
-                    </Text>
-                  )}
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs font-medium text-gray-500 mb-1">
-                    CVV
-                  </Text>
-                  <TextInput
-                    placeholder="CVV"
-                    keyboardType="numeric"
-                    secureTextEntry
-                    value={addMoneyForm.cvv}
-                    onChangeText={(text) =>
-                      setAddMoneyForm({ ...addMoneyForm, cvv: text })
-                    }
-                    className="bg-white p-4 rounded-2xl mb-1 border border-gray-200"
-                  />
-                  {addMoneyErrors.cvv && (
-                    <Text className="text-xs text-red-500 mb-2">
-                      {addMoneyErrors.cvv}
-                    </Text>
-                  )}
-                </View>
-              </View>
+                </TouchableOpacity>
 
-              {/* Confirm Button */}
-              <TouchableOpacity
-                className="bg-green-600 p-4 rounded-2xl items-center mt-4"
-                onPress={handleAddMoney}
-              >
-                <Text className="text-white font-bold text-lg">
-                  Confirm Payment
+                {/* Card Details - modern layout */}
+                <Text className="text-sm font-semibold text-gray-700 mb-2">
+                  Card Details
                 </Text>
-              </TouchableOpacity>
-            </BottomSheetScrollView>
-          )}
+
+                {/* Card Holder */}
+                <Text className="text-xs font-medium text-gray-500 mb-1">
+                  Card holder name
+                </Text>
+                <TextInput
+                  placeholder="Card Holder Name"
+                  value={addMoneyForm.cardHolder}
+                  onChangeText={(text) => {
+                    setAddMoneyForm({ ...addMoneyForm, cardHolder: text });
+                    setAddMoneyErrors((prev) => ({
+                      ...prev,
+                      cardHolder: undefined,
+                    }));
+                  }}
+                  className="bg-white p-4 rounded-2xl mb-3 border border-gray-200"
+                />
+                {addMoneyErrors.cardHolder && (
+                  <Text className="text-xs text-red-500 mb-2">
+                    {addMoneyErrors.cardHolder}
+                  </Text>
+                )}
+
+                {/* Card Number */}
+                <Text className="text-xs font-medium text-gray-500 mb-1 mt-1">
+                  Card number
+                </Text>
+                <TextInput
+                  placeholder="Card Number"
+                  keyboardType="numeric"
+                  value={addMoneyForm.cardNumber}
+                  onChangeText={(text) => {
+                    setAddMoneyForm({ ...addMoneyForm, cardNumber: text });
+                    setAddMoneyErrors((prev) => ({
+                      ...prev,
+                      cardNumber: undefined,
+                    }));
+                  }}
+                  className="bg-white p-4 rounded-2xl mb-3 border border-gray-200"
+                />
+                {addMoneyErrors.cardNumber && (
+                  <Text className="text-xs text-red-500 mb-2">
+                    {addMoneyErrors.cardNumber}
+                  </Text>
+                )}
+
+                {/* Expiry Date / CVV */}
+                <View className="flex-row" style={{ gap: 12 }}>
+                  <View className="flex-1">
+                    <Text className="text-xs font-medium text-gray-500 mb-1">
+                      Expiry date
+                    </Text>
+                    <TextInput
+                      placeholder="MM/YY"
+                      value={addMoneyForm.expiryDate}
+                      onChangeText={(text) => {
+                        setAddMoneyForm({ ...addMoneyForm, expiryDate: text });
+                        setAddMoneyErrors((prev) => ({
+                          ...prev,
+                          expiryDate: undefined,
+                        }));
+                      }}
+                      className="bg-white p-4 rounded-2xl mb-1 border border-gray-200"
+                    />
+                    {addMoneyErrors.expiryDate && (
+                      <Text className="text-xs text-red-500 mb-2">
+                        {addMoneyErrors.expiryDate}
+                      </Text>
+                    )}
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-xs font-medium text-gray-500 mb-1">
+                      CVV
+                    </Text>
+                    <TextInput
+                      placeholder="CVV"
+                      keyboardType="numeric"
+                      secureTextEntry
+                      value={addMoneyForm.cvv}
+                      onChangeText={(text) => {
+                        setAddMoneyForm({ ...addMoneyForm, cvv: text });
+                        setAddMoneyErrors((prev) => ({
+                          ...prev,
+                          cvv: undefined,
+                        }));
+                      }}
+                      className="bg-white p-4 rounded-2xl mb-1 border border-gray-200"
+                    />
+                    {addMoneyErrors.cvv && (
+                      <Text className="text-xs text-red-500 mb-2">
+                        {addMoneyErrors.cvv}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Confirm Button */}
+                <TouchableOpacity
+                  className="bg-green-600 p-4 rounded-2xl items-center mt-4"
+                  onPress={handleAddMoney}
+                >
+                  <Text className="text-white font-bold text-lg">
+                    Confirm Payment
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </BottomSheetScrollView>
         </View>
       </BottomSheet>
 

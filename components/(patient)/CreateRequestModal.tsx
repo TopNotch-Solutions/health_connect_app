@@ -24,6 +24,7 @@ interface CreateRequestModalProps {
   onSubmit: (requestData: {
     ailmentCategory: string;
     ailmentCategoryId?: string;
+    consultationMode: "house_visit" | "video_consultation";
     symptoms: string;
     paymentMethod: "wallet" | "cash";
     estimatedCost: number;
@@ -46,7 +47,10 @@ export default function CreateRequestModal({
   const ailmentCategoryId = selectedAilment?._id;
 
   const [ailmentCategory, setAilmentCategory] = useState(ailmentTitle);
-  const [paymentMethod, setPaymentMethod] = useState<"cash">("cash");
+  const [consultationMode, setConsultationMode] = useState<
+    "house_visit" | "video_consultation"
+  >("house_visit");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "wallet">("cash");
   const [dueCost, setDueCost] = useState("");
   const [street, setStreet] = useState("");
   const [locality, setLocality] = useState("");
@@ -91,6 +95,13 @@ export default function CreateRequestModal({
     }
   }, [selectedAilment]);
 
+  // Video consultations are wallet-only. Auto-switch if needed.
+  useEffect(() => {
+    if (consultationMode === "video_consultation" && paymentMethod !== "wallet") {
+      setPaymentMethod("wallet");
+    }
+  }, [consultationMode, paymentMethod]);
+
   const loadLocationAndAddress = async () => {
     setIsLoadingLocation(true);
     try {
@@ -106,6 +117,8 @@ export default function CreateRequestModal({
       });
 
       setMarkerCoord({ latitude, longitude });
+      // Auto-show map once location is available
+      setShowMap(true);
 
       // Set address fields
       setStreet(address.route || "Patient Location");
@@ -113,6 +126,7 @@ export default function CreateRequestModal({
       setRegion(address.administrative_area_level_1 || "Current Region");
     } catch (error: any) {
       console.error("Error loading location:", error);
+      setShowMap(false);
       Alert.alert(
         "Location Error",
         error.message ||
@@ -160,37 +174,51 @@ export default function CreateRequestModal({
       return;
     }
 
-    setIsLoading(true);
-    try {
-      await onSubmit({
-        ailmentCategory: ailmentCategory.trim(),
-        ailmentCategoryId: ailmentCategoryId,
-        symptoms: "",
-        paymentMethod,
-        estimatedCost: cost, // Changed from dueCost to estimatedCost to match backend
-        street: street.trim(),
-        locality: locality.trim(),
-        region: region.trim(),
-        preferredTime: undefined,
-        coordinates: markerCoord,
-      });
+    Alert.alert(
+      "Confirm Request",
+      `Submit a ${consultationMode === "video_consultation" ? "video consultation" : "house visit"} request for N$${cost.toFixed(2)}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Submit",
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              await onSubmit({
+                ailmentCategory: ailmentCategory.trim(),
+                ailmentCategoryId: ailmentCategoryId,
+                consultationMode,
+                symptoms: "",
+                paymentMethod,
+                estimatedCost: cost, // Changed from dueCost to estimatedCost to match backend
+                street: street.trim(),
+                locality: locality.trim(),
+                region: region.trim(),
+                preferredTime: undefined,
+                coordinates: markerCoord,
+              });
 
-      // Reset form on success
-      setAilmentCategory("");
-      setPaymentMethod("cash");
-      setDueCost("0");
-      setStreet("");
-      setLocality("");
-      setRegion("");
-      setMapRegion(null);
-      setMarkerCoord(null);
-      setShowMap(false);
-      onClose();
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to create request");
-    } finally {
-      setIsLoading(false);
-    }
+              // Reset form on success
+              setAilmentCategory("");
+              setConsultationMode("house_visit");
+              setPaymentMethod("cash");
+              setDueCost("0");
+              setStreet("");
+              setLocality("");
+              setRegion("");
+              setMapRegion(null);
+              setMarkerCoord(null);
+              setShowMap(false);
+              onClose();
+            } catch (error: any) {
+              Alert.alert("Error", error.message || "Failed to create request");
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleMapPress = async (e: any) => {
@@ -205,9 +233,13 @@ export default function CreateRequestModal({
   };
 
   const paymentOptions = [
-    // { value: "wallet", label: "Wallet", icon: "credit-card" },
     { value: "cash", label: "Cash", icon: "dollar-sign" },
+    { value: "wallet", label: "Wallet", icon: "credit-card" },
   ];
+  const visiblePaymentOptions =
+    consultationMode === "video_consultation"
+      ? paymentOptions.filter((option) => option.value === "wallet")
+      : paymentOptions;
 
   return (
     <Modal
@@ -250,6 +282,71 @@ export default function CreateRequestModal({
                 />
               </View>
 
+              {/* Consultation Mode */}
+              <View className="mb-6">
+                <Text className="text-base font-semibold text-gray-900 mb-2">
+                  Consultation Type *
+                </Text>
+                <View className="flex-row" style={{ gap: 10 }}>
+                  <TouchableOpacity
+                    onPress={() => setConsultationMode("house_visit")}
+                    disabled={isLoading}
+                    className={`flex-1 rounded-lg border-2 p-3 ${
+                      consultationMode === "house_visit"
+                        ? "bg-blue-50 border-blue-500"
+                        : "bg-white border-gray-300"
+                    }`}
+                  >
+                    <Text
+                      className={`text-center font-semibold ${
+                        consultationMode === "house_visit"
+                          ? "text-blue-700"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      House Visit
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setConsultationMode("video_consultation")}
+                    disabled={isLoading}
+                    className={`flex-1 rounded-lg border-2 p-3 ${
+                      consultationMode === "video_consultation"
+                        ? "bg-blue-50 border-blue-500"
+                        : "bg-white border-gray-300"
+                    }`}
+                  >
+                    <Text
+                      className={`text-center font-semibold ${
+                        consultationMode === "video_consultation"
+                          ? "text-blue-700"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      Video Consultation
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View className="bg-amber-50 rounded-lg p-3 mt-3 border border-amber-300">
+                  <Text className="text-xs font-bold text-amber-900 mb-1">
+                    Disclaimer
+                  </Text>
+                  {consultationMode === "house_visit" ? (
+                    <Text className="text-xs text-amber-800 leading-5">
+                      Activate House Visit when you need a physical examination,
+                      procedure, or in-person assessment at your location.
+                    </Text>
+                  ) : (
+                    <Text className="text-xs text-amber-800 leading-5">
+                      Activate Video Consultation for follow-ups and
+                      non-emergency cases when you have stable internet, camera,
+                      and audio.
+                    </Text>
+                  )}
+                </View>
+              </View>
+
               {/* Map Section */}
               <View className="mb-6">
                 <View className="flex-row items-center justify-between mb-3">
@@ -259,7 +356,7 @@ export default function CreateRequestModal({
                   <TouchableOpacity
                     onPress={() => setShowMap(!showMap)}
                     disabled={isLoading}
-                    className="bg-blue-100 px-3 py-1 rounded-full border border border-blue-500"
+                    className="bg-blue-100 px-3 py-1 rounded-full border border-blue-500"
                   >
                     <Text className="text-blue-600 text-sm font-semibold">
                       {showMap ? "Hide Map" : "Show Map"}
@@ -296,13 +393,13 @@ export default function CreateRequestModal({
                 ) : null}
 
                 {/* Address fields - auto-populated from map */}
-                <View className="bg-blue-50 rounded-lg p-3 mb-3 flex-row items-start border border-blue-500">
-                  <Feather name="map-pin" size={16} color="#3B82F6" />
+                <View className="bg-amber-50 rounded-lg p-3 mb-3 flex-row items-start border border-amber-300">
+                  <Feather name="map-pin" size={16} color="#92400E" />
                   <View className="ml-2 flex-1">
-                    <Text className="text-sm font-semibold text-blue-900">
+                    <Text className="text-sm font-semibold text-amber-900">
                       Auto-populated from location
                     </Text>
-                    <Text className="text-xs text-blue-800 mt-1">
+                    <Text className="text-xs text-amber-800 mt-1">
                       Your location is automatically detected and displayed
                     </Text>
                   </View>
@@ -374,7 +471,7 @@ export default function CreateRequestModal({
                   Payment Method *
                 </Text>
                 <View className="flex-row gap-3">
-                  {paymentOptions.map((option) => (
+                  {visiblePaymentOptions.map((option) => (
                     <TouchableOpacity
                       key={option.value}
                       onPress={() => setPaymentMethod(option.value as any)}
@@ -404,17 +501,22 @@ export default function CreateRequestModal({
                     </TouchableOpacity>
                   ))}
                 </View>
+                {consultationMode === "video_consultation" && (
+                  <Text className="text-xs text-gray-600 mt-2">
+                    Video consultation supports wallet payment only.
+                  </Text>
+                )}
               </View>
 
               {/* Info Box */}
-              <View className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-500">
+              <View className="bg-amber-50 rounded-lg p-4 mb-6 border border-amber-300">
                 <View className="flex-row items-start">
-                  <Feather name="info" size={20} color="#3B82F6" />
+                  <Feather name="info" size={20} color="#92400E" />
                   <View className="flex-1 ml-3">
-                    <Text className="text-sm text-blue-900 font-semibold mb-1">
+                    <Text className="text-sm text-amber-900 font-semibold mb-1">
                       Request will be sent to nearby providers
                     </Text>
-                    <Text className="text-sm text-blue-800">
+                    <Text className="text-sm text-amber-800">
                       Your location will be shared with the healthcare provider
                       who accepts your request. The request expires after 6
                       hours if not accepted.

@@ -1,22 +1,22 @@
-import { Feather } from '@expo/vector-icons';
-import * as Location from 'expo-location';
-import * as Speech from 'expo-speech';
-import React, { useEffect, useRef, useState } from 'react';
+import { Feather } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import * as Speech from "expo-speech";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Modal,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import MapViewDirections from 'react-native-maps-directions';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import socketService from '../../lib/socket';
+    ActivityIndicator,
+    Image,
+    Modal,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import MapView, { Marker } from "react-native-maps";
+import MapViewDirections from "react-native-maps-directions";
+import { SafeAreaView } from "react-native-safe-area-context";
+import socketService from "../../lib/socket";
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg';
-const IMAGE_BASE_URL = 'http://13.51.207.99:4000/images/';
+const GOOGLE_MAPS_API_KEY = "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg";
+const IMAGE_BASE_URL = "https://apihealthconnect.kopanovertex.com/images/";
 
 interface ProviderLocation {
   latitude: number;
@@ -49,7 +49,7 @@ const calculateDistance = (
   lat1: number,
   lon1: number,
   lat2: number,
-  lon2: number
+  lon2: number,
 ): number => {
   const R = 6371; // Earth's radius in km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -69,21 +69,21 @@ const fetchRoute = async (
   startLat: number,
   startLng: number,
   endLat: number,
-  endLng: number
+  endLng: number,
 ): Promise<ProviderLocation[]> => {
   try {
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${startLat},${startLng}&destination=${endLat},${endLng}&key=${GOOGLE_MAPS_API_KEY}&mode=driving`;
-    
+
     const response = await fetch(url);
     const data = await response.json();
-    
+
     if (data.routes && data.routes.length > 0) {
       const polyline = data.routes[0].overview_polyline.points;
       return decodePolyline(polyline);
     }
     return [];
   } catch (error) {
-    console.error('Error fetching route:', error);
+    console.error("Error fetching route:", error);
     return [];
   }
 };
@@ -124,7 +124,7 @@ export default function PatientProviderTracking({
   requestId,
   patientLocation,
   providerName,
-  providerRole = 'provider',
+  providerRole = "provider",
   providerProfileImage,
   patientProfileImage,
 }: PatientProviderTrackingProps) {
@@ -133,22 +133,49 @@ export default function PatientProviderTracking({
   // Debug logging for profile images
   useEffect(() => {
     if (visible) {
-      console.log('PatientProviderTracking - Provider profileImage:', providerProfileImage);
-      console.log('PatientProviderTracking - Patient profileImage:', patientProfileImage);
-      console.log('PatientProviderTracking - Provider profileImage URL:', providerProfileImage ? `${IMAGE_BASE_URL}${providerProfileImage}` : 'N/A');
-      console.log('PatientProviderTracking - Provider profileImage type:', typeof providerProfileImage);
-      console.log('PatientProviderTracking - Provider profileImage truthy:', !!providerProfileImage);
+      console.log(
+        "PatientProviderTracking - Provider profileImage:",
+        providerProfileImage,
+      );
+      console.log(
+        "PatientProviderTracking - Patient profileImage:",
+        patientProfileImage,
+      );
+      console.log(
+        "PatientProviderTracking - Provider profileImage URL:",
+        providerProfileImage
+          ? `${IMAGE_BASE_URL}${providerProfileImage}`
+          : "N/A",
+      );
+      console.log(
+        "PatientProviderTracking - Provider profileImage type:",
+        typeof providerProfileImage,
+      );
+      console.log(
+        "PatientProviderTracking - Provider profileImage truthy:",
+        !!providerProfileImage,
+      );
     }
   }, [visible, providerProfileImage, patientProfileImage]);
 
   // Normalize profile image strings (remove empty strings)
-  const normalizedProviderProfileImage = providerProfileImage && providerProfileImage.trim() ? providerProfileImage : undefined;
-  const normalizedPatientProfileImage = patientProfileImage && patientProfileImage.trim() ? patientProfileImage : undefined;
-  const [providerLocation, setProviderLocation] = useState<ProviderLocation | null>(null);
+  const normalizedProviderProfileImage =
+    providerProfileImage && providerProfileImage.trim()
+      ? providerProfileImage
+      : undefined;
+  const normalizedPatientProfileImage =
+    patientProfileImage && patientProfileImage.trim()
+      ? patientProfileImage
+      : undefined;
+  const [providerLocation, setProviderLocation] =
+    useState<ProviderLocation | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [routeCoordinates, setRouteCoordinates] = useState<ProviderLocation[]>([]);
-  const [currentPatientLocation, setCurrentPatientLocation] = useState<ProviderLocation | null>(patientLocation || null);
+  const [routeCoordinates, setRouteCoordinates] = useState<ProviderLocation[]>(
+    [],
+  );
+  const [currentPatientLocation, setCurrentPatientLocation] =
+    useState<ProviderLocation | null>(patientLocation || null);
   const [lastSpokenDistance, setLastSpokenDistance] = useState<number>(0);
   const [hasSpokenArrival, setHasSpokenArrival] = useState(false);
   const [lastSpeechTime, setLastSpeechTime] = useState<number>(0);
@@ -158,7 +185,7 @@ export default function PatientProviderTracking({
   // Speak text
   const speak = (text: string) => {
     Speech.speak(text, {
-      language: 'en',
+      language: "en",
       pitch: 1.0,
       rate: 0.9,
     });
@@ -167,7 +194,10 @@ export default function PatientProviderTracking({
   const initializeTracking = () => {
     if (!requestId) return;
 
-    console.log('🔍 Initializing patient-side provider tracking for request:', requestId);
+    console.log(
+      "🔍 Initializing patient-side provider tracking for request:",
+      requestId,
+    );
     setIsLoading(true);
 
     // Request initial provider location with a timeout and retry logic
@@ -180,7 +210,9 @@ export default function PatientProviderTracking({
       const attemptGetLocation = () => {
         if (received) return;
 
-        console.log(`📍 Attempting to fetch provider location (attempt ${retryCount + 1}/${maxRetries})...`);
+        console.log(
+          `📍 Attempting to fetch provider location (attempt ${retryCount + 1}/${maxRetries})...`,
+        );
 
         const timeout = setTimeout(() => {
           if (!received) {
@@ -189,7 +221,7 @@ export default function PatientProviderTracking({
               console.log(`⚠️ Attempt ${retryCount} timed out, retrying...`);
               attemptGetLocation();
             } else {
-              console.log('❌ Max retries reached, no location available');
+              console.log("❌ Max retries reached, no location available");
               received = true;
               setIsLoading(false);
               resolve();
@@ -197,48 +229,61 @@ export default function PatientProviderTracking({
           }
         }, 5000);
 
-        socketService.getSocket()?.emit('getProviderLocation', { requestId }, (location: ProviderLocation) => {
-          if (!received) {
-            received = true;
-            clearTimeout(timeout);
+        socketService
+          .getSocket()
+          ?.emit(
+            "getProviderLocation",
+            { requestId },
+            (location: ProviderLocation) => {
+              if (!received) {
+                received = true;
+                clearTimeout(timeout);
 
-            const normalizedLocation = normalizeCoordinate(location);
-            if (normalizedLocation) {
-              console.log('📍 Initial provider location received:', normalizedLocation);
-              setProviderLocation(normalizedLocation);
-              setRouteCoordinates([normalizedLocation]);
+                const normalizedLocation = normalizeCoordinate(location);
+                if (normalizedLocation) {
+                  console.log(
+                    "📍 Initial provider location received:",
+                    normalizedLocation,
+                  );
+                  setProviderLocation(normalizedLocation);
+                  setRouteCoordinates([normalizedLocation]);
 
-              // Calculate distance
-              if (currentPatientLocation) {
-                const dist = calculateDistance(
-                  currentPatientLocation.latitude,
-                  currentPatientLocation.longitude,
-                  normalizedLocation.latitude,
-                  normalizedLocation.longitude
-                );
-                setDistance(dist);
-                
-                // Initial announcement
-                const eta = Math.round((dist / 40) * 60);
-                speak(`Provider ${providerName} is on the way. Estimated arrival in ${eta} minutes.`);
-                setLastSpokenDistance(dist);
-                setLastSpeechTime(Date.now());
+                  // Calculate distance
+                  if (currentPatientLocation) {
+                    const dist = calculateDistance(
+                      currentPatientLocation.latitude,
+                      currentPatientLocation.longitude,
+                      normalizedLocation.latitude,
+                      normalizedLocation.longitude,
+                    );
+                    setDistance(dist);
+
+                    // Initial announcement
+                    const eta = Math.round((dist / 40) * 60);
+                    speak(
+                      `Provider ${providerName} is on the way. Estimated arrival in ${eta} minutes.`,
+                    );
+                    setLastSpokenDistance(dist);
+                    setLastSpeechTime(Date.now());
+                  }
+
+                  setIsLoading(false);
+                  resolve();
+                } else {
+                  console.log(
+                    "⚠️ No location data received or invalid coordinates, will retry...",
+                  );
+                  retryCount++;
+                  if (retryCount < maxRetries) {
+                    setTimeout(attemptGetLocation, retryDelay);
+                  } else {
+                    setIsLoading(false);
+                    resolve();
+                  }
+                }
               }
-
-              setIsLoading(false);
-              resolve();
-            } else {
-              console.log('⚠️ No location data received or invalid coordinates, will retry...');
-              retryCount++;
-              if (retryCount < maxRetries) {
-                setTimeout(attemptGetLocation, retryDelay);
-              } else {
-                setIsLoading(false);
-                resolve();
-              }
-            }
-          }
-        });
+            },
+          );
       };
 
       attemptGetLocation();
@@ -248,51 +293,65 @@ export default function PatientProviderTracking({
   const startTracking = () => {
     if (!requestId) return;
 
-    console.log('📡 Setting up provider location listener');
+    console.log("📡 Setting up provider location listener");
 
-      const handleProviderLocationUpdate = (data: any) => {
-        const normalizedLocation = normalizeCoordinate(data.location);
-        if (data.requestId === requestId && normalizedLocation) {
-          console.log('📍 Provider location update:', normalizedLocation);
-          setProviderLocation(normalizedLocation);
+    const handleProviderLocationUpdate = (data: any) => {
+      const normalizedLocation = normalizeCoordinate(data.location);
+      if (data.requestId === requestId && normalizedLocation) {
+        console.log("📍 Provider location update:", normalizedLocation);
+        setProviderLocation(normalizedLocation);
 
-          // Add to route coordinates only if valid
-          setRouteCoordinates((prev) => [...prev, normalizedLocation]);
+        // Add to route coordinates only if valid
+        setRouteCoordinates((prev) => [...prev, normalizedLocation]);
 
-          // Calculate distance
-          if (currentPatientLocation && currentPatientLocation.latitude && currentPatientLocation.longitude) {
-            const dist = calculateDistance(
-              currentPatientLocation.latitude,
-              currentPatientLocation.longitude,
-              normalizedLocation.latitude,
-              normalizedLocation.longitude
+        // Calculate distance
+        if (
+          currentPatientLocation &&
+          currentPatientLocation.latitude &&
+          currentPatientLocation.longitude
+        ) {
+          const dist = calculateDistance(
+            currentPatientLocation.latitude,
+            currentPatientLocation.longitude,
+            normalizedLocation.latitude,
+            normalizedLocation.longitude,
+          );
+          setDistance(dist);
+
+          // Voice updates logic - only speak once per minute
+          const currentTime = Date.now();
+          const oneMinuteInMs = 60 * 1000; // 60 seconds in milliseconds
+          const timeSinceLastSpeech = currentTime - lastSpeechTime;
+
+          if (dist < 0.1 && !hasSpokenArrival) {
+            // Less than 100 meters - always announce arrival
+            speak(`The ${providerRole} has arrived.`);
+            setHasSpokenArrival(true);
+            setLastSpeechTime(currentTime);
+          } else if (
+            dist > 0.1 &&
+            !hasSpokenArrival &&
+            timeSinceLastSpeech >= oneMinuteInMs
+          ) {
+            // Only speak if at least 1 minute has passed since last speech
+            const eta = Math.round((dist / 40) * 60);
+            speak(
+              `Provider is ${dist.toFixed(1)} kilometers away. About ${eta} minutes.`,
             );
-            setDistance(dist);
-
-            // Voice updates logic - only speak once per minute
-            const currentTime = Date.now();
-            const oneMinuteInMs = 60 * 1000; // 60 seconds in milliseconds
-            const timeSinceLastSpeech = currentTime - lastSpeechTime;
-
-            if (dist < 0.1 && !hasSpokenArrival) {
-              // Less than 100 meters - always announce arrival
-              speak(`The ${providerRole} has arrived.`);
-              setHasSpokenArrival(true);
-              setLastSpeechTime(currentTime);
-            } else if (dist > 0.1 && !hasSpokenArrival && timeSinceLastSpeech >= oneMinuteInMs) {
-              // Only speak if at least 1 minute has passed since last speech
-              const eta = Math.round((dist / 40) * 60);
-              speak(`Provider is ${dist.toFixed(1)} kilometers away. About ${eta} minutes.`);
-              setLastSpokenDistance(dist);
-              setLastSpeechTime(currentTime);
-            }
+            setLastSpokenDistance(dist);
+            setLastSpeechTime(currentTime);
           }
         }
-      };    // Listen for provider location updates
-    socketService.getSocket()?.on('updateProviderLocation', handleProviderLocationUpdate);
+      }
+    }; // Listen for provider location updates
+    socketService
+      .getSocket()
+      ?.on("updateProviderLocation", handleProviderLocationUpdate);
 
     return () => {
-      socketService.getSocket()?.off('updateProviderLocation', handleProviderLocationUpdate);
+      socketService
+        .getSocket()
+        ?.off("updateProviderLocation", handleProviderLocationUpdate);
     };
   };
 
@@ -316,7 +375,7 @@ export default function PatientProviderTracking({
         // Since we can't cancel the async init easily, we rely on startTracking returning the cleanup.
         // Ideally, we should refactor to not have this race condition, but for now:
         // We can try to remove the listener directly if we know the event name.
-        socketService.getSocket()?.off('updateProviderLocation');
+        socketService.getSocket()?.off("updateProviderLocation");
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -334,13 +393,19 @@ export default function PatientProviderTracking({
 
   // Auto-zoom to fit both locations - Only on initial load or significant changes
   useEffect(() => {
-    if (!visible || !mapViewRef.current || !currentPatientLocation || !providerLocation) return;
+    if (
+      !visible ||
+      !mapViewRef.current ||
+      !currentPatientLocation ||
+      !providerLocation
+    )
+      return;
 
     // Only fit to coordinates if we haven't done it yet or if it's the first valid location
     // We use a simple check: if routeCoordinates has just 1 item (initial) or we just opened
     // We don't want to re-zoom on every small provider movement
     if (routeCoordinates.length <= 1) {
-       setTimeout(() => {
+      setTimeout(() => {
         mapViewRef.current?.fitToCoordinates(
           [
             {
@@ -355,7 +420,7 @@ export default function PatientProviderTracking({
           {
             edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
             animated: true,
-          }
+          },
         );
       }, 500);
     }
@@ -366,10 +431,13 @@ export default function PatientProviderTracking({
     if (!currentPatientLocation || !providerLocation) return;
 
     const fetchNavRoute = async () => {
-      console.log('🗺️ Fetching navigation route from Google Maps API...');
-      console.log('Current Patient Location:', JSON.stringify(currentPatientLocation));
-      console.log('Provider Location:', JSON.stringify(providerLocation));
-      
+      console.log("🗺️ Fetching navigation route from Google Maps API...");
+      console.log(
+        "Current Patient Location:",
+        JSON.stringify(currentPatientLocation),
+      );
+      console.log("Provider Location:", JSON.stringify(providerLocation));
+
       // Validate locations before fetching
       const patientLat = currentPatientLocation?.latitude;
       const patientLng = currentPatientLocation?.longitude;
@@ -380,7 +448,7 @@ export default function PatientProviderTracking({
       console.log(`Provider coords: lat=${providerLat}, lng=${providerLng}`);
 
       if (!patientLat || !patientLng || !providerLat || !providerLng) {
-        console.log('⚠️ Invalid locations, using direct line');
+        console.log("⚠️ Invalid locations, using direct line");
         setRouteCoordinates([providerLocation, currentPatientLocation]);
         return;
       }
@@ -389,14 +457,19 @@ export default function PatientProviderTracking({
         providerLat,
         providerLng,
         patientLat,
-        patientLng
+        patientLng,
       );
-      
-      if (route.length > 0 && route.every(point => point.latitude && point.longitude)) {
-        console.log('✅ Route received, points:', route.length);
+
+      if (
+        route.length > 0 &&
+        route.every((point) => point.latitude && point.longitude)
+      ) {
+        console.log("✅ Route received, points:", route.length);
         setRouteCoordinates(route);
       } else {
-        console.log('⚠️ No route found or invalid coordinates, using direct line');
+        console.log(
+          "⚠️ No route found or invalid coordinates, using direct line",
+        );
         // Fallback to direct line between two points
         setRouteCoordinates([providerLocation, currentPatientLocation]);
       }
@@ -411,7 +484,7 @@ export default function PatientProviderTracking({
 
     const refreshPatientLocation = async () => {
       try {
-        console.log('📍 Refreshing patient location when modal opens...');
+        console.log("📍 Refreshing patient location when modal opens...");
         const currentLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         });
@@ -419,12 +492,12 @@ export default function PatientProviderTracking({
           latitude: currentLocation.coords.latitude,
           longitude: currentLocation.coords.longitude,
         });
-        console.log('✅ Updated patient location:', newPatientLocation);
+        console.log("✅ Updated patient location:", newPatientLocation);
         if (newPatientLocation) {
           setCurrentPatientLocation(newPatientLocation);
         }
       } catch (error) {
-        console.error('Error refreshing patient location:', error);
+        console.error("Error refreshing patient location:", error);
         // Keep using the passed patientLocation if refresh fails
         if (patientLocation) {
           const normalized = normalizeCoordinate(patientLocation);
@@ -446,11 +519,16 @@ export default function PatientProviderTracking({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView className="flex-1 bg-gray-50" edges={['top', 'bottom', 'left', 'right']}>
+      <SafeAreaView
+        className="flex-1 bg-gray-50"
+        edges={["top", "bottom", "left", "right"]}
+      >
         {/* Header */}
         <View className="bg-white border-b border-gray-200 px-4 py-3 flex-row items-center justify-between">
           <View className="flex-1">
-            <Text className="text-xl font-bold text-gray-800">Track Provider</Text>
+            <Text className="text-xl font-bold text-gray-800">
+              Track Provider
+            </Text>
             <Text className="text-sm text-gray-600 mt-1">{providerName}</Text>
           </View>
           <TouchableOpacity onPress={onClose} className="p-2">
@@ -462,19 +540,24 @@ export default function PatientProviderTracking({
         {isLoading ? (
           <View className="flex-1 items-center justify-center bg-gray-100">
             <ActivityIndicator size="large" color="#007BFF" />
-            <Text className="text-gray-600 mt-4">Loading provider location...</Text>
+            <Text className="text-gray-600 mt-4">
+              Loading provider location...
+            </Text>
             <Text className="text-gray-500 text-xs mt-2 text-center px-4">
-              If this takes a while, the provider may not have started moving yet
+              If this takes a while, the provider may not have started moving
+              yet
             </Text>
           </View>
         ) : !providerLocation || !currentPatientLocation ? (
           <View className="flex-1 items-center justify-center bg-gray-100">
             <Feather name="alert-circle" size={48} color="#6b7280" />
-            <Text className="text-gray-800 font-semibold mt-4">Location Not Available</Text>
+            <Text className="text-gray-800 font-semibold mt-4">
+              Location Not Available
+            </Text>
             <Text className="text-gray-600 text-center mt-2 px-4">
               {!providerLocation
                 ? 'The provider has not started moving yet or has not sent location data. Please ensure they have clicked "Mark as Route" and check back in a moment.'
-                : 'Your location could not be determined. Please enable location services.'}
+                : "Your location could not be determined. Please enable location services."}
             </Text>
             <TouchableOpacity
               onPress={() => {
@@ -502,158 +585,193 @@ export default function PatientProviderTracking({
               }}
             >
               {/* Patient location marker with profile image */}
-              {currentPatientLocation && currentPatientLocation.latitude && currentPatientLocation.longitude && (
-                <Marker
-                  coordinate={{
-                    latitude: currentPatientLocation.latitude,
-                    longitude: currentPatientLocation.longitude,
-                  }}
-                  title="Your Location"
-                  description="Your current location"
-                  identifier="patient"
-                >
-                  <View style={{
-                    width: 50,
-                    height: 50,
-                    borderRadius: 25,
-                    borderWidth: 4,
-                    borderColor: '#FFFFFF',
-                    backgroundColor: '#3B82F6',
-                    overflow: 'hidden',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 4,
-                    elevation: 5,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}>
-                    {normalizedPatientProfileImage ? (
-                      <Image
-                        source={{ uri: `${IMAGE_BASE_URL}${normalizedPatientProfileImage}` }}
-                        style={{ width: '100%', height: '100%' }}
-                        resizeMode="cover"
-                        onError={(error) => {
-                          console.error('Failed to load patient profile image:', error);
-                          console.error('Patient profile image URL:', `${IMAGE_BASE_URL}${normalizedPatientProfileImage}`);
-                        }}
-                        onLoad={() => {
-                          console.log('Patient profile image loaded successfully:', `${IMAGE_BASE_URL}${normalizedPatientProfileImage}`);
-                        }}
-                      />
-                    ) : (
-                      <Feather name="map-pin" size={24} color="white" />
-                    )}
-                  </View>
-                </Marker>
-              )}
+              {currentPatientLocation &&
+                currentPatientLocation.latitude &&
+                currentPatientLocation.longitude && (
+                  <Marker
+                    coordinate={{
+                      latitude: currentPatientLocation.latitude,
+                      longitude: currentPatientLocation.longitude,
+                    }}
+                    title="Your Location"
+                    description="Your current location"
+                    identifier="patient"
+                  >
+                    <View
+                      style={{
+                        width: 50,
+                        height: 50,
+                        borderRadius: 25,
+                        borderWidth: 4,
+                        borderColor: "#FFFFFF",
+                        backgroundColor: "#3B82F6",
+                        overflow: "hidden",
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 4,
+                        elevation: 5,
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      {normalizedPatientProfileImage ? (
+                        <Image
+                          source={{
+                            uri: `${IMAGE_BASE_URL}${normalizedPatientProfileImage}`,
+                          }}
+                          style={{ width: "100%", height: "100%" }}
+                          resizeMode="cover"
+                          onError={(error) => {
+                            console.error(
+                              "Failed to load patient profile image:",
+                              error,
+                            );
+                            console.error(
+                              "Patient profile image URL:",
+                              `${IMAGE_BASE_URL}${normalizedPatientProfileImage}`,
+                            );
+                          }}
+                          onLoad={() => {
+                            console.log(
+                              "Patient profile image loaded successfully:",
+                              `${IMAGE_BASE_URL}${normalizedPatientProfileImage}`,
+                            );
+                          }}
+                        />
+                      ) : (
+                        <Feather name="map-pin" size={24} color="white" />
+                      )}
+                    </View>
+                  </Marker>
+                )}
 
               {/* Provider location marker with profile image */}
-              {providerLocation && providerLocation.latitude && providerLocation.longitude && (
-                <Marker
-                  coordinate={{
-                    latitude: providerLocation.latitude,
-                    longitude: providerLocation.longitude,
-                  }}
-                  title={providerName}
-                  description="Provider's current location"
-                  identifier="provider"
-                >
-                  <View style={{
-                    width: 50,
-                    height: 50,
-                    borderRadius: 25,
-                    borderWidth: 4,
-                    borderColor: '#FFFFFF',
-                    backgroundColor: '#10B981',
-                    overflow: 'hidden',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 4,
-                    elevation: 5,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}>
-                    {normalizedProviderProfileImage ? (
-                      <Image
-                        source={{ uri: `${IMAGE_BASE_URL}${normalizedProviderProfileImage}` }}
-                        style={{ width: '100%', height: '100%' }}
-                        resizeMode="cover"
-                        onError={(error) => {
-                          console.error('Failed to load provider profile image:', error);
-                          console.error('Provider profile image URL:', `${IMAGE_BASE_URL}${normalizedProviderProfileImage}`);
-                        }}
-                        onLoad={() => {
-                          console.log('Provider profile image loaded successfully:', `${IMAGE_BASE_URL}${normalizedProviderProfileImage}`);
-                        }}
-                      />
-                    ) : (
-                      <Feather name="navigation" size={24} color="white" />
-                    )}
-                  </View>
-                </Marker>
-              )}
+              {providerLocation &&
+                providerLocation.latitude &&
+                providerLocation.longitude && (
+                  <Marker
+                    coordinate={{
+                      latitude: providerLocation.latitude,
+                      longitude: providerLocation.longitude,
+                    }}
+                    title={providerName}
+                    description="Provider's current location"
+                    identifier="provider"
+                  >
+                    <View
+                      style={{
+                        width: 50,
+                        height: 50,
+                        borderRadius: 25,
+                        borderWidth: 4,
+                        borderColor: "#FFFFFF",
+                        backgroundColor: "#10B981",
+                        overflow: "hidden",
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 4,
+                        elevation: 5,
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      {normalizedProviderProfileImage ? (
+                        <Image
+                          source={{
+                            uri: `${IMAGE_BASE_URL}${normalizedProviderProfileImage}`,
+                          }}
+                          style={{ width: "100%", height: "100%" }}
+                          resizeMode="cover"
+                          onError={(error) => {
+                            console.error(
+                              "Failed to load provider profile image:",
+                              error,
+                            );
+                            console.error(
+                              "Provider profile image URL:",
+                              `${IMAGE_BASE_URL}${normalizedProviderProfileImage}`,
+                            );
+                          }}
+                          onLoad={() => {
+                            console.log(
+                              "Provider profile image loaded successfully:",
+                              `${IMAGE_BASE_URL}${normalizedProviderProfileImage}`,
+                            );
+                          }}
+                        />
+                      ) : (
+                        <Feather name="navigation" size={24} color="white" />
+                      )}
+                    </View>
+                  </Marker>
+                )}
 
               {/* Route directions using MapViewDirections - Shows the road route provider needs to travel */}
-              {currentPatientLocation && 
-               providerLocation && 
-               currentPatientLocation.latitude && 
-               currentPatientLocation.longitude &&
-               providerLocation.latitude && 
-               providerLocation.longitude && (
-                <MapViewDirections
-                  origin={{
-                    latitude: providerLocation.latitude,
-                    longitude: providerLocation.longitude,
-                  }}
-                  destination={{
-                    latitude: currentPatientLocation.latitude,
-                    longitude: currentPatientLocation.longitude,
-                  }}
-                  apikey={GOOGLE_MAPS_API_KEY}
-                  strokeWidth={5}
-                  strokeColor="#3B82F6"
-                  mode="DRIVING"
-                  optimizeWaypoints={true}
-                  onReady={(result) => {
-                    // Store route details for display
-                    setRouteDistance(result.distance);
-                    setRouteDuration(result.duration);
-                    
-                    // Update distance with actual route distance
-                    if (result.distance) {
-                      setDistance(result.distance);
-                    }
-                    
-                    // Fit map to show the entire route
-                    if (mapViewRef.current) {
-                      mapViewRef.current.fitToCoordinates(
-                        [
+              {currentPatientLocation &&
+                providerLocation &&
+                currentPatientLocation.latitude &&
+                currentPatientLocation.longitude &&
+                providerLocation.latitude &&
+                providerLocation.longitude && (
+                  <MapViewDirections
+                    origin={{
+                      latitude: providerLocation.latitude,
+                      longitude: providerLocation.longitude,
+                    }}
+                    destination={{
+                      latitude: currentPatientLocation.latitude,
+                      longitude: currentPatientLocation.longitude,
+                    }}
+                    apikey={GOOGLE_MAPS_API_KEY}
+                    strokeWidth={5}
+                    strokeColor="#3B82F6"
+                    mode="DRIVING"
+                    optimizeWaypoints={true}
+                    onReady={(result) => {
+                      // Store route details for display
+                      setRouteDistance(result.distance);
+                      setRouteDuration(result.duration);
+
+                      // Update distance with actual route distance
+                      if (result.distance) {
+                        setDistance(result.distance);
+                      }
+
+                      // Fit map to show the entire route
+                      if (mapViewRef.current) {
+                        mapViewRef.current.fitToCoordinates(
+                          [
+                            {
+                              latitude: providerLocation.latitude,
+                              longitude: providerLocation.longitude,
+                            },
+                            {
+                              latitude: currentPatientLocation.latitude,
+                              longitude: currentPatientLocation.longitude,
+                            },
+                          ],
                           {
-                            latitude: providerLocation.latitude,
-                            longitude: providerLocation.longitude,
+                            edgePadding: {
+                              top: 100,
+                              right: 50,
+                              bottom: 100,
+                              left: 50,
+                            },
+                            animated: true,
                           },
-                          {
-                            latitude: currentPatientLocation.latitude,
-                            longitude: currentPatientLocation.longitude,
-                          },
-                        ],
-                        {
-                          edgePadding: { top: 100, right: 50, bottom: 100, left: 50 },
-                          animated: true,
-                        }
-                      );
-                    }
-                    console.log(`Route Distance: ${result.distance} km`);
-                    console.log(`Route Duration: ${result.duration} minutes`);
-                  }}
-                  onError={(errorMessage) => {
-                    console.log("MapViewDirections Error:", errorMessage);
-                    // Fallback to straight line distance if route fails
-                  }}
-                />
-              )}
+                        );
+                      }
+                      console.log(`Route Distance: ${result.distance} km`);
+                      console.log(`Route Duration: ${result.duration} minutes`);
+                    }}
+                    onError={(errorMessage) => {
+                      console.log("MapViewDirections Error:", errorMessage);
+                      // Fallback to straight line distance if route fails
+                    }}
+                  />
+                )}
             </MapView>
 
             {/* Info card at bottom */}
@@ -669,15 +787,22 @@ export default function PatientProviderTracking({
               {/* Distance and ETA */}
               <View className="flex-row gap-4">
                 <View className="flex-1 bg-blue-50 rounded-lg p-3 border border-blue-200">
-                  <Text className="text-xs font-semibold text-blue-900 mb-1">Straight Distance</Text>
+                  <Text className="text-xs font-semibold text-blue-900 mb-1">
+                    Straight Distance
+                  </Text>
                   <Text className="text-lg font-bold text-blue-600">
-                    {distance !== null ? distance.toFixed(1) : '--'} km
+                    {distance !== null ? distance.toFixed(1) : "--"} km
                   </Text>
                 </View>
                 <View className="flex-1 bg-green-50 rounded-lg p-3 border border-green-200">
-                  <Text className="text-xs font-semibold text-green-900 mb-1">Estimated Arrival</Text>
+                  <Text className="text-xs font-semibold text-green-900 mb-1">
+                    Estimated Arrival
+                  </Text>
                   <Text className="text-lg font-bold text-green-600">
-                    {routeDuration !== null ? Math.round(routeDuration) : getETAMinutes()} min
+                    {routeDuration !== null
+                      ? Math.round(routeDuration)
+                      : getETAMinutes()}{" "}
+                    min
                   </Text>
                 </View>
               </View>
@@ -688,7 +813,9 @@ export default function PatientProviderTracking({
                 className="bg-gray-200 rounded-lg py-3 flex-row items-center justify-center"
               >
                 <Feather name="arrow-down" size={18} color="#374151" />
-                <Text className="text-gray-800 font-semibold ml-2">Close Tracking</Text>
+                <Text className="text-gray-800 font-semibold ml-2">
+                  Close Tracking
+                </Text>
               </TouchableOpacity>
             </View>
           </>

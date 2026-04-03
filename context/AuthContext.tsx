@@ -30,7 +30,8 @@ export interface User {
     | "doctor"
     | "nurse"
     | "physiotherapist"
-    | "socialworker";
+    | "socialworker"
+    | "pharmacist";
   consultations?: number; // New field for available consultations
   cellphoneNumber?: string;
   walletID?: string;

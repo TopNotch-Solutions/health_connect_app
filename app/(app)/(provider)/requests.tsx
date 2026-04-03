@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -66,6 +67,10 @@ export default function ProviderRequests() {
   >("all");
   const [requests, setRequests] = useState<Request[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<{
+    requestId: string;
+    action: "accept" | "decline" | "route" | "start" | "complete";
+  } | null>(null);
   const { startRoute } = useRoute();
   const { user } = useAuth();
   const loadRequests = useCallback(async () => {
@@ -285,6 +290,7 @@ export default function ProviderRequests() {
 
     const currentUserId = user.userId; // Store userId to avoid issues if user becomes null
 
+    setActionLoading({ requestId: request._id, action: "accept" });
     try {
       // 1) Accept on backend (assign provider)
       await socketService.acceptRequest(request._id, currentUserId);
@@ -337,6 +343,10 @@ export default function ProviderRequests() {
     } catch (error: any) {
       console.error("Error accepting request:", error);
       Alert.alert("Error", error.message || "Failed to accept request");
+    } finally {
+      setActionLoading((prev) =>
+        prev?.requestId === request._id ? null : prev,
+      );
     }
   };
 
@@ -363,6 +373,7 @@ export default function ProviderRequests() {
       return;
     }
 
+    setActionLoading({ requestId: request._id, action: "route" });
     try {
       console.log("🚗 Opening route modal for request:", request._id);
 
@@ -405,6 +416,10 @@ export default function ProviderRequests() {
     } catch (error: any) {
       console.error("Error marking route:", error);
       Alert.alert("Error", error.message || "Failed to mark route");
+    } finally {
+      setActionLoading((prev) =>
+        prev?.requestId === request._id ? null : prev,
+      );
     }
   };
 
@@ -423,9 +438,47 @@ export default function ProviderRequests() {
   }, [loadRequests]);
 
   // Handle complete request
+  const handleStartConsultation = async (
+    requestId: string,
+    patientName: string,
+  ) => {
+    if (!user?.userId) return;
+
+    setActionLoading({ requestId, action: "start" });
+    try {
+      console.log("▶️ Starting consultation:", requestId);
+      await socketService.updateRequestStatus(
+        requestId,
+        user.userId,
+        "in_progress",
+        undefined,
+      );
+
+      // Update local state immediately
+      setRequests((prev) =>
+        prev.map((req) =>
+          req._id === requestId
+            ? ({ ...req, status: "in_progress" } as Request)
+            : req,
+        ),
+      );
+
+      Alert.alert("Consultation Started", `Consultation started for ${patientName}.`);
+    } catch (error: any) {
+      console.error("Error starting consultation:", error);
+      Alert.alert("Error", error.message || "Failed to start consultation");
+    } finally {
+      setActionLoading((prev) =>
+        prev?.requestId === requestId ? null : prev,
+      );
+    }
+  };
+
+  // Handle complete request
   const handleComplete = async (requestId: string, patientName: string) => {
     if (!user?.userId) return;
 
+    setActionLoading({ requestId, action: "complete" });
     try {
       console.log("✅ Completing request:", requestId);
       await socketService.updateRequestStatus(
@@ -446,6 +499,10 @@ export default function ProviderRequests() {
     } catch (error: any) {
       console.error("Error completing request:", error);
       Alert.alert("Error", error.message || "Failed to complete request");
+    } finally {
+      setActionLoading((prev) =>
+        prev?.requestId === requestId ? null : prev,
+      );
     }
   };
 
@@ -453,6 +510,7 @@ export default function ProviderRequests() {
   const handleDecline = async (requestId: string, patientName: string) => {
     if (!user?.userId) return;
 
+    setActionLoading({ requestId, action: "decline" });
     try {
       await socketService.rejectRequest(requestId, user.userId);
       setRequests((prev) => prev.filter((req) => req._id !== requestId));
@@ -463,7 +521,69 @@ export default function ProviderRequests() {
     } catch (error: any) {
       console.error("Error declining request:", error);
       Alert.alert("Error", error.message || "Failed to decline request");
+    } finally {
+      setActionLoading((prev) =>
+        prev?.requestId === requestId ? null : prev,
+      );
     }
+  };
+
+  const handleCallAmbulance = () => {
+    Alert.alert(
+      "Call Ambulance",
+      "This will open your phone dialer and call 956 ambulance. Do you want to continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Call 956",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await Linking.openURL("tel:956");
+            } catch (error) {
+              Alert.alert(
+                "Unable to open dialer",
+                "Please dial 956 manually from your phone.",
+              );
+            }
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  };
+
+  const confirmStartConsultation = (requestId: string, patientName: string) => {
+    Alert.alert(
+      "Start Consultation",
+      `Start consultation with ${patientName}? Status will change to in progress.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Start",
+          onPress: () => handleStartConsultation(requestId, patientName),
+        },
+      ],
+      { cancelable: true },
+    );
+  };
+
+  const confirmCompleteConsultation = (
+    requestId: string,
+    patientName: string,
+  ) => {
+    Alert.alert(
+      "Complete Consultation",
+      `Are you sure you want to complete consultation for ${patientName}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Complete",
+          onPress: () => handleComplete(requestId, patientName),
+        },
+      ],
+      { cancelable: true },
+    );
   };
 
   return (
@@ -537,6 +657,32 @@ export default function ProviderRequests() {
                 request.patientId?.fullname || "Unknown Patient";
               const ailmentName = getAilmentName(request.ailmentCategoryId);
               const fee = `N$ ${request.estimatedCost || 0}`;
+              const consultationMode: "house_visit" | "video_consultation" =
+                request.consultationMode === "video_consultation"
+                  ? "video_consultation"
+                  : "house_visit";
+              const consultationModeMeta =
+                consultationMode === "video_consultation"
+                  ? {
+                      label: "Video Consultation",
+                      icon: "video",
+                      bg: "bg-blue-50",
+                      border: "border-blue-200",
+                      text: "text-blue-700",
+                    }
+                  : {
+                      label: "House Visit",
+                      icon: "home",
+                      bg: "bg-emerald-50",
+                      border: "border-emerald-200",
+                      text: "text-emerald-700",
+                    };
+              const isBusy = actionLoading?.requestId === request._id;
+              const isLoadingAction = (
+                action: "accept" | "decline" | "route" | "start" | "complete",
+              ) =>
+                actionLoading?.requestId === request._id &&
+                actionLoading?.action === action;
 
               return (
                 <View
@@ -585,6 +731,17 @@ export default function ProviderRequests() {
                     </Text>
                   </View>
 
+                  <View
+                    className={`${consultationModeMeta.bg} ${consultationModeMeta.border} border rounded-lg p-2.5 mb-3 flex-row items-center self-start`}
+                  >
+                    <Feather name={consultationModeMeta.icon as any} size={14} color={consultationMode === "video_consultation" ? "#1D4ED8" : "#047857"} />
+                    <Text
+                      className={`${consultationModeMeta.text} text-xs font-bold ml-2`}
+                    >
+                      {consultationModeMeta.label}
+                    </Text>
+                  </View>
+
                   {/* Location Information */}
                   {request.address && (
                     <View className="bg-blue-50 rounded-lg p-3 mb-3 flex-row items-start">
@@ -611,42 +768,94 @@ export default function ProviderRequests() {
                     <View className="flex-row gap-2 mt-3">
                       <TouchableOpacity
                         onPress={() => handleDecline(request._id, patientName)}
+                        disabled={isBusy}
                         className="flex-1 bg-gray-100 py-3 rounded-lg border border-gray-200"
                       >
-                        <Text className="text-gray-700 font-bold text-center">
-                          Decline
-                        </Text>
+                        {isLoadingAction("decline") ? (
+                          <ActivityIndicator size="small" color="#374151" />
+                        ) : (
+                          <Text className="text-gray-700 font-bold text-center">
+                            Decline
+                          </Text>
+                        )}
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => handleAccept(request)}
+                        disabled={isBusy}
                         className="flex-1 bg-blue-600 py-3 rounded-lg"
                       >
-                        <Text className="text-white font-bold text-center">
-                          Accept
-                        </Text>
+                        {isLoadingAction("accept") ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text className="text-white font-bold text-center">
+                            Accept
+                          </Text>
+                        )}
                       </TouchableOpacity>
                     </View>
                   ) : request.status === "accepted" ||
                     request.status === "en_route" ? (
                     <TouchableOpacity
                       onPress={() => handleMarkRoute(request)}
+                      disabled={isBusy}
                       className={`py-3 rounded-lg mt-3 ${request.status === "en_route" ? "bg-purple-600" : "bg-green-600"}`}
                     >
-                      <Text className="text-white font-bold text-center">
-                        {request.status === "en_route"
-                          ? "Resume Route"
-                          : "Mark Route"}
-                      </Text>
+                      {isLoadingAction("route") ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text className="text-white font-bold text-center">
+                          {request.status === "en_route"
+                            ? "Resume Route"
+                            : "Mark Route"}
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   ) : request.status === "arrived" ? (
                     <TouchableOpacity
-                      onPress={() => handleComplete(request._id, patientName)}
-                      className="bg-emerald-600 py-3 rounded-lg mt-3"
+                      onPress={() =>
+                        confirmStartConsultation(request._id, patientName)
+                      }
+                      disabled={isBusy}
+                      className="bg-indigo-600 py-3 rounded-lg mt-3"
                     >
-                      <Text className="text-white font-bold text-center">
-                        Complete Consultation
-                      </Text>
+                      {isLoadingAction("start") ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text className="text-white font-bold text-center">
+                          Start Consultation
+                        </Text>
+                      )}
                     </TouchableOpacity>
+                  ) : request.status === "in_progress" ? (
+                    <>
+                      <TouchableOpacity
+                        onPress={handleCallAmbulance}
+                        disabled={isBusy}
+                        className="bg-red-600 py-3 rounded-lg mt-3"
+                      >
+                        <View className="flex-row items-center justify-center">
+                          <Feather name="phone-call" size={16} color="#FFFFFF" />
+                          <Text className="text-white font-bold text-center ml-2">
+                            Call 956 Ambulance
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() =>
+                          confirmCompleteConsultation(request._id, patientName)
+                        }
+                        disabled={isBusy}
+                        className="bg-emerald-600 py-3 rounded-lg mt-3"
+                      >
+                        {isLoadingAction("complete") ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text className="text-white font-bold text-center">
+                            Complete Consultation
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </>
                   ) : null}
                 </View>
               );

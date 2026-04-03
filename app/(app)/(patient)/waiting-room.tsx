@@ -21,6 +21,7 @@ import socketService from "../../../lib/socket";
 
 interface RequestStatus {
   _id: string;
+  consultationMode?: "house_visit" | "video_consultation";
   status:
     | "searching"
     | "pending"
@@ -173,6 +174,28 @@ const RequestCard = ({
   const [isCancelling, setIsCancelling] = useState(false);
   const [trackingModalVisible, setTrackingModalVisible] = useState(false);
 
+  const getConsultationModeMeta = (
+    mode?: "house_visit" | "video_consultation",
+  ) => {
+    if (mode === "video_consultation") {
+      return {
+        label: "Video Consultation",
+        icon: "video",
+        bg: "#EFF6FF",
+        border: "#BFDBFE",
+        text: "#1D4ED8",
+      } as const;
+    }
+    return {
+      label: "House Visit",
+      icon: "home",
+      bg: "#ECFDF3",
+      border: "#BBF7D0",
+      text: "#166534",
+    } as const;
+  };
+  const consultationModeMeta = getConsultationModeMeta(request.consultationMode);
+
   // Debug logging for profile images
   useEffect(() => {
     if (trackingModalVisible) {
@@ -267,6 +290,38 @@ const RequestCard = ({
       <Text style={styles.requestDescription}>
         {getStatusDescription(request.status)}
       </Text>
+
+      {/* Consultation mode chip */}
+      <View
+        style={{
+          backgroundColor: consultationModeMeta.bg,
+          borderColor: consultationModeMeta.border,
+          borderWidth: 1,
+          borderRadius: 999,
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+          alignSelf: "flex-start",
+          marginBottom: 10,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <Feather
+          name={consultationModeMeta.icon as any}
+          size={13}
+          color={consultationModeMeta.text}
+        />
+        <Text
+          style={{
+            color: consultationModeMeta.text,
+            fontSize: 12,
+            fontWeight: "700",
+            marginLeft: 6,
+          }}
+        >
+          {consultationModeMeta.label}
+        </Text>
+      </View>
 
       {/* Provider info - only show if accepted */}
       {request.status === "accepted" && request.providerId && (
