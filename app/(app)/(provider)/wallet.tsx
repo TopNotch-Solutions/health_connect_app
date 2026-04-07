@@ -44,6 +44,9 @@ interface DPOSession {
   reference: string;
   payRequestId: string;
   checksum: string;
+  packageId: string;
+  packageConsultations: number;
+  packageAmount: number;
 }
 
 interface DPOInitResult {
@@ -122,21 +125,10 @@ const ActionButton = ({
   </TouchableOpacity>
 );
 
-// Format expiry date to MM/YY format
 const formatExpiryDate = (value: string) => {
-  // Remove non-digits
   const cleaned = value.replace(/\D/g, "");
-
-  // Limit to 4 digits
-  if (cleaned.length > 4) {
-    return cleaned.slice(0, 4);
-  }
-
-  // Add slash after 2 digits (but only if there are more digits after)
-  if (cleaned.length > 2) {
-    return cleaned.slice(0, 2) + "/" + cleaned.slice(2);
-  }
-
+  if (cleaned.length > 4) return cleaned.slice(0, 4);
+  if (cleaned.length > 2) return `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
   return cleaned;
 };
 
@@ -202,15 +194,11 @@ export default function TransactionsScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const isLoadingRef = useRef(false);
   const [packages, setPackages] = useState<PackageItem[]>([]);
-  const [selectedPackage, setSelectedPackage] = useState<PackageItem | null>(
-    null,
-  );
   const [isFetchingPackages, setIsFetchingPackages] = useState(false);
   const [dpoSession, setDpoSession] = useState<DPOSession | null>(null);
 
   // Bottom sheets
   const addMoneySheetRef = useRef<BottomSheet>(null); // package selection
-  const purchaseSheetRef = useRef<BottomSheet>(null); // card details / purchase
   const fundOthersSheetRef = useRef<BottomSheet>(null);
   const withdrawSheetRef = useRef<BottomSheet>(null);
   // Snap points with extra space for keyboard
@@ -218,13 +206,6 @@ export default function TransactionsScreen() {
   const fundOthersSnapPoints = useMemo(() => ["90%"], []);
   const withdrawSnapPoints = useMemo(() => ["50%"], []);
 
-  const [addMoneyForm, setAddMoneyForm] = useState({
-    amount: "",
-    cardNumber: "",
-    expiryDate: "",
-    cvv: "",
-    cardHolder: "",
-  });
   const [fundOthersForm, setFundOthersForm] = useState({
     amount: "",
     walletID: "",
@@ -234,13 +215,6 @@ export default function TransactionsScreen() {
     cardHolder: "",
   });
   const [withdrawForm, setWithdrawForm] = useState({ amount: "" });
-  const [addMoneyErrors, setAddMoneyErrors] = useState<{
-    amount?: string;
-    cardNumber?: string;
-    expiryDate?: string;
-    cvv?: string;
-    cardHolder?: string;
-  }>({});
   const [fundOthersErrors, setFundOthersErrors] = useState<{
     amount?: string;
     walletID?: string;
@@ -537,14 +511,10 @@ export default function TransactionsScreen() {
     [],
   );
 
-  const markPackagePurchased = useCallback(async () => {
-    if (!selectedPackage?._id) {
-      throw new Error("No package selected");
-    }
-
+  const markPackagePurchased = useCallback(async (session: DPOSession) => {
     const payload = {
-      ...addMoneyForm,
-      packageId: selectedPackage._id,
+      amount: String(session.packageAmount),
+      packageId: session.packageId,
     };
 
     const response = await apiClient.post(
@@ -556,23 +526,13 @@ export default function TransactionsScreen() {
       throw new Error(response.data?.message || "Payment finalization failed.");
     }
 
-    if (selectedPackage?.consultations) {
+    if (session.packageConsultations) {
       await updateUser({
-        consultations:
-          (user?.consultations || 0) + selectedPackage.consultations,
+        consultations: (user?.consultations || 0) + session.packageConsultations,
       });
     }
 
-    purchaseSheetRef.current?.close();
-    setSelectedPackage(null);
-    setAddMoneyForm({
-      amount: "",
-      cardNumber: "",
-      expiryDate: "",
-      cvv: "",
-      cardHolder: "",
-    });
-    setAddMoneyErrors({});
+    addMoneySheetRef.current?.close();
 
     await fetchAndUpdateUserDetails();
     await fetchTransactions(true, 1);
@@ -582,10 +542,9 @@ export default function TransactionsScreen() {
       response.data?.message || "Wallet funded successfully.",
     );
   }, [
-    addMoneyForm,
+    addMoneySheetRef,
     fetchAndUpdateUserDetails,
     fetchTransactions,
-    selectedPackage,
     updateUser,
     user?.consultations,
   ]);
@@ -622,7 +581,7 @@ export default function TransactionsScreen() {
           return;
         }
 
-        await markPackagePurchased();
+        await markPackagePurchased(session);
       } catch (error: any) {
         Alert.alert(
           "Payment Validation Failed",
@@ -636,36 +595,11 @@ export default function TransactionsScreen() {
     [markPackagePurchased, validateDpoPayment],
   );
 
-  // --- FULLY IMPLEMENTED handleAddMoney ---
-  const handleAddMoney = async () => {
-    const errors: {
-      amount?: string;
-      cardNumber?: string;
-      expiryDate?: string;
-      cvv?: string;
-      cardHolder?: string;
-    } = {};
-    // Ensure a package is selected so we can send its id
-    if (!selectedPackage?._id) {
-      Alert.alert("Missing package", "Please select a package first.");
-      return;
-    }
-    if (!addMoneyForm.amount) errors.amount = "Amount is required";
-    if (!addMoneyForm.cardHolder)
-      errors.cardHolder = "Cardholder name is required";
-    if (!addMoneyForm.cardNumber) errors.cardNumber = "Card number is required";
-    if (!addMoneyForm.expiryDate) errors.expiryDate = "Expiry date is required";
-    if (!addMoneyForm.cvv) errors.cvv = "CVV is required";
-
-    if (Object.keys(errors).length > 0) {
-      setAddMoneyErrors(errors);
-      return;
-    }
-
+  const initiatePackagePayment = async (pkg: PackageItem) => {
     setIsSubmitting(true);
     try {
       const reference = buildDpoReference();
-      const amountInCents = Math.round(Number(selectedPackage.amount) * 100);
+      const amountInCents = Math.round(Number(pkg.amount) * 100);
       const emailAddress = user?.email || "";
 
       if (!emailAddress) {
@@ -691,6 +625,9 @@ export default function TransactionsScreen() {
         reference,
         payRequestId: dpoInit.pay_id,
         checksum: dpoInit.checksum,
+        packageId: pkg._id,
+        packageConsultations: pkg.consultations || 0,
+        packageAmount: Number(pkg.amount) || 0,
       };
       setDpoSession(session);
 
@@ -917,10 +854,7 @@ export default function TransactionsScreen() {
                   <ActionButton
                     icon="plus-circle"
                     label="Select package"
-                    onPress={() => {
-                      setSelectedPackage(null);
-                      addMoneySheetRef.current?.expand();
-                    }}
+                    onPress={() => addMoneySheetRef.current?.expand()}
                   />
                   {/* <ActionButton
                     icon="send"
@@ -1000,15 +934,7 @@ export default function TransactionsScreen() {
                       key={pkg._id}
                       activeOpacity={0.9}
                       className={`mb-4 rounded-3xl overflow-hidden border border-gray-200 shadow-sm`}
-                      onPress={() => {
-                        setSelectedPackage(pkg);
-                        setAddMoneyForm((prev) => ({
-                          ...prev,
-                          amount: String(pkg.amount),
-                        }));
-                        addMoneySheetRef.current?.close();
-                        purchaseSheetRef.current?.expand();
-                      }}
+                      onPress={() => initiatePackagePayment(pkg)}
                     >
                       <View className="p-5 bg-white">
                         <View className="flex-row justify-between items-center mb-2">
@@ -1057,241 +983,6 @@ export default function TransactionsScreen() {
                   );
                 })}
               </View>
-            )}
-          </BottomSheetScrollView>
-        </View>
-      </BottomSheet>
-
-      {/* Bottom sheet 2: Purchase & card details */}
-      <BottomSheet
-        ref={purchaseSheetRef}
-        index={-1}
-        snapPoints={addMoneySnapPoints}
-        enablePanDownToClose
-        keyboardBehavior="interactive"
-        keyboardBlurBehavior="restore"
-        android_keyboardInputMode="adjustResize"
-        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
-        handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
-      >
-        <View className="flex-1 bg-white">
-          <BottomSheetScrollView
-            style={{ paddingTop: 24, paddingHorizontal: 24 }}
-            contentContainerStyle={{
-              paddingBottom: Math.max(24, keyboardHeight + 20),
-            }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {!selectedPackage ? (
-              <View className="items-center mt-10">
-                <Text className="text-base text-gray-600 mb-4">
-                  No package selected.
-                </Text>
-                <TouchableOpacity
-                  className="bg-green-600 px-4 py-2 rounded-2xl"
-                  onPress={() => {
-                    purchaseSheetRef.current?.close();
-                    addMoneySheetRef.current?.expand();
-                  }}
-                >
-                  <Text className="text-white font-semibold">
-                    Choose a package
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                <View className="flex-row justify-between items-center mb-6">
-                  <Text className="text-2xl font-bold text-text-main">
-                    Purchase
-                  </Text>
-
-                  <TouchableOpacity
-                    onPress={() => {
-                      setSelectedPackage(null);
-                      setAddMoneyErrors({});
-                      purchaseSheetRef.current?.close();
-                    }}
-                  >
-                    <Feather name="x" size={24} color="#374151" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Selected Package Summary - matches selection card style */}
-                <View className="mb-6 rounded-3xl overflow-hidden border border-gray-200 shadow-sm bg-white">
-                  <View className="p-5">
-                    <View className="flex-row justify-between items-center mb-2">
-                      <View>
-                        <Text className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          Selected Package
-                        </Text>
-                        <Text className="text-2xl font-extrabold text-gray-900 mt-1">
-                          N$ {selectedPackage.amount}
-                        </Text>
-                        <Text className="text-xs font-medium text-gray-500 mt-1">
-                          {selectedPackage.consultations} Consultation
-                          {selectedPackage.consultations > 1 ? "s" : ""}
-                        </Text>
-                      </View>
-                      <View className="items-end">
-                        <View className="px-3 py-1 rounded-full bg-emerald-100/90 mb-2">
-                          <Text className="text-[11px] font-semibold text-black">
-                            Selected
-                          </Text>
-                        </View>
-                        <View className="w-10 h-10 rounded-full items-center justify-center bg-green-50">
-                          <Feather
-                            name="check-circle"
-                            size={22}
-                            color="#16A34A"
-                          />
-                        </View>
-                      </View>
-                    </View>
-                    <View className="flex-row justify-between items-center mt-2">
-                      <Text className="text-xs text-gray-500">
-                        You are purchasing{" "}
-                        <Text className="font-semibold">
-                          {selectedPackage.consultations} session
-                          {selectedPackage.consultations > 1 ? "s" : ""}
-                        </Text>
-                      </Text>
-                      <Text className="text-[11px] font-medium text-gray-500">
-                        Billed once-off
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Change Package */}
-                <TouchableOpacity
-                  onPress={() => {
-                    purchaseSheetRef.current?.close();
-                    addMoneySheetRef.current?.expand();
-                  }}
-                  className="mb-6"
-                >
-                  <Text className="text-green-600 font-semibold">
-                    ← Change Package
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Card Details - modern layout */}
-                <Text className="text-sm font-semibold text-gray-700 mb-2">
-                  Card Details
-                </Text>
-
-                {/* Card Holder */}
-                <Text className="text-xs font-medium text-gray-500 mb-1">
-                  Card holder name
-                </Text>
-                <TextInput
-                  placeholder="Card Holder Name"
-                  value={addMoneyForm.cardHolder}
-                  onChangeText={(text) => {
-                    setAddMoneyForm({ ...addMoneyForm, cardHolder: text });
-                    setAddMoneyErrors((prev) => ({
-                      ...prev,
-                      cardHolder: undefined,
-                    }));
-                  }}
-                  className="bg-white p-4 rounded-2xl mb-3 border border-gray-200"
-                />
-                {addMoneyErrors.cardHolder && (
-                  <Text className="text-xs text-red-500 mb-2">
-                    {addMoneyErrors.cardHolder}
-                  </Text>
-                )}
-
-                {/* Card Number */}
-                <Text className="text-xs font-medium text-gray-500 mb-1 mt-1">
-                  Card number
-                </Text>
-                <TextInput
-                  placeholder="Card Number"
-                  keyboardType="numeric"
-                  value={addMoneyForm.cardNumber}
-                  onChangeText={(text) => {
-                    setAddMoneyForm({ ...addMoneyForm, cardNumber: text });
-                    setAddMoneyErrors((prev) => ({
-                      ...prev,
-                      cardNumber: undefined,
-                    }));
-                  }}
-                  className="bg-white p-4 rounded-2xl mb-3 border border-gray-200"
-                />
-                {addMoneyErrors.cardNumber && (
-                  <Text className="text-xs text-red-500 mb-2">
-                    {addMoneyErrors.cardNumber}
-                  </Text>
-                )}
-
-                {/* Expiry Date / CVV */}
-                <View className="flex-row" style={{ gap: 12 }}>
-                  <View className="flex-1">
-                    <Text className="text-xs font-medium text-gray-500 mb-1">
-                      Expiry date
-                    </Text>
-                    <TextInput
-                      placeholder="MM/YY"
-                      value={addMoneyForm.expiryDate}
-                      onChangeText={(text) => {
-                        setAddMoneyForm({ ...addMoneyForm, expiryDate: text });
-                        setAddMoneyErrors((prev) => ({
-                          ...prev,
-                          expiryDate: undefined,
-                        }));
-                      }}
-                      className="bg-white p-4 rounded-2xl mb-1 border border-gray-200"
-                    />
-                    {addMoneyErrors.expiryDate && (
-                      <Text className="text-xs text-red-500 mb-2">
-                        {addMoneyErrors.expiryDate}
-                      </Text>
-                    )}
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-xs font-medium text-gray-500 mb-1">
-                      CVV
-                    </Text>
-                    <TextInput
-                      placeholder="CVV"
-                      keyboardType="numeric"
-                      secureTextEntry
-                      value={addMoneyForm.cvv}
-                      onChangeText={(text) => {
-                        setAddMoneyForm({ ...addMoneyForm, cvv: text });
-                        setAddMoneyErrors((prev) => ({
-                          ...prev,
-                          cvv: undefined,
-                        }));
-                      }}
-                      className="bg-white p-4 rounded-2xl mb-1 border border-gray-200"
-                    />
-                    {addMoneyErrors.cvv && (
-                      <Text className="text-xs text-red-500 mb-2">
-                        {addMoneyErrors.cvv}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-
-                {/* Confirm Button */}
-                <TouchableOpacity
-                  className="bg-green-600 p-4 rounded-2xl items-center mt-4"
-                  onPress={handleAddMoney}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text className="text-white font-bold text-lg">
-                      Confirm Payment
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </>
             )}
           </BottomSheetScrollView>
         </View>
