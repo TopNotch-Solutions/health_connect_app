@@ -1,7 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import CryptoJS from "crypto-js";
-import * as WebBrowser from "expo-web-browser";
 import React, {
   useCallback,
   useEffect,
@@ -21,6 +20,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import WebView from "react-native-webview";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 
@@ -193,9 +193,26 @@ export default function TransactionsScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const isLoadingRef = useRef(false);
+  const hasTriggeredRedirect = useRef(false);
   const [packages, setPackages] = useState<PackageItem[]>([]);
   const [isFetchingPackages, setIsFetchingPackages] = useState(false);
   const [dpoSession, setDpoSession] = useState<DPOSession | null>(null);
+
+  const dpoHtmlContent = dpoSession
+    ? `
+    <html>
+    <body onload="document.forms[0].submit();">
+      <form
+        id="dpoForm"
+        action="${DPO_CONFIG.REDIRECT_URL}"
+        method="POST">
+        <input type="hidden" name="PAY_REQUEST_ID" value="${dpoSession.payRequestId}" />
+        <input type="hidden" name="CHECKSUM" value="${dpoSession.checksum}" />
+      </form>
+    </body>
+    </html>
+  `
+    : "";
 
   // Bottom sheets
   const addMoneySheetRef = useRef<BottomSheet>(null); // package selection
@@ -640,12 +657,7 @@ export default function TransactionsScreen() {
         packageAmount: Number(pkg.amount) || 0,
       };
       setDpoSession(session);
-
-      const redirectUrl = `${DPO_CONFIG.REDIRECT_URL}?PAY_REQUEST_ID=${encodeURIComponent(
-        dpoInit.pay_id,
-      )}&CHECKSUM=${encodeURIComponent(dpoInit.checksum)}`;
-      await WebBrowser.openBrowserAsync(redirectUrl);
-      await verifyDpoPaymentAndFinalize(session);
+      hasTriggeredRedirect.current = false;
     } catch (error: any) {
       Alert.alert(
         "DPO Payment Failed",
@@ -895,6 +907,46 @@ export default function TransactionsScreen() {
           />
         )}
       </SafeAreaView>
+      {dpoSession ? (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "#FFFFFF",
+            zIndex: 9999,
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => setDpoSession(null)}
+            style={{ position: "absolute", right: 12, top: 40, zIndex: 10000 }}
+          >
+            <Feather name="x-circle" size={32} color="#111827" />
+          </TouchableOpacity>
+
+          <WebView
+            originWhitelist={["*"]}
+            source={{ html: dpoHtmlContent }}
+            javaScriptEnabled
+            domStorageEnabled
+            onNavigationStateChange={(navState: any) => {
+              const returnHost = DPO_CONFIG.RETURN_URL.replace(
+                /^https?:\/\//,
+                "",
+              );
+              if (
+                navState.url.includes(returnHost) &&
+                !hasTriggeredRedirect.current
+              ) {
+                hasTriggeredRedirect.current = true;
+                verifyDpoPaymentAndFinalize(dpoSession);
+              }
+            }}
+          />
+        </View>
+      ) : null}
       {/* Bottom sheet 1: Package selection */}
       <BottomSheet
         ref={addMoneySheetRef}
