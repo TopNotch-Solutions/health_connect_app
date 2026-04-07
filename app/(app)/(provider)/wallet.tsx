@@ -398,22 +398,32 @@ export default function TransactionsScreen() {
     loadData();
   }, [fetchAndUpdateUserDetails, fetchTransactions, fetchPackages]);
 
-  const buildDpoReference = useCallback(() => {
-    const date = new Date();
-    const safeUserPart = user?.userId || "provider";
-    return `WALLET-${safeUserPart}-${date.getTime()}`;
-  }, [user?.userId]);
-
-  const getDPODate = useCallback(() => {
-    const date = new Date();
+  const getDPOTimestampParts = useCallback((date = new Date()) => {
     const year = date.getFullYear();
     const day = String(date.getDate()).padStart(2, "0");
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const hours = String(date.getHours()).padStart(2, "0");
     const minutes = String(date.getMinutes()).padStart(2, "0");
     const seconds = String(date.getSeconds()).padStart(2, "0");
-    return `${year}-${day}-${month} ${hours}:${minutes}:${seconds}`;
+    return { year, month, day, hours, minutes, seconds };
   }, []);
+
+  const getDPODateString = useCallback(
+    (date = new Date()) => {
+      const { year, month, day, hours, minutes, seconds } =
+        getDPOTimestampParts(date);
+      return `${year}-${day}-${month} ${hours}:${minutes}:${seconds}`;
+    },
+    [getDPOTimestampParts],
+  );
+
+  const buildDpoReference = useCallback(() => {
+    return getDPODateString(new Date());
+  }, [getDPODateString]);
+
+  const getDPODate = useCallback(() => {
+    return getDPODateString(new Date());
+  }, [getDPODateString]);
 
   const processDpoPayment = useCallback(
     async (
