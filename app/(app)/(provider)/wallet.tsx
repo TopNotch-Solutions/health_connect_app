@@ -1,5 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import CryptoJS from "crypto-js";
+import * as WebBrowser from "expo-web-browser";
 import React, {
   useCallback,
   useEffect,
@@ -37,6 +39,69 @@ interface PackageItem {
   amount: number;
   consultations: number;
 }
+
+interface DPOSession {
+  reference: string;
+  payRequestId: string;
+  checksum: string;
+}
+
+interface DPOInitResult {
+  success: boolean;
+  pay_id?: string;
+  checksum?: string;
+}
+
+interface DPOQueryResult {
+  success: boolean;
+  RESULT_CODE?: string;
+  TRANSACTION_STATUS?: string;
+}
+
+const DPO_CONFIG = {
+  PAYGATE_ID: "",
+  ENCRYPTION_KEY: "",
+  INITIATE_URL: "https://secure.paygate.co.za/payweb3/initiate.trans",
+  REDIRECT_URL: "https://secure.paygate.co.za/payweb3/process.trans",
+  QUERY_URL: "https://secure.paygate.co.za/payweb3/query.trans",
+  CURRENCY: "NAD",
+  RETURN_URL: "https://kopanovertex.com",
+  LOCALE: "en-za",
+  COUNTRY: "NAM",
+} as const;
+
+const DPO_STATUSES = [
+  {
+    transaction_status: 1,
+    result_code: 990017,
+    message: "Transaction Approved",
+    status: true,
+  },
+  {
+    transaction_status: 2,
+    result_code: 900003,
+    message: "Insufficient Funds Transactions",
+    status: false,
+  },
+  {
+    transaction_status: 2,
+    result_code: 900007,
+    message: "Declined Transactions",
+    status: false,
+  },
+  {
+    transaction_status: 0,
+    result_code: 990022,
+    message: "Unprocessed Transactions",
+    status: false,
+  },
+  {
+    transaction_status: 2,
+    result_code: 900004,
+    message: "Invalid Card Number",
+    status: false,
+  },
+] as const;
 
 // --- Reusable Components ---
 const ActionButton = ({
@@ -141,6 +206,7 @@ export default function TransactionsScreen() {
     null,
   );
   const [isFetchingPackages, setIsFetchingPackages] = useState(false);
+  const [dpoSession, setDpoSession] = useState<DPOSession | null>(null);
 
   // Bottom sheets
   const addMoneySheetRef = useRef<BottomSheet>(null); // package selection
@@ -358,6 +424,218 @@ export default function TransactionsScreen() {
     loadData();
   }, [fetchAndUpdateUserDetails, fetchTransactions, fetchPackages]);
 
+  const buildDpoReference = useCallback(() => {
+    const date = new Date();
+    const safeUserPart = user?.userId || "provider";
+    return `WALLET-${safeUserPart}-${date.getTime()}`;
+  }, [user?.userId]);
+
+  const getDPODate = useCallback(() => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const seconds = String(date.getSeconds()).padStart(2, "0");
+    return `${year}-${day}-${month} ${hours}:${minutes}:${seconds}`;
+  }, []);
+
+  const processDpoPayment = useCallback(
+    async (
+      reference: string,
+      amountInCents: number,
+      emailAddress: string,
+    ): Promise<DPOInitResult> => {
+      try {
+        const transactionDate = getDPODate();
+        const hashString =
+          DPO_CONFIG.PAYGATE_ID +
+          reference +
+          amountInCents +
+          DPO_CONFIG.CURRENCY +
+          DPO_CONFIG.RETURN_URL +
+          transactionDate +
+          DPO_CONFIG.LOCALE +
+          DPO_CONFIG.COUNTRY +
+          emailAddress +
+          DPO_CONFIG.ENCRYPTION_KEY;
+
+        const checksum = CryptoJS.MD5(hashString).toString();
+
+        const formData = new URLSearchParams();
+        formData.append("PAYGATE_ID", DPO_CONFIG.PAYGATE_ID);
+        formData.append("REFERENCE", reference);
+        formData.append("AMOUNT", amountInCents.toString());
+        formData.append("CURRENCY", DPO_CONFIG.CURRENCY);
+        formData.append("RETURN_URL", DPO_CONFIG.RETURN_URL);
+        formData.append("TRANSACTION_DATE", transactionDate);
+        formData.append("LOCALE", DPO_CONFIG.LOCALE);
+        formData.append("COUNTRY", DPO_CONFIG.COUNTRY);
+        formData.append("EMAIL", emailAddress);
+        formData.append("ENCRYPTION_KEY", DPO_CONFIG.ENCRYPTION_KEY);
+        formData.append("CHECKSUM", checksum);
+
+        const response = await fetch(DPO_CONFIG.INITIATE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: formData.toString(),
+        });
+
+        const data = await response.text();
+        if (!data || !data.includes("PAY_REQUEST_ID")) {
+          return { success: false };
+        }
+
+        const values = new URLSearchParams(data);
+        return {
+          success: true,
+          pay_id: values.get("PAY_REQUEST_ID") || undefined,
+          checksum: values.get("CHECKSUM") || undefined,
+        };
+      } catch {
+        return { success: false };
+      }
+    },
+    [getDPODate],
+  );
+
+  const validateDpoPayment = useCallback(
+    async (
+      payRequestId: string,
+      reference: string,
+      checksum: string,
+    ): Promise<DPOQueryResult> => {
+      try {
+        const formData = new URLSearchParams();
+        formData.append("PAYGATE_ID", DPO_CONFIG.PAYGATE_ID);
+        formData.append("PAY_REQUEST_ID", payRequestId);
+        formData.append("REFERENCE", reference);
+        formData.append("CHECKSUM", checksum);
+
+        const response = await fetch(DPO_CONFIG.QUERY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: formData.toString(),
+        });
+
+        const data = await response.text();
+        if (!data || !data.includes("PAYGATE_ID")) {
+          return { success: false };
+        }
+
+        const values = new URLSearchParams(data);
+        return {
+          success: true,
+          RESULT_CODE: values.get("RESULT_CODE") || undefined,
+          TRANSACTION_STATUS: values.get("TRANSACTION_STATUS") || undefined,
+        };
+      } catch {
+        return { success: false };
+      }
+    },
+    [],
+  );
+
+  const markPackagePurchased = useCallback(async () => {
+    if (!selectedPackage?._id) {
+      throw new Error("No package selected");
+    }
+
+    const payload = {
+      ...addMoneyForm,
+      packageId: selectedPackage._id,
+    };
+
+    const response = await apiClient.post(
+      "/app/transaction/fund-wallet/",
+      payload,
+    );
+
+    if (!(response.status >= 200 && response.status < 300)) {
+      throw new Error(response.data?.message || "Payment finalization failed.");
+    }
+
+    if (selectedPackage?.consultations) {
+      await updateUser({
+        consultations:
+          (user?.consultations || 0) + selectedPackage.consultations,
+      });
+    }
+
+    purchaseSheetRef.current?.close();
+    setSelectedPackage(null);
+    setAddMoneyForm({
+      amount: "",
+      cardNumber: "",
+      expiryDate: "",
+      cvv: "",
+      cardHolder: "",
+    });
+    setAddMoneyErrors({});
+
+    await fetchAndUpdateUserDetails();
+    await fetchTransactions(true, 1);
+
+    Alert.alert(
+      "Success",
+      response.data?.message || "Wallet funded successfully.",
+    );
+  }, [
+    addMoneyForm,
+    fetchAndUpdateUserDetails,
+    fetchTransactions,
+    selectedPackage,
+    updateUser,
+    user?.consultations,
+  ]);
+
+  const verifyDpoPaymentAndFinalize = useCallback(
+    async (session: DPOSession) => {
+      setIsSubmitting(true);
+      try {
+        const verify = await validateDpoPayment(
+          session.payRequestId,
+          session.reference,
+          session.checksum,
+        );
+
+        if (!verify?.success) {
+          Alert.alert(
+            "Payment Pending",
+            "Unable to validate payment right now.",
+          );
+          return;
+        }
+
+        const match = DPO_STATUSES.find(
+          (entry) =>
+            entry.transaction_status === Number(verify.TRANSACTION_STATUS) &&
+            entry.result_code === Number(verify.RESULT_CODE),
+        );
+
+        if (!match?.status) {
+          Alert.alert(
+            "Payment Failed",
+            match?.message || "Transaction not approved.",
+          );
+          return;
+        }
+
+        await markPackagePurchased();
+      } catch (error: any) {
+        Alert.alert(
+          "Payment Validation Failed",
+          error?.message || "Could not validate payment.",
+        );
+      } finally {
+        setDpoSession(null);
+        setIsSubmitting(false);
+      }
+    },
+    [markPackagePurchased, validateDpoPayment],
+  );
+
   // --- FULLY IMPLEMENTED handleAddMoney ---
   const handleAddMoney = async () => {
     const errors: {
@@ -386,54 +664,45 @@ export default function TransactionsScreen() {
 
     setIsSubmitting(true);
     try {
-      // include selected package id in the payload
-      const payload = {
-        ...addMoneyForm,
-        packageId: selectedPackage._id,
-      };
+      const reference = buildDpoReference();
+      const amountInCents = Math.round(Number(selectedPackage.amount) * 100);
+      const emailAddress = user?.email || "";
 
-      const response = await apiClient.post(
-        "/app/transaction/fund-wallet/",
-        payload,
+      if (!emailAddress) {
+        Alert.alert(
+          "Missing email",
+          "Please update your account email and try again.",
+        );
+        return;
+      }
+
+      const dpoInit = await processDpoPayment(
+        reference,
+        amountInCents,
+        emailAddress,
       );
 
-      // Treat any 2xx as success
-      if (response.status >= 200 && response.status < 300) {
-        // Optimistically update available consultations in AuthContext
-        if (selectedPackage?.consultations) {
-          await updateUser({
-            consultations:
-              (user?.consultations || 0) + selectedPackage.consultations,
-          });
-        }
-
-        // Close sheet and clear fields immediately
-        purchaseSheetRef.current?.close();
-        setSelectedPackage(null);
-        setAddMoneyForm({
-          amount: "",
-          cardNumber: "",
-          expiryDate: "",
-          cvv: "",
-          cardHolder: "",
-        });
-        setAddMoneyErrors({});
-
-        // Fetch updated user details and refresh transactions
-        await fetchAndUpdateUserDetails();
-        await fetchTransactions(true, 1);
-
-        Alert.alert("Success", response.data.message);
-      } else {
-        Alert.alert(
-          "Deposit Failed",
-          response.data?.message || "An error occurred.",
-        );
+      if (!dpoInit?.success || !dpoInit?.pay_id || !dpoInit?.checksum) {
+        Alert.alert("DPO Error", "Failed to initiate payment.");
+        return;
       }
+
+      const session: DPOSession = {
+        reference,
+        payRequestId: dpoInit.pay_id,
+        checksum: dpoInit.checksum,
+      };
+      setDpoSession(session);
+
+      const redirectUrl = `${DPO_CONFIG.REDIRECT_URL}?PAY_REQUEST_ID=${encodeURIComponent(
+        dpoInit.pay_id,
+      )}&CHECKSUM=${encodeURIComponent(dpoInit.checksum)}`;
+      await WebBrowser.openBrowserAsync(redirectUrl);
+      await verifyDpoPaymentAndFinalize(session);
     } catch (error: any) {
       Alert.alert(
-        "Deposit Failed",
-        error.response?.data?.message || "An error occurred.",
+        "DPO Payment Failed",
+        error?.response?.data?.message || "An error occurred.",
       );
     } finally {
       setIsSubmitting(false);
@@ -1012,10 +1281,15 @@ export default function TransactionsScreen() {
                 <TouchableOpacity
                   className="bg-green-600 p-4 rounded-2xl items-center mt-4"
                   onPress={handleAddMoney}
+                  disabled={isSubmitting}
                 >
-                  <Text className="text-white font-bold text-lg">
-                    Confirm Payment
-                  </Text>
+                  {isSubmitting ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-white font-bold text-lg">
+                      Confirm Payment
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </>
             )}
