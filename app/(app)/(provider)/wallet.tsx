@@ -62,8 +62,8 @@ interface DPOQueryResult {
 }
 
 const DPO_CONFIG = {
-  PAYGATE_ID: "",
-  ENCRYPTION_KEY: "",
+  PAYGATE_ID: "1052303100014",
+  ENCRYPTION_KEY: "M5oSHVvMk3Ao",
   INITIATE_URL: "https://secure.paygate.co.za/payweb3/initiate.trans",
   REDIRECT_URL: "https://secure.paygate.co.za/payweb3/process.trans",
   QUERY_URL: "https://secure.paygate.co.za/payweb3/query.trans",
@@ -484,6 +484,7 @@ export default function TransactionsScreen() {
         });
 
         const data = await response.text();
+        console.log("Mydata",data)
         if (!data || !data.includes("PAY_REQUEST_ID")) {
           return { success: false };
         }
@@ -521,6 +522,9 @@ export default function TransactionsScreen() {
         });
 
         const data = await response.text();
+        console.log(
+          'Verify', data
+        )
         if (!data || !data.includes("PAYGATE_ID")) {
           return { success: false };
         }
@@ -540,23 +544,16 @@ export default function TransactionsScreen() {
 
   const markPackagePurchased = useCallback(async (session: DPOSession) => {
     const payload = {
-      amount: String(session.packageAmount),
       packageId: session.packageId,
     };
 
     const response = await apiClient.post(
-      "/app/transaction/fund-wallet/",
+      "/app/transaction/purchase-package",
       payload,
     );
 
     if (!(response.status >= 200 && response.status < 300)) {
       throw new Error(response.data?.message || "Payment finalization failed.");
-    }
-
-    if (session.packageConsultations) {
-      await updateUser({
-        consultations: (user?.consultations || 0) + session.packageConsultations,
-      });
     }
 
     addMoneySheetRef.current?.close();
@@ -566,7 +563,7 @@ export default function TransactionsScreen() {
 
     Alert.alert(
       "Success",
-      response.data?.message || "Wallet funded successfully.",
+      response.data?.message || "Package successfully purchased.",
     );
   }, [
     addMoneySheetRef,
@@ -607,7 +604,10 @@ export default function TransactionsScreen() {
           );
           return;
         }
-
+        Alert.alert(
+          "Payment approved",
+          "Wolla"  +  JSON.stringify(verify)
+        );
         await markPackagePurchased(session);
       } catch (error: any) {
         Alert.alert(
