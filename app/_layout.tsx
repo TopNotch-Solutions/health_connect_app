@@ -17,7 +17,6 @@ import { PersistGate } from "redux-persist/integration/react";
 import GlobalRouteModal from "../components/(provider)/GlobalRouteModal";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { RouteProvider } from "../context/RouteContext";
-import { usePushNotifications } from "../hooks/usePushNotifications";
 import "./globals.css";
 
 // Import splash image
@@ -216,12 +215,6 @@ const ProtectedLayout = () => {
   const segments = useSegments();
   const router = useRouter();
   const [showIntroSplash, setShowIntroSplash] = useState(true);
-
-  try {
-    usePushNotifications();
-  } catch (error) {
-    console.error("Error in usePushNotifications:", error);
-  }
 
   // Hide the intro splash a short moment after auth state is known
   useEffect(() => {

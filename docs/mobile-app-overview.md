@@ -5,7 +5,7 @@ This document describes the mobile application in the `health-connect` workspace
 ## Purpose & Scope
 
 - Connects patients with nearby healthcare providers (doctor, nurse, physiotherapist, social worker) for on-demand care.
-- Provides onboarding, authentication, role-based navigation, real-time request/accept flows, location and maps, push notifications, and a wallet placeholder.
+- Provides onboarding, authentication, role-based navigation, real-time request/accept flows, location and maps, in-app notifications, and a wallet placeholder.
 - Mobile built with Expo + React Native + TypeScript; backend present in sibling folder `health-connect-backend/`.
 
 ## Tech Stack
@@ -16,7 +16,7 @@ This document describes the mobile application in the `health-connect` workspace
 - Networking: Axios client with timeouts and interceptors
 - Realtime: Socket.IO client
 - Maps & Location: `react-native-maps`, `expo-location`, Google Maps SDK
-- Notifications: `expo-notifications` with device tokens
+- Notifications: in-app notification center backed by API
 - Storage: `expo-secure-store`, `@react-native-async-storage/async-storage`
 
 See dependencies in [health-connect/package.json](../package.json).
@@ -49,9 +49,6 @@ See dependencies in [health-connect/package.json](../package.json).
   - Socket service: [health-connect/lib/socket.ts](../lib/socket.ts)
     - Connects to `https://apihealthconnect.kopanovertex.com`, supports `connect/join/disconnect`, ensures cleanup of event listeners on disconnect.
     - Exposes helpers for creating requests, fetching available/patient requests, and subscribing to updates (e.g., `requestUpdated`, `newRequestAvailable`).
-- Notifications:
-  - Hook: [health-connect/hooks/usePushNotifications.ts](../hooks/usePushNotifications.ts)
-    - Requests permissions, registers device for push, and PATCHes `/app/auth/update-push-token/:userId` to backend.
 - Screens (selection):
   - Onboarding Stack: [health-connect/app/(onboarding)/\_layout.tsx](<../app/(onboarding)/_layout.tsx>)
   - Wallet placeholder: [health-connect/app/wallet.tsx](../app/wallet.tsx)
@@ -82,8 +79,7 @@ See dependencies in [health-connect/package.json](../package.json).
 
 ## Notifications
 
-- Registers device token with Expo; sends token to backend via `/app/auth/update-push-token/:userId`.
-- Configures Android channel and default handler for showing alerts and sounds.
+- In-app notifications are shown in the Notifications screen and fetched from backend APIs.
 
 ## Maps & Location
 
@@ -141,7 +137,6 @@ npm run lint
   - `(root)/(auth)/(verification)/(app)/` — Auth and role-based sections
 - `components/` — Reusable UI (patient/provider)
 - `context/` — `AuthContext`, `RouteContext`
-- `hooks/` — `usePushNotifications`
 - `lib/` — `api.ts`, `socket.ts`, maps/helpers
 - `assets/` — Images, icons, fonts
 
@@ -149,7 +144,6 @@ npm run lint
 
 - Backend source in `health-connect-backend/` (Node/Express) — mobile expects routes like:
   - `POST /api/app/auth/login`
-  - `PATCH /api/app/auth/update-push-token/:userId`
   - `GET /api/app/notification/all-user-notification/:userId`
   - `PATCH /api/app/notification/mark-as-read/:userId`
 - Socket namespace/events on the same host for real-time request lifecycle.
@@ -158,7 +152,6 @@ npm run lint
 
 - Socket not connected: ensure backend is reachable and URLs in `lib/api.ts` and `lib/socket.ts` are correct for your environment/emulator.
 - Maps not rendering: verify Google Maps API key and Android SDK configuration.
-- Push tokens missing: run on a physical device; Expo Go needs proper project ID configuration.
 - Session logs out too quickly: adjust `SESSION_TIMEOUT` in `AuthContext`.
 
 ## Next Steps / TODOs
@@ -174,7 +167,7 @@ npm run lint
 - **Onboarding**: First-run detection via `hasSeenOnboarding` in AsyncStorage; role onboarding screens.
 - **Role-based navigation**: Patient vs provider sections under `(app)/(patient)` and `(app)/(provider)` with guarded redirects.
 - **Requests lifecycle**: Patients create requests; providers view and accept available requests; realtime status updates.
-- **Notifications**: Push notifications via `expo-notifications`; in-app screen for listing and marking as read.
+- **Notifications**: In-app screen for listing and marking notifications as read.
 - **Maps & Location**: Google Maps integrated on Android; location permissions and coordinates handling.
 - **Wallet**: Placeholder screen primed for future transactions and history.
 - **Profile Modals**: Editable patient/provider profile components under `components/`.
@@ -218,7 +211,6 @@ npm run lint
 ## Known Limitations
 
 - **Session timeout**: 5 minutes of inactivity may be short for some workflows; adjust `SESSION_TIMEOUT` if needed.
-- **Push tokens**: Expo push requires physical devices; simulators won’t receive notifications.
 - **Maps**: Google Maps API key must be valid and provisioned; ensure platform SDKs are configured.
 - **Endpoints**: Current config uses plain HTTP; production should enforce HTTPS.
 

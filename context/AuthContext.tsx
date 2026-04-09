@@ -1,6 +1,3 @@
-import Constants from "expo-constants";
-import * as Device from "expo-device";
-import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import React, {
   createContext,
@@ -10,11 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  AppState,
-  AppStateStatus,
-  Platform
-} from "react-native";
+import { AppState, AppStateStatus } from "react-native";
 import apiClient from "../lib/api";
 import socketService from "../lib/socket";
 
@@ -80,89 +73,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const appState = useRef(AppState.currentState);
-
-  const getPushToken = async (): Promise<string | null> => {
-    try {
-      if (!Device.isDevice) {
-        console.log("⚠️  Not a physical device - skipping push notifications");
-        return null;
-      }
-
-      // Request notification permissions
-      const { status: existingStatus } =
-        await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== "granted") {
-        console.log("🔔 Requesting push notification permissions...");
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-        console.log("🔔 Permission result:", status);
-      }
-
-      if (finalStatus !== "granted") {
-        console.log("⚠️  Push notification permission denied by user");
-        return null;
-      }
-
-      // Configure Android notification channel for FCM
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("default", {
-          name: "default",
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#FF231F7C",
-        });
-      }
-
-      // Get the project ID from app config using Constants
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-
-      if (!projectId) {
-        console.error("❌ Project ID not found in app config");
-        console.warn("⚠️  Make sure your app.json has:");
-        console.warn(
-          '   "extra": { "eas": { "projectId": "your-project-id" } }',
-        );
-        return null;
-      }
-
-      // Get Expo push token with project ID
-      console.log("🔄 Requesting Expo push token with project:", projectId);
-      const pushTokenData = await Promise.race([
-        Notifications.getExpoPushTokenAsync({
-          projectId: projectId,
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Push token request timeout")),
-            10000,
-          ),
-        ),
-      ]);
-
-      const pushToken = pushTokenData.data;
-      console.log("✅ Expo Push Token obtained successfully");
-      console.log("📝 Token preview:", pushToken.substring(0, 50) + "...");
-      return pushToken;
-    } catch (error: any) {
-      console.error("❌ Error getting push token:", error.message);
-      console.error("Error code:", error.code);
-
-      // Provide helpful error messages
-      if (error.message?.includes("timeout")) {
-        console.warn("⚠️  Network timeout - check your internet connection");
-      } else if (error.message?.includes("projectId")) {
-        console.warn("⚠️  Missing project ID - run: npx eas init");
-      } else if (error.code === "ERR_NOTIFICATIONS_UNSUPPORTED") {
-        console.warn(
-          "⚠️  Push notifications not supported on this device/emulator",
-        );
-      }
-
-      return null;
-    }
-  };
 
   const updateLastActivity = useCallback(async () => {
     const timestamp = Date.now().toString();
@@ -303,20 +213,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
 
-      // Get push token from device (non-blocking)
-      const pushToken = await getPushToken();
-      if (pushToken) {
-        console.log("✅ Push token obtained");
-      } else {
-        console.log("⚠️  Continuing login without push token");
-      }
-
-      // Call login endpoint with email, password, and pushToken
+      // Call login endpoint with email and password
       console.log("🌐 Calling login API...");
       const response = await apiClient.post("/app/auth/login", {
         email,
         password,
-        pushToken: pushToken || undefined,
       });
 
       console.log("✅ Login API call successful");
@@ -400,25 +301,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Set initial activity timestamp
       await updateLastActivity();
       setUser(userData);
-
-      // If we didn't get a push token during login, try again in the background
-      if (!pushToken) {
-        console.log("🔄 Retrying push token setup in background...");
-        setTimeout(async () => {
-          try {
-            const retryToken = await getPushToken();
-            if (retryToken) {
-              console.log("✅ Push token obtained on retry, updating...");
-              await apiClient.patch("/app/auth/update-push-token", {
-                pushToken: retryToken,
-              });
-              console.log("✅ Push token updated successfully");
-            }
-          } catch (retryError) {
-            console.log("⚠️  Background push token update failed:", retryError);
-          }
-        }, 3000);
-      }
 
       console.log("🎉 Login successful and fully authenticated!");
       return userData;
