@@ -610,7 +610,7 @@ export default function TransactionsScreen() {
           );
           return;
         }
-        Alert.alert("Payment approved", "Wolla" + JSON.stringify(verify));
+        // Alert.alert("Payment approved", "Wolla" + JSON.stringify(verify));
         await markPackagePurchased(session);
       } catch (error: any) {
         Alert.alert(
@@ -894,7 +894,7 @@ export default function TransactionsScreen() {
                 {!isDocumentVerified ? (
                   <View className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4">
                     <Text className="text-sm font-semibold text-amber-800">
-                      Production disclaimer
+                      Disclaimer
                     </Text>
                     <Text className="mt-1 text-sm text-amber-700">
                       Your account is currently under review. Package selection
