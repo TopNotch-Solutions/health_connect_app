@@ -62,15 +62,15 @@ interface DPOQueryResult {
 }
 
 const DPO_CONFIG = {
-  PAYGATE_ID: "1052303100014",
-  ENCRYPTION_KEY: "M5oSHVvMk3Ao",
+  PAYGATE_ID: "10011072130",
+  ENCRYPTION_KEY: "secret",
   INITIATE_URL: "https://secure.paygate.co.za/payweb3/initiate.trans",
   REDIRECT_URL: "https://secure.paygate.co.za/payweb3/process.trans",
   QUERY_URL: "https://secure.paygate.co.za/payweb3/query.trans",
-  CURRENCY: "NAD",
+  CURRENCY: "ZAR",
   RETURN_URL: "https://kopanovertex.com",
   LOCALE: "en-za",
-  COUNTRY: "NAM",
+  COUNTRY: "ZAF",
 } as const;
 
 const DPO_STATUSES = [
@@ -242,6 +242,9 @@ export default function TransactionsScreen() {
   }>({});
   const [withdrawErrors, setWithdrawErrors] = useState<{ amount?: string }>({});
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const isDocumentVerified = !!user?.isDocumentVerified;
+  const consultationsLeft = Number(user?.consultations || 0);
+  const hasActivePackage = consultationsLeft > 0;
 
   // Listen to keyboard show/hide events
   React.useEffect(() => {
@@ -484,7 +487,7 @@ export default function TransactionsScreen() {
         });
 
         const data = await response.text();
-        console.log("Mydata",data)
+        console.log("Mydata", data);
         if (!data || !data.includes("PAY_REQUEST_ID")) {
           return { success: false };
         }
@@ -522,9 +525,7 @@ export default function TransactionsScreen() {
         });
 
         const data = await response.text();
-        console.log(
-          'Verify', data
-        )
+        console.log("Verify", data);
         if (!data || !data.includes("PAYGATE_ID")) {
           return { success: false };
         }
@@ -542,36 +543,41 @@ export default function TransactionsScreen() {
     [],
   );
 
-  const markPackagePurchased = useCallback(async (session: DPOSession) => {
-    const payload = {
-      packageId: session.packageId,
-    };
+  const markPackagePurchased = useCallback(
+    async (session: DPOSession) => {
+      const payload = {
+        packageId: session.packageId,
+      };
 
-    const response = await apiClient.post(
-      "/app/transaction/purchase-package",
-      payload,
-    );
+      const response = await apiClient.post(
+        "/app/transaction/purchase-package",
+        payload,
+      );
 
-    if (!(response.status >= 200 && response.status < 300)) {
-      throw new Error(response.data?.message || "Payment finalization failed.");
-    }
+      if (!(response.status >= 200 && response.status < 300)) {
+        throw new Error(
+          response.data?.message || "Payment finalization failed.",
+        );
+      }
 
-    addMoneySheetRef.current?.close();
+      addMoneySheetRef.current?.close();
 
-    await fetchAndUpdateUserDetails();
-    await fetchTransactions(true, 1);
+      await fetchAndUpdateUserDetails();
+      await fetchTransactions(true, 1);
 
-    Alert.alert(
-      "Success",
-      response.data?.message || "Package successfully purchased.",
-    );
-  }, [
-    addMoneySheetRef,
-    fetchAndUpdateUserDetails,
-    fetchTransactions,
-    updateUser,
-    user?.consultations,
-  ]);
+      Alert.alert(
+        "Success",
+        response.data?.message || "Package successfully purchased.",
+      );
+    },
+    [
+      addMoneySheetRef,
+      fetchAndUpdateUserDetails,
+      fetchTransactions,
+      updateUser,
+      user?.consultations,
+    ],
+  );
 
   const verifyDpoPaymentAndFinalize = useCallback(
     async (session: DPOSession) => {
@@ -604,10 +610,7 @@ export default function TransactionsScreen() {
           );
           return;
         }
-        Alert.alert(
-          "Payment approved",
-          "Wolla"  +  JSON.stringify(verify)
-        );
+        Alert.alert("Payment approved", "Wolla" + JSON.stringify(verify));
         await markPackagePurchased(session);
       } catch (error: any) {
         Alert.alert(
@@ -623,6 +626,22 @@ export default function TransactionsScreen() {
   );
 
   const initiatePackagePayment = async (pkg: PackageItem) => {
+    if (!isDocumentVerified) {
+      Alert.alert(
+        "Verification Required",
+        "Your documents must be verified by admin before purchasing a package.",
+      );
+      return;
+    }
+
+    if (hasActivePackage) {
+      Alert.alert(
+        "Active Package Found",
+        "You already have an active package. Please use all consultations before buying another package.",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const reference = buildDpoReference();
@@ -872,18 +891,45 @@ export default function TransactionsScreen() {
                     </Text>
                   </View>
                 </View>
-                <View className="flex-row mb-6" style={{ gap: 16 }}>
-                  <ActionButton
-                    icon="plus-circle"
-                    label="Select package"
-                    onPress={() => addMoneySheetRef.current?.expand()}
-                  />
-                  {/* <ActionButton
+                {!isDocumentVerified ? (
+                  <View className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+                    <Text className="text-sm font-semibold text-amber-800">
+                      Production disclaimer
+                    </Text>
+                    <Text className="mt-1 text-sm text-amber-700">
+                      Your account is currently under review. Package selection
+                      will be available once verification is complete
+                    </Text>
+                  </View>
+                ) : (
+                  <View className="mb-6" style={{ gap: 12 }}>
+                    {hasActivePackage ? (
+                      <View className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                        <Text className="text-sm font-semibold text-blue-800">
+                          Active package in use
+                        </Text>
+                        <Text className="mt-1 text-sm text-blue-700">
+                          You still have {consultationsLeft} consultation
+                          {consultationsLeft > 1 ? "s" : ""}. You can select a
+                          new package when your consultations reach 0.
+                        </Text>
+                      </View>
+                    ) : (
+                      <View className="flex-row" style={{ gap: 16 }}>
+                        <ActionButton
+                          icon="plus-circle"
+                          label="Select package"
+                          onPress={() => addMoneySheetRef.current?.expand()}
+                        />
+                      </View>
+                    )}
+                  </View>
+                )}
+                {/* <ActionButton
                     icon="send"
                     label="Send Funds"
                     onPress={() => fundOthersSheetRef.current?.expand()}
                   /> */}
-                </View>
                 {/* <View className="flex-row mb-6" style={{ gap: 16 }}>
                   <ActionButton
                     icon="arrow-up-right"
@@ -978,7 +1024,27 @@ export default function TransactionsScreen() {
               </TouchableOpacity>
             </View>
 
-            {isFetchingPackages ? (
+            {!isDocumentVerified ? (
+              <View className="mt-8 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+                <Text className="text-base font-semibold text-amber-800">
+                  Production disclaimer
+                </Text>
+                <Text className="mt-2 text-sm text-amber-700">
+                  Document verification is required before selecting packages.
+                </Text>
+              </View>
+            ) : hasActivePackage ? (
+              <View className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <Text className="text-base font-semibold text-blue-800">
+                  Active package in use
+                </Text>
+                <Text className="mt-2 text-sm text-blue-700">
+                  You have {consultationsLeft} consultation
+                  {consultationsLeft > 1 ? "s" : ""} remaining. You can buy a
+                  new package once your consultations are 0.
+                </Text>
+              </View>
+            ) : isFetchingPackages ? (
               <View className="mt-10 items-center">
                 <ActivityIndicator size="large" color="#16a34a" />
                 <Text className="text-gray-500 mt-3">Loading packages...</Text>
