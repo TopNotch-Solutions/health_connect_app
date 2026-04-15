@@ -218,6 +218,13 @@ export default function ProviderTabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="teleconsultation-call"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
     </Tabs>
   );
 }

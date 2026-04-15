@@ -14,12 +14,14 @@ import {
 } from "react-native";
 import CreateRequestModal from "../../../components/(patient)/CreateRequestModal";
 import { useAuth } from "../../../context/AuthContext";
+import { buildBackendAssetUrl } from "../../../lib/backend";
 import socketService from "../../../lib/socket";
 
 interface Ailment {
   _id: string;
   title: string;
   provider?: string;
+  supportsTeleconsultation?: boolean;
   description?: string;
   linkedSpecializations?: string[];
   image?: string;
@@ -38,9 +40,7 @@ const AilmentCard = ({
   item: Ailment;
   onPress: () => void;
 }) => {
-  const AILMENT_IMAGE_BASE_URL =
-    "https://apihealthconnect.kopanovertex.com/ailments/";
-  const imageUri = item.image ? `${AILMENT_IMAGE_BASE_URL}${item.image}` : null;
+  const imageUri = buildBackendAssetUrl("ailments", item.image);
   const [imageLoading, setImageLoading] = React.useState(true);
   const [imageError, setImageError] = React.useState(false);
 
@@ -238,11 +238,9 @@ export default function AllAilmentsScreen() {
             setAilments(mappedCategories);
 
             // Prefetch ailment images for faster loading
-            const AILMENT_IMAGE_BASE_URL =
-              "https://apihealthconnect.kopanovertex.com/ailments/";
             mappedCategories.forEach((category: any) => {
-              if (category.image) {
-                const imageUri = `${AILMENT_IMAGE_BASE_URL}${category.image}`;
+              const imageUri = buildBackendAssetUrl("ailments", category.image);
+              if (imageUri) {
                 Image.prefetch(imageUri).catch((err) => {
                   console.log("Failed to prefetch image:", imageUri, err);
                 });

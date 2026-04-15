@@ -25,6 +25,7 @@ import HistoryCard, {
 } from "../../../components/(patient)/HistoryCard";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
+import { buildBackendAssetUrl } from "../../../lib/backend";
 import { getLocationCoordinates } from "../../../lib/geocoding";
 import socketService from "../../../lib/socket";
 
@@ -59,8 +60,6 @@ export default function PatientHomeScreen() {
   const advertSlideAnim = React.useRef(new Animated.Value(0)).current;
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [currentOnboardingStep, setCurrentOnboardingStep] = useState(0);
-
-  const IMAGE_BASE_URL = "https://apihealthconnect.kopanovertex.com/adverts/";
 
   const onboardingSteps: {
     id: number;
@@ -156,11 +155,9 @@ export default function PatientHomeScreen() {
         setAdverts(response.data.adverts);
 
         // Prefetch all advert images for faster loading
-        const IMAGE_BASE_URL =
-          "https://apihealthconnect.kopanovertex.com/adverts/";
         response.data.adverts.forEach((advert: Advert) => {
-          if (advert.image) {
-            const imageUri = `${IMAGE_BASE_URL}${advert.image}`;
+          const imageUri = buildBackendAssetUrl("adverts", advert.image);
+          if (imageUri) {
             Image.prefetch(imageUri).catch((err) => {
               console.log("Failed to prefetch advert image:", imageUri, err);
             });
@@ -209,15 +206,17 @@ export default function PatientHomeScreen() {
             setAilmentCategories(categories);
 
             // Prefetch ailment images for faster loading - prioritize first 6 for home page
-            const AILMENT_IMAGE_BASE_URL =
-              "https://apihealthconnect.kopanovertex.com/ailments/";
             const categoriesToPrefetch = categories.slice(0, 6); // Only prefetch first 6 for home page
 
             // Prefetch in parallel for faster loading
             const prefetchPromises = categoriesToPrefetch.map(
               (category: any) => {
                 if (category.image) {
-                  const imageUri = `${AILMENT_IMAGE_BASE_URL}${category.image}`;
+                  const imageUri = buildBackendAssetUrl(
+                    "ailments",
+                    category.image,
+                  );
+                  if (!imageUri) return Promise.resolve();
                   return Image.prefetch(imageUri).catch((err) => {
                     console.log("Failed to prefetch image:", imageUri, err);
                   });
@@ -358,8 +357,8 @@ export default function PatientHomeScreen() {
       setAdvertImageError(false);
 
       const currentAdvert = adverts[currentAdvertIndex];
-      if (currentAdvert?.image) {
-        const imageUri = `${IMAGE_BASE_URL}${currentAdvert.image}`;
+      const imageUri = buildBackendAssetUrl("adverts", currentAdvert?.image);
+      if (imageUri) {
         Image.prefetch(imageUri)
           .then(() => {
             setAdvertImageLoading(false);
@@ -683,7 +682,11 @@ export default function PatientHomeScreen() {
                       adverts[currentAdvertIndex]?.image && (
                         <Image
                           source={{
-                            uri: `${IMAGE_BASE_URL}${adverts[currentAdvertIndex].image}`,
+                            uri:
+                              buildBackendAssetUrl(
+                                "adverts",
+                                adverts[currentAdvertIndex].image,
+                              ) || undefined,
                           }}
                           style={styles.advertImage}
                           resizeMode="contain"
@@ -877,7 +880,11 @@ export default function PatientHomeScreen() {
                   <>
                     <Image
                       source={{
-                        uri: `${IMAGE_BASE_URL}${selectedAdvert.image}`,
+                        uri:
+                          buildBackendAssetUrl(
+                            "adverts",
+                            selectedAdvert.image,
+                          ) || undefined,
                       }}
                       style={styles.modalImage}
                       resizeMode="contain"

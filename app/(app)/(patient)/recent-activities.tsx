@@ -19,6 +19,11 @@ interface RequestStatus {
     | "searching"
     | "pending"
     | "accepted"
+    | "payment_pending"
+    | "paid"
+    | "provider_confirmation_pending"
+    | "ready_for_call"
+    | "in_call"
     | "en_route"
     | "arrived"
     | "in_progress"
@@ -76,6 +81,21 @@ const StatusBadge = ({ status }: { status: string }) => {
           bg: "bg-green-100",
           text: "text-green-800",
           icon: "check-circle",
+        };
+      case "payment_pending":
+        return {
+          bg: "bg-amber-100",
+          text: "text-amber-800",
+          icon: "credit-card",
+        };
+      case "paid":
+      case "provider_confirmation_pending":
+      case "ready_for_call":
+      case "in_call":
+        return {
+          bg: "bg-sky-100",
+          text: "text-sky-800",
+          icon: "video",
         };
       case "en_route":
         return {
@@ -147,6 +167,16 @@ const ActivityCard = ({ item }: { item: StoredRequest }) => {
         return "Request sent to provider, waiting for response...";
       case "accepted":
         return `Provider ${request.providerId?.fullname || "has"} accepted your request`;
+      case "payment_pending":
+        return `Provider ${request.providerId?.fullname || "has"} accepted your teleconsultation. Complete payment to continue.`;
+      case "paid":
+        return "Payment received. Waiting for provider confirmation.";
+      case "provider_confirmation_pending":
+        return "Waiting for your provider to confirm readiness.";
+      case "ready_for_call":
+        return "Your teleconsultation is ready to begin.";
+      case "in_call":
+        return "Video consultation is in progress.";
       case "en_route":
         return `Provider is on the way (${request.providerResponse?.estimatedArrival || "ETA pending"})`;
       case "arrived":
@@ -184,7 +214,15 @@ const ActivityCard = ({ item }: { item: StoredRequest }) => {
       </Text>
 
       {/* Provider info - only show if accepted */}
-      {request.status === "accepted" && request.providerId && (
+      {[
+        "accepted",
+        "payment_pending",
+        "paid",
+        "provider_confirmation_pending",
+        "ready_for_call",
+        "in_call",
+      ].includes(request.status) &&
+        request.providerId && (
         <View className="bg-blue-50 rounded-lg p-3 mb-3 border border-blue-200">
           <Text className="text-xs font-semibold text-blue-900 mb-1">
             Provider Details
@@ -265,7 +303,7 @@ export default function RecentActivities() {
               const stored = mergedRequests.get(req._id);
               const now = Date.now();
               const acceptedAt =
-                req.status === "accepted" && !stored
+                ["accepted", "payment_pending"].includes(req.status) && !stored
                   ? now
                   : stored?.acceptedAt || now;
               mergedRequests.set(req._id, { request: req, acceptedAt });

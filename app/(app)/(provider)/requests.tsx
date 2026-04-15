@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -38,6 +38,11 @@ interface Request {
     | "searching"
     | "pending"
     | "accepted"
+    | "payment_pending"
+    | "paid"
+    | "provider_confirmation_pending"
+    | "ready_for_call"
+    | "in_call"
     | "rejected"
     | "en_route"
     | "arrived"
@@ -69,10 +74,11 @@ export default function ProviderRequests() {
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<{
     requestId: string;
-    action: "accept" | "decline" | "route" | "start" | "complete";
+    action: "accept" | "decline" | "route" | "start" | "complete" | "ready";
   } | null>(null);
   const { startRoute } = useRoute();
   const { user } = useAuth();
+  const router = useRouter();
   const loadRequests = useCallback(async () => {
     if (!user?.userId) {
       console.log("⚠️ No userId available");
@@ -222,6 +228,11 @@ export default function ProviderRequests() {
     if (filter === "accepted")
       return (
         r.status === "accepted" ||
+        r.status === "payment_pending" ||
+        r.status === "paid" ||
+        r.status === "provider_confirmation_pending" ||
+        r.status === "ready_for_call" ||
+        r.status === "in_call" ||
         r.status === "in_progress" ||
         r.status === "arrived" ||
         r.status === "en_route"
@@ -240,6 +251,16 @@ export default function ProviderRequests() {
           bg: "bg-blue-50",
           text: "text-blue-700",
           icon: "check-circle",
+        };
+      case "payment_pending":
+      case "paid":
+      case "provider_confirmation_pending":
+      case "ready_for_call":
+      case "in_call":
+        return {
+          bg: "bg-sky-50",
+          text: "text-sky-700",
+          icon: "video",
         };
       case "in_progress":
       case "arrived":
@@ -294,6 +315,21 @@ export default function ProviderRequests() {
     try {
       // 1) Accept on backend (assign provider)
       await socketService.acceptRequest(request._id, currentUserId);
+
+      if (request.consultationMode === "video_consultation") {
+        setRequests((prev) =>
+          prev.map((req) =>
+            req._id === request._id
+              ? ({ ...req, status: "payment_pending" } as Request)
+              : req,
+          ),
+        );
+        Alert.alert(
+          "Teleconsultation Accepted",
+          "The patient now needs to complete payment before the consultation can continue.",
+        );
+        return;
+      }
 
       // 2) Open global route modal immediately for fast UX
       startRoute(request);
@@ -506,6 +542,38 @@ export default function ProviderRequests() {
     }
   };
 
+  const handleConfirmReady = async (requestId: string, patientName: string) => {
+    if (!user?.userId) return;
+
+    setActionLoading({ requestId, action: "ready" });
+    try {
+      await socketService.confirmTeleconsultationReady(requestId, user.userId);
+
+      setRequests((prev) =>
+        prev.map((req) =>
+          req._id === requestId
+            ? ({ ...req, status: "ready_for_call" } as Request)
+            : req,
+        ),
+      );
+
+      Alert.alert(
+        "Ready For Call",
+        `Teleconsultation with ${patientName} is now ready to begin.`,
+      );
+    } catch (error: any) {
+      console.error("Error confirming teleconsultation readiness:", error);
+      Alert.alert(
+        "Error",
+        error.message || "Failed to confirm teleconsultation readiness",
+      );
+    } finally {
+      setActionLoading((prev) =>
+        prev?.requestId === requestId ? null : prev,
+      );
+    }
+  };
+
   // Handle decline request
   const handleDecline = async (requestId: string, patientName: string) => {
     if (!user?.userId) return;
@@ -679,7 +747,13 @@ export default function ProviderRequests() {
                     };
               const isBusy = actionLoading?.requestId === request._id;
               const isLoadingAction = (
-                action: "accept" | "decline" | "route" | "start" | "complete",
+                action:
+                  | "accept"
+                  | "decline"
+                  | "route"
+                  | "start"
+                  | "complete"
+                  | "ready",
               ) =>
                 actionLoading?.requestId === request._id &&
                 actionLoading?.action === action;
@@ -810,6 +884,70 @@ export default function ProviderRequests() {
                         </Text>
                       )}
                     </TouchableOpacity>
+                  ) : request.consultationMode === "video_consultation" &&
+                    [
+                      "payment_pending",
+                      "paid",
+                      "provider_confirmation_pending",
+                      "ready_for_call",
+                      "in_call",
+                    ].includes(request.status) ? (
+                    <>
+                      <View className="bg-sky-50 border border-sky-200 rounded-lg px-4 py-3 mt-3">
+                        <Text className="text-sky-700 font-semibold text-center">
+                          {request.status === "payment_pending"
+                            ? "Waiting for patient payment"
+                            : request.status === "paid"
+                              ? "Payment received"
+                              : request.status ===
+                                  "provider_confirmation_pending"
+                                ? "Waiting for provider confirmation"
+                                : request.status === "ready_for_call"
+                                  ? "Ready to start video consultation"
+                                  : "Video consultation in progress"}
+                        </Text>
+                      </View>
+                      {(request.status === "paid" ||
+                        request.status === "provider_confirmation_pending") && (
+                        <TouchableOpacity
+                          onPress={() =>
+                            handleConfirmReady(request._id, patientName)
+                          }
+                          disabled={isBusy}
+                          className="bg-sky-600 py-3 rounded-lg mt-3"
+                        >
+                          {isLoadingAction("ready") ? (
+                            <ActivityIndicator
+                              size="small"
+                              color="#FFFFFF"
+                            />
+                          ) : (
+                            <Text className="text-white font-bold text-center">
+                              Confirm Ready
+                            </Text>
+                          )}
+                          </TouchableOpacity>
+                      )}
+                      {["ready_for_call", "in_call"].includes(request.status) && (
+                        <TouchableOpacity
+                          onPress={() =>
+                            router.push({
+                              pathname: "/(app)/(provider)/teleconsultation-call",
+                              params: { requestId: request._id },
+                            })
+                          }
+                          disabled={isBusy}
+                          className="bg-teal-600 py-3 rounded-lg mt-3"
+                        >
+                          <View className="flex-row items-center justify-center">
+                            <Feather name="video" size={16} color="#FFFFFF" />
+                            <Text className="text-white font-bold text-center ml-2">
+                              Join Call
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      )}
+                    </>
                   ) : request.status === "arrived" ? (
                     <TouchableOpacity
                       onPress={() =>

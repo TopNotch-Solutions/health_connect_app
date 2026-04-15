@@ -6,6 +6,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { buildBackendAssetUrl } from "../../lib/backend";
 
 interface AilmentCardProps {
   item: {
@@ -18,9 +19,7 @@ interface AilmentCardProps {
 }
 
 const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
-  const AILMENT_IMAGE_BASE_URL =
-    "https://apihealthconnect.kopanovertex.com/ailments/";
-  const imageUri = item.image ? `${AILMENT_IMAGE_BASE_URL}${item.image}` : null;
+  const imageUri = buildBackendAssetUrl("ailments", item.image);
   console.log("AilmentCard imageUri:", imageUri);
   const [imageLoading, setImageLoading] = React.useState(false);
   const [imageError, setImageError] = React.useState(false);

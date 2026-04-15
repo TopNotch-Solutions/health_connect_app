@@ -18,6 +18,7 @@ import ChangePasswordModal from "../../../components/ChangePasswordModal";
 import EditPatientProfileModal from "../../../components/EditPatientProfileModal";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
+import { buildBackendAssetUrl } from "../../../lib/backend";
 
 // --- A Reusable Component for the Menu Items ---
 const ProfileMenuItem = ({
@@ -79,8 +80,6 @@ export default function ProfileScreen() {
   // This is the base URL where your backend serves images.
   // YOU MUST CONFIRM THIS from your backend's `server.js` or `app.js` file.
   // It's often where you see a line like `app.use(express.static('public'))`.
-  const IMAGE_BASE_URL = "https://apihealthconnect.kopanovertex.com/images/";
-
   const handlePickImage = async () => {
     try {
       const { status } =
@@ -247,7 +246,11 @@ export default function ProfileScreen() {
             />
           ) : user?.profileImage ? (
             <Image
-              source={{ uri: `${IMAGE_BASE_URL}${user.profileImage}` }}
+              source={{
+                uri:
+                  buildBackendAssetUrl("images", user.profileImage) ||
+                  undefined,
+              }}
               className="w-32 h-32 rounded-full mb-4 border-4 border-blue-100"
               style={{ width: 128, height: 128, borderRadius: 64 }}
             />

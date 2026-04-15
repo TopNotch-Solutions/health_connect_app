@@ -209,6 +209,13 @@ export default function PatientTabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="teleconsultation-call"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
     </Tabs>
   );
 }

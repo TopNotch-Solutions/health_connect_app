@@ -578,6 +578,7 @@ export default function ProviderHome() {
           // Remove the request from available list if it's been accepted or cancelled
           if (
             data.status === "accepted" ||
+            data.status === "payment_pending" ||
             data.status === "cancelled" ||
             data.status === "completed"
           ) {
@@ -690,6 +691,16 @@ export default function ProviderHome() {
     try {
       // 1) Accept on backend (assign provider)
       await socketService.acceptRequest(request._id, currentUserId);
+
+      if (request.consultationMode === "video_consultation") {
+        setSelectedRequest(null);
+        setRequests((prev) => prev.filter((req) => req._id !== request._id));
+        Alert.alert(
+          "Teleconsultation Accepted",
+          "The patient now needs to complete payment before the consultation can continue.",
+        );
+        return;
+      }
 
       // 2) Open global route modal immediately for fast UX
       startRoute(request);

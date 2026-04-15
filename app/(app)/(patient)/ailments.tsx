@@ -19,6 +19,7 @@ interface Ailment {
   _id: string;
   title: string;
   provider: string;
+  supportsTeleconsultation?: boolean;
   description?: string;
   linkedSpecializations?: string[];
 }

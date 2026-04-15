@@ -1,0 +1,38 @@
+const { Router } = require('express');
+const { registerPatient, registerHealthProvider, verifyOtpReset, resetPassword, login, removeProfileImage, updateProfileImage, updateIDFront, updateIDBack, updateHPCNAQualification, updateFinalQualification, updatePatientDetails, updateHealthProvider, changePassword, deactivateAccount, getAllAppUsers, approveHealthProviderDocuments, rejectHealthProviderDocuments, updateDispensingCertificateLicence, updatePushToken, userDetails, getAppToken, logout } = require('../../controllers/app/authController');
+const { uploadSingle } = require('../../middlewares/uploadProfileImage');
+const { uploadMultipleDocuments } = require('../../middlewares/uploadHealthProviderImages');
+const uploadIdFront = require('../../middlewares/uploadIdFront');
+const uploadannualQualification = require('../../middlewares/uploadannualQualification');
+const uploadprimaryQualification = require('../../middlewares/uploadprimaryQualification');
+const { uploadSingleBack } = require('../../middlewares/uploadIdBack');
+const { uploadMultiple } = require('../../middlewares/uploadIDDocument');
+const uploadPrescribingCertificate = require('../../middlewares/uploadPrescribingCertificate');
+const { appTokenMiddleware, checkAppUser, tokenAuthMiddleware, checkUser } = require('../../middlewares/authMiddleware');
+const authRouter = Router();
+
+authRouter.post("/register-patient",appTokenMiddleware, checkAppUser, uploadMultiple, registerPatient);
+authRouter.post("/register-health-provider",appTokenMiddleware, checkAppUser, uploadMultipleDocuments, registerHealthProvider);
+authRouter.post("/forgot-password-verify-otp",appTokenMiddleware, checkAppUser, verifyOtpReset);
+authRouter.post("/forgot-password-reset/:id",appTokenMiddleware, checkAppUser, resetPassword);
+authRouter.post("/login", appTokenMiddleware, checkAppUser, login);
+authRouter.get("/user-details",tokenAuthMiddleware,checkUser, userDetails);
+authRouter.delete("/remove-profile-image",tokenAuthMiddleware,checkUser, removeProfileImage);
+authRouter.put("/update-patient-details",tokenAuthMiddleware,checkUser, updatePatientDetails);
+authRouter.patch("/change-password",tokenAuthMiddleware,checkUser, changePassword);
+authRouter.patch("/deactivate-account",tokenAuthMiddleware,checkUser, deactivateAccount);
+authRouter.put("/update-health-provider-details",tokenAuthMiddleware,checkUser, updateHealthProvider);
+authRouter.patch("/upload-profile-image",tokenAuthMiddleware,checkUser,uploadSingle, updateProfileImage);
+authRouter.patch("/update-id-front",tokenAuthMiddleware,checkUser, uploadIdFront.uploadSingleFront, updateIDFront);
+authRouter.patch("/update-id-back",tokenAuthMiddleware,checkUser, uploadSingleBack, updateIDBack);
+authRouter.patch("/update-annual-qualification",tokenAuthMiddleware,checkUser, uploadannualQualification.uploadSingleAnnual, updateHPCNAQualification);
+authRouter.patch("/update-primary-qualification",tokenAuthMiddleware,checkUser, uploadprimaryQualification.uploadSinglePrimary, updateFinalQualification);
+authRouter.patch("/update-prescribing-certificate", tokenAuthMiddleware,checkUser, uploadPrescribingCertificate.uploadPrescribingCertificate, updateDispensingCertificateLicence);
+authRouter.get("/all-users", getAllAppUsers);
+authRouter.patch("/approve-documents/:id", approveHealthProviderDocuments);
+authRouter.patch("/reject-documents/:id",  rejectHealthProviderDocuments);
+authRouter.patch("/update-push-token", tokenAuthMiddleware,checkUser, updatePushToken);
+authRouter.patch("/logout", tokenAuthMiddleware,checkUser, logout);
+authRouter.get("/retrieve-jwt-token", getAppToken);
+
+module.exports = authRouter;

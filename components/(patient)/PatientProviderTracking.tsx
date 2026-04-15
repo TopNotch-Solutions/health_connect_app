@@ -13,10 +13,10 @@ import {
 import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { buildBackendAssetUrl } from "../../lib/backend";
 import socketService from "../../lib/socket";
 
 const GOOGLE_MAPS_API_KEY = "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg";
-const IMAGE_BASE_URL = "https://apihealthconnect.kopanovertex.com/images/";
 
 interface ProviderLocation {
   latitude: number;
@@ -143,9 +143,7 @@ export default function PatientProviderTracking({
       );
       console.log(
         "PatientProviderTracking - Provider profileImage URL:",
-        providerProfileImage
-          ? `${IMAGE_BASE_URL}${providerProfileImage}`
-          : "N/A",
+        buildBackendAssetUrl("images", providerProfileImage) || "N/A",
       );
       console.log(
         "PatientProviderTracking - Provider profileImage type:",
@@ -618,7 +616,11 @@ export default function PatientProviderTracking({
                       {normalizedPatientProfileImage ? (
                         <Image
                           source={{
-                            uri: `${IMAGE_BASE_URL}${normalizedPatientProfileImage}`,
+                            uri:
+                              buildBackendAssetUrl(
+                                "images",
+                                normalizedPatientProfileImage,
+                              ) || undefined,
                           }}
                           style={{ width: "100%", height: "100%" }}
                           resizeMode="cover"
@@ -629,13 +631,19 @@ export default function PatientProviderTracking({
                             );
                             console.error(
                               "Patient profile image URL:",
-                              `${IMAGE_BASE_URL}${normalizedPatientProfileImage}`,
+                              buildBackendAssetUrl(
+                                "images",
+                                normalizedPatientProfileImage,
+                              ),
                             );
                           }}
                           onLoad={() => {
                             console.log(
                               "Patient profile image loaded successfully:",
-                              `${IMAGE_BASE_URL}${normalizedPatientProfileImage}`,
+                              buildBackendAssetUrl(
+                                "images",
+                                normalizedPatientProfileImage,
+                              ),
                             );
                           }}
                         />
@@ -680,7 +688,11 @@ export default function PatientProviderTracking({
                       {normalizedProviderProfileImage ? (
                         <Image
                           source={{
-                            uri: `${IMAGE_BASE_URL}${normalizedProviderProfileImage}`,
+                            uri:
+                              buildBackendAssetUrl(
+                                "images",
+                                normalizedProviderProfileImage,
+                              ) || undefined,
                           }}
                           style={{ width: "100%", height: "100%" }}
                           resizeMode="cover"
@@ -691,13 +703,19 @@ export default function PatientProviderTracking({
                             );
                             console.error(
                               "Provider profile image URL:",
-                              `${IMAGE_BASE_URL}${normalizedProviderProfileImage}`,
+                              buildBackendAssetUrl(
+                                "images",
+                                normalizedProviderProfileImage,
+                              ),
                             );
                           }}
                           onLoad={() => {
                             console.log(
                               "Provider profile image loaded successfully:",
-                              `${IMAGE_BASE_URL}${normalizedProviderProfileImage}`,
+                              buildBackendAssetUrl(
+                                "images",
+                                normalizedProviderProfileImage,
+                              ),
                             );
                           }}
                         />

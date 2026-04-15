@@ -1,8 +1,6 @@
 // Socket.IO client for real-time communication with backend
 import { io, Socket } from "socket.io-client";
-
-// const SOCKET_URL = 'https://apihealthconnect.kopanovertex.com';
-const SOCKET_URL = "https://apihealthconnect.kopanovertex.com";
+import { BACKEND_URL } from "./backend";
 
 class SocketService {
   private socket: Socket | null = null;
@@ -20,7 +18,7 @@ class SocketService {
 
     console.log("Connecting to socket with userId:", userId, "role:", role);
 
-    this.socket = io(SOCKET_URL, {
+    this.socket = io(BACKEND_URL, {
       transports: ["polling", "websocket"],
       query: { userId },
       reconnection: true,
@@ -686,6 +684,14 @@ class SocketService {
     });
   }
 
+  simulateTeleconsultationPayment(requestId: string, userId: string) {
+    return this.updateRequestStatus(requestId, userId, "paid");
+  }
+
+  confirmTeleconsultationReady(requestId: string, providerId: string) {
+    return this.updateRequestStatus(requestId, providerId, "ready_for_call");
+  }
+
   updateProviderResponse(
     requestId: string,
     eta: string,
@@ -838,3 +844,4 @@ class SocketService {
 }
 
 export default new SocketService();
+

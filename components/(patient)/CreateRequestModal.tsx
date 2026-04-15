@@ -45,6 +45,9 @@ export default function CreateRequestModal({
 }: CreateRequestModalProps) {
   const ailmentTitle = selectedAilment?.title || selectedAilment || "";
   const ailmentCategoryId = selectedAilment?._id;
+  const supportsTeleconsultation = Boolean(
+    selectedAilment?.supportsTeleconsultation,
+  );
 
   const [ailmentCategory, setAilmentCategory] = useState(ailmentTitle);
   const [consultationMode, setConsultationMode] = useState<
@@ -94,6 +97,12 @@ export default function CreateRequestModal({
       }
     }
   }, [selectedAilment]);
+
+  useEffect(() => {
+    if (!supportsTeleconsultation && consultationMode === "video_consultation") {
+      setConsultationMode("house_visit");
+    }
+  }, [consultationMode, supportsTeleconsultation]);
 
   // Video consultations are wallet-only. Auto-switch if needed.
   useEffect(() => {
@@ -307,26 +316,34 @@ export default function CreateRequestModal({
                       House Visit
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setConsultationMode("video_consultation")}
-                    disabled={isLoading}
-                    className={`flex-1 rounded-lg border-2 p-3 ${
-                      consultationMode === "video_consultation"
-                        ? "bg-blue-50 border-blue-500"
-                        : "bg-white border-gray-300"
-                    }`}
-                  >
-                    <Text
-                      className={`text-center font-semibold ${
+                  {supportsTeleconsultation && (
+                    <TouchableOpacity
+                      onPress={() => setConsultationMode("video_consultation")}
+                      disabled={isLoading}
+                      className={`flex-1 rounded-lg border-2 p-3 ${
                         consultationMode === "video_consultation"
-                          ? "text-blue-700"
-                          : "text-gray-700"
+                          ? "bg-blue-50 border-blue-500"
+                          : "bg-white border-gray-300"
                       }`}
                     >
-                      Video Consultation
-                    </Text>
-                  </TouchableOpacity>
+                      <Text
+                        className={`text-center font-semibold ${
+                          consultationMode === "video_consultation"
+                            ? "text-blue-700"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        Video Consultation
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
+
+                {!supportsTeleconsultation && (
+                  <Text className="text-xs text-gray-600 mt-2">
+                    This ailment currently requires an in-person house visit.
+                  </Text>
+                )}
 
                 <View className="bg-amber-50 rounded-lg p-3 mt-3 border border-amber-300">
                   <Text className="text-xs font-bold text-amber-900 mb-1">

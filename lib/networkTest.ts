@@ -4,9 +4,7 @@
  */
 
 import axios from "axios";
-
-const SOCKET_URL = "https://apihealthconnect.kopanovertex.com";
-const API_URL = "https://apihealthconnect.kopanovertex.com/api";
+import { API_BASE_URL, BACKEND_URL } from "./backend";
 
 export interface NetworkTestResult {
   success: boolean;
@@ -19,9 +17,9 @@ export interface NetworkTestResult {
  */
 export async function testServerConnectivity(): Promise<NetworkTestResult> {
   try {
-    console.log("🔍 Testing server connectivity to:", SOCKET_URL);
+    console.log("🔍 Testing server connectivity to:", BACKEND_URL);
 
-    const response = await axios.get(SOCKET_URL, {
+    const response = await axios.get(BACKEND_URL, {
       timeout: 10000,
       validateStatus: (status) => status < 500, // Accept any status < 500
     });
@@ -76,9 +74,9 @@ export async function testServerConnectivity(): Promise<NetworkTestResult> {
  */
 export async function testAPIConnectivity(): Promise<NetworkTestResult> {
   try {
-    console.log("🔍 Testing API connectivity to:", API_URL);
+    console.log("🔍 Testing API connectivity to:", API_BASE_URL);
 
-    const response = await axios.get(API_URL, {
+    const response = await axios.get(API_BASE_URL, {
       timeout: 10000,
       validateStatus: (status) => status < 500,
     });
@@ -149,3 +147,4 @@ export async function runNetworkDiagnostics(): Promise<{
     summary,
   };
 }
+

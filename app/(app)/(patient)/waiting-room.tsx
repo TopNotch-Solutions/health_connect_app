@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -26,6 +26,11 @@ interface RequestStatus {
     | "searching"
     | "pending"
     | "accepted"
+    | "payment_pending"
+    | "paid"
+    | "provider_confirmation_pending"
+    | "ready_for_call"
+    | "in_call"
     | "en_route"
     | "arrived"
     | "in_progress"
@@ -93,6 +98,21 @@ const StatusBadge = ({ status }: { status: string }) => {
           text: "text-green-800",
           icon: "check-circle",
         };
+      case "payment_pending":
+        return {
+          bg: "bg-amber-100",
+          text: "text-amber-800",
+          icon: "credit-card",
+        };
+      case "paid":
+      case "provider_confirmation_pending":
+      case "ready_for_call":
+      case "in_call":
+        return {
+          bg: "bg-sky-100",
+          text: "text-sky-800",
+          icon: "video",
+        };
       case "en_route":
         return {
           bg: "bg-purple-100",
@@ -155,11 +175,13 @@ const StatusBadge = ({ status }: { status: string }) => {
 const RequestCard = ({
   item,
   onCancel,
+  onSimulatePayment,
   patientLocation,
   patientProfileImage,
 }: {
   item: StoredRequest;
   onCancel?: (requestId: string) => void;
+  onSimulatePayment?: (requestId: string) => Promise<void>;
   patientLocation?: { latitude: number; longitude: number } | null;
   patientProfileImage?: string;
 }) => {
@@ -172,7 +194,9 @@ const RequestCard = ({
     (timeRemaining % (60 * 60 * 1000)) / (60 * 1000),
   );
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
   const [trackingModalVisible, setTrackingModalVisible] = useState(false);
+  const router = useRouter();
 
   const getConsultationModeMeta = (
     mode?: "house_visit" | "video_consultation",
@@ -245,6 +269,38 @@ const RequestCard = ({
     );
   };
 
+  const handleSimulatedPayment = async () => {
+    if (!onSimulatePayment) return;
+
+    Alert.alert(
+      "Confirm Payment",
+      "This is a placeholder payment step for teleconsultation testing. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Pay Now",
+          onPress: async () => {
+            try {
+              setIsPaying(true);
+              await onSimulatePayment(request._id);
+              Alert.alert(
+                "Payment Successful",
+                "Placeholder payment completed. Waiting for provider confirmation.",
+              );
+            } catch (error: any) {
+              Alert.alert(
+                "Payment Error",
+                error.message || "Failed to complete placeholder payment.",
+              );
+            } finally {
+              setIsPaying(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const getStatusDescription = (status: string) => {
     switch (status) {
       case "searching":
@@ -253,6 +309,16 @@ const RequestCard = ({
         return "Request sent to provider, waiting for response...";
       case "accepted":
         return `Provider ${request.providerId?.fullname || "has"} accepted your request`;
+      case "payment_pending":
+        return `Provider ${request.providerId?.fullname || "has"} accepted your teleconsultation. Complete payment to continue.`;
+      case "paid":
+        return "Payment received. Waiting for provider confirmation.";
+      case "provider_confirmation_pending":
+        return "Waiting for your provider to confirm readiness.";
+      case "ready_for_call":
+        return "Your teleconsultation is ready to begin.";
+      case "in_call":
+        return "Video consultation is in progress.";
       case "en_route":
         return `Provider is on the way (${request.providerResponse?.estimatedArrival || "ETA pending"})`;
       case "arrived":
@@ -324,7 +390,15 @@ const RequestCard = ({
       </View>
 
       {/* Provider info - only show if accepted */}
-      {request.status === "accepted" && request.providerId && (
+      {[
+        "accepted",
+        "payment_pending",
+        "paid",
+        "provider_confirmation_pending",
+        "ready_for_call",
+        "in_call",
+      ].includes(request.status) &&
+        request.providerId && (
         <View style={styles.providerCard}>
           <Text style={styles.providerCardLabel}>Provider Details</Text>
           <View style={styles.providerHeaderRow}>
@@ -378,7 +452,8 @@ const RequestCard = ({
       </View>
 
       {/* Expiration notice for accepted requests */}
-      {request.status === "accepted" && timeRemaining > 0 && (
+      {["accepted", "payment_pending"].includes(request.status) &&
+        timeRemaining > 0 && (
         <View style={styles.expiryCard}>
           <Text style={styles.expiryText}>
             This entry will expire in{" "}
@@ -418,8 +493,56 @@ const RequestCard = ({
           </>
         )}
 
+      {request.consultationMode === "video_consultation" &&
+        request.status === "payment_pending" && (
+          <TouchableOpacity
+            onPress={handleSimulatedPayment}
+            disabled={isPaying}
+            style={[
+              styles.payButton,
+              isPaying ? { opacity: 0.7 } : null,
+            ]}
+          >
+            {isPaying ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <View style={styles.payButtonRow}>
+                <Feather name="credit-card" size={16} color="#FFFFFF" />
+                <Text style={styles.payButtonText}>Pay Now</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
+
+      {request.consultationMode === "video_consultation" &&
+        ["ready_for_call", "in_call"].includes(request.status) && (
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: "/(app)/(patient)/teleconsultation-call",
+                params: { requestId: request._id },
+              })
+            }
+            style={styles.joinCallButton}
+          >
+            <View style={styles.joinCallButtonRow}>
+              <Feather name="video" size={16} color="#FFFFFF" />
+              <Text style={styles.joinCallButtonText}>Join Call</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
       {/* Cancel button for active requests */}
-      {["searching", "pending", "accepted", "en_route"].includes(
+      {[
+        "searching",
+        "pending",
+        "accepted",
+        "payment_pending",
+        "paid",
+        "provider_confirmation_pending",
+        "ready_for_call",
+        "en_route",
+      ].includes(
         request.status,
       ) && (
         <TouchableOpacity
@@ -460,6 +583,31 @@ export default function WaitingRoom() {
       prev.filter((item) => item.request._id !== requestId),
     );
   }, []);
+
+  const handleSimulatePayment = useCallback(
+    async (requestId: string) => {
+      if (!user?.userId) {
+        throw new Error("User session not available.");
+      }
+
+      await socketService.simulateTeleconsultationPayment(requestId, user.userId);
+
+      setRequests((prev) =>
+        prev.map((item) =>
+          item.request._id === requestId
+            ? {
+                ...item,
+                request: {
+                  ...item.request,
+                  status: "paid",
+                },
+              }
+            : item,
+        ),
+      );
+    },
+    [user?.userId],
+  );
 
   // Get patient's current location on mount
   useEffect(() => {
@@ -529,8 +677,8 @@ export default function WaitingRoom() {
               const stored = mergedRequests.get(req._id);
               if (
                 stored &&
-                stored.request.status === "accepted" &&
-                req.status !== "accepted"
+                ["accepted", "payment_pending"].includes(stored.request.status) &&
+                !["accepted", "payment_pending"].includes(req.status)
               ) {
                 // Keep the original acceptedAt timestamp
                 mergedRequests.set(req._id, {
@@ -540,7 +688,7 @@ export default function WaitingRoom() {
               } else {
                 // For newly accepted requests, record the time
                 const acceptedAt =
-                  req.status === "accepted" && !stored
+                  ["accepted", "payment_pending"].includes(req.status) && !stored
                     ? now
                     : stored?.acceptedAt || now;
                 mergedRequests.set(req._id, { request: req, acceptedAt });
@@ -553,7 +701,10 @@ export default function WaitingRoom() {
             // For any already-accepted requests, try to fetch initial provider location
             merged.forEach((item) => {
               try {
-                if (item.request.status === "accepted" && item.request._id) {
+                if (
+                  ["accepted", "payment_pending"].includes(item.request.status) &&
+                  item.request._id
+                ) {
                   socketService
                     .getSocket()
                     ?.emit(
@@ -597,7 +748,7 @@ export default function WaitingRoom() {
         // If not connected, still validate stored requests against last known state
         const now = Date.now();
         storedRequests = storedRequests.filter((item) => {
-          if (item.request.status === "accepted") {
+          if (["accepted", "payment_pending"].includes(item.request.status)) {
             const expiresAt = item.acceptedAt + 24 * 60 * 60 * 1000;
             return now < expiresAt;
           }
@@ -638,8 +789,8 @@ export default function WaitingRoom() {
           if (item.request._id === updatedRequest._id) {
             // Preserve acceptedAt timestamp if transitioning to accepted
             const acceptedAt =
-              updatedRequest.status === "accepted" &&
-              item.request.status !== "accepted"
+              ["accepted", "payment_pending"].includes(updatedRequest.status) &&
+              !["accepted", "payment_pending"].includes(item.request.status)
                 ? Date.now()
                 : item.acceptedAt;
             return { request: updatedRequest, acceptedAt };
@@ -654,6 +805,11 @@ export default function WaitingRoom() {
             "searching",
             "pending",
             "accepted",
+            "payment_pending",
+            "paid",
+            "provider_confirmation_pending",
+            "ready_for_call",
+            "in_call",
             "en_route",
             "arrived",
             "in_progress",
@@ -662,7 +818,9 @@ export default function WaitingRoom() {
           updated.push({
             request: updatedRequest,
             acceptedAt:
-              updatedRequest.status === "accepted" ? Date.now() : Date.now(),
+              ["accepted", "payment_pending"].includes(updatedRequest.status)
+                ? Date.now()
+                : Date.now(),
           });
         }
 
@@ -674,7 +832,10 @@ export default function WaitingRoom() {
 
         // If this request just moved to accepted, try fetching provider's last known location
         try {
-          if (updatedRequest.status === "accepted" && updatedRequest._id) {
+          if (
+            ["accepted", "payment_pending"].includes(updatedRequest.status) &&
+            updatedRequest._id
+          ) {
             socketService
               .getSocket()
               ?.emit(
@@ -720,7 +881,8 @@ export default function WaitingRoom() {
 
             // If accepted, update timestamp
             const acceptedAt =
-              data.status === "accepted" && item.request.status !== "accepted"
+              ["accepted", "payment_pending"].includes(data.status) &&
+              !["accepted", "payment_pending"].includes(item.request.status)
                 ? Date.now()
                 : item.acceptedAt;
 
@@ -732,7 +894,11 @@ export default function WaitingRoom() {
 
       // If status changed to something that might have new data (like accepted -> provider assigned),
       // we should probably reload the full request to get provider details if we don't have them.
-      if (data.status === "accepted" || data.status === "en_route") {
+      if (
+        ["accepted", "payment_pending", "paid", "ready_for_call", "en_route"].includes(
+          data.status,
+        )
+      ) {
         loadRequests();
       }
     };
@@ -793,6 +959,11 @@ export default function WaitingRoom() {
         "searching",
         "pending",
         "accepted",
+        "payment_pending",
+        "paid",
+        "provider_confirmation_pending",
+        "ready_for_call",
+        "in_call",
         "en_route",
         "arrived",
         "in_progress",
@@ -873,6 +1044,7 @@ export default function WaitingRoom() {
           <RequestCard
             item={item}
             onCancel={handleRequestCancelled}
+            onSimulatePayment={handleSimulatePayment}
             patientLocation={patientLocation}
             patientProfileImage={user?.profileImage}
           />
@@ -1079,6 +1251,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#15803D",
+    marginLeft: 6,
+  },
+  payButton: {
+    backgroundColor: "#2563EB",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  payButtonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  payButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginLeft: 6,
+  },
+  joinCallButton: {
+    backgroundColor: "#0F766E",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  joinCallButtonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  joinCallButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginLeft: 6,
   },
   cancelButton: {

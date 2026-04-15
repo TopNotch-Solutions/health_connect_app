@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { buildBackendAssetUrl } from "../lib/backend";
 import socketService from "../lib/socket";
 
 interface ProviderRouteModalProps {
@@ -41,7 +42,6 @@ const LATITUDE_DELTA = 0.05;
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 
 const GOOGLE_MAPS_API_KEY = "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg";
-const IMAGE_BASE_URL = "https://apihealthconnect.kopanovertex.com/images/";
 const [mapReady, setMapReady] = useState(false);
 
 // ✅ Helper to normalize coordinates (handles both formats)
@@ -687,7 +687,11 @@ export default function ProviderRouteModal({
               >
                 {providerProfileImage ? (
                   <Image
-                    source={{ uri: `${IMAGE_BASE_URL}${providerProfileImage}` }}
+                    source={{
+                      uri:
+                        buildBackendAssetUrl("images", providerProfileImage) ||
+                        undefined,
+                    }}
                     style={{ width: "100%", height: "100%" }}
                     resizeMode="cover"
                     onError={(error) => {
@@ -731,7 +735,11 @@ export default function ProviderRouteModal({
             >
               {patientProfileImage ? (
                 <Image
-                  source={{ uri: `${IMAGE_BASE_URL}${patientProfileImage}` }}
+                  source={{
+                    uri:
+                      buildBackendAssetUrl("images", patientProfileImage) ||
+                      undefined,
+                  }}
                   style={{ width: "100%", height: "100%" }}
                   resizeMode="cover"
                   onError={(error) => {

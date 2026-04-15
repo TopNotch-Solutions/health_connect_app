@@ -192,19 +192,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       console.log("🔐 Starting login process...");
 
+      const fetchFreshAppToken = async () => {
+        const response = await apiClient.get("/app/auth/retrieve-jwt-token");
+        if (response.data && response.data.token) {
+          await SecureStore.setItemAsync("appToken", response.data.token);
+          console.log("✅ App token fetched and saved");
+          return response.data.token;
+        }
+        throw new Error("Failed to get app token from server");
+      };
+
       // Ensure app token exists before login
       let appToken: any = await SecureStore.getItemAsync("appToken");
       if (!appToken) {
         console.log("⚠️  No app token found, fetching...");
         try {
-          const response = await apiClient.get("/app/auth/retrieve-jwt-token");
-          if (response.data && response.data.token) {
-            appToken = response.data.token;
-            await SecureStore.setItemAsync("appToken", appToken);
-            console.log("✅ App token fetched and saved");
-          } else {
-            throw new Error("Failed to get app token from server");
-          }
+          appToken = await fetchFreshAppToken();
         } catch (tokenError) {
           console.error("❌ Failed to fetch app token:", tokenError);
           throw new Error(
@@ -215,10 +218,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Call login endpoint with email and password
       console.log("🌐 Calling login API...");
-      const response = await apiClient.post("/app/auth/login", {
-        email,
-        password,
-      });
+      let response;
+      try {
+        response = await apiClient.post("/app/auth/login", {
+          email,
+          password,
+        });
+      } catch (loginError: any) {
+        const isInvalidAppToken =
+          loginError?.response?.status === 400 &&
+          loginError?.response?.data?.message === "Invalid token.";
+
+        if (!isInvalidAppToken) {
+          throw loginError;
+        }
+
+        console.warn(
+          "⚠️ Stored app token is invalid. Refreshing app token and retrying login...",
+        );
+        await SecureStore.deleteItemAsync("appToken").catch(() => {});
+        await fetchFreshAppToken();
+
+        response = await apiClient.post("/app/auth/login", {
+          email,
+          password,
+        });
+      }
 
       console.log("✅ Login API call successful");
       console.log("📦 Response status:", response.status);

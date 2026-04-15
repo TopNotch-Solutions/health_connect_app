@@ -20,6 +20,7 @@ import ChangePasswordModal from "../../../components/ChangePasswordModal";
 import EditProviderProfileModal from "../../../components/EditProviderProfileModal";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
+import { buildBackendAssetUrl } from "../../../lib/backend";
 
 const ProfileMenuItem = ({
   icon,
@@ -81,8 +82,6 @@ export default function ProfileScreen() {
   const [uploadingDocument, setUploadingDocument] = React.useState<
     string | null
   >(null);
-
-  const IMAGE_BASE_URL = "https://apihealthconnect.kopanovertex.com/images/";
 
   const fetchLatestUserDetails = useCallback(async () => {
     try {
@@ -396,7 +395,11 @@ export default function ProfileScreen() {
             />
           ) : user?.profileImage ? (
             <Image
-              source={{ uri: `${IMAGE_BASE_URL}${user.profileImage}` }}
+              source={{
+                uri:
+                  buildBackendAssetUrl("images", user.profileImage) ||
+                  undefined,
+              }}
               className="w-32 h-32 rounded-full mb-4 border-4 border-blue-100"
               style={{ width: 128, height: 128, borderRadius: 64 }}
             />
