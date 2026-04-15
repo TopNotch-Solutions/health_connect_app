@@ -1,7 +1,7 @@
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 
-const DEFAULT_DEVICE_BACKEND_URL = "http://192.168.11.138:4000";
+const DEFAULT_DEVICE_BACKEND_URL = "https://apihealthconnect.kopanovertex.com";
 const DEFAULT_ANDROID_EMULATOR_BACKEND_URL = "http://10.0.2.2:4000";
 
 const resolveBackendUrl = () => {
