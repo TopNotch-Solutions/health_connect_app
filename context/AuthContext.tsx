@@ -67,7 +67,18 @@ interface AuthContextType {
   updateUser: (updatedUserData: Partial<User>) => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+type AuthGlobal = typeof globalThis & {
+  __HEALTH_CONNECT_AUTH_CONTEXT__?: React.Context<AuthContextType | undefined>;
+};
+
+const authGlobal = globalThis as AuthGlobal;
+const AuthContext =
+  authGlobal.__HEALTH_CONNECT_AUTH_CONTEXT__ ??
+  createContext<AuthContextType | undefined>(undefined);
+
+if (!authGlobal.__HEALTH_CONNECT_AUTH_CONTEXT__) {
+  authGlobal.__HEALTH_CONNECT_AUTH_CONTEXT__ = AuthContext;
+}
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
