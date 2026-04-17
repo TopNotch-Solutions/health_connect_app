@@ -74,7 +74,13 @@ export default function ProviderRequests() {
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<{
     requestId: string;
-    action: "accept" | "decline" | "route" | "start" | "complete" | "ready";
+    action:
+      | "accept"
+      | "decline"
+      | "route"
+      | "start"
+      | "complete"
+      | "payment_received";
   } | null>(null);
   const { startRoute } = useRoute();
   const { user } = useAuth();
@@ -542,12 +548,18 @@ export default function ProviderRequests() {
     }
   };
 
-  const handleConfirmReady = async (requestId: string, patientName: string) => {
+  const handlePaymentReceived = async (
+    requestId: string,
+    patientName: string,
+  ) => {
     if (!user?.userId) return;
 
-    setActionLoading({ requestId, action: "ready" });
+    setActionLoading({ requestId, action: "payment_received" });
     try {
-      await socketService.confirmTeleconsultationReady(requestId, user.userId);
+      await socketService.confirmTeleconsultationPaymentReceived(
+        requestId,
+        user.userId,
+      );
 
       setRequests((prev) =>
         prev.map((req) =>
@@ -558,14 +570,14 @@ export default function ProviderRequests() {
       );
 
       Alert.alert(
-        "Ready For Call",
-        `Teleconsultation with ${patientName} is now ready to begin.`,
+        "Payment Received",
+        `The call with ${patientName} is now ready to begin.`,
       );
     } catch (error: any) {
-      console.error("Error confirming teleconsultation readiness:", error);
+      console.error("Error confirming teleconsultation payment receipt:", error);
       Alert.alert(
         "Error",
-        error.message || "Failed to confirm teleconsultation readiness",
+        error.message || "Failed to confirm payment receipt",
       );
     } finally {
       setActionLoading((prev) =>
@@ -753,7 +765,7 @@ export default function ProviderRequests() {
                   | "route"
                   | "start"
                   | "complete"
-                  | "ready",
+                  | "payment_received",
               ) =>
                 actionLoading?.requestId === request._id &&
                 actionLoading?.action === action;
@@ -896,12 +908,12 @@ export default function ProviderRequests() {
                       <View className="bg-sky-50 border border-sky-200 rounded-lg px-4 py-3 mt-3">
                         <Text className="text-sky-700 font-semibold text-center">
                           {request.status === "payment_pending"
-                            ? "Waiting for patient payment"
+                            ? "Waiting for the patient to confirm they have sent payment"
                             : request.status === "paid"
-                              ? "Payment received"
+                              ? "Payment marked as received"
                               : request.status ===
                                   "provider_confirmation_pending"
-                                ? "Waiting for provider confirmation"
+                                ? "Patient says payment was sent. Verify it, then confirm receipt."
                                 : request.status === "ready_for_call"
                                   ? "Ready to start video consultation"
                                   : "Video consultation in progress"}
@@ -911,19 +923,19 @@ export default function ProviderRequests() {
                         request.status === "provider_confirmation_pending") && (
                         <TouchableOpacity
                           onPress={() =>
-                            handleConfirmReady(request._id, patientName)
+                            handlePaymentReceived(request._id, patientName)
                           }
                           disabled={isBusy}
                           className="bg-sky-600 py-3 rounded-lg mt-3"
                         >
-                          {isLoadingAction("ready") ? (
+                          {isLoadingAction("payment_received") ? (
                             <ActivityIndicator
                               size="small"
                               color="#FFFFFF"
                             />
                           ) : (
                             <Text className="text-white font-bold text-center">
-                              Confirm Ready
+                              Payment Received
                             </Text>
                           )}
                           </TouchableOpacity>

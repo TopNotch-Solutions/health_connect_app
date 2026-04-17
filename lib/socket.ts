@@ -684,11 +684,15 @@ class SocketService {
     });
   }
 
-  simulateTeleconsultationPayment(requestId: string, userId: string) {
-    return this.updateRequestStatus(requestId, userId, "paid");
+  confirmTeleconsultationPayment(requestId: string, userId: string) {
+    return this.updateRequestStatus(
+      requestId,
+      userId,
+      "provider_confirmation_pending",
+    );
   }
 
-  confirmTeleconsultationReady(requestId: string, providerId: string) {
+  confirmTeleconsultationPaymentReceived(requestId: string, providerId: string) {
     return this.updateRequestStatus(requestId, providerId, "ready_for_call");
   }
 

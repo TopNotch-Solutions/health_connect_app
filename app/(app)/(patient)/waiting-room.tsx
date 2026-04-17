@@ -175,13 +175,13 @@ const StatusBadge = ({ status }: { status: string }) => {
 const RequestCard = ({
   item,
   onCancel,
-  onSimulatePayment,
+  onConfirmPayment,
   patientLocation,
   patientProfileImage,
 }: {
   item: StoredRequest;
   onCancel?: (requestId: string) => void;
-  onSimulatePayment?: (requestId: string) => Promise<void>;
+  onConfirmPayment?: (requestId: string) => Promise<void>;
   patientLocation?: { latitude: number; longitude: number } | null;
   patientProfileImage?: string;
 }) => {
@@ -269,28 +269,28 @@ const RequestCard = ({
     );
   };
 
-  const handleSimulatedPayment = async () => {
-    if (!onSimulatePayment) return;
+  const handleConfirmPayment = async () => {
+    if (!onConfirmPayment) return;
 
     Alert.alert(
-      "Confirm Payment",
-      "This is a placeholder payment step for teleconsultation testing. Continue?",
+      "Payment Confirmed",
+      "Only continue after you have sent the money to the provider through eWallet or the agreed transfer method.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Pay Now",
+          text: "Payment Confirmed",
           onPress: async () => {
             try {
               setIsPaying(true);
-              await onSimulatePayment(request._id);
+              await onConfirmPayment(request._id);
               Alert.alert(
-                "Payment Successful",
-                "Placeholder payment completed. Waiting for provider confirmation.",
+                "Payment Marked As Sent",
+                "Your provider will confirm receipt before the video call starts.",
               );
             } catch (error: any) {
               Alert.alert(
                 "Payment Error",
-                error.message || "Failed to complete placeholder payment.",
+                error.message || "Failed to confirm payment.",
               );
             } finally {
               setIsPaying(false);
@@ -310,11 +310,11 @@ const RequestCard = ({
       case "accepted":
         return `Provider ${request.providerId?.fullname || "has"} accepted your request`;
       case "payment_pending":
-        return `Provider ${request.providerId?.fullname || "has"} accepted your teleconsultation. Complete payment to continue.`;
+        return `Provider ${request.providerId?.fullname || "has"} accepted your teleconsultation. Pay through eWallet, then tap Payment Confirmed.`;
       case "paid":
-        return "Payment received. Waiting for provider confirmation.";
+        return "Payment has been marked as received.";
       case "provider_confirmation_pending":
-        return "Waiting for your provider to confirm readiness.";
+        return "Waiting for your provider to confirm they received your payment.";
       case "ready_for_call":
         return "Your teleconsultation is ready to begin.";
       case "in_call":
@@ -421,6 +421,29 @@ const RequestCard = ({
         </View>
       )}
 
+      {request.consultationMode === "video_consultation" &&
+        ["payment_pending", "provider_confirmation_pending"].includes(
+          request.status,
+        ) &&
+        request.providerId && (
+          <View style={styles.paymentInstructionCard}>
+            <Text style={styles.paymentInstructionTitle}>
+              Payment Instructions
+            </Text>
+            <Text style={styles.paymentInstructionText}>
+              Pay the provider through eWallet using the number below, then tap
+              <Text style={styles.paymentInstructionStrong}>
+                {" "}
+                Payment Confirmed
+              </Text>
+              .
+            </Text>
+            <Text style={styles.paymentInstructionPhone}>
+              {request.providerId.cellphoneNumber}
+            </Text>
+          </View>
+        )}
+
       {/* ETA info - show if provider responded */}
       {request.providerResponse?.estimatedArrival &&
         request.status !== "in_progress" &&
@@ -496,7 +519,7 @@ const RequestCard = ({
       {request.consultationMode === "video_consultation" &&
         request.status === "payment_pending" && (
           <TouchableOpacity
-            onPress={handleSimulatedPayment}
+            onPress={handleConfirmPayment}
             disabled={isPaying}
             style={[
               styles.payButton,
@@ -508,7 +531,7 @@ const RequestCard = ({
             ) : (
               <View style={styles.payButtonRow}>
                 <Feather name="credit-card" size={16} color="#FFFFFF" />
-                <Text style={styles.payButtonText}>Pay Now</Text>
+                <Text style={styles.payButtonText}>Payment Confirmed</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -584,13 +607,16 @@ export default function WaitingRoom() {
     );
   }, []);
 
-  const handleSimulatePayment = useCallback(
+  const handleConfirmPayment = useCallback(
     async (requestId: string) => {
       if (!user?.userId) {
         throw new Error("User session not available.");
       }
 
-      await socketService.simulateTeleconsultationPayment(requestId, user.userId);
+      await socketService.confirmTeleconsultationPayment(
+        requestId,
+        user.userId,
+      );
 
       setRequests((prev) =>
         prev.map((item) =>
@@ -599,7 +625,7 @@ export default function WaitingRoom() {
                 ...item,
                 request: {
                   ...item.request,
-                  status: "paid",
+                  status: "provider_confirmation_pending",
                 },
               }
             : item,
@@ -1044,7 +1070,7 @@ export default function WaitingRoom() {
           <RequestCard
             item={item}
             onCancel={handleRequestCancelled}
-            onSimulatePayment={handleSimulatePayment}
+            onConfirmPayment={handleConfirmPayment}
             patientLocation={patientLocation}
             patientProfileImage={user?.profileImage}
           />
@@ -1185,6 +1211,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#374151",
     marginLeft: 6,
+  },
+  paymentInstructionCard: {
+    backgroundColor: "#FFF7ED",
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+  },
+  paymentInstructionTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#9A3412",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  paymentInstructionText: {
+    fontSize: 12,
+    color: "#7C2D12",
+    lineHeight: 18,
+  },
+  paymentInstructionStrong: {
+    fontWeight: "700",
+    color: "#9A3412",
+  },
+  paymentInstructionPhone: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#7C2D12",
+    marginTop: 6,
   },
   etaCard: {
     backgroundColor: "#ECFDF3",

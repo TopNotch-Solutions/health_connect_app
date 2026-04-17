@@ -38,6 +38,7 @@ type CallStateWatcherProps = {
   requestId: string;
   requestStatus: TeleconsultationCallAccess["requestStatus"];
   userId: string;
+  role: "patient" | "provider";
   onJoined: () => void;
 };
 
@@ -45,6 +46,7 @@ function CallStateWatcher({
   requestId,
   requestStatus,
   userId,
+  role,
   onJoined,
 }: CallStateWatcherProps) {
   const { useCallCallingState } = useCallStateHooks();
@@ -58,7 +60,11 @@ function CallStateWatcher({
 
     onJoined();
 
-    if (requestStatus !== "ready_for_call" || hasMarkedInCall.current) {
+    if (
+      role !== "provider" ||
+      requestStatus !== "ready_for_call" ||
+      hasMarkedInCall.current
+    ) {
       return;
     }
 
@@ -68,7 +74,7 @@ function CallStateWatcher({
       .catch((error) => {
         console.warn("Unable to mark teleconsultation as in_call:", error);
       });
-  }, [callingState, onJoined, requestId, requestStatus, userId]);
+  }, [callingState, onJoined, requestId, requestStatus, role, userId]);
 
   return null;
 }
@@ -268,6 +274,7 @@ export default function TeleconsultationCallScreen({
               requestId={requestId}
               requestStatus={resources.access.requestStatus}
               userId={currentUserId}
+              role={role}
               onJoined={() => {
                 joinedRef.current = true;
               }}

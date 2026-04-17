@@ -6,9 +6,10 @@ Implement a teleconsultation flow where:
 
 1. A patient selects `video_consultation`.
 2. A provider accepts the request.
-3. The patient completes payment.
-4. The provider confirms readiness.
-5. Both users are allowed to join a video call.
+3. The patient pays the provider outside the app using the agreed cash/eWallet transfer path.
+4. The patient taps `Payment Confirmed`.
+5. The provider verifies receipt and taps `Payment Received`.
+6. Both users are allowed to join an in-app Jitsi video call.
 
 ## Current Status
 
@@ -21,9 +22,9 @@ Implement a teleconsultation flow where:
 - Video consultation acceptance now moves to `payment_pending`
 - Patient and provider screens now recognize the first teleconsultation states
 - Ailments can now explicitly allow teleconsultation
-- Patient-side placeholder payment flow is now available for testing
-- Provider-side readiness confirmation is now available for testing
-- Stream-backed teleconsultation call access is now wired for patient and provider dev builds
+- Patient-side payment confirmation handoff is now available for testing
+- Provider-side payment receipt confirmation is now available for testing
+- Jitsi WebView call access is now wired for patient and provider call screens
 
 ## First Step
 
@@ -54,10 +55,11 @@ This step defines how teleconsultation should behave between the patient and pro
 3. Patient submits the request.
 4. Request is sent to matching providers.
 5. Patient sees the request in a waiting state.
-6. When a provider accepts, the patient is prompted to make payment.
-7. After payment succeeds, the patient waits for provider confirmation.
-8. Once the provider confirms, the patient can enter the video consultation room.
-9. After the consultation ends, the request is marked as completed.
+6. When a provider accepts, the patient sees the provider number and payment instructions.
+7. After sending payment, the patient taps `Payment Confirmed`.
+8. The patient waits for the provider to confirm receipt.
+9. Once the provider confirms receipt, the patient can enter the video consultation room.
+10. After the consultation ends, the request is marked as completed.
 
 ### Provider Flow
 
@@ -65,10 +67,11 @@ This step defines how teleconsultation should behave between the patient and pro
 2. Provider reviews the request details.
 3. Provider accepts the request.
 4. The request moves into `payment_pending`.
-5. Provider waits while the patient completes payment.
-6. After payment is confirmed, provider is prompted to confirm readiness.
-7. Once confirmed, provider can enter the video consultation room.
-8. After the consultation ends, the request is marked as completed.
+5. Provider waits while the patient sends payment and taps `Payment Confirmed`.
+6. Provider verifies they have received the funds.
+7. Provider taps `Payment Received`.
+8. Once confirmed, provider can enter the video consultation room.
+9. After the consultation ends, the request is marked as completed.
 
 ### Important Rule
 
@@ -77,8 +80,8 @@ Acceptance does not start the call immediately.
 For teleconsultation:
 
 - acceptance means the provider has agreed to take the consultation
-- payment must happen before the call can begin
-- provider confirmation must happen after payment
+- the patient must first mark payment as sent
+- provider confirmation must happen after receiving the funds
 - only then can both sides join the call
 
 ### Why This Matches The Current Project
@@ -218,128 +221,45 @@ When the real payment integration is added later, the placeholder payment step s
 
 Implement provider readiness confirmation so a teleconsultation can move from `paid` to `ready_for_call`, then prepare the waiting-room/join-call handoff.
 
-## Stream Video Integration Blueprint
+## Jitsi WebView Integration Blueprint
 
-This section maps the actual video-call implementation into the current codebase.
+This section maps the current in-app call approach into the codebase.
 
 ### Recommended Provider
 
-- Use Stream Video for the real call layer.
+- Use Jitsi in an in-app WebView for the first working version.
 
 Reason:
 
-- It fits Expo development builds better than lower-level native-heavy approaches.
-- It lets the backend own token generation and call access.
-- It works well with the request lifecycle already in this project.
+- it keeps the call inside the app
+- it avoids the extra native SDK risk from the earlier Stream path
+- it still fits the request lifecycle already built in this project
 
-### New Environment Variables
+### Backend Call Access Contract
 
-Backend:
-
-- `STREAM_VIDEO_API_KEY`
-- `STREAM_VIDEO_SECRET`
-
-Frontend:
-
-- `EXPO_PUBLIC_STREAM_VIDEO_API_KEY`
-
-### Backend Files To Add Or Change
-
-- `health_connect_backend-main/server.js`
-  - add socket events for provider readiness and call token retrieval
-- `health_connect_backend-main/models/request.js`
-  - add call metadata fields
-- `health_connect_backend-main/controllers/app/transactionController.js`
-  - later replace placeholder payment with real verified payment
-- `health_connect_backend-main/lib/streamVideo.js` or similar new helper
-  - initialize Stream server client
-  - create user tokens
-  - prepare call/session metadata
-
-### Backend Fields To Add On Request
-
-- `videoCall`
-  - `providerConfirmedAt`
-  - `callId`
-  - `roomType`
-  - `patientJoinedAt`
-  - `providerJoinedAt`
-  - `endedAt`
-
-### Backend Socket Events To Add
-
-- `confirmTeleconsultationReady`
-  - actor: provider
-  - transition: `paid` -> `ready_for_call`
-- `getTeleconsultationCallAccess`
-  - actor: patient or provider assigned to the request
-  - returns:
-    - Stream user token
-    - `callId`
-    - API key
-- `joinTeleconsultationCall`
-  - optional app-level tracking event
-  - transition: `ready_for_call` -> `in_call`
-- `leaveTeleconsultationCall`
-  - optional app-level tracking event
-- `endTeleconsultationCall`
-  - transition: `in_call` -> `completed`
-
-### Frontend Files To Add Or Change
-
-- `lib/socket.ts`
-  - add wrappers for:
-    - provider readiness confirmation
-    - fetch call credentials
-    - call start/end events
-- `app/(app)/(patient)/waiting-room.tsx`
-  - show:
-    - `Pay Now`
-    - `Waiting for provider confirmation`
-    - `Join Call`
-- `app/(app)/(provider)/requests.tsx`
-  - show:
-    - `Confirm Ready`
-    - `Join Call`
-- `app/(app)/(provider)/home.tsx`
-  - keep teleconsultations out of route tracking
-- `app/(app)/(patient)/teleconsultation-call.tsx`
-  - new patient call screen
-- `app/(app)/(provider)/teleconsultation-call.tsx`
-  - new provider call screen
-- `app/_layout.tsx`
-  - wrap app with Stream provider if needed at root or a teleconsultation sub-layout
+- Keep `/api/app/teleconsultation/call-access/:requestId`
+- Return:
+  - `requestId`
+  - `requestStatus`
+  - `roomName`
+  - `meetingUrl`
+  - `displayName`
 
 ### Frontend Flow After Current Work
 
 1. Patient creates a request for an ailment with `supportsTeleconsultation = true`
 2. Provider accepts
 3. Request becomes `payment_pending`
-4. Patient pays
-5. Request becomes `paid`
-6. Provider taps `Confirm Ready`
-7. Request becomes `ready_for_call`
-8. Patient or provider fetches Stream call access
-9. Both navigate into the call screen
-10. App marks request `in_call`
-11. When finished, app or backend marks request `completed`
-
-### Navigation Plan
-
-- Keep the call screen separate from route/map flows.
-- Do not reuse `RouteContext` for teleconsultation.
-- Teleconsultation should have its own screen and state path.
-
-### Handoff Note For Teammate With Secrets
-
-Once Stream credentials are available, the teammate only needs to:
-
-- add the Stream env values
-- implement the backend token helper
-- wire the `ready_for_call` and call-access events
-- install the Stream React Native video SDK and wrap the call screen
-
-The teleconsultation request lifecycle already being built here should remain the controlling business layer.
+4. Patient sends payment outside the app
+5. Patient taps `Payment Confirmed`
+6. Request becomes `provider_confirmation_pending`
+7. Provider taps `Payment Received`
+8. Request becomes `ready_for_call`
+9. Patient or provider taps `Join Call`
+10. App fetches Jitsi room access from backend
+11. App opens the Jitsi room inside an in-app WebView
+12. App marks request `in_call`
+13. Provider can end the consultation, which marks the request `completed`
 
 ## Step 4: Provider Readiness Confirmation
 
@@ -374,39 +294,47 @@ The current end-to-end teleconsultation test flow is now:
 - call screen UI
 - start/end call transitions
 
-## Step 5: Stream Call Screen Wiring
+## Step 5: Jitsi WebView Call Screen Wiring
 
-This step connects the teleconsultation lifecycle to a real video room.
+This step connects the teleconsultation lifecycle to an in-app Jitsi room.
 
 ### What Was Implemented
 
 - Registered the backend teleconsultation route so the mobile app can request call access.
 - Added a backend call-access response that returns:
-  - Stream API key
-  - user token
-  - teleconsultation call id
+  - Jitsi room name
+  - meeting URL
+  - display name
   - request id
   - current request status
 - Added a frontend teleconsultation API helper.
-- Added a shared Stream-powered call screen component.
+- Replaced the old Stream-powered screen with a Jitsi WebView call screen component.
 - Added patient and provider hidden routes for the call screen.
 - Added `Join Call` entry points on:
   - patient waiting room
   - provider requests screen
-- Added camera and microphone permissions plus the WebRTC Expo config plugin in `app.json`.
+- Reused the existing camera and microphone permissions already in the app config.
 
 ### Current Call Behavior
 
-1. Provider confirms readiness
+1. Provider confirms payment receipt
 2. Request becomes `ready_for_call`
 3. Patient or provider taps `Join Call`
-4. App requests Stream access from backend
-5. App joins the Stream call
+4. App requests Jitsi room access from backend
+5. App opens the Jitsi meeting inside the app
 6. First joined participant marks request `in_call`
 7. Provider hangup currently marks the consultation `completed`
 
 ### Important Testing Note
 
-This call screen requires an Expo development build.
+This call screen should still be tested primarily in the development build that is already in place, especially because teleconsultation is being exercised alongside the rest of the native app flow.
 
-It will not work correctly in Expo Go because the Stream native video stack and WebRTC plugin need native build support.
+### Flow Update: Cash + Confirmation Handoff
+
+The current business flow now differs from the earlier placeholder wallet flow:
+
+- request creation keeps `paymentMethod = cash`
+- patient sees provider details and payment instructions after acceptance
+- patient button text is `Payment Confirmed`
+- provider button text is `Payment Received`
+- provider confirmation is what unlocks `ready_for_call`

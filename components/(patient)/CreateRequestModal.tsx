@@ -104,13 +104,6 @@ export default function CreateRequestModal({
     }
   }, [consultationMode, supportsTeleconsultation]);
 
-  // Video consultations are wallet-only. Auto-switch if needed.
-  useEffect(() => {
-    if (consultationMode === "video_consultation" && paymentMethod !== "wallet") {
-      setPaymentMethod("wallet");
-    }
-  }, [consultationMode, paymentMethod]);
-
   const loadLocationAndAddress = async () => {
     setIsLoadingLocation(true);
     try {
@@ -245,10 +238,9 @@ export default function CreateRequestModal({
     { value: "cash", label: "Cash", icon: "dollar-sign" },
     { value: "wallet", label: "Wallet", icon: "credit-card" },
   ];
-  const visiblePaymentOptions =
-    consultationMode === "video_consultation"
-      ? paymentOptions.filter((option) => option.value === "wallet")
-      : paymentOptions;
+  const visiblePaymentOptions = paymentOptions.filter(
+    (option) => option.value === "cash",
+  );
 
   return (
     <Modal
@@ -520,7 +512,9 @@ export default function CreateRequestModal({
                 </View>
                 {consultationMode === "video_consultation" && (
                   <Text className="text-xs text-gray-600 mt-2">
-                    Video consultation supports wallet payment only.
+                    Video consultations are created as cash payments. After a
+                    provider accepts, you&apos;ll see their number and payment
+                    instructions before the call is unlocked.
                   </Text>
                 )}
               </View>
