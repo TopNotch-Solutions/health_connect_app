@@ -364,7 +364,10 @@ class SocketService {
   }
 
   // Provider methods
-  getAvailableRequests(providerId: string) {
+  getAvailableRequests(
+    providerId: string,
+    providerLocation?: { latitude: number; longitude: number } | null,
+  ) {
     return new Promise((resolve, reject) => {
       console.log(
         "🔍 getAvailableRequests called with providerId:",
@@ -433,11 +436,12 @@ class SocketService {
       this.socket.on("availableRequests", handleAvailableRequests);
       this.socket.on("requestError", handleError);
 
-      console.log(
-        "📤 Emitting getAvailableRequests with providerId:",
+      const payload = {
         providerId,
-      );
-      this.socket.emit("getAvailableRequests", { providerId });
+        ...(providerLocation ? { providerLocation } : {}),
+      };
+      console.log("📤 Emitting getAvailableRequests with payload:", payload);
+      this.socket.emit("getAvailableRequests", payload);
     });
   }
 

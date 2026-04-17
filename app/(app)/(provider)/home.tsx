@@ -108,7 +108,16 @@ export default function ProviderHome() {
     latitude: number;
     longitude: number;
   } | null>(null);
-  const locationWatcherRef = useRef<any>(null);
+  const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);
+  const latestProviderLocationRef = useRef<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const lastRequestsRefreshByLocationRef = useRef<{
+    latitude: number;
+    longitude: number;
+    timestamp: number;
+  } | null>(null);
   const socketListenersSetupRef = useRef(false);
   const socketConnectedRef = useRef(false);
   const socketListenersCleanupRef = useRef<(() => void) | null>(null);
@@ -119,6 +128,35 @@ export default function ProviderHome() {
     handleRequestHidden?: (data: any) => void;
   }>({});
   const { startRoute } = useRoute();
+  const LOCATION_REFRESH_MIN_INTERVAL_MS = 30000;
+  const LOCATION_REFRESH_MIN_DISTANCE_METERS = 100;
+
+  const getDistanceMeters = useCallback(
+    (
+      pointA: { latitude: number; longitude: number },
+      pointB: { latitude: number; longitude: number },
+    ) => {
+      const toRad = (value: number) => (value * Math.PI) / 180;
+      const earthRadiusInMeters = 6371000;
+      const dLat = toRad(pointB.latitude - pointA.latitude);
+      const dLon = toRad(pointB.longitude - pointA.longitude);
+      const lat1 = toRad(pointA.latitude);
+      const lat2 = toRad(pointB.latitude);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1) *
+          Math.cos(lat2) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return earthRadiusInMeters * c;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    latestProviderLocationRef.current = providerLocation;
+  }, [providerLocation]);
 
   const onboardingSteps: {
     id: number;
@@ -263,8 +301,10 @@ export default function ProviderHome() {
       await socketService.waitForConnection(10000);
 
       console.log("📡 Socket is ready, fetching requests");
+      const currentProviderLocation = latestProviderLocationRef.current;
       const availableRequests = await socketService.getAvailableRequests(
         user.userId,
+        currentProviderLocation,
       );
       console.log("✅ Available requests received:", availableRequests);
       setRequests(Array.isArray(availableRequests) ? availableRequests : []);
@@ -367,12 +407,18 @@ export default function ProviderHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.userId, user?.role, isOnline]);
 
-  // Get provider device location once when provider goes online
-  // (continuous route tracking is handled in the GlobalRouteModal / RouteContext)
+  // Watch provider location while online and refresh available requests with throttling.
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    const loadInitialLocation = async () => {
+    const stopLocationWatch = () => {
+      if (locationWatcherRef.current) {
+        locationWatcherRef.current.remove();
+        locationWatcherRef.current = null;
+      }
+    };
+
+    const startLocationTracking = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
@@ -399,18 +445,70 @@ export default function ProviderHome() {
           return;
         }
 
-        const loc = await Location.getCurrentPositionAsync({
+        const initialLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         });
 
-        if (!mounted) return;
+        if (!active) return;
 
-        setProviderLocation({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
+        const initialCoords = {
+          latitude: initialLocation.coords.latitude,
+          longitude: initialLocation.coords.longitude,
+        };
+
+        setProviderLocation(initialCoords);
+        lastRequestsRefreshByLocationRef.current = {
+          ...initialCoords,
+          timestamp: Date.now(),
+        };
+
+        // Force one refresh after acquiring initial coordinates for online mode.
+        if (isOnline && !isLoadingRequestsRef.current) {
+          await loadAvailableRequests();
+        }
+
+        stopLocationWatch();
+        locationWatcherRef.current = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 15000,
+            distanceInterval: 50,
+          },
+          async (position) => {
+            if (!active || !isOnline) return;
+
+            const nextCoords = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            };
+            setProviderLocation(nextCoords);
+
+            const lastRefresh = lastRequestsRefreshByLocationRef.current;
+            if (!lastRefresh) {
+              lastRequestsRefreshByLocationRef.current = {
+                ...nextCoords,
+                timestamp: Date.now(),
+              };
+              return;
+            }
+
+            const movedMeters = getDistanceMeters(lastRefresh, nextCoords);
+            const elapsedMs = Date.now() - lastRefresh.timestamp;
+            const canRefreshByLocation =
+              movedMeters >= LOCATION_REFRESH_MIN_DISTANCE_METERS &&
+              elapsedMs >= LOCATION_REFRESH_MIN_INTERVAL_MS;
+
+            if (canRefreshByLocation && !isLoadingRequestsRef.current) {
+              lastRequestsRefreshByLocationRef.current = {
+                ...nextCoords,
+                timestamp: Date.now(),
+              };
+              await loadAvailableRequests();
+            }
+          },
+        );
       } catch (e) {
-        console.error("Error getting provider initial location:", e);
+        console.error("Error tracking provider location:", e);
         Alert.alert(
           "Location Error",
           "We could not get your current location. Please check that location services are enabled and try again.",
@@ -419,14 +517,17 @@ export default function ProviderHome() {
     };
 
     if (isOnline) {
-      // Only get location once per online toggle (no continuous watcher)
-      loadInitialLocation();
+      startLocationTracking();
+    } else {
+      stopLocationWatch();
+      lastRequestsRefreshByLocationRef.current = null;
     }
 
     return () => {
-      mounted = false;
+      active = false;
+      stopLocationWatch();
     };
-  }, [isOnline]);
+  }, [getDistanceMeters, isOnline, loadAvailableRequests]);
 
   // Automatically set provider offline if document verification is lost
   useEffect(() => {
