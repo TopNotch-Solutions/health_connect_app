@@ -4,6 +4,7 @@ import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 let MapViewDirections: any = null;
 
 import { generateMarkersFromProviders, calculateRegion, calculateProviderTimes } from '../../lib/map';
+import { logViewMountDebug, logViewMountWarning } from '../../lib/viewErrorLogger';
 import { MarkerData, Provider } from '../../types';
 
 const directionsAPI = process.env.EXPO_PUBLIC_DIRECTIONS_API_KEY || 'AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg';
@@ -40,6 +41,13 @@ const ProviderMap = ({ userLatitude, userLongitude, destinationLatitude, destina
 
   const region = calculateRegion({ userLatitude: userLatitude || null, userLongitude: userLongitude || null, destinationLatitude: destinationLatitude || null, destinationLongitude: destinationLongitude || null });
 
+  logViewMountDebug('ProviderMap', 'rendering map', {
+    region,
+    markerCount: markers.length,
+    hasDestination: Boolean(destinationLatitude && destinationLongitude),
+    providerCount: providers.length,
+  });
+
   if (!userLatitude || !userLongitude) return (
     <View className="flex justify-center items-center w-full">
       <ActivityIndicator size="small" color="#000" />
@@ -51,6 +59,19 @@ const ProviderMap = ({ userLatitude, userLongitude, destinationLatitude, destina
       provider={PROVIDER_DEFAULT}
       style={{ width: '100%', height: '100%' }}
       initialRegion={region}
+      onLayout={(event) => {
+        logViewMountDebug('ProviderMap', 'MapView layout', {
+          layout: event.nativeEvent.layout,
+          region,
+          markerCount: markers.length,
+        });
+      }}
+      onMapReady={() => {
+        logViewMountDebug('ProviderMap', 'MapView ready', {
+          region,
+          markerCount: markers.length,
+        });
+      }}
       showsUserLocation={true}
     >
       {markers.map((marker) => (
@@ -93,12 +114,26 @@ const ProviderMap = ({ userLatitude, userLongitude, destinationLatitude, destina
                     strokeColor="#0286FF"
                     strokeWidth={2}
                     onReady={(result: any) => {
+                      logViewMountDebug('ProviderMap', 'MapViewDirections ready', {
+                        distance: result.distance,
+                        duration: result.duration,
+                      });
                       if (onRouteDetails) {
                         onRouteDetails({
                           distance: result.distance,
                           duration: result.duration,
                         });
                       }
+                    }}
+                    onError={(errorMessage: string) => {
+                      logViewMountWarning('ProviderMap', 'MapViewDirections error', {
+                        errorMessage,
+                        origin: { latitude: userLatitude, longitude: userLongitude },
+                        destination: {
+                          latitude: destinationLatitude,
+                          longitude: destinationLongitude,
+                        },
+                      });
                     }}
                   />
                 );

@@ -17,6 +17,7 @@ import { PersistGate } from "redux-persist/integration/react";
 import GlobalRouteModal from "../components/(provider)/GlobalRouteModal";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { RouteProvider } from "../context/RouteContext";
+import { installGlobalViewErrorLogger } from "../lib/viewErrorLogger";
 import "./globals.css";
 
 // Import splash image
@@ -255,7 +256,7 @@ const ProtectedLayout = () => {
               user?.role === "doctor" ||
               user?.role === "nurse" ||
               user?.role === "physiotherapist" ||
-              user?.role === "socialworker" ||
+              user?.role === "social worker" ||
               user?.role === "pharmacist"
             ) {
               router.replace("/(app)/(provider)/home");
@@ -276,7 +277,7 @@ const ProtectedLayout = () => {
               (user?.role === "doctor" ||
                 user?.role === "nurse" ||
                 user?.role === "physiotherapist" ||
-                user?.role === "socialworker" ||
+                user?.role === "social worker" ||
                 user?.role === "pharmacist") &&
               inPatient
             ) {
@@ -322,6 +323,10 @@ const ProtectedLayout = () => {
 };
 
 export default function RootLayout() {
+  useEffect(() => {
+    installGlobalViewErrorLogger();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>

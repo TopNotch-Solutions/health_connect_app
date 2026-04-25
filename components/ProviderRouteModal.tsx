@@ -19,6 +19,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildBackendAssetUrl } from "../lib/backend";
 import socketService from "../lib/socket";
+import { logViewMountDebug } from "../lib/viewErrorLogger";
 
 interface ProviderRouteModalProps {
   visible: boolean;
@@ -42,7 +43,6 @@ const LATITUDE_DELTA = 0.05;
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 
 const GOOGLE_MAPS_API_KEY = "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg";
-const [mapReady, setMapReady] = useState(false);
 
 // ✅ Helper to normalize coordinates (handles both formats)
 const normalizeCoordinate = (
@@ -131,6 +131,26 @@ export default function ProviderRouteModal({
   const [isTracking, setIsTracking] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [lastSpeechTime, setLastSpeechTime] = useState<number>(0);
+  const [mapReady, setMapReady] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+
+    logViewMountDebug("ProviderRouteModal", "rendering route map", {
+      patientLocation,
+      providerLocation,
+      hasPatientProfileImage: Boolean(patientProfileImage),
+      hasProviderProfileImage: Boolean(providerProfileImage),
+      routeCoordinateCount: routeCoordinates.length,
+    });
+  }, [
+    visible,
+    patientLocation,
+    providerLocation,
+    patientProfileImage,
+    providerProfileImage,
+    routeCoordinates.length,
+  ]);
 
   // ✅ Validate patient location on mount
   useEffect(() => {
@@ -650,7 +670,18 @@ export default function ProviderRouteModal({
         edges={["top", "bottom", "left", "right"]}
       >
         <MapView
-          onMapReady={() => setMapReady(false)}
+          onLayout={(event) => {
+            logViewMountDebug("ProviderRouteModal", "MapView layout", {
+              layout: event.nativeEvent.layout,
+              initialRegion,
+            });
+          }}
+          onMapReady={() => {
+            logViewMountDebug("ProviderRouteModal", "MapView ready", {
+              initialRegion,
+            });
+            setMapReady(true);
+          }}
           ref={mapRef}
           style={styles.map}
           provider={PROVIDER_GOOGLE}

@@ -1,5 +1,9 @@
 package net.kopanovertex.healthConnect
 import expo.modules.splashscreen.SplashScreenManager
+import com.oney.WebRTCModule.WebRTCModuleOptions
+import androidx.lifecycle.Lifecycle
+import android.content.res.Configuration
+import com.streamvideo.reactnative.StreamVideoReactNative
 
 import android.os.Build
 import android.os.Bundle
@@ -62,4 +66,17 @@ class MainActivity : ReactActivity() {
       // because it's doing more than [Activity.moveTaskToBack] in fact.
       super.invokeDefaultOnBackPressed()
   }
+
+override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        if (isFinishing) {
+          return
+        }
+        if (lifecycle.currentState === Lifecycle.State.CREATED) {
+            // when user clicks on Close button of PIP
+            finishAndRemoveTask()
+        } else {
+            StreamVideoReactNative.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        }
+      }
 }

@@ -27,6 +27,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { useRoute } from "../../../context/RouteContext";
 import apiClient from "../../../lib/api";
 import socketService from "../../../lib/socket";
+import { logViewMountDebug } from "../../../lib/viewErrorLogger";
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -791,7 +792,11 @@ export default function ProviderHome() {
 
     try {
       // 1) Accept on backend (assign provider)
-      await socketService.acceptRequest(request._id, currentUserId);
+      await socketService.acceptRequest(
+        request._id,
+        currentUserId,
+        latestProviderLocationRef.current,
+      );
 
       if (request.consultationMode === "video_consultation") {
         setSelectedRequest(null);
@@ -1350,6 +1355,12 @@ export default function ProviderHome() {
                 );
                 if (!coords) return null;
 
+                logViewMountDebug("ProviderHomeRequestModal", "rendering map", {
+                  requestId: selectedRequest._id,
+                  coords,
+                  patientName: selectedRequest.patientId?.fullname,
+                });
+
                 return (
                   <View className="mb-4">
                     <View className="flex-row items-center justify-between mb-3">
@@ -1371,6 +1382,27 @@ export default function ProviderHome() {
                           longitude: coords.longitude,
                           latitudeDelta: 0.01,
                           longitudeDelta: 0.01,
+                        }}
+                        onLayout={(event) => {
+                          logViewMountDebug(
+                            "ProviderHomeRequestModal",
+                            "MapView layout",
+                            {
+                              layout: event.nativeEvent.layout,
+                              requestId: selectedRequest._id,
+                              coords,
+                            },
+                          );
+                        }}
+                        onMapReady={() => {
+                          logViewMountDebug(
+                            "ProviderHomeRequestModal",
+                            "MapView ready",
+                            {
+                              requestId: selectedRequest._id,
+                              coords,
+                            },
+                          );
                         }}
                         provider={PROVIDER_GOOGLE}
                       >

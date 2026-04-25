@@ -1,4 +1,4 @@
-const { withAndroidManifest, withDangerousMod } = require('@expo/config-plugins');
+const { AndroidConfig, withAndroidManifest, withDangerousMod } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -41,6 +41,17 @@ module.exports = function withNetworkSecurityConfig(config) {
     
     // Ensure the application element exists
     if (manifest.manifest.application) {
+      const mainApplication = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest);
+      const googleMapsApiKey = config.android?.config?.googleMaps?.apiKey;
+
+      if (googleMapsApiKey) {
+        AndroidConfig.Manifest.addMetaDataItemToMainApplication(
+          mainApplication,
+          'com.google.android.geo.API_KEY',
+          googleMapsApiKey,
+        );
+      }
+
       // Set the networkSecurityConfig attribute
       manifest.manifest.application[0].$['android:networkSecurityConfig'] = '@xml/network_security_config';
     }

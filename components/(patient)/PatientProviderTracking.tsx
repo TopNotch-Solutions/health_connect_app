@@ -15,6 +15,7 @@ import MapViewDirections from "react-native-maps-directions";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildBackendAssetUrl } from "../../lib/backend";
 import socketService from "../../lib/socket";
+import { logViewMountDebug, logViewMountWarning } from "../../lib/viewErrorLogger";
 
 const GOOGLE_MAPS_API_KEY = "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg";
 
@@ -133,6 +134,13 @@ export default function PatientProviderTracking({
   // Debug logging for profile images
   useEffect(() => {
     if (visible) {
+      logViewMountDebug("PatientProviderTracking", "modal opened", {
+        requestId,
+        patientLocation,
+        currentPatientLocation,
+        providerLocation,
+        routeCoordinateCount: routeCoordinates.length,
+      });
       console.log(
         "PatientProviderTracking - Provider profileImage:",
         providerProfileImage,
@@ -572,6 +580,19 @@ export default function PatientProviderTracking({
             <MapView
               ref={mapViewRef}
               style={{ flex: 1 }}
+              onLayout={(event) => {
+                logViewMountDebug("PatientProviderTracking", "MapView layout", {
+                  layout: event.nativeEvent.layout,
+                  currentPatientLocation,
+                  providerLocation,
+                });
+              }}
+              onMapReady={() => {
+                logViewMountDebug("PatientProviderTracking", "MapView ready", {
+                  currentPatientLocation,
+                  providerLocation,
+                });
+              }}
               showsUserLocation={true}
               followsUserLocation={false}
               showsMyLocationButton={true}
@@ -785,6 +806,15 @@ export default function PatientProviderTracking({
                       console.log(`Route Duration: ${result.duration} minutes`);
                     }}
                     onError={(errorMessage) => {
+                      logViewMountWarning(
+                        "PatientProviderTracking",
+                        "MapViewDirections error",
+                        {
+                          errorMessage,
+                          providerLocation,
+                          currentPatientLocation,
+                        },
+                      );
                       console.log("MapViewDirections Error:", errorMessage);
                       // Fallback to straight line distance if route fails
                     }}

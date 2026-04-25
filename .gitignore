@@ -38,7 +38,10 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+health_connect_backend/
 
 # generated native folders
 /ios
+/android/.gradle/
+/android/build/
 

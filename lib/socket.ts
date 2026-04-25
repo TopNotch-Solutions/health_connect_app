@@ -9,7 +9,13 @@ class SocketService {
 
   connect(
     userId: string,
-    role?: "patient" | "doctor" | "nurse" | "physiotherapist" | "social worker",
+    role?:
+      | "patient"
+      | "doctor"
+      | "nurse"
+      | "physiotherapist"
+      | "social worker"
+      | "pharmacist",
   ) {
     if (this.socket?.connected) {
       console.log("Socket already connected");
@@ -69,7 +75,13 @@ class SocketService {
   // Join the socket with user role
   join(
     userId: string,
-    role: "patient" | "doctor" | "nurse" | "physiotherapist" | "social worker",
+    role:
+      | "patient"
+      | "doctor"
+      | "nurse"
+      | "physiotherapist"
+      | "social worker"
+      | "pharmacist",
   ) {
     if (!this.socket?.connected) {
       console.error("Socket not connected when trying to join");
@@ -445,7 +457,11 @@ class SocketService {
     });
   }
 
-  acceptRequest(requestId: string, providerId: string) {
+  acceptRequest(
+    requestId: string,
+    providerId: string,
+    providerLocation?: { latitude: number; longitude: number } | null,
+  ) {
     return new Promise((resolve, reject) => {
       if (!this.socket?.connected) {
         console.error("❌ Socket not connected when trying to accept request");
@@ -495,7 +511,11 @@ class SocketService {
       this.socket.on("requestUpdated", handleRequestUpdated);
       this.socket.on("requestError", handleError);
 
-      const payload = { requestId, providerId };
+      const payload = {
+        requestId,
+        providerId,
+        ...(providerLocation ? { providerLocation } : {}),
+      };
       console.log(
         "📤 Emitting acceptRequest with payload:",
         JSON.stringify(payload, null, 2),

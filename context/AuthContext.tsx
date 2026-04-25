@@ -23,7 +23,7 @@ export interface User {
     | "doctor"
     | "nurse"
     | "physiotherapist"
-    | "socialworker"
+    | "social worker"
     | "pharmacist";
   consultations?: number; // New field for available consultations
   cellphoneNumber?: string;

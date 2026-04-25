@@ -8,7 +8,7 @@
     "icon": "./assets/images/connectlogo.png",
     "scheme": "projecthealthconnect",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -55,6 +55,12 @@
     "plugins": [
       "expo-router",
       "./plugins/withNetworkSecurityConfig",
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg"
+        }
+      ],
       [
         "expo-splash-screen",
         {

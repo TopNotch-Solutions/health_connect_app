@@ -319,8 +319,29 @@ export default function ProviderRequests() {
 
     setActionLoading({ requestId: request._id, action: "accept" });
     try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location Permission Required",
+          "Your current location is required before accepting nearby consultation requests.",
+        );
+        return;
+      }
+
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const acceptProviderCoords = {
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+      };
+
       // 1) Accept on backend (assign provider)
-      await socketService.acceptRequest(request._id, currentUserId);
+      await socketService.acceptRequest(
+        request._id,
+        currentUserId,
+        acceptProviderCoords,
+      );
 
       if (request.consultationMode === "video_consultation") {
         setRequests((prev) =>

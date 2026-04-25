@@ -17,6 +17,7 @@ import {
   getCurrentLocationWithAddress,
   reverseGeocode,
 } from "../../lib/geocoding";
+import { logViewMountDebug } from "../../lib/viewErrorLogger";
 
 interface CreateRequestModalProps {
   visible: boolean;
@@ -75,6 +76,11 @@ export default function CreateRequestModal({
   // Load location when modal opens
   useEffect(() => {
     if (visible) {
+      logViewMountDebug("CreateRequestModal", "modal opened", {
+        showMap,
+        mapRegion,
+        markerCoord,
+      });
       loadLocationAndAddress();
     }
   }, [visible]);
@@ -385,6 +391,19 @@ export default function CreateRequestModal({
                     <MapView
                       region={mapRegion}
                       style={{ flex: 1 }}
+                      onLayout={(event) => {
+                        logViewMountDebug("CreateRequestModal", "MapView layout", {
+                          layout: event.nativeEvent.layout,
+                          mapRegion,
+                          markerCoord,
+                        });
+                      }}
+                      onMapReady={() => {
+                        logViewMountDebug("CreateRequestModal", "MapView ready", {
+                          mapRegion,
+                          markerCoord,
+                        });
+                      }}
                       scrollEnabled={false}
                       zoomEnabled={false}
                       pitchEnabled={false}
