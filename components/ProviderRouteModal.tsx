@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import * as Speech from "expo-speech";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -113,9 +113,20 @@ export default function ProviderRouteModal({
   const arrivedRef = useRef(false);
   const lastEmitRef = useRef(0);
   const hasFittedRouteRef = useRef(false);
+  const lastSpeechTimeRef = useRef(0);
 
   // ✅ Normalize patient location on mount
-  const patientLocation = normalizeCoordinate(rawPatientLocation);
+  const patientLocation = useMemo(
+    () => normalizeCoordinate(rawPatientLocation),
+    [
+      rawPatientLocation?.latitude,
+      rawPatientLocation?.longitude,
+      (rawPatientLocation as any)?.type,
+      Array.isArray((rawPatientLocation as any)?.coordinates)
+        ? (rawPatientLocation as any).coordinates.join(",")
+        : undefined,
+    ],
+  );
   const [providerLocation, setProviderLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -130,7 +141,7 @@ export default function ProviderRouteModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [lastSpeechTime, setLastSpeechTime] = useState<number>(0);
+  const [, setLastSpeechTime] = useState<number>(0);
   const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
@@ -280,6 +291,7 @@ export default function ProviderRouteModal({
         speak(
           `Starting route to ${patientName}. Distance is ${d.toFixed(1)} kilometers.`,
         );
+        lastSpeechTimeRef.current = Date.now();
         setLastSpeechTime(Date.now());
 
         return { distanceInKm: d, durationInMinutes: fallbackDuration };
@@ -457,12 +469,14 @@ export default function ProviderRouteModal({
               // Speech logic - only speak once per minute
               const currentTime = Date.now();
               const oneMinuteInMs = 60 * 1000; // 60 seconds in milliseconds
-              const timeSinceLastSpeech = currentTime - lastSpeechTime;
+              const timeSinceLastSpeech =
+                currentTime - lastSpeechTimeRef.current;
 
               // Only speak arrival once (guard with ref) - always announce arrival
               if (distToDest < 0.1 && !arrivedRef.current) {
                 arrivedRef.current = true;
                 speak("You have arrived at the destination.");
+                lastSpeechTimeRef.current = currentTime;
                 setLastSpeechTime(currentTime);
               } else if (
                 distToDest >= 0.1 &&
@@ -473,6 +487,7 @@ export default function ProviderRouteModal({
                 speak(
                   `You are ${distToDest.toFixed(1)} kilometers away. About ${eta} minutes remaining.`,
                 );
+                lastSpeechTimeRef.current = currentTime;
                 setLastSpeechTime(currentTime);
               }
             } catch (error) {
@@ -697,6 +712,7 @@ export default function ProviderRouteModal({
               title="Your Location"
               description="You are here"
               identifier="provider"
+              tracksViewChanges={false}
             >
               <View
                 style={{
@@ -745,6 +761,7 @@ export default function ProviderRouteModal({
             title={`${patientName}'s Location`}
             description="Patient destination"
             identifier="patient"
+            tracksViewChanges={false}
           >
             <View
               style={{

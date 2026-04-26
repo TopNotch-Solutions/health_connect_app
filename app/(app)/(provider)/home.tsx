@@ -275,9 +275,24 @@ export default function ProviderHome() {
   const isLoadingRequestsRef = useRef(false);
 
   // Define loadAvailableRequests before using it in useEffect
-  const loadAvailableRequests = useCallback(async () => {
+  const loadAvailableRequests = useCallback(async (
+    locationOverride?: { latitude: number; longitude: number } | null,
+  ) => {
     if (!user?.userId) {
       console.log("⚠️ No userId, skipping request load");
+      return;
+    }
+
+    const currentProviderLocation =
+      locationOverride ?? latestProviderLocationRef.current;
+    if (
+      !currentProviderLocation ||
+      typeof currentProviderLocation.latitude !== "number" ||
+      typeof currentProviderLocation.longitude !== "number"
+    ) {
+      console.log(
+        "⚠️ Provider location not ready yet, skipping request load until GPS is available",
+      );
       return;
     }
 
@@ -302,7 +317,6 @@ export default function ProviderHome() {
       await socketService.waitForConnection(10000);
 
       console.log("📡 Socket is ready, fetching requests");
-      const currentProviderLocation = latestProviderLocationRef.current;
       const availableRequests = await socketService.getAvailableRequests(
         user.userId,
         currentProviderLocation,
@@ -311,15 +325,10 @@ export default function ProviderHome() {
       setRequests(Array.isArray(availableRequests) ? availableRequests : []);
     } catch (error: any) {
       console.error("❌ Error loading requests:", error);
-      // Don't show alert on initial load, just log
-      if (requests.length === 0) {
-        console.warn("Failed to load requests, will retry on next focus");
-      } else {
-        Alert.alert(
-          "Error",
-          "Failed to load available requests: " + error.message,
-        );
-      }
+      console.warn(
+        "Failed to load available requests, will retry on next refresh:",
+        error?.message || error,
+      );
     } finally {
       setIsLoadingRequests(false);
       isLoadingRequestsRef.current = false;
@@ -465,7 +474,7 @@ export default function ProviderHome() {
 
         // Force one refresh after acquiring initial coordinates for online mode.
         if (isOnline && !isLoadingRequestsRef.current) {
-          await loadAvailableRequests();
+          await loadAvailableRequests(initialCoords);
         }
 
         stopLocationWatch();
