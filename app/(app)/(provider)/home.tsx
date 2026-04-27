@@ -1130,7 +1130,7 @@ export default function ProviderHome() {
               const patientName =
                 request.patientId?.fullname || "Unknown Patient";
               const ailment = request.ailmentCategory || "Consultation";
-              const fee = `N$ ${request.estimatedCost || 0}`;
+              const fee = `N$ ${request.consultationCost ?? request.estimatedCost ?? 0}`;
               const consultationMode: "house_visit" | "video_consultation" =
                 request.consultationMode === "video_consultation"
                   ? "video_consultation"
@@ -1352,7 +1352,7 @@ export default function ProviderHome() {
                     Consultation Fee:
                   </Text>
                   <Text className="text-base font-bold text-gray-900">
-                    N$ {selectedRequest.estimatedCost || 0}
+                    N$ {selectedRequest.consultationCost ?? selectedRequest.estimatedCost ?? 0}
                   </Text>
                 </View>
               </View>

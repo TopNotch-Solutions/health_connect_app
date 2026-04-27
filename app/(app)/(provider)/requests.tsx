@@ -50,7 +50,8 @@ interface Request {
     | "completed"
     | "cancelled"
     | "expired";
-  estimatedCost: number | string;
+  consultationCost?: number | string;
+  estimatedCost?: number | string;
   symptoms?: string;
   address?: {
     route?: string;
@@ -757,7 +758,7 @@ export default function ProviderRequests() {
               const patientName =
                 request.patientId?.fullname || "Unknown Patient";
               const ailmentName = getAilmentName(request.ailmentCategoryId);
-              const fee = `N$ ${request.estimatedCost || 0}`;
+              const fee = `N$ ${request.consultationCost ?? request.estimatedCost ?? 0}`;
               const consultationMode: "house_visit" | "video_consultation" =
                 request.consultationMode === "video_consultation"
                   ? "video_consultation"
