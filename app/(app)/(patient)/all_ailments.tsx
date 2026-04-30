@@ -22,6 +22,8 @@ interface Ailment {
   title: string;
   provider?: string;
   supportsTeleconsultation?: boolean;
+  physicalconsultationCost?: number;
+  teleconsultationCost?: number | null;
   description?: string;
   linkedSpecializations?: string[];
   image?: string;
@@ -309,7 +311,7 @@ export default function AllAilmentsScreen() {
     consultationMode: "house_visit" | "video_consultation";
     symptoms: string;
     paymentMethod: "wallet" | "cash";
-    estimatedCost: number;
+    consultationCost: number;
     street: string;
     locality: string;
     region: string;
@@ -355,7 +357,7 @@ export default function AllAilmentsScreen() {
         consultationMode: requestData.consultationMode,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
-        estimatedCost: requestData.estimatedCost,
+        consultationCost: requestData.consultationCost,
         address: {
           route: requestData.street,
           locality: requestData.locality,

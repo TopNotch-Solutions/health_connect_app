@@ -12,7 +12,8 @@ import apiClient from '../../lib/api';
 interface AilmentCategory {
   _id: string;
   title: string;
-  estimatedCost: string;
+  physicalconsultationCost?: number;
+  teleconsultationCost?: number | null;
   color: string;
 }
 
@@ -140,7 +141,9 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
                 </View>
                 <View className="flex-1">
                   <Text className="font-semibold text-text-main">{category.title}</Text>
-                  <Text className="text-sm text-gray-600">Est. Cost: {category.estimatedCost}</Text>
+                  <Text className="text-sm text-gray-600">
+                    Est. Cost: N$ {category.physicalconsultationCost ?? 0}
+                  </Text>
                 </View>
               </View>
             </View>

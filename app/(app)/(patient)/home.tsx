@@ -495,7 +495,7 @@ export default function PatientHomeScreen() {
     consultationMode: "house_visit" | "video_consultation";
     symptoms: string;
     paymentMethod: "wallet" | "cash";
-    estimatedCost: number;
+    consultationCost: number;
     street: string;
     locality: string;
     region: string;
@@ -545,7 +545,7 @@ export default function PatientHomeScreen() {
         consultationMode: requestData.consultationMode,
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
-        estimatedCost: requestData.estimatedCost,
+        consultationCost: requestData.consultationCost,
         address: {
           route: requestData.street,
           locality: requestData.locality,

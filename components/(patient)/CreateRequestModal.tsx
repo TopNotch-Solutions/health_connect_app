@@ -28,7 +28,7 @@ interface CreateRequestModalProps {
     consultationMode: "house_visit" | "video_consultation";
     symptoms: string;
     paymentMethod: "wallet" | "cash";
-    estimatedCost: number;
+    consultationCost: number;
     street: string;
     locality: string;
     region: string;
@@ -55,7 +55,6 @@ export default function CreateRequestModal({
     "house_visit" | "video_consultation"
   >("house_visit");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "wallet">("cash");
-  const [dueCost, setDueCost] = useState("");
   const [street, setStreet] = useState("");
   const [locality, setLocality] = useState("");
   const [region, setRegion] = useState("");
@@ -73,6 +72,11 @@ export default function CreateRequestModal({
   } | null>(null);
   const [showMap, setShowMap] = useState(false);
 
+  const selectedCost =
+    consultationMode === "video_consultation"
+      ? Number(selectedAilment?.teleconsultationCost ?? NaN)
+      : Number(selectedAilment?.physicalconsultationCost ?? NaN);
+
   // Load location when modal opens
   useEffect(() => {
     if (visible) {
@@ -85,22 +89,11 @@ export default function CreateRequestModal({
     }
   }, [visible]);
 
-  // Update ailment category and due cost when selectedAilment changes
+  // Update ailment category when selectedAilment changes
   useEffect(() => {
     if (selectedAilment) {
       const title = selectedAilment?.title || selectedAilment || "";
       setAilmentCategory(title);
-
-      // Set due cost from ailment category's initialCost
-      if (
-        selectedAilment?.initialCost !== undefined &&
-        selectedAilment?.initialCost !== null
-      ) {
-        setDueCost(selectedAilment.initialCost.toString());
-      } else {
-        // Fallback to 200 if initialCost is not available
-        setDueCost("200");
-      }
     }
   }, [selectedAilment]);
 
@@ -167,9 +160,11 @@ export default function CreateRequestModal({
       return;
     }
 
-    const cost = parseFloat(dueCost);
-    if (isNaN(cost) || cost <= 0) {
-      Alert.alert("Invalid Cost", "Please enter a valid due cost");
+    if (isNaN(selectedCost) || selectedCost <= 0) {
+      Alert.alert(
+        "Invalid Cost",
+        "This ailment does not have a valid consultation cost configured.",
+      );
       return;
     }
 
@@ -184,7 +179,7 @@ export default function CreateRequestModal({
 
     Alert.alert(
       "Confirm Request",
-      `Submit a ${consultationMode === "video_consultation" ? "video consultation" : "house visit"} request for N$${cost.toFixed(2)}?`,
+      `Submit a ${consultationMode === "video_consultation" ? "video consultation" : "house visit"} request for N$${selectedCost.toFixed(2)}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -198,7 +193,7 @@ export default function CreateRequestModal({
                 consultationMode,
                 symptoms: "",
                 paymentMethod,
-                estimatedCost: cost, // Changed from dueCost to estimatedCost to match backend
+                consultationCost: selectedCost,
                 street: street.trim(),
                 locality: locality.trim(),
                 region: region.trim(),
@@ -210,7 +205,6 @@ export default function CreateRequestModal({
               setAilmentCategory("");
               setConsultationMode("house_visit");
               setPaymentMethod("cash");
-              setDueCost("0");
               setStreet("");
               setLocality("");
               setRegion("");
@@ -484,12 +478,12 @@ export default function CreateRequestModal({
                 <View className="bg-blue-50 border border-blue-300 rounded-lg p-4">
                   <View className="flex-row items-center justify-between">
                     <View className="flex-row items-center flex-1">
-                      <Feather name="dollar-sign" size={20} color="#3B82F6" />
-                      <Text className="text-2xl font-bold text-blue-900 ml-2">
-                        N${parseFloat(dueCost).toFixed(2)}
-                      </Text>
+                        <Feather name="dollar-sign" size={20} color="#3B82F6" />
+                        <Text className="text-2xl font-bold text-blue-900 ml-2">
+                          N${isNaN(selectedCost) ? "0.00" : selectedCost.toFixed(2)}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
                 </View>
               </View>
 

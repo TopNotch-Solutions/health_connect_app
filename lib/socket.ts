@@ -145,7 +145,7 @@ class SocketService {
     consultationMode?: "house_visit" | "video_consultation";
     paymentMethod: "wallet" | "cash";
     symptoms?: string;
-    estimatedCost: number;
+    consultationCost: number;
     address?: {
       route: string;
       locality: string;
@@ -182,7 +182,8 @@ class SocketService {
         consultationMode: requestData.consultationMode || "house_visit",
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms || "No symptoms provided",
-        estimatedCost: requestData.estimatedCost,
+        consultationCost: requestData.consultationCost,
+        estimatedCost: requestData.consultationCost,
         preferredTime: requestData.preferredTime,
         address: {
           route: requestData.address?.route || "Patient Location",
