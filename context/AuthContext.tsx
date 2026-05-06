@@ -9,6 +9,11 @@ import React, {
 } from "react";
 import { AppState, AppStateStatus } from "react-native";
 import apiClient from "../lib/api";
+import {
+  registerForPushNotifications,
+  removePushTokenFromBackend,
+  savePushTokenToBackend,
+} from "../lib/pushNotifications";
 import socketService from "../lib/socket";
 
 // Updated User interface with all health provider fields
@@ -101,11 +106,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
 
+      // Remove push token from backend so notifications stop after sign-out
+      try {
+        const pushToken = await SecureStore.getItemAsync("pushToken");
+        if (pushToken) {
+          await removePushTokenFromBackend(pushToken);
+        }
+      } catch (e) {
+        console.warn("⚠️ Could not remove push token on logout:", e);
+      }
+
       socketService.disconnect();
 
       setUser(null);
       await SecureStore.deleteItemAsync("user");
       await SecureStore.deleteItemAsync("authToken");
+      await SecureStore.deleteItemAsync("pushToken");
       await SecureStore.deleteItemAsync(LAST_ACTIVITY_KEY);
     } catch (error) {
       console.error("Failed to logout:", error);
@@ -337,6 +353,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Set initial activity timestamp
       await updateLastActivity();
       setUser(userData);
+
+      // Register push notification token in the background (non-blocking)
+      (async () => {
+        try {
+          const pushToken = await registerForPushNotifications();
+          if (pushToken) {
+            await SecureStore.setItemAsync("pushToken", pushToken);
+            await savePushTokenToBackend(pushToken);
+          }
+        } catch (e) {
+          // Non-fatal — login still succeeds without push token
+          console.warn("⚠️ Push token registration failed:", e);
+        }
+      })();
 
       console.log("🎉 Login successful and fully authenticated!");
       return userData;

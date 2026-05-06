@@ -13,7 +13,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera for secure teleconsultations.",
-        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone for secure teleconsultations."
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone for secure teleconsultations.",
+        "UIBackgroundModes": ["remote-notification"]
       },
       "bitcode": false
     },
@@ -45,7 +46,8 @@
         "android.permission.WAKE_LOCK",
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.BLUETOOTH_ADMIN"
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {
@@ -88,6 +90,16 @@
         }
       ],
       "expo-build-properties",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/connectlogo.png",
+          "color": "#10B981",
+          "sounds": ["./assets/sounds/healthconnect_alert.wav"],
+          "androidMode": "default",
+          "androidCollapsedTitle": "HealthConnect"
+        }
+      ],
       "expo-web-browser",
       "@stream-io/video-react-native-sdk",
       "@react-native-community/datetimepicker",

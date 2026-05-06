@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import * as Speech from "expo-speech";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -107,6 +108,7 @@ export default function ProviderRouteModal({
   patientProfileImage,
   onCompleteRoute,
 }: ProviderRouteModalProps) {
+  const router = useRouter();
   const mapRef = useRef<MapView>(null);
   const routeInitializedRef = useRef(false);
   const locationSubscriptionRef = useRef<any>(null);
@@ -553,7 +555,19 @@ export default function ProviderRouteModal({
         providerLocation,
       );
 
-      Alert.alert("Success", "You've arrived at the patient's location!");
+      Alert.alert(
+        "Success",
+        "You've arrived at the patient's location!",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // Navigate to requests screen after user acknowledges
+              router.push("/(app)/(provider)/requests");
+            },
+          },
+        ],
+      );
 
       if (onCompleteRoute) {
         onCompleteRoute();
@@ -564,7 +578,7 @@ export default function ProviderRouteModal({
       console.error("Error marking as arrived:", error);
       Alert.alert("Error", error.message || "Failed to mark as arrived");
     }
-  }, [requestId, providerLocation, onClose, onCompleteRoute, stopTracking]);
+  }, [requestId, providerLocation, onClose, onCompleteRoute, stopTracking, router]);
 
   const handleCancel = useCallback(async () => {
     setIsCancelling(true);

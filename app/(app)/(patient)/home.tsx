@@ -578,18 +578,26 @@ export default function PatientHomeScreen() {
         }
       }
 
-      Alert.alert(
-        "Request Created",
-        "Your request has been sent to nearby healthcare providers. You will be notified when a provider accepts.",
-        [{ text: "OK" }],
-      );
+      console.log("✅ Request created successfully:", request);
+      console.log("🔄 Navigating to waiting room...");
 
-      console.log("Request created:", request);
+      // Navigate to waiting room immediately after successful request creation
+      // Use setTimeout to ensure modal closes first
+      setTimeout(() => {
+        try {
+          console.log("🚀 Executing navigation to waiting room...");
+          router.push("/(app)/(patient)/waiting-room");
+          console.log("✅ Navigation to waiting room initiated");
+        } catch (navError) {
+          console.error("❌ Navigation error:", navError);
+        }
+      }, 100);
 
       // Refresh recent requests to show the newly created request
       loadRecentRequests();
     } catch (error: any) {
-      console.log(error);
+      console.log("❌ Request creation failed:", error);
+      console.log("❌ Error details:", error.message, error.stack);
       throw new Error(error.message || "Failed to create request");
     }
   };

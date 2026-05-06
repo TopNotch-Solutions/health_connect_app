@@ -17,6 +17,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import PatientProviderTracking from "../../../components/(patient)/PatientProviderTracking";
 import ProviderMap from "../../../components/(patient)/ProviderMap";
 import { useAuth } from "../../../context/AuthContext";
+import {
+  hapticRequestAccepted,
+  hapticStatusChange,
+} from "../../../lib/haptics";
 import socketService from "../../../lib/socket";
 
 interface RequestStatus {
@@ -809,10 +813,27 @@ export default function WaitingRoom() {
   useEffect(() => {
     if (!user?.userId) return;
 
+    /** Fire the appropriate haptic when a request status changes. */
+    const hapticForStatus = (status: string) => {
+      if (status === "accepted" || status === "ready_for_call") {
+        hapticRequestAccepted();
+      } else if (
+        status === "en_route" ||
+        status === "arrived" ||
+        status === "in_progress"
+      ) {
+        hapticStatusChange();
+      }
+    };
+
     const handleRequestUpdated = async (updatedRequest: RequestStatus) => {
       setRequests((prev) => {
         const updated = prev.map((item) => {
           if (item.request._id === updatedRequest._id) {
+            // Fire haptic when the status meaningfully changes
+            if (item.request.status !== updatedRequest.status) {
+              hapticForStatus(updatedRequest.status);
+            }
             // Preserve acceptedAt timestamp if transitioning to accepted
             const acceptedAt =
               ["accepted", "payment_pending"].includes(updatedRequest.status) &&
@@ -902,6 +923,10 @@ export default function WaitingRoom() {
       setRequests((prev) => {
         return prev.map((item) => {
           if (item.request._id === data.requestId) {
+            // Fire haptic when the status meaningfully changes
+            if (item.request.status !== data.status) {
+              hapticForStatus(data.status);
+            }
             // Update status locally
             const updatedRequest = { ...item.request, status: data.status };
 

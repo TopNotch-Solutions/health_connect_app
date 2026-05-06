@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -158,6 +158,7 @@ const AilmentCard = ({
 
 export default function AllAilmentsScreen() {
   const { user } = useAuth();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<any>(null);
@@ -370,8 +371,23 @@ export default function AllAilmentsScreen() {
         preferredTime: requestData.preferredTime,
       });
 
-      console.log("Request created:", request);
+      console.log("✅ Request created successfully:", request);
+      console.log("🔄 Navigating to waiting room...");
+
+      // Navigate to waiting room immediately after successful request creation
+      // Use setTimeout to ensure modal closes first
+      setTimeout(() => {
+        try {
+          console.log("🚀 Executing navigation to waiting room...");
+          router.push("/(app)/(patient)/waiting-room");
+          console.log("✅ Navigation to waiting room initiated");
+        } catch (navError) {
+          console.error("❌ Navigation error:", navError);
+        }
+      }, 100);
     } catch (error: any) {
+      console.log("❌ Request creation failed:", error);
+      console.log("❌ Error details:", error.message, error.stack);
       throw new Error(error.message || "Failed to create request");
     }
   };

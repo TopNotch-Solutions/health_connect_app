@@ -2,7 +2,7 @@
 import { persistor, store } from "@/store/store";
 import { Feather } from "@expo/vector-icons";
 import { Stack, useRouter, useSegments } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -17,6 +17,10 @@ import { PersistGate } from "redux-persist/integration/react";
 import GlobalRouteModal from "../components/(provider)/GlobalRouteModal";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { RouteProvider } from "../context/RouteContext";
+import {
+  addNotificationListeners,
+  configureForegroundHandler,
+} from "../lib/pushNotifications";
 import { installGlobalViewErrorLogger } from "../lib/viewErrorLogger";
 import "./globals.css";
 
@@ -323,8 +327,53 @@ const ProtectedLayout = () => {
 };
 
 export default function RootLayout() {
+  const notificationListener = useRef<{ remove: () => void } | undefined>(
+    undefined,
+  );
+  const responseListener = useRef<{ remove: () => void } | undefined>(
+    undefined,
+  );
+
   useEffect(() => {
     installGlobalViewErrorLogger();
+    let isMounted = true;
+
+    const setupNotifications = async () => {
+      // Configure foreground notification display (banner + sound while app is open)
+      await configureForegroundHandler();
+
+      // Listen for notifications received while app is foregrounded
+      const subscriptions = await addNotificationListeners({
+        onReceive: (notification) => {
+          console.log("📬 Foreground notification received:", notification);
+        },
+        onResponse: (response) => {
+          const data = response.notification.request.content.data as Record<
+            string,
+            unknown
+          >;
+          console.log("👆 Notification tapped, data:", data);
+          // Future: navigate based on data.screen / data.requestId
+        },
+      });
+
+      if (!isMounted) {
+        subscriptions.notificationSubscription?.remove();
+        subscriptions.responseSubscription?.remove();
+        return;
+      }
+
+      notificationListener.current = subscriptions.notificationSubscription;
+      responseListener.current = subscriptions.responseSubscription;
+    };
+
+    void setupNotifications();
+
+    return () => {
+      isMounted = false;
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
+    };
   }, []);
 
   return (

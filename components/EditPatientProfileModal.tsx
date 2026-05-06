@@ -19,6 +19,34 @@ import { namibianRegions, townsByRegion } from "../constants/locations";
 import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
 
+// ── Validation helpers ────────────────────────────────────────────────────────
+function validatePhone(raw: string): string | null {
+  const cleaned = raw.replace(/[\s\-().+]/g, "");
+  if (!cleaned) return "Cellphone number is required";
+  const local = cleaned.startsWith("264") && cleaned.length === 12
+    ? "0" + cleaned.slice(3)
+    : cleaned;
+  if (!/^081\d{7}$/.test(local))
+    return "Enter a valid Namibian mobile number (e.g. 0811234567 — 10 digits starting with 081)";
+  return null;
+}
+
+function validateEmail(v: string): string | null {
+  if (!v.trim()) return "Email is required";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()))
+    return "Enter a valid email address (e.g. name@example.com)";
+  return null;
+}
+
+/** Backend expects 12 digits, no +, starting with 26481 (e.g. 264817001001) */
+function toBackendPhone(raw: string): string {
+  const cleaned = raw.replace(/[\s\-().+]/g, "");
+  if (cleaned.startsWith("264")) return cleaned;
+  if (cleaned.startsWith("0")) return "264" + cleaned.slice(1);
+  return cleaned;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface EditPatientProfileModalProps {
   visible: boolean;
   onClose: () => void;
@@ -66,6 +94,22 @@ export default function EditPatientProfileModal({
   const { user, updateUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const setError = (field: string, msg: string | null) =>
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (msg) next[field] = msg;
+      else delete next[field];
+      return next;
+    });
+
+  const FieldError = ({ field }: { field: string }) =>
+    fieldErrors[field] ? (
+      <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>
+        {fieldErrors[field]}
+      </Text>
+    ) : null;
 
   // Initialize availableTowns based on user's region
   const [availableTowns, setAvailableTowns] = useState<
@@ -168,56 +212,42 @@ export default function EditPatientProfileModal({
   };
 
   const handleSave = async () => {
-    console.log("=== SAVE PROFILE DEBUG START ===");
-
-    // Check if any changes were made
     if (!hasChanges()) {
-      console.log("❌ No changes detected");
       Alert.alert("No Changes", "No changes have been made to your profile.");
       return;
     }
-    console.log("✅ Changes detected");
 
-    // Validate required fields
-    if (!formData.fullname.trim()) {
-      Alert.alert("Error", "Full name is required");
-      return;
-    }
-    if (!formData.email.trim()) {
-      Alert.alert("Error", "Email is required");
-      return;
-    }
-    if (!formData.cellphoneNumber.trim()) {
-      Alert.alert("Error", "Cellphone number is required");
-      return;
-    }
+    // Validate all fields up-front so every error shows at once
+    const errors: Record<string, string> = {};
+
+    if (!formData.fullname.trim()) errors.fullname = "Full name is required";
+
+    const emailErr = validateEmail(formData.email);
+    if (emailErr) errors.email = emailErr;
+
+    const phoneErr = validatePhone(formData.cellphoneNumber);
+    if (phoneErr) errors.cellphoneNumber = phoneErr;
+
     if (
       !formData.dateOfBirth ||
       !(formData.dateOfBirth instanceof Date) ||
       isNaN(formData.dateOfBirth.getTime())
-    ) {
-      Alert.alert("Error", "Date of birth is required");
-      return;
-    }
-    if (!formData.address.trim()) {
-      Alert.alert("Error", "Address is required");
-      return;
-    }
-    if (!formData.town.trim()) {
-      Alert.alert("Error", "Town is required");
-      return;
-    }
-    if (!formData.region.trim()) {
-      Alert.alert("Error", "Region is required");
-      return;
-    }
+    ) errors.dateOfBirth = "Date of birth is required";
 
-    console.log("✅ All validations passed");
+    if (!formData.address.trim()) errors.address = "Address is required";
+    if (!formData.region.trim()) errors.region = "Please select a region";
+    if (!formData.town.trim()) errors.town = "Please select a town";
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    // Convert phone to backend format (264XXXXXXXXX)
+    const backendPhone = toBackendPhone(formData.cellphoneNumber);
 
     const payload = {
       fullname: formData.fullname,
       email: formData.email,
-      cellphoneNumber: formData.cellphoneNumber,
+      cellphoneNumber: backendPhone,
       dateOfBirth: formatDate(formData.dateOfBirth),
       gender: formData.gender,
       address: formData.address,
@@ -230,50 +260,28 @@ export default function EditPatientProfileModal({
 
     setIsLoading(true);
     try {
-      console.log("🚀 Making API call to /app/auth/update-patient-details");
-
       const response = await apiClient.put(
         "/app/auth/update-patient-details",
         payload,
       );
-
-      console.log("✅ API Response Status:", response.status);
-      console.log(
-        "✅ API Response Data:",
-        JSON.stringify(response.data, null, 2),
-      );
-
-      console.log("🔄 Updating local context...");
       await updateUser(payload);
-      console.log("✅ Local context updated");
-
-      console.log("=== SAVE PROFILE DEBUG END - SUCCESS ===");
+      setFieldErrors({});
       Alert.alert("Success", "Profile updated successfully");
       onClose();
     } catch (error: any) {
-      console.log("=== SAVE PROFILE DEBUG END - ERROR ===");
-      console.error("❌ Error Type:", error.constructor.name);
-      console.error("❌ Error Message:", error.message);
-      console.error("❌ Response Status:", error.response?.status);
-      console.error(
-        "❌ Response Data:",
-        JSON.stringify(error.response?.data, null, 2),
-      );
-      console.error(
-        "❌ Response Headers:",
-        JSON.stringify(error.response?.headers, null, 2),
-      );
-      console.error("❌ Request URL:", error.config?.url);
-      console.error("❌ Request Method:", error.config?.method);
-      console.error(
-        "❌ Request Headers:",
-        JSON.stringify(error.config?.headers, null, 2),
-      );
-
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || "Failed to update profile",
-      );
+      console.log("❌ [EditPatient] API error:", JSON.stringify({
+        status: error.response?.status,
+        data: error.response?.data,
+      }, null, 2));
+      const msg: string =
+        error.response?.data?.message || "Failed to update profile. Please try again.";
+      if (/cellphone|phone|mobile/i.test(msg)) {
+        setError("cellphoneNumber", msg);
+      } else if (/email/i.test(msg)) {
+        setError("email", msg);
+      } else {
+        Alert.alert("Error", msg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -303,44 +311,45 @@ export default function EditPatientProfileModal({
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Full Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, fieldErrors.fullname ? styles.inputError : undefined]}
               placeholder="Enter full name"
               placeholderTextColor="#9CA3AF"
               value={formData.fullname}
-              onChangeText={(text) => handleInputChange("fullname", text)}
+              onChangeText={(text) => { handleInputChange("fullname", text); if (fieldErrors.fullname) setError("fullname", null); }}
               editable={!isLoading}
             />
+            <FieldError field="fullname" />
           </View>
 
           {/* Email */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, fieldErrors.email ? styles.inputError : undefined]}
               placeholder="Enter email"
               placeholderTextColor="#9CA3AF"
               value={formData.email}
-              onChangeText={(text) => handleInputChange("email", text)}
+              onChangeText={(text) => { handleInputChange("email", text); if (fieldErrors.email) setError("email", null); }}
               keyboardType="email-address"
               autoCapitalize="none"
               editable={!isLoading}
             />
+            <FieldError field="email" />
           </View>
 
           {/* Cellphone Number */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Cellphone Number</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Enter cellphone number"
+              style={[styles.input, fieldErrors.cellphoneNumber ? styles.inputError : undefined]}
+              placeholder="e.g. 0811234567"
               placeholderTextColor="#9CA3AF"
               value={formData.cellphoneNumber}
-              onChangeText={(text) =>
-                handleInputChange("cellphoneNumber", text)
-              }
+              onChangeText={(text) => { handleInputChange("cellphoneNumber", text); if (fieldErrors.cellphoneNumber) setError("cellphoneNumber", null); }}
               keyboardType="phone-pad"
               editable={!isLoading}
             />
+            <FieldError field="cellphoneNumber" />
           </View>
 
           {/* Date of Birth */}
@@ -349,7 +358,7 @@ export default function EditPatientProfileModal({
             <TouchableOpacity
               onPress={() => setShowDatePicker(true)}
               disabled={isLoading}
-              style={styles.input}
+              style={[styles.input, fieldErrors.dateOfBirth ? styles.inputError : undefined]}
               activeOpacity={0.7}
             >
               <Text
@@ -363,6 +372,7 @@ export default function EditPatientProfileModal({
                   : "Select date of birth"}
               </Text>
             </TouchableOpacity>
+            <FieldError field="dateOfBirth" />
             {showDatePicker && (
               <DateTimePicker
                 value={formData.dateOfBirth}
@@ -426,21 +436,22 @@ export default function EditPatientProfileModal({
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Address</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, fieldErrors.address ? styles.inputError : undefined]}
               placeholder="Enter address"
               placeholderTextColor="#9CA3AF"
               value={formData.address}
-              onChangeText={(text) => handleInputChange("address", text)}
+              onChangeText={(text) => { handleInputChange("address", text); if (fieldErrors.address) setError("address", null); }}
               editable={!isLoading}
             />
+            <FieldError field="address" />
           </View>
 
           {/* Region */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Region</Text>
-            <View style={styles.pickerContainer}>
+            <View style={[styles.pickerContainer, fieldErrors.region ? styles.inputError : undefined]}>
               <RNPickerSelect
-                onValueChange={(value) => handleInputChange("region", value)}
+                onValueChange={(value) => { handleInputChange("region", value); if (fieldErrors.region) setError("region", null); }}
                 items={namibianRegions}
                 placeholder={{ label: "Select a region...", value: null }}
                 value={formData.region}
@@ -451,6 +462,7 @@ export default function EditPatientProfileModal({
                 <Feather name="chevron-down" size={20} color="#D1D5DB" />
               </View>
             </View>
+            <FieldError field="region" />
           </View>
 
           {/* Town */}
@@ -460,10 +472,11 @@ export default function EditPatientProfileModal({
               style={[
                 styles.pickerContainer,
                 !formData.region && styles.pickerContainerDisabled,
+                fieldErrors.town ? styles.inputError : undefined,
               ]}
             >
               <RNPickerSelect
-                onValueChange={(value) => handleInputChange("town", value)}
+                onValueChange={(value) => { handleInputChange("town", value); if (fieldErrors.town) setError("town", null); }}
                 items={availableTowns}
                 placeholder={{ label: "Select a town...", value: null }}
                 value={formData.town}
@@ -475,6 +488,7 @@ export default function EditPatientProfileModal({
                 <Feather name="chevron-down" size={20} color="#D1D5DB" />
               </View>
             </View>
+            <FieldError field="town" />
           </View>
 
           {/* Save Button */}
@@ -547,6 +561,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: "#111827",
+  },
+  inputError: {
+    borderColor: "#EF4444",
   },
   genderContainer: {
     flexDirection: "row",

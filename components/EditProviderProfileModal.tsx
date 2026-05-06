@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -28,13 +28,63 @@ interface Specialization {
   description?: string;
 }
 
+// ── Validation helpers ────────────────────────────────────────────────────────
+
+/** Strip spaces, dashes, and parentheses then validate Namibian mobile format.
+ *  Accepts: 0XXXXXXXX (10 digits), +264XXXXXXXX (12 chars) or 264XXXXXXXX */
+/** Strip formatting and validate. Returns null if valid. */
+function validatePhone(raw: string): string | null {
+  const cleaned = raw.replace(/[\s\-().+]/g, "");
+  if (!cleaned) return "Cellphone number is required";
+  // Normalise to local 0XXXXXXXXX for validation check
+  const local = cleaned.startsWith("264") && cleaned.length === 12
+    ? "0" + cleaned.slice(3)
+    : cleaned;
+  if (!/^081\d{7}$/.test(local))
+    return "Enter a valid Namibian mobile number (e.g. 0811234567 — 10 digits starting with 081)";
+  return null;
+}
+
+/**
+ * Backend expects exactly 12 digits starting with 26481 — no +, no leading 0.
+ * e.g. 0817001001 → 264817001001
+ */
+function toBackendPhone(raw: string): string {
+  const cleaned = raw.replace(/[\s\-().+]/g, "");
+  if (cleaned.startsWith("264")) return cleaned;   // already 264XXXXXXXXX
+  if (cleaned.startsWith("0")) return "264" + cleaned.slice(1); // 0XXXXXXXXX → 264XXXXXXXXX
+  return cleaned;
+}
+
+function validateEmail(v: string): string | null {
+  if (!v.trim()) return "Email is required";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()))
+    return "Enter a valid email address (e.g. name@example.com)";
+  return null;
+}
+
+function validateYears(v: string): string | null {
+  if (!v.trim()) return "Years of experience is required";
+  const n = parseInt(v, 10);
+  if (isNaN(n) || n < 0 || n > 60)
+    return "Enter a number between 0 and 60";
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function EditProviderProfileModal({
   visible,
   onClose,
 }: EditProviderProfileModalProps) {
   const { user, updateUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const isDateInitialized = useRef(false);
+  const isFormDataInitialized = useRef(false);
+  const datePickerKey = useRef("date-picker-1");
+  const lastSelectedDate = useRef<Date | null>(null);
 
   // Specializations from API
   const [allSpecializations, setAllSpecializations] = useState<
@@ -62,10 +112,9 @@ export default function EditProviderProfileModal({
   });
 
   const [expirationDate, setExpirationDate] = useState<Date>(() => {
-    if (user?.hpcnaExpiryDate) {
-      return new Date(user.hpcnaExpiryDate);
-    }
-    return new Date();
+    const initialDate = user?.hpcnaExpiryDate ? new Date(user.hpcnaExpiryDate) : new Date();
+    console.log("📅 Initial expiration date set:", initialDate.toISOString());
+    return initialDate;
   });
 
   // Fetch specializations from API
@@ -111,8 +160,27 @@ export default function EditProviderProfileModal({
     setFilteredSpecializations(filtered);
   }, [allSpecializations, user?.role]);
 
+  // Track showDatePicker changes
   useEffect(() => {
-    if (visible && user) {
+    console.log("📅 showDatePicker changed:", showDatePicker);
+  }, [showDatePicker]);
+
+  // Track expirationDate changes
+  useEffect(() => {
+    console.log("📅 ExpirationDate state changed:", expirationDate.toISOString());
+    console.log("📅 Stack trace:", new Error().stack);
+  }, [expirationDate]);
+
+  // Initialize form data when modal opens
+  useEffect(() => {
+    console.log("📋 Form data useEffect triggered:", {
+      visible,
+      user: !!user,
+      isFormDataInitialized: isFormDataInitialized.current,
+    });
+
+    if (visible && user && !isFormDataInitialized.current) {
+      console.log("📋 Setting form data for the first time");
       setFormData({
         fullname: user.fullname || "",
         email: user.email || "",
@@ -128,12 +196,36 @@ export default function EditProviderProfileModal({
           user.governingCouncil || "Health Professionals Council of Namibia",
         bio: user.bio || "",
       });
-
-      if (user.hpcnaExpiryDate) {
-        setExpirationDate(new Date(user.hpcnaExpiryDate));
-      }
+      isFormDataInitialized.current = true;
+    } else if (!visible) {
+      console.log("📋 Resetting form data initialization flag");
+      isFormDataInitialized.current = false;
     }
-  }, [visible, user]);
+  }, [visible]);
+
+  // Initialize expiration date only when modal first opens
+  useEffect(() => {
+    console.log("📅 Expiration date useEffect triggered:", {
+      visible,
+      isDateInitialized: isDateInitialized.current,
+      userHpcnaExpiryDate: user?.hpcnaExpiryDate,
+      currentExpirationDate: expirationDate.toISOString(),
+    });
+
+    if (visible && !isDateInitialized.current) {
+      if (user?.hpcnaExpiryDate) {
+        console.log("📅 Setting expiration date from user:", user.hpcnaExpiryDate);
+        setExpirationDate(new Date(user.hpcnaExpiryDate));
+      } else {
+        console.log("📅 Setting expiration date to current date");
+        setExpirationDate(new Date());
+      }
+      isDateInitialized.current = true;
+    } else if (!visible) {
+      console.log("📅 Resetting initialization flag");
+      isDateInitialized.current = false;
+    }
+  }, [visible]);
 
   const hasChanges = (): boolean => {
     if (!user) return true;
@@ -175,62 +267,118 @@ export default function EditProviderProfileModal({
   };
 
   const onExpirationDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
+    console.log("📅 Calendar onChange triggered:", {
+      eventType: event.type,
+      selectedDate: selectedDate?.toISOString(),
+      currentExpirationDate: expirationDate.toISOString(),
+      lastSelectedDate: lastSelectedDate.current?.toISOString(),
+    });
+
+    // Only update the date when the user actually selects a date (eventType: "set")
+    if (event.type === "set" && selectedDate) {
+      console.log("📅 Setting new expiration date:", selectedDate.toISOString());
+      lastSelectedDate.current = selectedDate;
       setExpirationDate(selectedDate);
       setFormData((prev) => ({
         ...prev,
         hpcnaExpiryDate: selectedDate.toISOString(),
       }));
+    } else if ((event.type === "dismissed" || event.type === "neutral") && selectedDate) {
+      // Check if the dismissed event is trying to reset to the original date
+      const isResettingToOriginal = selectedDate.getTime() === expirationDate.getTime();
+      console.log("📅 Calendar dismissed/neutral, isResettingToOriginal:", isResettingToOriginal);
+
+      // Only update if it's not resetting to the original date
+      if (!isResettingToOriginal && lastSelectedDate.current) {
+        console.log("📅 Keeping last selected date:", lastSelectedDate.current.toISOString());
+        setExpirationDate(lastSelectedDate.current);
+        setFormData((prev) => ({
+          ...prev,
+          hpcnaExpiryDate: lastSelectedDate.current!.toISOString(),
+        }));
+      }
     }
+
+    setShowDatePicker(false);
   };
 
+  // ── Inline error helper ────────────────────────────────────────────────────
+  const setError = (field: string, msg: string | null) =>
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (msg) next[field] = msg;
+      else delete next[field];
+      return next;
+    });
+
+  const FieldError = ({ field }: { field: string }) =>
+    fieldErrors[field] ? (
+      <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>
+        {fieldErrors[field]}
+      </Text>
+    ) : null;
+
+  // ── Save ───────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!hasChanges()) {
       Alert.alert("No Changes", "No changes have been made to your profile.");
       return;
     }
 
-    // Validate required fields
-    if (!formData.fullname.trim()) {
-      Alert.alert("Error", "Full name is required");
-      return;
-    }
-    if (!formData.email.trim()) {
-      Alert.alert("Error", "Email is required");
-      return;
-    }
-    if (!formData.cellphoneNumber.trim()) {
-      Alert.alert("Error", "Cellphone number is required");
-      return;
-    }
-    if (!formData.specializations.length) {
-      Alert.alert("Error", "Please select at least one specialization");
-      return;
-    }
-    if (!formData.hpcnaNumber.trim()) {
-      Alert.alert("Error", "HPCNA number is required");
-      return;
-    }
-    if (!formData.yearsOfExperience.trim()) {
-      Alert.alert("Error", "Years of experience is required");
-      return;
-    }
-    if (!formData.operationalZone.trim()) {
-      Alert.alert("Error", "Operational zone is required");
-      return;
-    }
-    if (!formData.bio.trim()) {
-      Alert.alert("Error", "Professional bio is required");
-      return;
-    }
+    // Build all errors up-front so every invalid field is highlighted at once
+    const errors: Record<string, string> = {};
+
+    if (!formData.fullname.trim()) errors.fullname = "Full name is required";
+
+    const emailErr = validateEmail(formData.email);
+    if (emailErr) errors.email = emailErr;
+
+    const phoneErr = validatePhone(formData.cellphoneNumber);
+    if (phoneErr) errors.cellphoneNumber = phoneErr;
+
+    if (!formData.specializations.length)
+      errors.specializations = "Select at least one specialization";
+
+    if (!formData.hpcnaNumber.trim())
+      errors.hpcnaNumber = "HPCNA registration number is required";
+
+    const yearsErr = validateYears(formData.yearsOfExperience);
+    if (yearsErr) errors.yearsOfExperience = yearsErr;
+
+    if (!formData.operationalZone.trim())
+      errors.operationalZone = "Please select your operational zone";
+
+    if (!formData.bio.trim())
+      errors.bio = "Professional bio is required";
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return; // stop — fields will show their own errors
+
+    // Convert to 264XXXXXXXXX — exactly what the backend validator expects
+    const cleanedPhone = toBackendPhone(formData.cellphoneNumber);
+
+    const payload = {
+      fullname: formData.fullname,
+      email: formData.email,
+      cellphoneNumber: cleanedPhone,
+      gender: formData.gender,
+      address: formData.address,
+      hpcnaNumber: formData.hpcnaNumber,
+      hpcnaExpiryDate: expirationDate.toISOString(),
+      specializations: formData.specializations,
+      yearsOfExperience: parseInt(formData.yearsOfExperience),
+      operationalZone: formData.operationalZone,
+      governingCouncil: formData.governingCouncil,
+      bio: formData.bio,
+    };
+    console.log("📤 [EditProfile] Sending payload:", JSON.stringify(payload, null, 2));
 
     setIsLoading(true);
     try {
       await apiClient.put("/app/auth/update-health-provider-details/", {
         fullname: formData.fullname,
         email: formData.email,
-        cellphoneNumber: formData.cellphoneNumber,
+        cellphoneNumber: cleanedPhone,
         gender: formData.gender,
         address: formData.address,
         hpcnaNumber: formData.hpcnaNumber,
@@ -245,7 +393,7 @@ export default function EditProviderProfileModal({
       await updateUser({
         fullname: formData.fullname,
         email: formData.email,
-        cellphoneNumber: formData.cellphoneNumber,
+        cellphoneNumber: cleanedPhone,
         gender: formData.gender as "Male" | "Female" | "Other",
         address: formData.address,
         hpcnaNumber: formData.hpcnaNumber,
@@ -257,13 +405,28 @@ export default function EditProviderProfileModal({
         bio: formData.bio,
       });
 
+      setFieldErrors({});
       Alert.alert("Success", "Profile updated successfully");
       onClose();
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || "Failed to update profile",
-      );
+      console.log("❌ [EditProfile] API error:", JSON.stringify({
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      }, null, 2));
+      // Surface backend error message directly — it's usually descriptive
+      const msg: string =
+        error.response?.data?.message || "Failed to update profile. Please try again.";
+      // Try to map known backend messages to specific fields
+      if (/cellphone|phone|mobile/i.test(msg)) {
+        setError("cellphoneNumber", msg);
+      } else if (/email/i.test(msg)) {
+        setError("email", msg);
+      } else if (/hpcna/i.test(msg)) {
+        setError("hpcnaNumber", msg);
+      } else {
+        Alert.alert("Error", msg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -293,14 +456,17 @@ export default function EditProviderProfileModal({
                 Full Name
               </Text>
               <TextInput
-                className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                style={{ borderWidth: 1, borderColor: fieldErrors.fullname ? "#EF4444" : "#D1D5DB" }}
                 placeholder="Enter full name"
                 value={formData.fullname}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, fullname: text })
-                }
+                onChangeText={(text) => {
+                  setFormData({ ...formData, fullname: text });
+                  if (fieldErrors.fullname) setError("fullname", null);
+                }}
                 editable={!isLoading}
               />
+              <FieldError field="fullname" />
             </View>
 
             {/* Email */}
@@ -309,16 +475,19 @@ export default function EditProviderProfileModal({
                 Email
               </Text>
               <TextInput
-                className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                style={{ borderWidth: 1, borderColor: fieldErrors.email ? "#EF4444" : "#D1D5DB" }}
                 placeholder="Enter email"
                 value={formData.email}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, email: text })
-                }
+                onChangeText={(text) => {
+                  setFormData({ ...formData, email: text });
+                  if (fieldErrors.email) setError("email", null);
+                }}
                 keyboardType="email-address"
                 editable={!isLoading}
                 autoCapitalize="none"
               />
+              <FieldError field="email" />
             </View>
 
             {/* Cellphone Number */}
@@ -327,15 +496,18 @@ export default function EditProviderProfileModal({
                 Cellphone Number
               </Text>
               <TextInput
-                className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
-                placeholder="Enter cellphone number"
+                className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                style={{ borderWidth: 1, borderColor: fieldErrors.cellphoneNumber ? "#EF4444" : "#D1D5DB" }}
+                placeholder="e.g. 0811234567"
                 value={formData.cellphoneNumber}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, cellphoneNumber: text })
-                }
+                onChangeText={(text) => {
+                  setFormData({ ...formData, cellphoneNumber: text });
+                  if (fieldErrors.cellphoneNumber) setError("cellphoneNumber", null);
+                }}
                 keyboardType="phone-pad"
                 editable={!isLoading}
               />
+              <FieldError field="cellphoneNumber" />
             </View>
 
             {/* Gender */}
@@ -421,6 +593,7 @@ export default function EditProviderProfileModal({
                 className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 mb-2"
               />
 
+              <FieldError field="specializations" />
               {loadingSpecializations ? (
                 <View className="py-4">
                   <ActivityIndicator size="small" color="#3B82F6" />
@@ -472,14 +645,17 @@ export default function EditProviderProfileModal({
                 HPCNA Registration Number
               </Text>
               <TextInput
-                className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                style={{ borderWidth: 1, borderColor: fieldErrors.hpcnaNumber ? "#EF4444" : "#D1D5DB" }}
                 placeholder="Enter HPCNA number"
                 value={formData.hpcnaNumber}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, hpcnaNumber: text })
-                }
+                onChangeText={(text) => {
+                  setFormData({ ...formData, hpcnaNumber: text });
+                  if (fieldErrors.hpcnaNumber) setError("hpcnaNumber", null);
+                }}
                 editable={!isLoading}
               />
+              <FieldError field="hpcnaNumber" />
             </View>
 
             {/* HPCNA Expiry Date */}
@@ -498,6 +674,7 @@ export default function EditProviderProfileModal({
               </TouchableOpacity>
               {showDatePicker && (
                 <DateTimePicker
+                  key={datePickerKey.current}
                   value={expirationDate}
                   mode="date"
                   display="default"
@@ -512,15 +689,18 @@ export default function EditProviderProfileModal({
                 Years of Experience
               </Text>
               <TextInput
-                className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
-                placeholder="Enter years"
+                className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                style={{ borderWidth: 1, borderColor: fieldErrors.yearsOfExperience ? "#EF4444" : "#D1D5DB" }}
+                placeholder="Enter years (0 – 60)"
                 value={formData.yearsOfExperience}
-                onChangeText={(text) =>
-                  setFormData({ ...formData, yearsOfExperience: text })
-                }
+                onChangeText={(text) => {
+                  setFormData({ ...formData, yearsOfExperience: text });
+                  if (fieldErrors.yearsOfExperience) setError("yearsOfExperience", null);
+                }}
                 keyboardType="number-pad"
                 editable={!isLoading}
               />
+              <FieldError field="yearsOfExperience" />
             </View>
 
             {/* Operational Zone */}
@@ -529,16 +709,19 @@ export default function EditProviderProfileModal({
                 Operational Zone
               </Text>
               <View
-                className="bg-white border border-gray-300 rounded-lg px-3"
-                style={{ height: 56, justifyContent: "center" }}
+                className="bg-white rounded-lg px-3"
+                style={{
+                  height: 56,
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: fieldErrors.operationalZone ? "#EF4444" : "#D1D5DB",
+                }}
               >
                 <RNPickerSelect
-                  onValueChange={(v) =>
-                    setFormData((p) => ({
-                      ...p,
-                      operationalZone: String(v || ""),
-                    }))
-                  }
+                  onValueChange={(v) => {
+                    setFormData((p) => ({ ...p, operationalZone: String(v || "") }));
+                    if (fieldErrors.operationalZone) setError("operationalZone", null);
+                  }}
                   value={formData.operationalZone}
                   items={namibianRegions}
                   placeholder={{ label: "Select region…", value: "" }}
@@ -552,6 +735,7 @@ export default function EditProviderProfileModal({
                   }}
                 />
               </View>
+              <FieldError field="operationalZone" />
             </View>
 
             {/* Bio */}
@@ -560,16 +744,24 @@ export default function EditProviderProfileModal({
                 Professional Bio
               </Text>
               <TextInput
-                className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                style={{
+                  height: 120,
+                  borderWidth: 1,
+                  borderColor: fieldErrors.bio ? "#EF4444" : "#D1D5DB",
+                }}
                 placeholder="Tell us about your professional experience and expertise"
                 value={formData.bio}
-                onChangeText={(text) => setFormData({ ...formData, bio: text })}
+                onChangeText={(text) => {
+                  setFormData({ ...formData, bio: text });
+                  if (fieldErrors.bio) setError("bio", null);
+                }}
                 multiline
                 numberOfLines={5}
                 editable={!isLoading}
                 textAlignVertical="top"
-                style={{ height: 120 }}
               />
+              <FieldError field="bio" />
             </View>
           </View>
 

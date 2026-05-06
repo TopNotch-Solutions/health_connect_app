@@ -201,16 +201,8 @@ export default function CreateRequestModal({
                 coordinates: markerCoord,
               });
 
-              // Reset form on success
-              setAilmentCategory("");
-              setConsultationMode("house_visit");
-              setPaymentMethod("cash");
-              setStreet("");
-              setLocality("");
-              setRegion("");
-              setMapRegion(null);
-              setMarkerCoord(null);
-              setShowMap(false);
+              // Don't reset form or close modal - let the parent handle navigation
+              // The parent will navigate to waiting room, so we just need to close the modal
               onClose();
             } catch (error: any) {
               Alert.alert("Error", error.message || "Failed to create request");

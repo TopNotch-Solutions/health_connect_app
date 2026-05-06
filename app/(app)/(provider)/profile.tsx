@@ -21,6 +21,12 @@ import EditProviderProfileModal from "../../../components/EditProviderProfileMod
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
+import {
+  hapticActionConfirm,
+  hapticNewRequest,
+  hapticRequestAccepted,
+  hapticStatusChange,
+} from "../../../lib/haptics";
 
 const ProfileMenuItem = ({
   icon,
@@ -96,8 +102,11 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchLatestUserDetails();
-    }, [fetchLatestUserDetails]),
+      // Only fetch latest user details if the modal is not open
+      if (!editProfileVisible) {
+        fetchLatestUserDetails();
+      }
+    }, [fetchLatestUserDetails, editProfileVisible]),
   );
 
   const handlePickImage = async () => {
@@ -506,6 +515,42 @@ export default function ProfileScreen() {
                 onPress={handleDeactivateAccount}
                 isDestructive
               />
+            </View>
+          </View>
+
+          {/* ── Haptic Test Panel (dev tool) ─────────────────────────────── */}
+          <View className="mb-6">
+            <View className="bg-white rounded-xl border border-gray-200 overflow-hidden p-4">
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+                <Feather name="zap" size={18} color="#6B7280" />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#6B7280", marginLeft: 8, letterSpacing: 0.5 }}>
+                  HAPTIC TEST (DEV)
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {[
+                  { label: "New Request", fn: hapticNewRequest, color: "#10B981" },
+                  { label: "Accepted", fn: hapticRequestAccepted, color: "#3B82F6" },
+                  { label: "Status Change", fn: hapticStatusChange, color: "#F59E0B" },
+                  { label: "Action Confirm", fn: hapticActionConfirm, color: "#8B5CF6" },
+                ].map(({ label, fn, color }) => (
+                  <TouchableOpacity
+                    key={label}
+                    onPress={() => fn()}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      borderWidth: 1.5,
+                      borderColor: color,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "600", color }}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </View>
 

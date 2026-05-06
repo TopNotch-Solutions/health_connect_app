@@ -26,6 +26,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../context/AuthContext";
 import { useRoute } from "../../../context/RouteContext";
 import apiClient from "../../../lib/api";
+import {
+  hapticActionConfirm,
+  hapticNewRequest,
+} from "../../../lib/haptics";
 import socketService from "../../../lib/socket";
 import { logViewMountDebug } from "../../../lib/viewErrorLogger";
 
@@ -114,11 +118,6 @@ export default function ProviderHome() {
     latitude: number;
     longitude: number;
   } | null>(null);
-  const lastRequestsRefreshByLocationRef = useRef<{
-    latitude: number;
-    longitude: number;
-    timestamp: number;
-  } | null>(null);
   const socketListenersSetupRef = useRef(false);
   const socketConnectedRef = useRef(false);
   const socketListenersCleanupRef = useRef<(() => void) | null>(null);
@@ -129,31 +128,7 @@ export default function ProviderHome() {
     handleRequestHidden?: (data: any) => void;
   }>({});
   const { startRoute } = useRoute();
-  const LOCATION_REFRESH_MIN_INTERVAL_MS = 30000;
-  const LOCATION_REFRESH_MIN_DISTANCE_METERS = 100;
-
-  const getDistanceMeters = useCallback(
-    (
-      pointA: { latitude: number; longitude: number },
-      pointB: { latitude: number; longitude: number },
-    ) => {
-      const toRad = (value: number) => (value * Math.PI) / 180;
-      const earthRadiusInMeters = 6371000;
-      const dLat = toRad(pointB.latitude - pointA.latitude);
-      const dLon = toRad(pointB.longitude - pointA.longitude);
-      const lat1 = toRad(pointA.latitude);
-      const lat2 = toRad(pointB.latitude);
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1) *
-          Math.cos(lat2) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return earthRadiusInMeters * c;
-    },
-    [],
-  );
+  const REQUESTS_REFRESH_INTERVAL_MS = 10000;
 
   useEffect(() => {
     latestProviderLocationRef.current = providerLocation;
@@ -467,10 +442,6 @@ export default function ProviderHome() {
         };
 
         setProviderLocation(initialCoords);
-        lastRequestsRefreshByLocationRef.current = {
-          ...initialCoords,
-          timestamp: Date.now(),
-        };
 
         // Force one refresh after acquiring initial coordinates for online mode.
         if (isOnline && !isLoadingRequestsRef.current) {
@@ -484,37 +455,16 @@ export default function ProviderHome() {
             timeInterval: 15000,
             distanceInterval: 50,
           },
-          async (position) => {
+          (position) => {
             if (!active || !isOnline) return;
 
             const nextCoords = {
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
             };
+            // Keep providerLocation state current for distance display on request cards.
+            // Request refreshes are handled by the 10-second interval instead.
             setProviderLocation(nextCoords);
-
-            const lastRefresh = lastRequestsRefreshByLocationRef.current;
-            if (!lastRefresh) {
-              lastRequestsRefreshByLocationRef.current = {
-                ...nextCoords,
-                timestamp: Date.now(),
-              };
-              return;
-            }
-
-            const movedMeters = getDistanceMeters(lastRefresh, nextCoords);
-            const elapsedMs = Date.now() - lastRefresh.timestamp;
-            const canRefreshByLocation =
-              movedMeters >= LOCATION_REFRESH_MIN_DISTANCE_METERS &&
-              elapsedMs >= LOCATION_REFRESH_MIN_INTERVAL_MS;
-
-            if (canRefreshByLocation && !isLoadingRequestsRef.current) {
-              lastRequestsRefreshByLocationRef.current = {
-                ...nextCoords,
-                timestamp: Date.now(),
-              };
-              await loadAvailableRequests();
-            }
           },
         );
       } catch (e) {
@@ -530,14 +480,13 @@ export default function ProviderHome() {
       startLocationTracking();
     } else {
       stopLocationWatch();
-      lastRequestsRefreshByLocationRef.current = null;
     }
 
     return () => {
       active = false;
       stopLocationWatch();
     };
-  }, [getDistanceMeters, isOnline, loadAvailableRequests]);
+  }, [isOnline, loadAvailableRequests]);
 
   // Automatically set provider offline if document verification is lost
   useEffect(() => {
@@ -605,6 +554,22 @@ export default function ProviderHome() {
     }
   }, [fetchAndUpdateUserDetails, loadMonthlyEarnings, isOnline]);
 
+  // Auto-refresh available requests every 10 seconds while the provider is online.
+  useEffect(() => {
+    if (!isOnline || !user?.userId) return;
+
+    const intervalId = setInterval(() => {
+      if (!isLoadingRequestsRef.current) {
+        console.log("⏱️ 10-second interval refresh triggered");
+        loadAvailableRequests();
+      }
+    }, REQUESTS_REFRESH_INTERVAL_MS);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isOnline, user?.userId, loadAvailableRequests]);
+
   // Listen for real-time socket events - set up once when online, clean up when offline
   useEffect(() => {
     if (!isOnline || !user?.userId) {
@@ -666,6 +631,8 @@ export default function ProviderHome() {
             console.log("⚠️ Request already exists, skipping duplicate");
             return prev;
           }
+          // Vibrate to alert the provider of a new incoming request
+          hapticNewRequest();
           return [request, ...prev];
         });
       };
@@ -800,12 +767,33 @@ export default function ProviderHome() {
     const currentUserId = user.userId; // Store userId to avoid issues if user becomes null
 
     try {
-      // 1) Accept on backend (assign provider)
+      // 1) Get provider location first (required for en_route status)
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location Required",
+          "Location permission is required to accept house visit requests.",
+        );
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const providerCoords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+
+      // 2) Accept on backend (assign provider)
       await socketService.acceptRequest(
         request._id,
         currentUserId,
-        latestProviderLocationRef.current,
+        providerCoords,
       );
+
+      // Confirm acceptance with a light haptic tap
+      hapticActionConfirm();
 
       if (request.consultationMode === "video_consultation") {
         setSelectedRequest(null);
@@ -817,49 +805,18 @@ export default function ProviderHome() {
         return;
       }
 
-      // 2) Open global route modal immediately for fast UX
+      // 3) Update status to en_route with provider location (synchronous)
+      await socketService.updateRequestStatus(
+        request._id,
+        currentUserId,
+        "en_route",
+        providerCoords,
+      );
+      console.log("✅ Status updated to en_route with provider coordinates");
+
+      // 4) Open global route modal immediately for fast UX
       startRoute(request);
       setSelectedRequest(null);
-
-      // 3) In background, request location and send en_route with coords (backend requires location)
-      (async () => {
-        try {
-          // Re-check user in case it changed
-          if (!user || !user.userId) {
-            console.warn("User not available in background task");
-            return;
-          }
-
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== "granted") {
-            console.warn(
-              "Location permission not granted; cannot send en_route with coordinates",
-            );
-            return;
-          }
-
-          const loc = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
-          const providerCoords = {
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          };
-
-          await socketService.updateRequestStatus(
-            request._id,
-            currentUserId,
-            "en_route",
-            providerCoords,
-          );
-          console.log("✅ Sent en_route with provider coordinates");
-        } catch (bgError: any) {
-          console.warn(
-            "Failed to send en_route with coords:",
-            bgError?.message || bgError,
-          );
-        }
-      })();
 
       // 4) Remove request locally from home list (real-time update)
       setRequests((prev) => prev.filter((req) => req._id !== request._id));
