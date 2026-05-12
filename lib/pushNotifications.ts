@@ -4,13 +4,12 @@
  * Handles:
  *  - Requesting OS permission (iOS requires explicit ask; Android 13+ too)
  *  - Creating the Android notification channel
- *  - Obtaining the Expo push token
+ *  - Obtaining the Firebase/FCM device token
  *  - Registering / clearing the token with the backend
  *  - Setting up foreground notification behaviour
  *
  * The backend endpoint expected:
- *   POST /app/notification/register-push-token   { token, platform }
- *   DELETE /app/notification/register-push-token { token }
+ *   PATCH /app/auth/update-push-token   { pushToken }
  */
 
 import * as Device from "expo-device";
@@ -18,9 +17,6 @@ import { Platform } from "react-native";
 import apiClient from "./api";
 
 type NotificationsModule = typeof import("expo-notifications");
-
-// ─── Project ID from app.json / eas.json ────────────────────────────────────
-const EXPO_PROJECT_ID = "dbc55ad6-fc57-47ee-89c3-2a849f7553fa";
 
 // ─── Android channel ────────────────────────────────────────────────────────
 export const NOTIFICATION_CHANNEL_ID = "healthconnect-default";
@@ -108,12 +104,17 @@ export async function addNotificationListeners(handlers: {
 
 // ─── Permission + token ──────────────────────────────────────────────────────
 /**
- * Requests notification permission from the OS and returns the Expo push
+ * Requests notification permission from the OS and returns the Firebase/FCM
  * token string, or null if permission was denied or the device is a simulator.
  */
 export async function registerForPushNotifications(): Promise<string | null> {
   const Notifications = await getNotificationsModule();
   if (!Notifications) {
+    return null;
+  }
+
+  if (Platform.OS !== "android") {
+    console.warn("⚠️ Firebase push notifications are currently configured for Android only.");
     return null;
   }
 
@@ -140,12 +141,11 @@ export async function registerForPushNotifications(): Promise<string | null> {
     return null;
   }
 
-  // Get the Expo push token (works with EAS builds and the Expo push service)
+  // Get the native device token. On Android this is the FCM token that
+  // Firebase Admin can target directly from the backend.
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: EXPO_PROJECT_ID,
-    });
-    console.log("✅ Expo push token obtained:", tokenData.data);
+    const tokenData = await Notifications.getDevicePushTokenAsync();
+    console.log("✅ Device push token obtained:", tokenData.data);
     return tokenData.data;
   } catch (error) {
     console.error("❌ Failed to get push token:", error);
@@ -174,11 +174,11 @@ export async function savePushTokenToBackend(token: string): Promise<void> {
 }
 
 /**
- * The backend clears expoPushToken automatically when the user logs out
+ * The backend clears pushToken automatically when the user logs out
  * via PATCH /app/auth/logout — no separate call needed.
  * This function is kept as a no-op so call sites don't need to change.
  */
 export async function removePushTokenFromBackend(_token: string): Promise<void> {
-  // Token is cleared server-side by the logout endpoint (expoPushToken = null)
+  // Token is cleared server-side by the logout endpoint.
   console.log("ℹ️ Push token will be cleared by backend logout handler");
 }

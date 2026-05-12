@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import PatientProviderTracking from "../../../components/(patient)/PatientProviderTracking";
+import PrescriptionUploadModal, {
+  PrescriptionData,
+} from "../../../components/(patient)/PrescriptionUploadModal";
 import ProviderMap from "../../../components/(patient)/ProviderMap";
 import { useAuth } from "../../../context/AuthContext";
 import {
@@ -22,10 +25,13 @@ import {
   hapticStatusChange,
 } from "../../../lib/haptics";
 import socketService from "../../../lib/socket";
+import apiClient from "../../../lib/api";
 
 interface RequestStatus {
   _id: string;
   consultationMode?: "house_visit" | "video_consultation";
+  // Provider type (e.g. "Pharmacist") — from populated ailmentCategoryId
+  providerType?: string;
   status:
     | "searching"
     | "pending"
@@ -182,12 +188,16 @@ const RequestCard = ({
   onConfirmPayment,
   patientLocation,
   patientProfileImage,
+  prescriptions,
+  onPrescriptionUploaded,
 }: {
   item: StoredRequest;
   onCancel?: (requestId: string) => void;
   onConfirmPayment?: (requestId: string) => Promise<void>;
   patientLocation?: { latitude: number; longitude: number } | null;
   patientProfileImage?: string;
+  prescriptions: Record<string, PrescriptionData>;
+  onPrescriptionUploaded: (requestId: string, prescription: PrescriptionData) => void;
 }) => {
   const request = item.request;
   const acceptedAt = item.acceptedAt;
@@ -200,7 +210,28 @@ const RequestCard = ({
   const [isCancelling, setIsCancelling] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [trackingModalVisible, setTrackingModalVisible] = useState(false);
+  const [prescriptionModalVisible, setPrescriptionModalVisible] = useState(false);
   const router = useRouter();
+
+  // Is this a pharmacy request?
+  const isPharmacyRequest =
+    (typeof request.ailmentCategoryId === "object" &&
+      (request.ailmentCategoryId as any)?.provider === "Pharmacist") ||
+    request.providerType === "Pharmacist";
+
+  // Show prescription upload when the ailment has requiresPrescription: true
+  // OR when the ailment title contains "prescription" (covers the seeded
+  // "Prescription Delivery" category that predates the requiresPrescription flag)
+  const requiresPrescription =
+    typeof request.ailmentCategoryId === "object" &&
+    (
+      !!(request.ailmentCategoryId as any)?.requiresPrescription ||
+      /prescription/i.test((request.ailmentCategoryId as any)?.title ?? "")
+    );
+
+  const showPrescriptionSection = isPharmacyRequest && requiresPrescription;
+
+  const prescription = prescriptions[request._id] ?? null;
 
   const getConsultationModeMeta = (
     mode?: "house_visit" | "video_consultation",
@@ -559,6 +590,93 @@ const RequestCard = ({
           </TouchableOpacity>
         )}
 
+      {/* ── Prescription section (pharmacy + requiresPrescription ailments only) ── */}
+      {showPrescriptionSection && (
+        <View style={styles.prescriptionSection}>
+          {/* Status row */}
+          {prescription ? (
+            <View style={styles.prescriptionStatusRow}>
+              <Feather
+                name={
+                  prescription.status === "accepted"
+                    ? "check-circle"
+                    : prescription.status === "rejected"
+                    ? "alert-triangle"
+                    : "clock"
+                }
+                size={14}
+                color={
+                  prescription.status === "accepted"
+                    ? "#16A34A"
+                    : prescription.status === "rejected"
+                    ? "#B45309"
+                    : "#92400E"
+                }
+              />
+              <Text
+                style={[
+                  styles.prescriptionStatusText,
+                  {
+                    color:
+                      prescription.status === "accepted"
+                        ? "#16A34A"
+                        : prescription.status === "rejected"
+                        ? "#B45309"
+                        : "#92400E",
+                  },
+                ]}
+              >
+                Prescription:{" "}
+                {prescription.status === "accepted"
+                  ? "Accepted — delivery in progress"
+                  : prescription.status === "rejected"
+                  ? "Rejected — please re-upload"
+                  : "Awaiting pharmacist review"}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.prescriptionStatusRow}>
+              <Feather name="upload" size={14} color="#B45309" />
+              <Text style={[styles.prescriptionStatusText, { color: "#B45309" }]}>
+                Prescription required — please upload
+              </Text>
+            </View>
+          )}
+
+          {/* Upload / Edit button — hidden once accepted */}
+          {prescription?.status !== "accepted" && (
+            <TouchableOpacity
+              style={styles.prescriptionBtn}
+              onPress={() => setPrescriptionModalVisible(true)}
+            >
+              <Feather
+                name={prescription?.prescriptionImage ? "edit-2" : "upload"}
+                size={15}
+                color="#FFFFFF"
+              />
+              <Text style={styles.prescriptionBtnText}>
+                {prescription?.prescriptionImage
+                  ? "Edit Prescription"
+                  : "Upload Prescription"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {isPharmacyRequest && (
+        <PrescriptionUploadModal
+          visible={prescriptionModalVisible}
+          onClose={() => setPrescriptionModalVisible(false)}
+          requestId={request._id}
+          prescription={prescription}
+          onUploaded={(p) => {
+            onPrescriptionUploaded(request._id, p);
+            setPrescriptionModalVisible(false);
+          }}
+        />
+      )}
+
       {/* Cancel button for active requests */}
       {[
         "searching",
@@ -600,16 +718,97 @@ export default function WaitingRoom() {
     latitude: number;
     longitude: number;
   } | null>(null);
-  // Track provider locations keyed by requestId (populated after provider accepts and via realtime updates)
+  // Track provider locations keyed by requestId
   const [providerLocations, setProviderLocations] = useState<
     Record<string, { latitude: number; longitude: number }>
   >({});
+  // Prescriptions keyed by requestId
+  const [prescriptions, setPrescriptions] = useState<Record<string, PrescriptionData>>({});
 
   const handleRequestCancelled = useCallback((requestId: string) => {
     setRequests((prev) =>
       prev.filter((item) => item.request._id !== requestId),
     );
   }, []);
+
+  const handlePrescriptionUploaded = useCallback(
+    (requestId: string, prescription: PrescriptionData) => {
+      setPrescriptions((prev) => ({ ...prev, [requestId]: prescription }));
+    },
+    [],
+  );
+
+  // Fetch prescriptions for pharmacy-type requests
+  const loadPrescriptions = useCallback(
+    async (activeRequests: StoredRequest[]) => {
+      const pharmacyRequests = activeRequests.filter((item) => {
+        const cat = item.request.ailmentCategoryId;
+        return (
+          (typeof cat === "object" && (cat as any)?.provider === "Pharmacist") ||
+          item.request.providerType === "Pharmacist"
+        );
+      });
+      if (!pharmacyRequests.length) return;
+
+      const results: Record<string, PrescriptionData> = {};
+      await Promise.all(
+        pharmacyRequests.map(async (item) => {
+          try {
+            const res = await apiClient.get(
+              `/app/prescription/by-request/${item.request._id}`,
+            );
+            if (res.data.prescription) {
+              results[item.request._id] = res.data.prescription;
+            }
+          } catch {
+            // 404 = no prescription yet — that's fine
+          }
+        }),
+      );
+      if (Object.keys(results).length) {
+        setPrescriptions((prev) => ({ ...prev, ...results }));
+      }
+    },
+    [],
+  );
+
+  // Keep a ref to the current requests list so the polling interval
+  // can call loadPrescriptions without closing over a stale value.
+  const requestsRef = useRef<StoredRequest[]>([]);
+  useEffect(() => {
+    requestsRef.current = requests;
+  }, [requests]);
+
+  // Poll every 8 seconds while any pharmacy prescription is still pending_review.
+  // This ensures the patient sees the acceptance/rejection immediately without
+  // having to navigate away and back.
+  const prescriptionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const hasPendingPrescription = Object.values(prescriptions).some(
+      (p) => p.status === "pending_review",
+    );
+
+    if (hasPendingPrescription) {
+      if (!prescriptionPollRef.current) {
+        prescriptionPollRef.current = setInterval(() => {
+          loadPrescriptions(requestsRef.current);
+        }, 8000);
+      }
+    } else {
+      if (prescriptionPollRef.current) {
+        clearInterval(prescriptionPollRef.current);
+        prescriptionPollRef.current = null;
+      }
+    }
+
+    return () => {
+      if (prescriptionPollRef.current) {
+        clearInterval(prescriptionPollRef.current);
+        prescriptionPollRef.current = null;
+      }
+    };
+  }, [prescriptions, loadPrescriptions]);
 
   const handleConfirmPayment = useCallback(
     async (requestId: string) => {
@@ -728,6 +927,9 @@ export default function WaitingRoom() {
             const merged = Array.from(mergedRequests.values());
             setRequests(merged);
 
+            // Load prescriptions for any pharmacy-type requests
+            loadPrescriptions(merged);
+
             // For any already-accepted requests, try to fetch initial provider location
             merged.forEach((item) => {
               try {
@@ -795,7 +997,28 @@ export default function WaitingRoom() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user?.userId]);
+  }, [user?.userId, loadPrescriptions]);
+
+  useEffect(() => {
+    if (!user?.userId) return;
+
+    const socket = socketService.connect(user.userId, "patient");
+
+    if (socket.connected) {
+      socketService.join(user.userId, "patient");
+    }
+
+    const handleConnect = () => {
+      socketService.join(user.userId, "patient");
+      loadRequests();
+    };
+
+    socket.on("connect", handleConnect);
+
+    return () => {
+      socket.off("connect", handleConnect);
+    };
+  }, [loadRequests, user?.userId]);
 
   // Initial load on mount
   useEffect(() => {
@@ -827,13 +1050,17 @@ export default function WaitingRoom() {
     };
 
     const handleRequestUpdated = async (updatedRequest: RequestStatus) => {
+      // Fire haptic OUTSIDE setState — updater functions can be re-run by React
+      const existing = requestsRef.current.find(
+        (item) => item.request._id === updatedRequest._id,
+      );
+      if (existing && existing.request.status !== updatedRequest.status) {
+        hapticForStatus(updatedRequest.status);
+      }
+
       setRequests((prev) => {
         const updated = prev.map((item) => {
           if (item.request._id === updatedRequest._id) {
-            // Fire haptic when the status meaningfully changes
-            if (item.request.status !== updatedRequest.status) {
-              hapticForStatus(updatedRequest.status);
-            }
             // Preserve acceptedAt timestamp if transitioning to accepted
             const acceptedAt =
               ["accepted", "payment_pending"].includes(updatedRequest.status) &&
@@ -920,13 +1147,18 @@ export default function WaitingRoom() {
       status: any;
     }) => {
       console.log("🔔 Request status changed:", data);
+
+      // Fire haptic OUTSIDE setState — updater functions can be re-run by React
+      const existing = requestsRef.current.find(
+        (item) => item.request._id === data.requestId,
+      );
+      if (existing && existing.request.status !== data.status) {
+        hapticForStatus(data.status);
+      }
+
       setRequests((prev) => {
         return prev.map((item) => {
           if (item.request._id === data.requestId) {
-            // Fire haptic when the status meaningfully changes
-            if (item.request.status !== data.status) {
-              hapticForStatus(data.status);
-            }
             // Update status locally
             const updatedRequest = { ...item.request, status: data.status };
 
@@ -946,9 +1178,21 @@ export default function WaitingRoom() {
       // If status changed to something that might have new data (like accepted -> provider assigned),
       // we should probably reload the full request to get provider details if we don't have them.
       if (
-        ["accepted", "payment_pending", "paid", "ready_for_call", "en_route"].includes(
-          data.status,
-        )
+        [
+          "accepted",
+          "payment_pending",
+          "paid",
+          "provider_confirmation_pending",
+          "ready_for_call",
+          "in_call",
+          "en_route",
+          "arrived",
+          "in_progress",
+          "completed",
+          "cancelled",
+          "expired",
+          "rejected",
+        ].includes(data.status)
       ) {
         loadRequests();
       }
@@ -1098,6 +1342,8 @@ export default function WaitingRoom() {
             onConfirmPayment={handleConfirmPayment}
             patientLocation={patientLocation}
             patientProfileImage={user?.profileImage}
+            prescriptions={prescriptions}
+            onPrescriptionUploaded={handlePrescriptionUploaded}
           />
         )}
         contentContainerStyle={styles.listContent}
@@ -1420,5 +1666,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#4B5563",
     marginTop: 8,
+  },
+  prescriptionSection: {
+    backgroundColor: "#F0FDF4",
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    gap: 8,
+  },
+  prescriptionStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  prescriptionStatusText: {
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+  },
+  prescriptionBtn: {
+    backgroundColor: "#10B981",
+    borderRadius: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  prescriptionBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });

@@ -109,6 +109,16 @@ export default function EditProviderProfileModal({
     governingCouncil:
       user?.governingCouncil || "Health Professionals Council of Namibia",
     bio: user?.bio || "",
+    // ── Pharmacist-specific ────────────────────────────────────────────────
+    registeredTradingName: (user as any)?.registeredTradingName || "",
+    companyRegistrationNo: (user as any)?.companyRegistrationNo || "",
+    businessEmail: (user as any)?.businessEmail || "",
+    pharmacyCouncilNo: (user as any)?.pharmacyCouncilNo || "",
+    practiceNumber: (user as any)?.practiceNumber || "",
+    gpsLongitude: (user as any)?.gpsCoordinates?.longitude?.toString() || "",
+    gpsLatitude: (user as any)?.gpsCoordinates?.latitude?.toString() || "",
+    settlementCellNumber: (user as any)?.settlementCellNumber || "",
+    hpcnaLicenseExpiryAcknowledged: (user as any)?.hpcnaLicenseExpiryAcknowledged || false,
   });
 
   const [expirationDate, setExpirationDate] = useState<Date>(() => {
@@ -389,6 +399,21 @@ export default function EditProviderProfileModal({
         governingCouncil: formData.governingCouncil,
         bio: formData.bio,
       });
+
+      // Also save pharmacist-specific fields if the user is a pharmacist
+      if (user?.role === "pharmacist") {
+        await apiClient.put("/app/auth/update-pharmacy-profile", {
+          registeredTradingName: formData.registeredTradingName,
+          companyRegistrationNo: formData.companyRegistrationNo,
+          businessEmail: formData.businessEmail,
+          pharmacyCouncilNo: formData.pharmacyCouncilNo,
+          practiceNumber: formData.practiceNumber,
+          gpsLongitude: formData.gpsLongitude || undefined,
+          gpsLatitude: formData.gpsLatitude || undefined,
+          settlementCellNumber: formData.settlementCellNumber,
+          hpcnaLicenseExpiryAcknowledged: formData.hpcnaLicenseExpiryAcknowledged,
+        });
+      }
 
       await updateUser({
         fullname: formData.fullname,
@@ -764,6 +789,193 @@ export default function EditProviderProfileModal({
               <FieldError field="bio" />
             </View>
           </View>
+
+          {/* ── Pharmacy Details (pharmacist only) ────────────────────────── */}
+          {user?.role === "pharmacist" && (
+            <View className="mb-4">
+              {/* Section header */}
+              <View
+                style={{
+                  backgroundColor: "#10B981",
+                  borderRadius: 10,
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  marginBottom: 14,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Feather name="package" size={16} color="#FFFFFF" />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFFFFF" }}>
+                  Pharmacy Details
+                </Text>
+              </View>
+
+              {/* Registered Trading Name */}
+              <View className="mb-4">
+                <Text className="text-sm font-semibold text-gray-700 mb-2">
+                  Registered Trading Name
+                </Text>
+                <TextInput
+                  className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  placeholder="Name on storefront / BIPA documents"
+                  value={formData.registeredTradingName}
+                  onChangeText={(t) => setFormData({ ...formData, registeredTradingName: t })}
+                  editable={!isLoading}
+                />
+              </View>
+
+              {/* Company Registration No */}
+              <View className="mb-4">
+                <Text className="text-sm font-semibold text-gray-700 mb-2">
+                  Company Registration No. (BIPA)
+                </Text>
+                <TextInput
+                  className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  placeholder="e.g. CC/20XX/XXXX"
+                  value={formData.companyRegistrationNo}
+                  onChangeText={(t) => setFormData({ ...formData, companyRegistrationNo: t })}
+                  editable={!isLoading}
+                />
+              </View>
+
+              {/* Business Email */}
+              <View className="mb-4">
+                <Text className="text-sm font-semibold text-gray-700 mb-2">
+                  Business Email
+                </Text>
+                <TextInput
+                  className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  placeholder="Official contact for orders and notifications"
+                  value={formData.businessEmail}
+                  onChangeText={(t) => setFormData({ ...formData, businessEmail: t })}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                />
+              </View>
+
+              {/* Pharmacy Council No */}
+              <View className="mb-4">
+                <Text className="text-sm font-semibold text-gray-700 mb-2">
+                  Pharmacy Council No.
+                </Text>
+                <TextInput
+                  className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  placeholder="Premises registration with Pharmacy Council"
+                  value={formData.pharmacyCouncilNo}
+                  onChangeText={(t) => setFormData({ ...formData, pharmacyCouncilNo: t })}
+                  editable={!isLoading}
+                />
+              </View>
+
+              {/* Practice Number */}
+              <View className="mb-4">
+                <Text className="text-sm font-semibold text-gray-700 mb-2">
+                  Practice Number
+                </Text>
+                <TextInput
+                  className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  placeholder="Required for medical aid & billing"
+                  value={formData.practiceNumber}
+                  onChangeText={(t) => setFormData({ ...formData, practiceNumber: t })}
+                  editable={!isLoading}
+                />
+              </View>
+
+              {/* GPS Coordinates */}
+              <View className="mb-4">
+                <Text className="text-sm font-semibold text-gray-700 mb-2">
+                  GPS Coordinates (for dispatch)
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <TextInput
+                    className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                    style={{ flex: 1, borderWidth: 1, borderColor: "#D1D5DB" }}
+                    placeholder="Longitude"
+                    value={formData.gpsLongitude}
+                    onChangeText={(t) => setFormData({ ...formData, gpsLongitude: t })}
+                    keyboardType="numeric"
+                    editable={!isLoading}
+                  />
+                  <TextInput
+                    className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                    style={{ flex: 1, borderWidth: 1, borderColor: "#D1D5DB" }}
+                    placeholder="Latitude"
+                    value={formData.gpsLatitude}
+                    onChangeText={(t) => setFormData({ ...formData, gpsLatitude: t })}
+                    keyboardType="numeric"
+                    editable={!isLoading}
+                  />
+                </View>
+              </View>
+
+              {/* Settlement Cell Number */}
+              <View className="mb-4">
+                <Text className="text-sm font-semibold text-gray-700 mb-2">
+                  Settlement Cell Number
+                </Text>
+                <TextInput
+                  className="bg-white rounded-lg px-4 py-3 text-gray-900"
+                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  placeholder="For prepaid software credit payouts"
+                  value={formData.settlementCellNumber}
+                  onChangeText={(t) => setFormData({ ...formData, settlementCellNumber: t })}
+                  keyboardType="phone-pad"
+                  editable={!isLoading}
+                />
+              </View>
+
+              {/* HPCNA License Expiry Acknowledgement */}
+              <TouchableOpacity
+                onPress={() =>
+                  setFormData({
+                    ...formData,
+                    hpcnaLicenseExpiryAcknowledged: !formData.hpcnaLicenseExpiryAcknowledged,
+                  })
+                }
+                style={{
+                  flexDirection: "row",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  backgroundColor: formData.hpcnaLicenseExpiryAcknowledged ? "#ECFDF5" : "#F9FAFB",
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: formData.hpcnaLicenseExpiryAcknowledged ? "#BBF7D0" : "#D1D5DB",
+                  padding: 12,
+                  marginBottom: 4,
+                }}
+                disabled={isLoading}
+              >
+                <View
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 4,
+                    borderWidth: 2,
+                    borderColor: formData.hpcnaLicenseExpiryAcknowledged ? "#10B981" : "#9CA3AF",
+                    backgroundColor: formData.hpcnaLicenseExpiryAcknowledged ? "#10B981" : "#FFFFFF",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginTop: 1,
+                  }}
+                >
+                  {formData.hpcnaLicenseExpiryAcknowledged && (
+                    <Feather name="check" size={13} color="#FFFFFF" />
+                  )}
+                </View>
+                <Text style={{ fontSize: 13, color: "#374151", flex: 1, lineHeight: 18 }}>
+                  I acknowledge my liability under HPCNA and confirm that my premises registration certificate is valid and up to date.
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Save Button */}
           <TouchableOpacity

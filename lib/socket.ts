@@ -44,8 +44,6 @@ class SocketService {
 
     this.socket.on("disconnect", (reason) => {
       console.log("❌ Socket disconnected:", reason);
-      // FIX #5: Clean up all registered listeners on disconnect
-      this.setupDisconnectHandler();
     });
 
     this.socket.on("connect_error", (error) => {

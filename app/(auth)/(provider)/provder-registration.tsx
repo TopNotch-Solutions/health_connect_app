@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -24,7 +25,7 @@ import apiClient from "../../../lib/api";
 // --- Type Definitions ---
 type PickedImage = ImagePicker.ImagePickerAsset | null;
 type DocFile = DocumentPicker.DocumentPickerAsset | null;
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 interface Specialization {
   _id: string;
@@ -250,9 +251,13 @@ export default function ProviderRegistrationScreen() {
   const params = useLocalSearchParams();
   const providerType = String(params?.providerType ?? "").toLowerCase();
   const isPharmacist = providerType === "pharmacist";
+  const totalSteps = isPharmacist ? 5 : 4;
+  const reviewStep = totalSteps;
   const [step, setStep] = useState<Step>(1);
   const [isLoading, setIsLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isDetectingPharmacyLocation, setIsDetectingPharmacyLocation] =
+    useState(false);
   const [expirationDate, setExpirationDate] = useState<Date>(new Date());
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -308,6 +313,19 @@ export default function ProviderRegistrationScreen() {
     address: "",
   });
 
+  const [pharmacyDetails, setPharmacyDetails] = useState({
+    registeredTradingName: "",
+    companyRegistrationNo: "",
+    businessEmail: "",
+    pharmacyCouncilNo: "",
+    practiceNumber: "",
+    gpsLatitude: "",
+    gpsLongitude: "",
+    gpsAddress: "",
+    settlementCellNumber: "",
+    hpcnaLicenseExpiryAcknowledged: false,
+  });
+
   const [docErrors, setDocErrors] = useState<{
     profileImage?: string;
     finalQualification?: string;
@@ -335,6 +353,14 @@ export default function ProviderRegistrationScreen() {
     operationalZone?: string;
     bio?: string;
     address?: string;
+  }>({});
+
+  const [pharmacyErrors, setPharmacyErrors] = useState<{
+    registeredTradingName?: string;
+    businessEmail?: string;
+    pharmacyCouncilNo?: string;
+    practiceNumber?: string;
+    hpcnaLicenseExpiryAcknowledged?: string;
   }>({});
 
   // Pre-fill phone number from previous screen
@@ -541,6 +567,57 @@ export default function ProviderRegistrationScreen() {
     }
   };
 
+  const setPharmacyDetail = (
+    key: keyof typeof pharmacyDetails,
+    value: string | boolean,
+  ) => {
+    setPharmacyDetails((prev) => ({ ...prev, [key]: value }));
+    setPharmacyErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
+
+  const detectPharmacyLocation = async () => {
+    try {
+      setIsDetectingPharmacyLocation(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Location permission is required to detect your pharmacy location.",
+        );
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const { latitude, longitude } = loc.coords;
+      let gpsAddress = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+
+      try {
+        const [geo] = await Location.reverseGeocodeAsync({
+          latitude,
+          longitude,
+        });
+        gpsAddress = [geo?.name, geo?.street, geo?.city, geo?.region]
+          .filter(Boolean)
+          .join(", ") || gpsAddress;
+      } catch {
+        // Coordinates are enough for dispatch even if reverse-geocoding fails.
+      }
+
+      setPharmacyDetails((prev) => ({
+        ...prev,
+        gpsLatitude: latitude.toFixed(6),
+        gpsLongitude: longitude.toFixed(6),
+        gpsAddress,
+      }));
+    } catch (error) {
+      Alert.alert("Location Error", "Could not detect your location.");
+    } finally {
+      setIsDetectingPharmacyLocation(false);
+    }
+  };
+
   // --- Navigation Logic ---
   const handleNext = () => {
     // Step 1: basic account info + strong password rules + ID documents
@@ -689,18 +766,59 @@ export default function ProviderRegistrationScreen() {
       if (Object.keys(newProfErrors).length > 0) {
         return;
       }
+    } else if (isPharmacist && step === 4) {
+      const newPharmacyErrors: {
+        registeredTradingName?: string;
+        businessEmail?: string;
+        pharmacyCouncilNo?: string;
+        practiceNumber?: string;
+        hpcnaLicenseExpiryAcknowledged?: string;
+      } = {};
+
+      if (!pharmacyDetails.registeredTradingName.trim()) {
+        newPharmacyErrors.registeredTradingName =
+          "Registered trading name is required.";
+      }
+      if (
+        pharmacyDetails.businessEmail.trim() &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+          pharmacyDetails.businessEmail.trim(),
+        )
+      ) {
+        newPharmacyErrors.businessEmail =
+          "Please enter a valid business email address.";
+      }
+      if (!pharmacyDetails.pharmacyCouncilNo.trim()) {
+        newPharmacyErrors.pharmacyCouncilNo =
+          "Pharmacy Council number is required.";
+      }
+      if (!pharmacyDetails.practiceNumber.trim()) {
+        newPharmacyErrors.practiceNumber = "Practice number is required.";
+      }
+      if (!pharmacyDetails.hpcnaLicenseExpiryAcknowledged) {
+        newPharmacyErrors.hpcnaLicenseExpiryAcknowledged =
+          "You must acknowledge pharmacy liability and certificate validity.";
+      }
+
+      setPharmacyErrors(newPharmacyErrors);
+
+      if (Object.keys(newPharmacyErrors).length > 0) {
+        return;
+      }
     } else {
       // Clear errors when leaving validation steps
       if (Object.keys(docErrors).length) setDocErrors({});
       if (Object.keys(profErrors).length) setProfErrors({});
+      if (Object.keys(pharmacyErrors).length) setPharmacyErrors({});
     }
 
-    setStep((prev) => Math.min(prev + 1, 4) as Step);
+    setStep((prev) => Math.min(prev + 1, totalSteps) as Step);
   };
   const handleBack = () => {
     setAccountErrors({});
     setDocErrors({});
     setProfErrors({});
+    setPharmacyErrors({});
     setStep((prev) => Math.max(prev - 1, 1) as Step);
   };
 
@@ -741,6 +859,23 @@ export default function ProviderRegistrationScreen() {
       ["operationalZone", professionalDetails.operationalZone || ""],
       ["specializations", professionalDetails.specializations.join(", ")],
     ];
+
+    if (isPharmacist) {
+      pairs.push(
+        ["registeredTradingName", pharmacyDetails.registeredTradingName],
+        ["companyRegistrationNo", pharmacyDetails.companyRegistrationNo],
+        ["businessEmail", pharmacyDetails.businessEmail],
+        ["pharmacyCouncilNo", pharmacyDetails.pharmacyCouncilNo],
+        ["practiceNumber", pharmacyDetails.practiceNumber],
+        ["gpsLatitude", pharmacyDetails.gpsLatitude],
+        ["gpsLongitude", pharmacyDetails.gpsLongitude],
+        ["settlementCellNumber", pharmacyDetails.settlementCellNumber],
+        [
+          "hpcnaLicenseExpiryAcknowledged",
+          pharmacyDetails.hpcnaLicenseExpiryAcknowledged ? "true" : "false",
+        ],
+      );
+    }
 
     pairs.forEach(([k, v]) => {
       if (v) {
@@ -851,6 +986,14 @@ export default function ProviderRegistrationScreen() {
       if (!documents.HPCNAQualification) missing.push("HPCNA Certificate");
       if (qualificationOrigin === "foreign" && !documents.NQAEvaluation)
         missing.push("NQA Evaluation");
+      if (!pharmacyDetails.registeredTradingName.trim())
+        missing.push("Registered Trading Name");
+      if (!pharmacyDetails.pharmacyCouncilNo.trim())
+        missing.push("Pharmacy Council No.");
+      if (!pharmacyDetails.practiceNumber.trim())
+        missing.push("Practice Number");
+      if (!pharmacyDetails.hpcnaLicenseExpiryAcknowledged)
+        missing.push("HPCNA liability acknowledgement");
     } else {
       if (!documents.finalQualification) missing.push("Final Qualification");
       if (!documents.HPCNAQualification)
@@ -921,16 +1064,16 @@ export default function ProviderRegistrationScreen() {
   return (
     <>
       <SafeAreaView className="flex-1">
-        <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 180 }}>
           <View className="p-6">
             {/* Progress Bar */}
             <View className="flex-row items-center mb-8">
               <Text className="text-base font-semibold text-text-main mr-4">
-                Step {step} of 4
+                Step {step} of {totalSteps}
               </Text>
               <View className="flex-1 h-2 bg-gray-200 rounded-full">
                 <View
-                  style={{ width: `${(step / 4) * 100}%` }}
+                  style={{ width: `${(step / totalSteps) * 100}%` }}
                   className="h-2 bg-primary rounded-full "
                 />
               </View>
@@ -938,12 +1081,7 @@ export default function ProviderRegistrationScreen() {
 
             {/* Step 1: Account Information */}
             {step === 1 && (
-              <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: 150 }}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
+              <View>
                 <Text className="text-2xl font-bold text-text-main mb-6">
                   Account Information
                 </Text>
@@ -1297,7 +1435,7 @@ export default function ProviderRegistrationScreen() {
                   </Text>
                 )}
                 {!accountErrors.terms && <View className="mb-3" />}
-              </ScrollView>
+              </View>
             )}
 
             {/* Step 2: Documents & Qualifications */}
@@ -1753,8 +1891,214 @@ export default function ProviderRegistrationScreen() {
               </ScrollView>
             )}
 
-            {/* Step 4: Review & Submit */}
-            {step === 4 && (
+            {/* Step 4: Pharmacy Details */}
+            {isPharmacist && step === 4 && (
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 150 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <Text className="text-2xl font-bold text-text-main mb-2">
+                  Pharmacy Details
+                </Text>
+                <Text className="text-base text-gray-500 mb-6">
+                  Complete the pharmacy-specific details required for pharmacist
+                  registration.
+                </Text>
+
+                <Text className="text-base text-text-main mb-2 font-semibold">
+                  Registered Trading Name
+                </Text>
+                <TextInput
+                  value={pharmacyDetails.registeredTradingName}
+                  onChangeText={(t) =>
+                    setPharmacyDetail("registeredTradingName", t)
+                  }
+                  placeholder="Name on storefront or BIPA documents"
+                  className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                    pharmacyErrors.registeredTradingName
+                      ? "border-red-400"
+                      : "border-gray-300"
+                  }`}
+                />
+                {pharmacyErrors.registeredTradingName && (
+                  <Text className="text-red-500 text-sm mb-3">
+                    {pharmacyErrors.registeredTradingName}
+                  </Text>
+                )}
+                {!pharmacyErrors.registeredTradingName && (
+                  <View className="mb-3" />
+                )}
+
+                <Text className="text-base text-text-main mb-2 font-semibold">
+                  Company Registration No. / BIPA
+                </Text>
+                <TextInput
+                  value={pharmacyDetails.companyRegistrationNo}
+                  onChangeText={(t) =>
+                    setPharmacyDetail("companyRegistrationNo", t)
+                  }
+                  placeholder="e.g. CC/20XX/XXXX"
+                  autoCapitalize="characters"
+                  className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-300"
+                />
+
+                <Text className="text-base text-text-main mb-2 font-semibold">
+                  Business Email
+                </Text>
+                <TextInput
+                  value={pharmacyDetails.businessEmail}
+                  onChangeText={(t) => setPharmacyDetail("businessEmail", t)}
+                  placeholder="Official pharmacy email"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                    pharmacyErrors.businessEmail
+                      ? "border-red-400"
+                      : "border-gray-300"
+                  }`}
+                />
+                {pharmacyErrors.businessEmail && (
+                  <Text className="text-red-500 text-sm mb-3">
+                    {pharmacyErrors.businessEmail}
+                  </Text>
+                )}
+                {!pharmacyErrors.businessEmail && <View className="mb-3" />}
+
+                <Text className="text-base text-text-main mb-2 font-semibold">
+                  Pharmacy Council No.
+                </Text>
+                <TextInput
+                  value={pharmacyDetails.pharmacyCouncilNo}
+                  onChangeText={(t) =>
+                    setPharmacyDetail("pharmacyCouncilNo", t)
+                  }
+                  placeholder="Premises registration with Pharmacy Council"
+                  className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                    pharmacyErrors.pharmacyCouncilNo
+                      ? "border-red-400"
+                      : "border-gray-300"
+                  }`}
+                />
+                {pharmacyErrors.pharmacyCouncilNo && (
+                  <Text className="text-red-500 text-sm mb-3">
+                    {pharmacyErrors.pharmacyCouncilNo}
+                  </Text>
+                )}
+                {!pharmacyErrors.pharmacyCouncilNo && (
+                  <View className="mb-3" />
+                )}
+
+                <Text className="text-base text-text-main mb-2 font-semibold">
+                  Practice Number
+                </Text>
+                <TextInput
+                  value={pharmacyDetails.practiceNumber}
+                  onChangeText={(t) => setPharmacyDetail("practiceNumber", t)}
+                  placeholder="Required for medical aid and billing"
+                  className={`bg-white p-4 rounded-xl mb-1 border-2 ${
+                    pharmacyErrors.practiceNumber
+                      ? "border-red-400"
+                      : "border-gray-300"
+                  }`}
+                />
+                {pharmacyErrors.practiceNumber && (
+                  <Text className="text-red-500 text-sm mb-3">
+                    {pharmacyErrors.practiceNumber}
+                  </Text>
+                )}
+                {!pharmacyErrors.practiceNumber && <View className="mb-3" />}
+
+                <Text className="text-base text-text-main mb-2 font-semibold">
+                  Pharmacy Location
+                </Text>
+                <View className="bg-white p-4 rounded-xl mb-3 border-2 border-gray-300">
+                  <Text className="text-text-main font-semibold">
+                    {pharmacyDetails.gpsAddress || "No location detected yet"}
+                  </Text>
+                  {!!pharmacyDetails.gpsLatitude &&
+                    !!pharmacyDetails.gpsLongitude && (
+                      <Text className="text-gray-500 text-xs mt-1">
+                        {pharmacyDetails.gpsLatitude},{" "}
+                        {pharmacyDetails.gpsLongitude}
+                      </Text>
+                    )}
+                </View>
+                <TouchableOpacity
+                  onPress={detectPharmacyLocation}
+                  disabled={isDetectingPharmacyLocation}
+                  className="bg-blue-600 p-4 rounded-xl mb-4 flex-row items-center justify-center"
+                  style={{ gap: 8, opacity: isDetectingPharmacyLocation ? 0.7 : 1 }}
+                >
+                  {isDetectingPharmacyLocation ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Feather name="navigation" size={18} color="#FFFFFF" />
+                  )}
+                  <Text className="text-white font-bold">
+                    {isDetectingPharmacyLocation
+                      ? "Detecting Location..."
+                      : "Detect My Location"}
+                  </Text>
+                </TouchableOpacity>
+
+                <Text className="text-base text-text-main mb-2 font-semibold">
+                  Settlement Cell Number
+                </Text>
+                <TextInput
+                  value={pharmacyDetails.settlementCellNumber}
+                  onChangeText={(t) =>
+                    setPharmacyDetail("settlementCellNumber", t)
+                  }
+                  placeholder="For prepaid software credit payouts"
+                  keyboardType="phone-pad"
+                  className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-300"
+                />
+
+                <TouchableOpacity
+                  onPress={() =>
+                    setPharmacyDetail(
+                      "hpcnaLicenseExpiryAcknowledged",
+                      !pharmacyDetails.hpcnaLicenseExpiryAcknowledged,
+                    )
+                  }
+                  className={`flex-row items-start p-4 rounded-xl border-2 mb-1 ${
+                    pharmacyErrors.hpcnaLicenseExpiryAcknowledged
+                      ? "bg-white border-red-400"
+                      : pharmacyDetails.hpcnaLicenseExpiryAcknowledged
+                        ? "bg-green-50 border-green-300"
+                        : "bg-white border-gray-300"
+                  }`}
+                  style={{ gap: 12 }}
+                >
+                  <View
+                    className={`w-6 h-6 rounded-md items-center justify-center border-2 ${
+                      pharmacyDetails.hpcnaLicenseExpiryAcknowledged
+                        ? "bg-green-600 border-green-600"
+                        : "bg-white border-gray-300"
+                    }`}
+                  >
+                    {pharmacyDetails.hpcnaLicenseExpiryAcknowledged && (
+                      <Feather name="check" size={16} color="#FFFFFF" />
+                    )}
+                  </View>
+                  <Text className="text-gray-700 text-sm leading-5 flex-1">
+                    I acknowledge my liability under HPCNA and confirm that my
+                    pharmacy registration information and certificate are valid
+                    and up to date.
+                  </Text>
+                </TouchableOpacity>
+                {pharmacyErrors.hpcnaLicenseExpiryAcknowledged && (
+                  <Text className="text-red-500 text-sm mt-2 mb-3">
+                    {pharmacyErrors.hpcnaLicenseExpiryAcknowledged}
+                  </Text>
+                )}
+              </ScrollView>
+            )}
+
+            {/* Review & Submit */}
+            {step === reviewStep && (
               <View className="items-center">
                 <View className="w-16 h-16 rounded-full bg-green-100 items-center justify-center mb-4">
                   <Feather name="check" size={32} color="#28A745" />
@@ -1802,6 +2146,54 @@ export default function ProviderRegistrationScreen() {
                     label="Operational Zone"
                     value={professionalDetails.operationalZone}
                   />
+
+                  {isPharmacist && (
+                    <>
+                      <View className="h-px bg-gray-200 my-3" />
+                      <ReviewRow
+                        label="Registered Trading Name"
+                        value={pharmacyDetails.registeredTradingName}
+                      />
+                      <ReviewRow
+                        label="Company Registration No. / BIPA"
+                        value={pharmacyDetails.companyRegistrationNo}
+                      />
+                      <ReviewRow
+                        label="Business Email"
+                        value={pharmacyDetails.businessEmail}
+                      />
+                      <ReviewRow
+                        label="Pharmacy Council No."
+                        value={pharmacyDetails.pharmacyCouncilNo}
+                      />
+                      <ReviewRow
+                        label="Practice Number"
+                        value={pharmacyDetails.practiceNumber}
+                      />
+                      <ReviewRow
+                        label="Pharmacy Location"
+                        value={
+                          pharmacyDetails.gpsAddress ||
+                          (pharmacyDetails.gpsLatitude &&
+                          pharmacyDetails.gpsLongitude
+                            ? `${pharmacyDetails.gpsLatitude}, ${pharmacyDetails.gpsLongitude}`
+                            : undefined)
+                        }
+                      />
+                      <ReviewRow
+                        label="Settlement Cell Number"
+                        value={pharmacyDetails.settlementCellNumber}
+                      />
+                      <ReviewRow
+                        label="HPCNA Acknowledgement"
+                        value={
+                          pharmacyDetails.hpcnaLicenseExpiryAcknowledged
+                            ? "Accepted"
+                            : "Not accepted"
+                        }
+                      />
+                    </>
+                  )}
 
                   {/* Specializations on review */}
                   <View className="mb-3 mt-3">
@@ -1934,7 +2326,7 @@ export default function ProviderRegistrationScreen() {
               </TouchableOpacity>
             )}
 
-            {step < 4 ? (
+            {step < reviewStep ? (
               <TouchableOpacity
                 onPress={handleNext}
                 disabled={

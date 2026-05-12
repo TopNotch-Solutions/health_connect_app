@@ -736,6 +736,44 @@ export default function ProviderHome() {
   // Route modal handling moved to GlobalRouteModal via RouteContext.
   // Route arrival/cancel handlers moved to GlobalRouteModal via RouteContext.
 
+  // Pharmacist accept: get real device location then assign the request, then go to requests tab
+  const handlePharmacistAccept = async (request: any) => {
+    if (!user?.userId) return;
+    if (!user.isDocumentVerified) {
+      Alert.alert(
+        "Account Not Verified",
+        "Your account is still under review. You cannot accept requests until your documents have been verified.",
+        [{ text: "OK" }],
+      );
+      return;
+    }
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Location Required",
+          "Location permission is required to accept requests.",
+        );
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const coords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+      await socketService.acceptRequest(request._id, user.userId, coords);
+      hapticActionConfirm();
+      setRequests((prev) => prev.filter((r) => r._id !== request._id));
+      setSelectedRequest(null);
+      router.push("/(app)/(provider)/requests" as any);
+    } catch (err: any) {
+      console.error("Pharmacist accept error:", err);
+      Alert.alert("Error", err?.message || "Failed to accept request.");
+    }
+  };
+
   const handleAccept = async (request: any) => {
     // Double check user is available
     if (!user || !user.userId) {
@@ -798,10 +836,8 @@ export default function ProviderHome() {
       if (request.consultationMode === "video_consultation") {
         setSelectedRequest(null);
         setRequests((prev) => prev.filter((req) => req._id !== request._id));
-        Alert.alert(
-          "Teleconsultation Accepted",
-          "The patient now needs to complete payment before the consultation can continue.",
-        );
+        hapticActionConfirm();
+        router.push("/(app)/(provider)/requests" as any);
         return;
       }
 
@@ -874,6 +910,23 @@ export default function ProviderHome() {
       ],
       { cancelable: true },
     );
+  };
+
+  // Returns true only when THIS specific request requires a prescription review
+  // (pharmacist provider + ailment has requiresPrescription flag OR "prescription" in title).
+  // All other requests — even for pharmacists — go through the normal Accept flow.
+  const isPrescriptionRequest = (request: any): boolean => {
+    if (user?.role !== "pharmacist") return false;
+    const titleFromObj =
+      typeof request.ailmentCategoryId === "object"
+        ? (request.ailmentCategoryId as any)?.title ?? ""
+        : "";
+    const ailmentTitle = titleFromObj || request.ailmentCategory || "";
+    const requiresPrescription =
+      typeof request.ailmentCategoryId === "object"
+        ? !!(request.ailmentCategoryId as any)?.requiresPrescription
+        : false;
+    return requiresPrescription || /prescription/i.test(ailmentTitle);
   };
 
   const greeting = getGreeting();
@@ -1194,15 +1247,19 @@ export default function ProviderHome() {
                     <TouchableOpacity
                       onPress={(e) => {
                         e.stopPropagation();
-                        confirmAccept(request);
+                        if (isPrescriptionRequest(request)) {
+                          handlePharmacistAccept(request);
+                        } else {
+                          confirmAccept(request);
+                        }
                       }}
                       className="flex-1 bg-blue-600 py-3 rounded-xl"
                       activeOpacity={0.9}
                     >
                       <View className="flex-row items-center justify-center">
-                        <Feather name="check" size={16} color="#fff" />
+                        <Feather name={isPrescriptionRequest(request) ? "eye" : "check"} size={16} color="#fff" />
                         <Text className="text-white font-semibold text-center ml-2">
-                          Accept
+                          {isPrescriptionRequest(request) ? "Check" : "Accept"}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -1399,11 +1456,17 @@ export default function ProviderHome() {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => confirmAccept(selectedRequest)}
+                  onPress={() => {
+                    if (isPrescriptionRequest(selectedRequest)) {
+                      handlePharmacistAccept(selectedRequest);
+                    } else {
+                      confirmAccept(selectedRequest);
+                    }
+                  }}
                   className="flex-1 bg-blue-600 py-3.5 rounded-xl"
                 >
                   <Text className="text-white font-bold text-center">
-                    Accept Request
+                    {isPrescriptionRequest(selectedRequest) ? "Check Prescription" : "Accept Request"}
                   </Text>
                 </TouchableOpacity>
               </View>
