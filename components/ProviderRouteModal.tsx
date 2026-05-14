@@ -17,6 +17,7 @@ import {
     View,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import MapViewDirections from "react-native-maps-directions";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildBackendAssetUrl } from "../lib/backend";
 import socketService from "../lib/socket";
@@ -133,9 +134,6 @@ export default function ProviderRouteModal({
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [routeCoordinates, setRouteCoordinates] = useState<
-    { latitude: number; longitude: number }[]
-  >([]);
   const [distance, setDistance] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
@@ -154,7 +152,6 @@ export default function ProviderRouteModal({
       providerLocation,
       hasPatientProfileImage: Boolean(patientProfileImage),
       hasProviderProfileImage: Boolean(providerProfileImage),
-      routeCoordinateCount: routeCoordinates.length,
     });
   }, [
     visible,
@@ -162,7 +159,6 @@ export default function ProviderRouteModal({
     providerLocation,
     patientProfileImage,
     providerProfileImage,
-    routeCoordinates.length,
   ]);
 
   // ✅ Validate patient location on mount
@@ -217,136 +213,8 @@ export default function ProviderRouteModal({
     }
   };
 
-  const fetchGoogleMapsRoute = useCallback(
-    async (
-      start: { latitude: number; longitude: number },
-      end: { latitude: number; longitude: number },
-    ) => {
-      try {
-        const destination =
-          patientAddress && patientAddress.length > 5
-            ? encodeURIComponent(patientAddress)
-            : `${end.latitude},${end.longitude}`;
-
-        const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${start.latitude},${start.longitude}&destination=${destination}&mode=driving&key=${GOOGLE_MAPS_API_KEY}`;
-
-        console.log(`🗺️ Fetching driving directions to ${destination}...`);
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.status === "OK" && data.routes.length > 0) {
-          const route = data.routes[0];
-          const leg = route.legs[0];
-
-          // Just extract the polyline, we're not doing step-by-step navigation anymore
-          const points = decodePolyline(route.overview_polyline.points);
-          setRouteCoordinates(points);
-
-          const distanceInMeters = leg.distance.value;
-          const distanceInKm = distanceInMeters / 1000;
-          const durationInSeconds = leg.duration.value;
-          const durationInMinutes = Math.round(durationInSeconds / 60);
-
-          setDistance(distanceInKm);
-          setDuration(durationInMinutes);
-          setRouteDistance(distanceInKm);
-          setRouteDuration(durationInMinutes);
-
-          console.log(
-            `🗺️ Route fetched: ${distanceInKm.toFixed(1)} km, ${durationInMinutes} min`,
-          );
-          return { distanceInKm, durationInMinutes };
-        } else {
-          console.error(
-            "❌ Google Maps API Error:",
-            data.status,
-            data.error_message,
-          );
-          throw new Error(`Google Maps API Error: ${data.status}`);
-        }
-      } catch (error) {
-        console.error(
-          "❌ Error fetching directions, falling back to straight line:",
-          error,
-        );
-
-        setRouteCoordinates([start, end]);
-
-        const R = 6371;
-        const dLat = deg2rad(end.latitude - start.latitude);
-        const dLon = deg2rad(end.longitude - start.longitude);
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(deg2rad(start.latitude)) *
-            Math.cos(deg2rad(end.latitude)) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const d = R * c;
-
-        setDistance(d);
-        const fallbackDuration = Math.round((d / 40) * 60);
-        setDuration(fallbackDuration);
-        setRouteDistance(d);
-        setRouteDuration(fallbackDuration);
-
-        speak(
-          `Starting route to ${patientName}. Distance is ${d.toFixed(1)} kilometers.`,
-        );
-        lastSpeechTimeRef.current = Date.now();
-        setLastSpeechTime(Date.now());
-
-        return { distanceInKm: d, durationInMinutes: fallbackDuration };
-      }
-    },
-    [patientName, patientAddress],
-  );
-
   const deg2rad = (deg: number) => {
     return deg * (Math.PI / 180);
-  };
-
-  const decodePolyline = (
-    encoded: string,
-  ): { latitude: number; longitude: number }[] => {
-    const points: { latitude: number; longitude: number }[] = [];
-    let index = 0;
-    let lat = 0;
-    let lng = 0;
-
-    while (index < encoded.length) {
-      let result = 0;
-      let shift = 0;
-      let b;
-
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-
-      const dlat = result & 1 ? ~(result >> 1) : result >> 1;
-      lat += dlat;
-
-      result = 0;
-      shift = 0;
-
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-
-      const dlng = result & 1 ? ~(result >> 1) : result >> 1;
-      lng += dlng;
-
-      points.push({
-        latitude: lat / 1e5,
-        longitude: lng / 1e5,
-      });
-    }
-
-    return points;
   };
 
   const calculateDistance = (
@@ -394,8 +262,6 @@ export default function ProviderRouteModal({
 
       setProviderLocation(providerCoords);
 
-      await fetchGoogleMapsRoute(providerCoords, patientLocation);
-
       if (mapRef.current) {
         setTimeout(() => {
           const points = [providerCoords, patientLocation];
@@ -411,7 +277,7 @@ export default function ProviderRouteModal({
     } finally {
       setIsLoading(false);
     }
-  }, [patientLocation, fetchGoogleMapsRoute]);
+  }, [patientLocation]);
 
   const startTracking = useCallback(async () => {
     try {
@@ -768,6 +634,68 @@ export default function ProviderRouteModal({
               </View>
             </Marker>
           )}
+
+          {/* ✅ Route directions using MapViewDirections - Shows the road route provider needs to travel */}
+          {providerLocation &&
+            isValidCoordinate(providerLocation) &&
+            isValidCoordinate(patientLocation) && (
+              <MapViewDirections
+                origin={{
+                  latitude: providerLocation.latitude,
+                  longitude: providerLocation.longitude,
+                }}
+                destination={{
+                  latitude: patientLocation.latitude,
+                  longitude: patientLocation.longitude,
+                }}
+                apikey={GOOGLE_MAPS_API_KEY}
+                strokeWidth={5}
+                strokeColor="#3B82F6"
+                mode="DRIVING"
+                optimizeWaypoints={true}
+                onReady={(result) => {
+                  // Store route details for display
+                  setRouteDistance(result.distance);
+                  setRouteDuration(result.duration);
+
+                  // Update distance with actual route distance
+                  if (result.distance) {
+                    setDistance(result.distance);
+                  }
+
+                  // Fit map to show the entire route
+                  if (mapRef.current) {
+                    mapRef.current.fitToCoordinates(
+                      [
+                        {
+                          latitude: providerLocation.latitude,
+                          longitude: providerLocation.longitude,
+                        },
+                        {
+                          latitude: patientLocation.latitude,
+                          longitude: patientLocation.longitude,
+                        },
+                      ],
+                      {
+                        edgePadding: {
+                          top: 100,
+                          right: 50,
+                          bottom: 100,
+                          left: 50,
+                        },
+                        animated: true,
+                      },
+                    );
+                  }
+                  console.log(`Route Distance: ${result.distance} km`);
+                  console.log(`Route Duration: ${result.duration} minutes`);
+                }}
+                onError={(errorMessage) => {
+                  console.log("MapViewDirections Error:", errorMessage);
+                  // Fallback to straight line distance if route fails
+                }}
+              />
+            )}
 
           {/* ✅ Patient marker - already validated above */}
           <Marker

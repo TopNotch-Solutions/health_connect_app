@@ -1,6 +1,6 @@
 {
   "expo": {
-    "owner": "jkay4972",
+    "owner": "talo_n1",
     "name": "Health Connect",
     "slug": "project-health-connect",
     "version": "1.0.0",
@@ -14,7 +14,9 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera for secure teleconsultations.",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone for secure teleconsultations.",
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       },
       "bitcode": false
     },
@@ -95,7 +97,9 @@
         {
           "icon": "./assets/images/connectlogo.png",
           "color": "#10B981",
-          "sounds": ["./assets/sounds/healthconnect_alert.wav"],
+          "sounds": [
+            "./assets/sounds/healthconnect_alert.wav"
+          ],
           "androidMode": "default",
           "androidCollapsedTitle": "HealthConnect"
         }
@@ -113,7 +117,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "dbc55ad6-fc57-47ee-89c3-2a849f7553fa"
+        "projectId": "d0f37ffa-941d-4292-987d-286deb2c310f"
       }
     }
   }
