@@ -1,7 +1,9 @@
 # Dependencies are installed on the EAS builder.
+
 node_modules/
 
 # Local Expo and native build output must not be uploaded.
+
 .expo/
 dist/
 web-build/
@@ -9,8 +11,13 @@ android/.gradle/
 android/build/
 
 # Local environment files.
+
 .env
-.env.*
+.env.\*
 
 # Backend workspace is not part of the mobile build.
+
 health_connect_backend/
+
+/android
+/ios

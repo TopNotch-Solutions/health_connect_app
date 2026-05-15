@@ -7,6 +7,7 @@ import com.streamvideo.reactnative.StreamVideoReactNative
 
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -24,6 +25,10 @@ class MainActivity : ReactActivity() {
     // @generated begin expo-splashscreen - expo prebuild (DO NOT MODIFY) sync-f3ff59a738c56c9a6119210cb55f0b613eb8b6af
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
+
+    // Prevent screenshots and screen recording for security
+    window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+
     super.onCreate(null)
   }
 
