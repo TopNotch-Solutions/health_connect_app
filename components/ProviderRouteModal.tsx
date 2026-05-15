@@ -37,6 +37,9 @@ interface ProviderRouteModalProps {
   providerProfileImage?: string;
   patientProfileImage?: string;
   onCompleteRoute?: () => void;
+  ailmentTitle?: string;
+  consultationMode?: "house_visit" | "video_consultation";
+  createdAt?: string;
 }
 
 const { width, height } = Dimensions.get("window");
@@ -108,6 +111,9 @@ export default function ProviderRouteModal({
   providerProfileImage,
   patientProfileImage,
   onCompleteRoute,
+  ailmentTitle,
+  consultationMode,
+  createdAt,
 }: ProviderRouteModalProps) {
   const router = useRouter();
   const mapRef = useRef<MapView>(null);
@@ -812,6 +818,86 @@ export default function ProviderRouteModal({
             )}
           </View>
 
+          {/* Request Details Card */}
+          <View style={styles.requestDetailsCard}>
+            <Text style={styles.requestTitle}>
+              {ailmentTitle || "Healthcare Request"}
+            </Text>
+
+            {/* Consultation mode chip */}
+            {consultationMode && (
+              <View
+                style={{
+                  backgroundColor:
+                    consultationMode === "video_consultation"
+                      ? "#EFF6FF"
+                      : "#ECFDF3",
+                  borderColor:
+                    consultationMode === "video_consultation"
+                      ? "#BFDBFE"
+                      : "#BBF7D0",
+                  borderWidth: 1,
+                  borderRadius: 999,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  alignSelf: "flex-start",
+                  marginBottom: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <Feather
+                  name={
+                    consultationMode === "video_consultation"
+                      ? "video"
+                      : "home"
+                  }
+                  size={13}
+                  color={
+                    consultationMode === "video_consultation"
+                      ? "#1D4ED8"
+                      : "#166534"
+                  }
+                />
+                <Text
+                  style={{
+                    color:
+                      consultationMode === "video_consultation"
+                        ? "#1D4ED8"
+                        : "#166534",
+                    fontSize: 12,
+                    fontWeight: "700",
+                    marginLeft: 6,
+                  }}
+                >
+                  {consultationMode === "video_consultation"
+                    ? "Video Consultation"
+                    : "House Visit"}
+                </Text>
+              </View>
+            )}
+
+            {/* Request details */}
+            <View style={styles.metaCard}>
+              {patientAddress && (
+                <View style={styles.metaRow}>
+                  <Feather name="map-pin" size={14} color="#6b7280" />
+                  <Text style={styles.metaText} numberOfLines={2}>
+                    {patientAddress}
+                  </Text>
+                </View>
+              )}
+              {createdAt && (
+                <View style={styles.metaRow}>
+                  <Feather name="calendar" size={14} color="#6b7280" />
+                  <Text style={styles.metaText}>
+                    Requested: {new Date(createdAt).toLocaleString()}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[
@@ -1055,5 +1141,32 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  requestDetailsCard: {
+    backgroundColor: "#f9fafb",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  requestTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1f2937",
+    marginBottom: 10,
+  },
+  metaCard: {
+    gap: 8,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  metaText: {
+    fontSize: 13,
+    color: "#6b7280",
+    flex: 1,
   },
 });
