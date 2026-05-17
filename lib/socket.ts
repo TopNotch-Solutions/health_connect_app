@@ -7,6 +7,39 @@ class SocketService {
   private userRole: string | null = null;
   private eventListeners: Map<string, Set<Function>> = new Map(); // FIX #5: Track listeners for cleanup
 
+  private readonly VALID_ROLES = new Set([
+    "patient",
+    "doctor",
+    "nurse",
+    "physiotherapist",
+    "social worker",
+    "pharmacist",
+  ]);
+
+  private normalizeRole(
+    role?: string,
+  ):
+    | "patient"
+    | "doctor"
+    | "nurse"
+    | "physiotherapist"
+    | "social worker"
+    | "pharmacist"
+    | undefined {
+    if (!role) return undefined;
+    const normalizedRole = role.trim().toLowerCase();
+    if (!this.VALID_ROLES.has(normalizedRole)) {
+      return undefined;
+    }
+    return normalizedRole as
+      | "patient"
+      | "doctor"
+      | "nurse"
+      | "physiotherapist"
+      | "social worker"
+      | "pharmacist";
+  }
+
   connect(
     userId: string,
     role?:
@@ -17,12 +50,30 @@ class SocketService {
       | "social worker"
       | "pharmacist",
   ) {
+    const normalizedRole = this.normalizeRole(role);
+
     if (this.socket?.connected) {
-      console.log("Socket already connected");
+      if (
+        normalizedRole &&
+        (!this.userRole || this.userRole !== normalizedRole)
+      ) {
+        console.log(
+          "Socket already connected, rejoining with normalized role:",
+          normalizedRole,
+        );
+        this.join(userId, normalizedRole);
+      } else {
+        console.log("Socket already connected");
+      }
       return this.socket;
     }
 
-    console.log("Connecting to socket with userId:", userId, "role:", role);
+    console.log(
+      "Connecting to socket with userId:",
+      userId,
+      "role:",
+      normalizedRole || "<missing-or-invalid>",
+    );
 
     this.socket = io(BACKEND_URL, {
       transports: ["polling", "websocket"],
@@ -37,8 +88,15 @@ class SocketService {
       console.log("✅ Socket connected:", this.socket?.id);
 
       // Auto-join if role is provided
-      if (role) {
-        this.join(userId, role);
+      if (normalizedRole) {
+        this.join(userId, normalizedRole);
+      } else {
+        console.warn(
+          "⚠️ Skipping socket join because role is missing or invalid. userId:",
+          userId,
+          "raw role:",
+          role,
+        );
       }
     });
 
@@ -86,9 +144,25 @@ class SocketService {
       return;
     }
 
-    this.userRole = role;
-    console.log("📤 Emitting join event with userId:", userId, "role:", role);
-    this.socket.emit("join", { userId, role });
+    const normalizedRole = this.normalizeRole(role);
+    if (!normalizedRole) {
+      console.error(
+        "Invalid role provided to join. userId:",
+        userId,
+        "role:",
+        role,
+      );
+      return;
+    }
+
+    this.userRole = normalizedRole;
+    console.log(
+      "📤 Emitting join event with userId:",
+      userId,
+      "role:",
+      normalizedRole,
+    );
+    this.socket.emit("join", { userId, role: normalizedRole });
   }
 
   disconnect() {

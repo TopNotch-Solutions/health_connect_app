@@ -90,6 +90,14 @@ interface RequestStatus {
   };
 }
 
+const normalizeProviderLabel = (value?: string | null) => {
+  if (!value) return "";
+  return String(value).trim().toLowerCase();
+};
+
+const isPharmacyProvider = (value?: string | null) =>
+  normalizeProviderLabel(value) === "pharmacist";
+
 interface StoredRequest {
   request: RequestStatus;
   acceptedAt: number; // Timestamp when request was accepted
@@ -216,8 +224,8 @@ const RequestCard = ({
   // Is this a pharmacy request?
   const isPharmacyRequest =
     (typeof request.ailmentCategoryId === "object" &&
-      (request.ailmentCategoryId as any)?.provider === "Pharmacist") ||
-    request.providerType === "Pharmacist";
+      isPharmacyProvider((request.ailmentCategoryId as any)?.provider)) ||
+    isPharmacyProvider(request.providerType);
 
   // Show prescription upload when the ailment has requiresPrescription: true
   // OR when the ailment title contains "prescription" (covers the seeded
@@ -744,8 +752,9 @@ export default function WaitingRoom() {
       const pharmacyRequests = activeRequests.filter((item) => {
         const cat = item.request.ailmentCategoryId;
         return (
-          (typeof cat === "object" && (cat as any)?.provider === "Pharmacist") ||
-          item.request.providerType === "Pharmacist"
+          (typeof cat === "object" &&
+            isPharmacyProvider((cat as any)?.provider)) ||
+          isPharmacyProvider(item.request.providerType)
         );
       });
       if (!pharmacyRequests.length) return;

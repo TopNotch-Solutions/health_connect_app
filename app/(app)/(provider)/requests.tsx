@@ -207,8 +207,19 @@ export default function ProviderRequests() {
   useEffect(() => {
     if (user?.userId) {
       console.log("🔌 Connecting socket for requests tab");
-      // Default to doctor role, but should ideally use user.role if available
-      socketService.connect(user.userId, (user.role as any) || "doctor");
+      const normalizedRole =
+        typeof user.role === "string" ? user.role.toLowerCase() : undefined;
+      socketService.connect(
+        user.userId,
+        normalizedRole as
+          | "patient"
+          | "doctor"
+          | "nurse"
+          | "physiotherapist"
+          | "social worker"
+          | "pharmacist"
+          | undefined,
+      );
 
       const socket = socketService.getSocket();
 
