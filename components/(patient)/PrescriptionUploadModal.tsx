@@ -20,7 +20,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { API_BASE_URL } from "../../lib/backend";
+import { PrescriptionFile, uploadPrescription } from "../../lib/prescription";
 
 export interface PrescriptionData {
   _id: string;
@@ -107,58 +107,13 @@ export default function PrescriptionUploadModal({
     try {
       setIsUploading(true);
 
-      const formData = new FormData();
-      formData.append("prescriptionImage", {
-        uri: file.uri,
-        name: file.name,
-        type: file.mimeType,
-      } as any);
-
-      const authToken = await SecureStore.getItemAsync("authToken");
-      const appToken = await SecureStore.getItemAsync("appToken");
-
-      const headers: Record<string, string> = {
-        Accept: "application/json",
-      };
-
-      if (authToken) {
-        headers["x-access-token"] = `Bearer ${authToken}`;
-      }
-
-      if (appToken) {
-        headers["data-access-token"] = `Bearer ${appToken}`;
-      }
-
-      const endpoint = prescription?._id
-        ? `${API_BASE_URL}/app/prescription/${prescription._id}`
-        : `${API_BASE_URL}/app/prescription`;
-
-      if (!prescription?._id) {
-        formData.append("requestId", requestId);
-      }
-
-      const response = await fetch(endpoint, {
-        method: prescription?._id ? "PATCH" : "POST",
-        headers,
-        body: formData,
+      const uploaded = await uploadPrescription<PrescriptionData>({
+        requestId,
+        prescriptionId: prescription?._id,
+        file,
       });
 
-      const responseText = await response.text();
-      let responseData: any = null;
-
-      if (responseText) {
-        try {
-          responseData = JSON.parse(responseText);
-        } catch {
-          responseData = { message: responseText };
-        }
-      }
-
-      if (!response.ok) {
-        throw new Error(responseData?.message || `Upload failed with status ${response.status}`);
-      }
-
-      onUploaded(responseData.prescription);
+      onUploaded(uploaded);
       Alert.alert("Success", "Prescription uploaded successfully.");
       onClose();
     } catch (err: any) {
