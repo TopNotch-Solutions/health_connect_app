@@ -15,6 +15,7 @@ import {
 import CreateRequestModal from "../../../components/(patient)/CreateRequestModal";
 import { useAuth } from "../../../context/AuthContext";
 import { buildBackendAssetUrl } from "../../../lib/backend";
+import { PrescriptionFile, uploadPrescription } from "../../../lib/prescription";
 import socketService from "../../../lib/socket";
 
 interface Ailment {
@@ -318,6 +319,7 @@ export default function AllAilmentsScreen() {
     region: string;
     preferredTime?: string;
     coordinates?: { latitude: number; longitude: number };
+    prescriptionFile?: PrescriptionFile;
   }) => {
     // Use coordinates from the modal if provided, otherwise try to get current location
     let currentLocation = requestData.coordinates || location;
@@ -370,6 +372,31 @@ export default function AllAilmentsScreen() {
         },
         preferredTime: requestData.preferredTime,
       });
+
+      const requestId = (request as any)?._id as string | undefined;
+
+      if (requestData.prescriptionFile && requestId) {
+        try {
+          await uploadPrescription({
+            requestId,
+            file: requestData.prescriptionFile,
+          });
+        } catch (uploadError) {
+          try {
+            await socketService.cancelRequest(
+              requestId,
+              "patient",
+              "Prescription upload failed",
+            );
+          } catch (cancelError) {
+            console.warn(
+              "Failed to cancel request after prescription upload error:",
+              cancelError,
+            );
+          }
+          throw uploadError;
+        }
+      }
 
       console.log("✅ Request created successfully:", request);
       console.log("🔄 Navigating to waiting room...");
