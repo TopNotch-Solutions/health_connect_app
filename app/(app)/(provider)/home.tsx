@@ -318,8 +318,19 @@ export default function ProviderHome() {
       const socket = socketService.getSocket();
       if (!socket?.connected) {
         console.log("🔌 Connecting socket for provider:", user.userId);
-        // Default to doctor role, but should ideally use user.role if available
-        socketService.connect(user.userId, (user.role as any) || "doctor");
+        const normalizedRole =
+          typeof user.role === "string" ? user.role.toLowerCase() : undefined;
+        socketService.connect(
+          user.userId,
+          normalizedRole as
+            | "patient"
+            | "doctor"
+            | "nurse"
+            | "physiotherapist"
+            | "social worker"
+            | "pharmacist"
+            | undefined,
+        );
       } else {
         console.log("✅ Socket already connected, reusing existing connection");
       }

@@ -27,6 +27,7 @@ import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
 import { getLocationCoordinates } from "../../../lib/geocoding";
+import { PrescriptionFile, uploadPrescription } from "../../../lib/prescription";
 import socketService from "../../../lib/socket";
 
 interface Advert {
@@ -501,6 +502,7 @@ export default function PatientHomeScreen() {
     region: string;
     preferredTime?: string;
     coordinates?: { latitude: number; longitude: number };
+    prescriptionFile?: PrescriptionFile;
   }) => {
     // Use coordinates from the modal if provided, otherwise try to get current location
     let currentLocation = requestData.coordinates || location;
@@ -558,8 +560,32 @@ export default function PatientHomeScreen() {
         preferredTime: requestData.preferredTime,
       });
 
+      const requestId = (request as any)?._id as string | undefined;
+
+      if (requestData.prescriptionFile && requestId) {
+        try {
+          await uploadPrescription({
+            requestId,
+            file: requestData.prescriptionFile,
+          });
+        } catch (uploadError) {
+          try {
+            await socketService.cancelRequest(
+              requestId,
+              "patient",
+              "Prescription upload failed",
+            );
+          } catch (cancelError) {
+            console.warn(
+              "Failed to cancel request after prescription upload error:",
+              cancelError,
+            );
+          }
+          throw uploadError;
+        }
+      }
       // Save ailment mapping locally for future reference (since backend stores null)
-      if (request && (request as any)._id) {
+      if (requestId) {
         try {
           const ailmentMappingsStr = await AsyncStorage.getItem(
             `ailment-mappings-${user.userId}`,
@@ -567,7 +593,8 @@ export default function PatientHomeScreen() {
           const ailmentMappings = ailmentMappingsStr
             ? JSON.parse(ailmentMappingsStr)
             : {};
-          ailmentMappings[(request as any)._id] = requestData.ailmentCategory;
+            
+          ailmentMappings[requestId] = requestData.ailmentCategory;
           await AsyncStorage.setItem(
             `ailment-mappings-${user.userId}`,
             JSON.stringify(ailmentMappings),

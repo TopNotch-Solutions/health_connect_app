@@ -1,4 +1,6 @@
 import { Feather } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +19,7 @@ import {
   getCurrentLocationWithAddress,
   reverseGeocode,
 } from "../../lib/geocoding";
+import { PrescriptionFile } from "../../lib/prescription";
 import { logViewMountDebug } from "../../lib/viewErrorLogger";
 
 interface CreateRequestModalProps {
@@ -34,6 +37,7 @@ interface CreateRequestModalProps {
     region: string;
     preferredTime?: string;
     coordinates?: { latitude: number; longitude: number };
+    prescriptionFile?: PrescriptionFile;
   }) => Promise<void>;
   selectedAilment?: any;
 }
@@ -49,6 +53,10 @@ export default function CreateRequestModal({
   const supportsTeleconsultation = Boolean(
     selectedAilment?.supportsTeleconsultation,
   );
+    const normalizeProviderLabel = (value?: string | null) =>
+    String(value || "").trim().toLowerCase();
+  const isPharmacyRequest =
+    normalizeProviderLabel(selectedAilment?.provider) === "pharmacist";
 
   const [ailmentCategory, setAilmentCategory] = useState(ailmentTitle);
   const [consultationMode, setConsultationMode] = useState<
@@ -72,6 +80,9 @@ export default function CreateRequestModal({
   } | null>(null);
   const [showMap, setShowMap] = useState(false);
 
+  const [prescriptionFile, setPrescriptionFile] =
+    useState<PrescriptionFile | null>(null);
+  
   const selectedCost =
     consultationMode === "video_consultation"
       ? Number(selectedAilment?.teleconsultationCost ?? NaN)
@@ -102,6 +113,11 @@ export default function CreateRequestModal({
       setConsultationMode("house_visit");
     }
   }, [consultationMode, supportsTeleconsultation]);
+    useEffect(() => {
+    if (visible) {
+      setPrescriptionFile(null);
+    }
+  }, [visible, selectedAilment]);
 
   const loadLocationAndAddress = async () => {
     setIsLoadingLocation(true);
@@ -177,6 +193,14 @@ export default function CreateRequestModal({
       return;
     }
 
+    if (isPharmacyRequest && !prescriptionFile) {
+      Alert.alert(
+        "Prescription Required",
+        "Please upload a prescription image or PDF before submitting a pharmacy request.",
+      );
+      return;
+    }
+
     Alert.alert(
       "Confirm Request",
       `Submit a ${consultationMode === "video_consultation" ? "video consultation" : "house visit"} request for N$${selectedCost.toFixed(2)}?`,
@@ -199,6 +223,7 @@ export default function CreateRequestModal({
                 region: region.trim(),
                 preferredTime: undefined,
                 coordinates: markerCoord,
+                prescriptionFile: prescriptionFile || undefined,
               });
 
               // Don't reset form or close modal - let the parent handle navigation
@@ -224,6 +249,52 @@ export default function CreateRequestModal({
     setStreet(address.route || "Patient Location");
     setLocality(address.locality || "Current City");
     setRegion(address.administrative_area_level_1 || "Current Region");
+  };
+
+  const pickPrescriptionImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission needed",
+        "Please allow access to your photo library to upload a prescription.",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: false,
+      quality: 0.85,
+    });
+
+    const asset = result.canceled ? null : result.assets?.[0] ?? null;
+    if (!asset) return;
+
+    setPrescriptionFile({
+      uri: asset.uri,
+      name: asset.fileName || `prescription_${Date.now()}.jpg`,
+      mimeType: asset.mimeType || "image/jpeg",
+    });
+  };
+
+  const pickPrescriptionPdf = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "application/pdf",
+      copyToCacheDirectory: true,
+    });
+
+    const asset = result.canceled ? null : result.assets?.[0] ?? null;
+    if (!asset) return;
+
+    const documentAsset = asset as DocumentPicker.DocumentPickerAsset & {
+      fileCopyUri?: string | null;
+    };
+
+    setPrescriptionFile({
+      uri: documentAsset.fileCopyUri || documentAsset.uri,
+      name: asset.name || `prescription_${Date.now()}.pdf`,
+      mimeType: "application/pdf",
+    });
   };
 
   const paymentOptions = [
@@ -479,6 +550,60 @@ export default function CreateRequestModal({
                 </View>
               </View>
 
+              {isPharmacyRequest && (
+                <View className="mb-6">
+                  <Text className="text-base font-semibold text-gray-900 mb-2">
+                    Prescription *
+                  </Text>
+                  <Text className="text-xs text-gray-600 mb-3">
+                    Upload a clear photo or PDF of your prescription before
+                    submitting.
+                  </Text>
+
+                  {prescriptionFile && (
+                    <View className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex-row items-center mb-3">
+                      <Feather
+                        name={prescriptionFile.mimeType === "application/pdf" ? "file-text" : "image"}
+                        size={16}
+                        color="#2563EB"
+                      />
+                      <Text
+                        className="text-xs text-blue-700 ml-2 flex-1"
+                        numberOfLines={1}
+                      >
+                        {prescriptionFile.name}
+                      </Text>
+                      <Feather name="check-circle" size={14} color="#16A34A" />
+                    </View>
+                  )}
+
+                  <View className="flex-row" style={{ gap: 10 }}>
+                    <TouchableOpacity
+                      onPress={pickPrescriptionImage}
+                      disabled={isLoading}
+                      className="flex-1 bg-emerald-600 rounded-lg py-3 px-4 items-center flex-row justify-center"
+                      style={{ gap: 6 }}
+                    >
+                      <Feather name="image" size={16} color="#FFFFFF" />
+                      <Text className="text-white font-bold text-xs">
+                        {prescriptionFile ? "Replace Image" : "Upload Image"}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={pickPrescriptionPdf}
+                      disabled={isLoading}
+                      className="flex-1 bg-blue-50 border border-blue-300 rounded-lg py-3 px-4 items-center flex-row justify-center"
+                      style={{ gap: 6 }}
+                    >
+                      <Feather name="file-text" size={16} color="#2563EB" />
+                      <Text className="text-blue-700 font-bold text-xs">
+                        {prescriptionFile ? "Replace PDF" : "Upload PDF"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              
               {/* Payment Method */}
               <View className="mb-6">
                 <Text className="text-base font-semibold text-gray-900 mb-2">

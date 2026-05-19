@@ -7,6 +7,7 @@
  */
 
 import { Feather } from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
@@ -19,7 +20,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import apiClient from "../../lib/api";
+import { PrescriptionFile, uploadPrescription } from "../../lib/prescription";
 
 export interface PrescriptionData {
   _id: string;
@@ -68,11 +69,13 @@ export default function PrescriptionUploadModal({
       quality: 0.85,
     });
 
-    if (!result.canceled && result.assets[0]) {
+    const asset = result.canceled ? null : result.assets?.[0] ?? null;
+
+    if (asset) {
       await uploadFile({
-        uri: result.assets[0].uri,
-        name: result.assets[0].fileName || `prescription_${Date.now()}.jpg`,
-        mimeType: result.assets[0].mimeType || "image/jpeg",
+        uri: asset.uri,
+        name: asset.fileName || `prescription_${Date.now()}.jpg`,
+        mimeType: asset.mimeType || "image/jpeg",
       });
     }
   };
@@ -84,10 +87,16 @@ export default function PrescriptionUploadModal({
       copyToCacheDirectory: true,
     });
 
-    if (!result.canceled && result.assets[0]) {
+    const asset = result.canceled ? null : result.assets?.[0] ?? null;
+
+    if (asset) {
+      const documentAsset = asset as DocumentPicker.DocumentPickerAsset & {
+        fileCopyUri?: string | null;
+      };
+
       await uploadFile({
-        uri: result.assets[0].uri,
-        name: result.assets[0].name || `prescription_${Date.now()}.pdf`,
+        uri: documentAsset.fileCopyUri || documentAsset.uri,
+        name: asset.name || `prescription_${Date.now()}.pdf`,
         mimeType: "application/pdf",
       });
     }
@@ -98,33 +107,13 @@ export default function PrescriptionUploadModal({
     try {
       setIsUploading(true);
 
-      const formData = new FormData();
-      formData.append("prescriptionImage", {
-        uri: file.uri,
-        name: file.name,
-        type: file.mimeType,
-      } as any);
+      const uploaded = await uploadPrescription<PrescriptionData>({
+        requestId,
+        prescriptionId: prescription?._id,
+        file,
+      });
 
-      let response;
-
-      if (prescription?._id) {
-        // Edit existing
-        response = await apiClient.patch(
-          `/app/prescription/${prescription._id}`,
-          formData,
-          { headers: { "Content-Type": "multipart/form-data" } },
-        );
-      } else {
-        // New upload
-        formData.append("requestId", requestId);
-        response = await apiClient.post(
-          "/app/prescription",
-          formData,
-          { headers: { "Content-Type": "multipart/form-data" } },
-        );
-      }
-
-      onUploaded(response.data.prescription);
+      onUploaded(uploaded);
       Alert.alert("Success", "Prescription uploaded successfully.");
       onClose();
     } catch (err: any) {
