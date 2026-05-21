@@ -100,7 +100,8 @@ const OnboardingPatientScreen = () => {
             </Text>
             <Text className="text-base text-gray-600 text-center px-6 leading-6">
               Connect with healthcare providers instantly. Book instant
-              appointments, and track your wellness journey—all in one place.
+              appointments, and check-ups without leaving your house. in one
+              place.
             </Text>
           </View>
 

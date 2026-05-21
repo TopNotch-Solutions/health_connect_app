@@ -111,7 +111,8 @@ const OnboardingProviderScreen = () => {
                 <Feather name="check" size={20} color="#3B82F6" />
               </View>
               <Text className="text-base text-gray-700 flex-1">
-                Flexible scheduling and availability
+                Shifted the focus toward convenience (skipping waiting rooms)
+                and trust (licensed professionals, security).
               </Text>
             </View>
             <View className="flex-row items-center">
@@ -119,7 +120,9 @@ const OnboardingProviderScreen = () => {
                 <Feather name="check" size={20} color="#3B82F6" />
               </View>
               <Text className="text-base text-gray-700 flex-1">
-                Digital patient management system
+                Smart routing that instantly directs patient requests to the
+                right available provider, reducing wait times and improving care
+                coordination.
               </Text>
             </View>
             <View className="flex-row items-center">
@@ -127,7 +130,8 @@ const OnboardingProviderScreen = () => {
                 <Feather name="check" size={20} color="#3B82F6" />
               </View>
               <Text className="text-base text-gray-700 flex-1">
-                Secure payment processing
+                Our platform uses industry-leading encryption to ensure your
+                payment details are completely protected.
               </Text>
             </View>
           </View>

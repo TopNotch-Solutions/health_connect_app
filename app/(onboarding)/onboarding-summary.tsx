@@ -111,7 +111,9 @@ const OnboardingSummaryScreen = () => {
                 <Feather name="check" size={20} color="#4F46E5" />
               </View>
               <Text className="text-base text-gray-700 flex-1">
-                Real-time notifications and updates
+                Our app keeps you connected with instant, real-time alerts. From
+                the moment your home consultation is confirmed to live ETA
+                tracking of your medical provider en route to your doorstep.
               </Text>
             </View>
             <View className="flex-row items-center">
@@ -119,7 +121,8 @@ const OnboardingSummaryScreen = () => {
                 <Feather name="check" size={20} color="#4F46E5" />
               </View>
               <Text className="text-base text-gray-700 flex-1">
-                Secure and encrypted data protection
+                We employ end-to-end data protection frameworks that safeguard
+                sensitive health and personal data at rest and in transit.
               </Text>
             </View>
             <View className="flex-row items-center">
@@ -127,7 +130,9 @@ const OnboardingSummaryScreen = () => {
                 <Feather name="check" size={20} color="#4F46E5" />
               </View>
               <Text className="text-base text-gray-700 flex-1">
-                Access your health records anywhere
+                Whether you are at home, traveling, or preparing for a
+                specialist consultation, your complete health records are
+                securely accessible on your device 24/7.
               </Text>
             </View>
           </View>
