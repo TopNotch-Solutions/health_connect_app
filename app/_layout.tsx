@@ -104,7 +104,7 @@ const IntroSplash = () => {
               textAlign: "center",
             }}
           >
-            HealthConnect
+            Health Connect
           </Text>
           <Text
             style={{
@@ -151,7 +151,8 @@ const IntroSplash = () => {
                   fontStyle: "italic",
                 }}
               >
-                Easy access to trusted healthcare when you need it
+                Request trusted medical consultations and check-ups without
+                leaving your house.
               </Text>
             </View>
 
@@ -178,7 +179,8 @@ const IntroSplash = () => {
                   fontStyle: "italic",
                 }}
               >
-                Clear, secure information about your health journey
+                Skip the waiting room—get quality medical care delivered
+                straight to your door.
               </Text>
             </View>
 
@@ -205,7 +207,8 @@ const IntroSplash = () => {
                   fontStyle: "italic",
                 }}
               >
-                Smarter tools for planning, tracking, and peace of mind
+                Connect with licensed healthcare professionals for personalized
+                medical care in the comfort of your home.
               </Text>
             </View>
           </View>
