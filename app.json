@@ -1,6 +1,5 @@
 {
   "expo": {
-    "owner": "talo_n1",
     "name": "Health Connect",
     "slug": "project-health-connect",
     "version": "1.0.0",
@@ -8,13 +7,17 @@
     "icon": "./assets/images/connectlogo.png",
     "scheme": "projecthealthconnect",
     "userInterfaceStyle": "automatic",
-
     "ios": {
+      "bundleIdentifier": "net.kopanovertex.healthConnect",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera for secure teleconsultations.",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone for secure teleconsultations.",
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "audio",
+          "remote-notification"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       },
       "bitcode": false
     },
@@ -97,7 +100,8 @@
             "edgeToEdgeEnabled": true
           },
           "ios": {
-            "newArchEnabled": false
+            "newArchEnabled": false,
+            "deploymentTarget": "15.1"
           }
         }
       ],
@@ -106,7 +110,9 @@
         {
           "icon": "./assets/images/connectlogo.png",
           "color": "#10B981",
-          "sounds": ["./assets/sounds/healthconnect_alert.wav"],
+          "sounds": [
+            "./assets/sounds/healthconnect_alert.wav"
+          ],
           "androidMode": "default",
           "androidCollapsedTitle": "HealthConnect"
         }
@@ -124,8 +130,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d0f37ffa-941d-4292-987d-286deb2c310f"
+        "projectId": "37466beb-b202-424c-a1ab-fa3b1a504a68"
       }
-    }
+    },
+    "owner": "paulo_devops"
   }
 }

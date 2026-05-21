@@ -44,6 +44,11 @@ module.exports = function withPreventScreenshots(config) {
   return withDangerousMod(config, [
     "android",
     async (config) => {
+      // PLATFORM GUARD: Skip processing completely if we are running an iOS compilation track
+      if (config.modRequest.platform !== "android") {
+        return config;
+      }
+
       const packageName = config.android?.package;
 
       if (!packageName) {
@@ -58,6 +63,11 @@ module.exports = function withPreventScreenshots(config) {
         ...packageName.split("."),
         "MainActivity.kt",
       );
+
+      // Verify file existence explicitly before trying to read it
+      if (!fs.existsSync(mainActivityPath)) {
+        return config;
+      }
 
       const contents = fs.readFileSync(mainActivityPath, "utf8");
       const updatedContents = addPreventScreenshotsToMainActivity(contents);

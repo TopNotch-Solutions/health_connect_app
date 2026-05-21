@@ -9,12 +9,17 @@
       "distribution": "internal"
     },
     "preview": {
+      "node": "24.14.1",
       "distribution": "internal",
+      "env":{
+        "npm_config_ignore_scripts": "true"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "node": "24.14.1",
       "autoIncrement": true
     }
   },

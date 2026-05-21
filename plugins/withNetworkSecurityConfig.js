@@ -3,13 +3,20 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = function withNetworkSecurityConfig(config) {
+  // PLATFORM GUARD: If we are building for iOS, bypass this plugin safely!
+  if (config.modRequest?.platform !== 'android' && !config.android) {
+    return config;
+  }
+
   // First, create the network security config XML file
   config = withDangerousMod(config, [
     'android',
     async (config) => {
+      // Secondary safety check inside dangerous mod block
+      if (config.modRequest.platform !== 'android') return config;
+
       const xmlDir = path.join(config.modRequest.platformProjectRoot, 'app/src/main/res/xml');
       
-      // Create the xml directory if it doesn't exist
       if (!fs.existsSync(xmlDir)) {
         fs.mkdirSync(xmlDir, { recursive: true });
       }
@@ -37,9 +44,13 @@ module.exports = function withNetworkSecurityConfig(config) {
 
   // Then, update the AndroidManifest to reference it
   return withAndroidManifest(config, async (config) => {
+    // Tertiary check to verify native context existence
+    if (!config.modResults || !config.modResults.manifest) {
+      return config;
+    }
+
     const manifest = config.modResults;
     
-    // Ensure the application element exists
     if (manifest.manifest.application) {
       const mainApplication = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest);
       const googleMapsApiKey = config.android?.config?.googleMaps?.apiKey;
@@ -52,7 +63,6 @@ module.exports = function withNetworkSecurityConfig(config) {
         );
       }
 
-      // Set the networkSecurityConfig attribute
       manifest.manifest.application[0].$['android:networkSecurityConfig'] = '@xml/network_security_config';
     }
     
