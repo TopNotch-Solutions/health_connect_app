@@ -59,6 +59,7 @@ export default function CreateRequestModal({
   const [region, setRegion] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [mapRegion, setMapRegion] = useState<{
     latitude: number;
     longitude: number;
@@ -107,16 +108,20 @@ export default function CreateRequestModal({
     useEffect(() => {
     if (visible) {
       setPrescriptionFile(null);
+      setLocationError(null);
     }
   }, [visible, selectedAilment]);
 
   const loadLocationAndAddress = async () => {
     setIsLoadingLocation(true);
+    setLocationError(null);
+    setMarkerCoord(null);
+    setMapRegion(null);
+    setShowMap(false);
     try {
       const { latitude, longitude, address } =
         await getCurrentLocationWithAddress();
 
-      // Set map region
       setMapRegion({
         latitude,
         longitude,
@@ -125,27 +130,39 @@ export default function CreateRequestModal({
       });
 
       setMarkerCoord({ latitude, longitude });
-      // Auto-show map once location is available
       setShowMap(true);
 
-      // Set address fields
       setStreet(address.route || "Patient Location");
       setLocality(address.locality || "Current City");
       setRegion(address.administrative_area_level_1 || "Current Region");
     } catch (error: any) {
       console.error("Error loading location:", error);
       setShowMap(false);
-      Alert.alert(
-        "Location Error",
+      setMarkerCoord(null);
+      setStreet("");
+      setLocality("");
+      setRegion("");
+      setLocationError(
         error.message ||
-          "Failed to get your location. Please check your location settings and try again.",
+          "We could not detect your location. Enable location services and try again.",
       );
     } finally {
       setIsLoadingLocation(false);
     }
   };
 
+  const isLocationReady = Boolean(markerCoord) && !isLoadingLocation;
+  const canSubmit =
+    isLocationReady &&
+    !isLoading &&
+    !locationError &&
+    ailmentCategory.trim().length > 0;
+
   const handleSubmit = async () => {
+    if (!canSubmit) {
+      return;
+    }
+
     // Validation
     if (!ailmentCategory.trim()) {
       Alert.alert("Required", "Please select or enter an ailment category");
@@ -419,7 +436,7 @@ export default function CreateRequestModal({
                   </Text>
                   <TouchableOpacity
                     onPress={() => setShowMap(!showMap)}
-                    disabled={isLoading}
+                    disabled={isLoading || isLoadingLocation || !markerCoord}
                     className="bg-blue-100 px-3 py-1 rounded-full border border-blue-500"
                   >
                     <Text className="text-blue-600 text-sm font-semibold">
@@ -429,11 +446,34 @@ export default function CreateRequestModal({
                 </View>
 
                 {isLoadingLocation ? (
-                  <View className="bg-gray-50 border border-gray-300 rounded-lg p-8 items-center justify-center h-64">
+                  <View className="bg-blue-50 border border-blue-200 rounded-lg p-8 items-center justify-center min-h-48">
                     <ActivityIndicator color="#3B82F6" size="large" />
-                    <Text className="text-gray-600 mt-3">
-                      Loading your location...
+                    <Text className="text-gray-800 mt-3 font-semibold text-center">
+                      Getting your location…
                     </Text>
+                    <Text className="text-gray-600 mt-2 text-sm text-center px-4">
+                      Please wait while we detect your address so providers can
+                      find you. Submit will be available once this finishes.
+                    </Text>
+                  </View>
+                ) : locationError ? (
+                  <View className="bg-red-50 border border-red-200 rounded-lg p-6 items-center min-h-48 justify-center">
+                    <Feather name="map-pin" size={28} color="#DC2626" />
+                    <Text className="text-red-800 mt-3 font-semibold text-center">
+                      Location unavailable
+                    </Text>
+                    <Text className="text-red-700 mt-2 text-sm text-center px-2">
+                      {locationError}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={loadLocationAndAddress}
+                      disabled={isLoading}
+                      className="mt-4 bg-blue-600 px-5 py-3 rounded-lg"
+                    >
+                      <Text className="text-white font-semibold">
+                        Try again
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ) : showMap && mapRegion && markerCoord ? (
                   <View className="bg-gray-50 border border-gray-300 rounded-lg overflow-hidden h-64 mb-3">
@@ -469,18 +509,35 @@ export default function CreateRequestModal({
                   </View>
                 ) : null}
 
-                {/* Address fields - auto-populated from map */}
-                <View className="bg-amber-50 rounded-lg p-3 mb-3 flex-row items-start border border-amber-300">
-                  <Feather name="map-pin" size={16} color="#92400E" />
-                  <View className="ml-2 flex-1">
-                    <Text className="text-sm font-semibold text-amber-900">
-                      Auto-populated from location
-                    </Text>
-                    <Text className="text-xs text-amber-800 mt-1">
-                      Your location is automatically detected and displayed
-                    </Text>
+                {isLocationReady && (
+                  <View className="bg-green-50 rounded-lg p-3 mb-3 flex-row items-start border border-green-200">
+                    <Feather name="check-circle" size={16} color="#16A34A" />
+                    <View className="ml-2 flex-1">
+                      <Text className="text-sm font-semibold text-green-900">
+                        Location ready
+                      </Text>
+                      <Text className="text-xs text-green-800 mt-1">
+                        Your address has been detected. You can submit your
+                        request below.
+                      </Text>
+                    </View>
                   </View>
-                </View>
+                )}
+
+                {/* Address fields - auto-populated from map */}
+                {!isLoadingLocation && !locationError && (
+                  <View className="bg-amber-50 rounded-lg p-3 mb-3 flex-row items-start border border-amber-300">
+                    <Feather name="map-pin" size={16} color="#92400E" />
+                    <View className="ml-2 flex-1">
+                      <Text className="text-sm font-semibold text-amber-900">
+                        Auto-populated from location
+                      </Text>
+                      <Text className="text-xs text-amber-800 mt-1">
+                        Your location is automatically detected and displayed
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* Street Address */}
@@ -664,15 +721,43 @@ export default function CreateRequestModal({
 
             {/* Footer Actions */}
             <View className="p-6 border-t border-gray-200">
+              {isLoadingLocation && (
+                <Text className="text-sm text-gray-600 text-center mb-3">
+                  Detecting your location — submit is disabled until we have your
+                  address.
+                </Text>
+              )}
+              {locationError && !isLoadingLocation && (
+                <Text className="text-sm text-red-600 text-center mb-3">
+                  Fix your location above, then you can submit your request.
+                </Text>
+              )}
+              {isLocationReady && !isLoading && (
+                <Text className="text-sm text-green-700 text-center mb-3">
+                  Location confirmed. You can submit when ready.
+                </Text>
+              )}
               <TouchableOpacity
                 onPress={handleSubmit}
-                disabled={isLoading}
-                className={`py-4 rounded-lg ${
-                  isLoading ? "bg-blue-300" : "bg-blue-600"
+                disabled={!canSubmit}
+                className={`py-4 rounded-lg flex-row items-center justify-center ${
+                  canSubmit ? "bg-blue-600" : "bg-gray-300"
                 }`}
+                style={{ gap: 8 }}
               >
                 {isLoading ? (
                   <ActivityIndicator color="#FFFFFF" />
+                ) : isLoadingLocation ? (
+                  <>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text className="text-white text-center text-lg font-semibold">
+                      Getting location…
+                    </Text>
+                  </>
+                ) : locationError || !markerCoord ? (
+                  <Text className="text-gray-600 text-center text-lg font-semibold">
+                    Waiting for location
+                  </Text>
                 ) : (
                   <Text className="text-white text-center text-lg font-semibold">
                     Submit Request

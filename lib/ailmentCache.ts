@@ -4,18 +4,48 @@ import { buildBackendAssetUrl } from "./backend";
 
 const AILMENT_CATEGORIES_CACHE_KEY = "health_connect_ailment_categories_v1";
 
-/** Map specialization roles to a display provider label (matches all_ailments). */
+const formatProviderRole = (role: string) =>
+  role
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+
+/** Resolve a human-readable provider label for ailment cards (home, See all, etc.). */
+export function getAilmentProviderLabel(category: any): string {
+  const roles =
+    category?.specialization
+      ?.map((spec: any) => spec?.role)
+      .filter((role: unknown): role is string => typeof role === "string" && role.trim().length > 0) ||
+    [];
+
+  const uniqueRoles = [
+    ...new Set(roles.map((role: string) => formatProviderRole(role))),
+  ];
+  if (uniqueRoles.length > 0) {
+    return uniqueRoles.join(", ");
+  }
+
+  const providerField = String(
+    category?.provider ?? category?.providerType ?? "",
+  ).trim();
+  if (providerField.length > 0) {
+    return providerField
+      .split(",")
+      .map((part) => formatProviderRole(part.trim()))
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  return "Other";
+}
+
+/** Map specialization roles to a display provider label. */
 export function normalizeAilmentCategories(categories: any[]): any[] {
-  return categories.map((category: any) => {
-    const roles =
-      category.specialization?.map((spec: any) => spec.role) || [];
-    const uniqueRoles = [...new Set(roles)];
-    const provider =
-      uniqueRoles.length > 0
-        ? uniqueRoles.join(", ")
-        : (category.provider ?? "Other");
-    return { ...category, provider };
-  });
+  return categories.map((category: any) => ({
+    ...category,
+    provider: getAilmentProviderLabel(category),
+  }));
 }
 
 export async function getCachedAilmentCategories(): Promise<any[] | null> {
@@ -23,7 +53,8 @@ export async function getCachedAilmentCategories(): Promise<any[] | null> {
     const raw = await AsyncStorage.getItem(AILMENT_CATEGORIES_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return normalizeAilmentCategories(parsed);
   } catch (error) {
     console.warn("Failed to read cached ailment categories:", error);
     return null;

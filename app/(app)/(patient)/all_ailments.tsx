@@ -2,7 +2,14 @@ import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import AilmentCard from "../../../components/(patient)/AilmentCard";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";

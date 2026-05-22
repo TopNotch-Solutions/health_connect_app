@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { getAilmentProviderLabel } from "../../lib/ailmentCache";
 import { buildBackendAssetUrl } from "../../lib/backend";
 
 interface AilmentCardProps {
@@ -21,6 +22,7 @@ interface AilmentCardProps {
 
 const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
   const cardKey = item._id ?? item.id ?? item.title;
+  const providerLabel = getAilmentProviderLabel(item);
   const imageUri = buildBackendAssetUrl("ailments", item.image);
   const [imageLoading, setImageLoading] = React.useState(!!imageUri);
   const [imageError, setImageError] = React.useState(false);
@@ -115,20 +117,19 @@ const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
         >
           {item.title}
         </Text>
-        {item.provider && (
-          <Text
-            style={{
-              fontSize: 12,
-              color: "#E5E7EB",
-              marginTop: 4,
-              textShadowColor: "rgba(0, 0, 0, 0.75)",
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 3,
-            }}
-          >
-            {item.provider}
-          </Text>
-        )}
+        <Text
+          style={{
+            fontSize: 12,
+            color: "#E5E7EB",
+            marginTop: 4,
+            textShadowColor: "rgba(0, 0, 0, 0.75)",
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 3,
+          }}
+          numberOfLines={1}
+        >
+          {providerLabel}
+        </Text>
       </View>
     </TouchableOpacity>
   );
