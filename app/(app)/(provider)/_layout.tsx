@@ -1,7 +1,6 @@
 import { useAuth } from "@/context/AuthContext";
 import {
   HeaderBackButton,
-  iosHeaderLeftContainerStyle,
   iosStackHeaderBackOptions,
 } from "@/components/HeaderBackButton";
 import apiClient from "@/lib/api";
@@ -161,7 +160,6 @@ export default function ProviderTabsLayout() {
           marginBottom: 6,
         },
         ...iosStackHeaderBackOptions,
-        headerLeftContainerStyle: iosHeaderLeftContainerStyle,
         headerRight: headerRightCallback,
       }}
     >

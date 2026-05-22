@@ -16,8 +16,10 @@ export function getAilmentProviderLabel(category: any): string {
   const roles =
     category?.specialization
       ?.map((spec: any) => spec?.role)
-      .filter((role: unknown): role is string => typeof role === "string" && role.trim().length > 0) ||
-    [];
+      .filter(
+        (role: unknown): role is string =>
+          typeof role === "string" && role.trim().length > 0,
+      ) || [];
 
   const uniqueRoles = [
     ...new Set(roles.map((role: string) => formatProviderRole(role))),

@@ -22,11 +22,16 @@ export const iosHeaderLeftContainerStyle: ViewStyle | undefined = IS_IOS
     }
   : undefined;
 
-/** Stack screen options for native back chevron alignment on iOS */
+/** Stack / tab screen options — left-aligned titles and back button on iOS */
 export const iosStackHeaderBackOptions = IS_IOS
   ? {
       headerBackButtonDisplayMode: "minimal" as const,
       headerLeftContainerStyle: iosHeaderLeftContainerStyle,
+      headerTitleAlign: "left" as const,
+      headerTitleContainerStyle: {
+        alignItems: "flex-start" as const,
+        justifyContent: "center" as const,
+      },
     }
   : {};
 

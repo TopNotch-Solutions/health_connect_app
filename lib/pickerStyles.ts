@@ -24,6 +24,19 @@ export const pickerSelectStyles = {
     justifyContent: "center" as const,
     alignSelf: "stretch" as const,
     width: "100%",
+    height: "100%",
+  },
+  inputIOSContainer: {
+    width: "100%",
+    alignSelf: "stretch" as const,
+  },
+  inputAndroidContainer: {
+    width: "100%",
+    alignSelf: "stretch" as const,
+  },
+  headlessAndroidContainer: {
+    width: "100%",
+    alignSelf: "stretch" as const,
   },
   placeholder: {
     color: INPUT_PLACEHOLDER_COLOR,
@@ -58,9 +71,15 @@ export const pickerFieldStyles = StyleSheet.create({
     overflow: "visible",
     zIndex: 1,
   },
+  pressableOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    zIndex: 0,
+  },
   touchableWrapper: {
+    flex: 1,
     width: "100%",
-    height: "100%",
+    alignSelf: "stretch",
     justifyContent: "center",
   },
   iconOverlay: {

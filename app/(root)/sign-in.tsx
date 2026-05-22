@@ -4,7 +4,10 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import { AppTextInput as TextInput } from "../../components/AppTextInput";
 import { ActivityIndicator, Animated, Image, Linking, Text, TouchableOpacity, View } from "react-native";
-import ScreenLayout, { SCREEN_EDGES_FULL } from "../../components/ScreenLayout";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import ScreenLayout, {
+  KEYBOARD_AWARE_EXTRA_SCROLL,
+} from "../../components/ScreenLayout";
 import { useAuth } from "../../context/AuthContext";
 import {
   iosInputIconSize,
@@ -288,16 +291,22 @@ const SignInScreen = () => {
 
   try {
     return (
-      <ScreenLayout
-        backgroundColor="#EFF6FF"
-        keyboardAwareScroll
-        keyboardAwareContentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: 24,
-          paddingTop: 0,
-          paddingBottom: 5,
-        }}
-      >
+      <ScreenLayout backgroundColor="#EFF6FF">
+        <View style={{ flex: 1 }}>
+          <KeyboardAwareScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingHorizontal: 24,
+              paddingTop: 0,
+              paddingBottom: 16,
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            enableOnAndroid
+            enableAutomaticScroll
+            extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+          >
           {/* Logo/Icon Section */}
           <View className="items-center" style={{ marginBottom: 0 }}>
             <Image
@@ -515,45 +524,54 @@ const SignInScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
+          </KeyboardAwareScrollView>
 
-          <View className="px-6 pb-4">
-          <TouchableOpacity
-            className="w-full py-5 rounded-2xl items-center justify-center"
+          <View
             style={{
-              backgroundColor: isLoading ? "#9CA3AF" : "#10B981",
-              shadowColor: "#10B981",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 6,
+              paddingHorizontal: 24,
+              paddingTop: 12,
+              paddingBottom: 8,
+              backgroundColor: "#EFF6FF",
             }}
-            onPress={handleSignIn}
-            disabled={isLoading}
-            activeOpacity={0.8}
           >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <View className="flex-row items-center">
-                <Text className="text-white text-xl font-semibold mr-2">
-                  Log In
+            <TouchableOpacity
+              className="w-full py-5 rounded-2xl items-center justify-center"
+              style={{
+                backgroundColor: isLoading ? "#9CA3AF" : "#10B981",
+                shadowColor: "#10B981",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 6,
+              }}
+              onPress={handleSignIn}
+              disabled={isLoading}
+              activeOpacity={0.8}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <View className="flex-row items-center">
+                  <Text className="text-white text-xl font-semibold mr-2">
+                    Log In
+                  </Text>
+                  <Feather name="arrow-right" size={20} color="#FFFFFF" />
+                </View>
+              )}
+            </TouchableOpacity>
+            <View className="flex-row justify-center items-center">
+              <Text className="text-gray-600 text-xs mt-4 text-center">
+                A digital health solution by{" "}
+                <Text
+                  className="text-blue-600"
+                  onPress={() => Linking.openURL("https://kopanovertex.com")}
+                >
+                  Kopano-Vertex Trading cc
                 </Text>
-                <Feather name="arrow-right" size={20} color="#FFFFFF" />
-              </View>
-            )}
-          </TouchableOpacity>
-          <View className="flex-row justify-center items-center">
-            <Text className="text-gray-600 text-xs mt-4">
-              A digital health solution by{" "}
-              <Text
-                className="text-blue-600"
-                onPress={() => Linking.openURL("https://kopanovertex.com")}
-              >
-                Kopano-Vertex Trading cc
               </Text>
-            </Text>
+            </View>
           </View>
-          </View>
+        </View>
         <StatusBar backgroundColor="#EFF6FF" style="dark" />
       </ScreenLayout>
     );

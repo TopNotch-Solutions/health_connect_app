@@ -20,7 +20,7 @@ import apiClient from "../../../lib/api";
 interface Transaction {
   _id: string;
   amount: number;
-  type: "deposit" | "transfer" | "withdrawal" | "payment";
+  type: "deposit" | "transfer" | "withdrawal" | "payment" | "earning";
   status: string;
   time: string;
   walletID?: string;
@@ -132,6 +132,8 @@ const TransactionRow = ({
   userWalletID?: string;
 }) => {
   const isDeposit = item.type === "deposit";
+  const isEarning = item.type === "earning";
+  const isPositive = isDeposit || isEarning;
   const isFundedToOthers =
     isDeposit &&
     item.walletID &&
@@ -144,18 +146,20 @@ const TransactionRow = ({
     label = "Funded Wallet";
   } else if (isDeposit && !isFundedToOthers) {
     label = "Deposit";
+  } else if (isEarning) {
+    label = "Earning";
   }
 
   return (
     <View className="flex-row items-center justify-between bg-white p-4 rounded-xl mb-3 border border-gray-100 shadow-sm">
       <View className="flex-row items-center" style={{ gap: 12 }}>
         <View
-          className={`w-10 h-10 rounded-full items-center justify-center ${isDeposit ? "bg-green-100" : "bg-red-100"}`}
+          className={`w-10 h-10 rounded-full items-center justify-center ${isPositive ? "bg-green-100" : "bg-red-100"}`}
         >
           <Feather
-            name={isDeposit ? "arrow-down-left" : "arrow-up-right"}
+            name={isPositive ? "arrow-down-left" : "arrow-up-right"}
             size={20}
-            color={isDeposit ? "#28A745" : "#EF4444"}
+            color={isPositive ? "#28A745" : "#EF4444"}
           />
         </View>
         <View>
@@ -166,9 +170,9 @@ const TransactionRow = ({
         </View>
       </View>
       <Text
-        className={`text-lg font-bold ${isDeposit ? "text-secondary" : "text-red-500"}`}
+        className={`text-lg font-bold ${isPositive ? "text-green-600" : "text-red-500"}`}
       >
-        {isDeposit ? "+" : "-"}N$ {item.amount.toFixed(2)}
+        {isPositive ? "+" : "-"}N$ {item.amount.toFixed(2)}
       </Text>
     </View>
   );

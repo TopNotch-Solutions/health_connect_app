@@ -1,6 +1,5 @@
 import {
   HeaderBackButton,
-  iosHeaderLeftContainerStyle,
   iosStackHeaderBackOptions,
 } from "../../components/HeaderBackButton";
 import { Stack } from "expo-router";
@@ -17,9 +16,7 @@ const verificationHeaderOptions = {
     fontSize: 18,
   },
   headerTintColor: "#111827",
-  headerTitleAlign: "center" as const,
   ...iosStackHeaderBackOptions,
-  headerLeftContainerStyle: iosHeaderLeftContainerStyle,
 };
 
 const VerificationLayout = () => {

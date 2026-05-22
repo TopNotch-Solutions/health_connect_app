@@ -11,7 +11,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import ScreenLayout from "../../components/ScreenLayout";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import ScreenLayout, {
+  KEYBOARD_AWARE_EXTRA_SCROLL,
+} from "../../components/ScreenLayout";
 import apiClient from "../../lib/api";
 
 const OTPScreen = () => {
@@ -161,15 +164,22 @@ const OTPScreen = () => {
   };
 
   return (
-    <ScreenLayout
-      backgroundColor="#EFF6FF"
-      keyboardAwareScroll
-      keyboardAwareContentContainerStyle={{
-        paddingHorizontal: 15,
-        paddingTop: 5,
-        paddingBottom: 24,
-      }}
-    >
+    <ScreenLayout backgroundColor="#EFF6FF">
+      <View style={{ flex: 1 }}>
+        <KeyboardAwareScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: 15,
+            paddingTop: 5,
+            paddingBottom: 16,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          enableOnAndroid
+          enableAutomaticScroll
+          extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+        >
         {/* Content Section - Centered */}
         <View className="items-center">
           <Text className="text-3xl font-bold text-gray-900 text-center mb-2">
@@ -189,7 +199,7 @@ const OTPScreen = () => {
             {otp.map((digit, index) => (
               <TextInput
                 key={index}
-                ref={(ref) => {
+                ref={(ref: RNTextInput | null) => {
                   inputs.current[index] = ref;
                 }}
                 className="w-14 h-16 bg-white rounded-2xl border-2 border-green-300 text-center text-2xl font-bold text-gray-900"
@@ -225,33 +235,43 @@ const OTPScreen = () => {
             )}
           </TouchableOpacity>
         </View>
-        <View className="px-6 pb-4">
-        <TouchableOpacity
-          className="w-full py-5 rounded-2xl items-center justify-center flex-row"
+        </KeyboardAwareScrollView>
+
+        <View
           style={{
-            backgroundColor: isLoading ? "#9CA3AF" : "#10B981",
-            shadowColor: "#10B981",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 6,
+            paddingHorizontal: 24,
+            paddingTop: 12,
+            paddingBottom: 8,
+            backgroundColor: "#EFF6FF",
           }}
-          onPress={handleVerifyOtp}
-          disabled={isLoading}
-          activeOpacity={0.8}
         >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <View className="flex-row items-center">
-              <Text className="text-white text-xl font-semibold mr-2">
-                Verify & Continue
-              </Text>
-              <Feather name="arrow-right" size={20} color="#FFFFFF" />
-            </View>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            className="w-full py-5 rounded-2xl items-center justify-center flex-row"
+            style={{
+              backgroundColor: isLoading ? "#9CA3AF" : "#10B981",
+              shadowColor: "#10B981",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 6,
+            }}
+            onPress={handleVerifyOtp}
+            disabled={isLoading}
+            activeOpacity={0.8}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <View className="flex-row items-center">
+                <Text className="text-white text-xl font-semibold mr-2">
+                  Verify & Continue
+                </Text>
+                <Feather name="arrow-right" size={20} color="#FFFFFF" />
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
+      </View>
     </ScreenLayout>
   );
 };

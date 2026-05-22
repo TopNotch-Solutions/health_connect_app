@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import React from "react";
-import { Platform, View } from "react-native";
+import React, { useCallback, useRef } from "react";
+import { Platform, Pressable, View } from "react-native";
 import RNPickerSelect, { Item } from "react-native-picker-select";
 import {
   getPickerContainerStyle,
@@ -20,6 +20,10 @@ export type PickerFieldProps = {
   height?: number;
 };
 
+type PickerSelectHandle = {
+  togglePicker: (animate?: boolean) => void;
+};
+
 export function PickerField({
   value,
   onValueChange,
@@ -31,43 +35,62 @@ export function PickerField({
   backgroundColor,
   height,
 }: PickerFieldProps) {
+  const pickerRef = useRef<PickerSelectHandle | null>(null);
+
+  const openPicker = useCallback(() => {
+    if (disabled) return;
+    pickerRef.current?.togglePicker(true);
+  }, [disabled]);
+
+  const containerStyle = getPickerContainerStyle({
+    height,
+    borderColor,
+    backgroundColor,
+    error,
+    disabled,
+  });
+
   return (
-    <View
-      style={getPickerContainerStyle({
-        height,
-        borderColor,
-        backgroundColor,
-        error,
-        disabled,
-      })}
-      collapsable={false}
-    >
-      <RNPickerSelect
+    <View style={containerStyle} collapsable={false}>
+      <Pressable
+        onPress={openPicker}
         disabled={disabled}
-        value={value ?? null}
-        onValueChange={(val, index) =>
-          onValueChange(val != null ? String(val) : "", index)
-        }
-        items={items}
-        placeholder={{ label: placeholder, value: null }}
-        useNativeAndroidPickerStyle={false}
-        style={pickerSelectStyles}
-        touchableWrapperProps={{
-          style: pickerFieldStyles.touchableWrapper,
-          activeOpacity: 0.65,
-          disabled,
-          ...(Platform.OS === "ios"
-            ? { hitSlop: { top: 8, bottom: 8, left: 4, right: 4 } }
-            : {}),
-        }}
-        doneText="Done"
-        Icon={() => null}
-        pickerProps={
-          Platform.OS === "ios"
-            ? { itemStyle: { fontSize: 17, color: "#111827" } }
-            : undefined
-        }
-      />
+        style={pickerFieldStyles.pressableOverlay}
+        accessibilityRole="button"
+        accessibilityState={{ disabled }}
+      >
+        <RNPickerSelect
+          ref={pickerRef as React.RefObject<RNPickerSelect>}
+          disabled={disabled}
+          value={value ?? null}
+          onValueChange={(val, index) =>
+            onValueChange(val != null ? String(val) : "", index)
+          }
+          items={items}
+          placeholder={{ label: placeholder, value: null }}
+          useNativeAndroidPickerStyle={false}
+          fixAndroidTouchableBug={Platform.OS === "android"}
+          onOpen={openPicker}
+          style={pickerSelectStyles}
+          touchableWrapperProps={{
+            style: pickerFieldStyles.touchableWrapper,
+            activeOpacity: 1,
+            ...(Platform.OS === "ios"
+              ? { disabled: true, pointerEvents: "none" as const }
+              : {}),
+          }}
+          textInputProps={
+            Platform.OS === "ios" ? { pointerEvents: "none" } : undefined
+          }
+          doneText="Done"
+          Icon={() => null}
+          pickerProps={
+            Platform.OS === "ios"
+              ? { itemStyle: { fontSize: 17, color: "#111827" } }
+              : undefined
+          }
+        />
+      </Pressable>
       <View style={pickerFieldStyles.iconOverlay} pointerEvents="none">
         <Feather
           name="chevron-down"
