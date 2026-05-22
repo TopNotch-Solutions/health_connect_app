@@ -1,3 +1,5 @@
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "./AppTextInput";
 /**
  * PharmacySetupModal
  *
@@ -14,21 +16,11 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
+import { ensureForegroundLocationPermission } from "../lib/locationPermission";
 
 interface Props {
   visible: boolean;
@@ -118,8 +110,10 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
   const detectLocation = async () => {
     try {
       setIsDetectingLocation(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
+      const { granted } = await ensureForegroundLocationPermission({
+        requestIfNeeded: true,
+      });
+      if (!granted) {
         Alert.alert(
           "Permission needed",
           "Location permission is required to detect your pharmacy's position."
@@ -756,7 +750,7 @@ function Field({
         {label}
       </Text>
       <TextInput
-        style={{
+        style={withIosStandaloneTextInputStyle({
           borderWidth: 1,
           borderColor: error ? "#EF4444" : "#D1D5DB",
           borderRadius: 10,
@@ -765,7 +759,7 @@ function Field({
           fontSize: 15,
           color: "#111827",
           backgroundColor: "#FFFFFF",
-        }}
+        })}
         placeholder={placeholder}
         placeholderTextColor="#9CA3AF"
         value={value}

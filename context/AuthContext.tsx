@@ -4,10 +4,8 @@ import React, {
   useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from "react";
-import { AppState, AppStateStatus } from "react-native";
 import apiClient from "../lib/api";
 import {
   registerForPushNotifications,
@@ -60,9 +58,6 @@ export interface User {
   idDocumentBack?: string;
 }
 
-const SESSION_TIMEOUT = 5 * 60 * 1000;
-const LAST_ACTIVITY_KEY = "lastActivityTime";
-
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -88,12 +83,6 @@ if (!authGlobal.__HEALTH_CONNECT_AUTH_CONTEXT__) {
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const appState = useRef(AppState.currentState);
-
-  const updateLastActivity = useCallback(async () => {
-    const timestamp = Date.now().toString();
-    await SecureStore.setItemAsync(LAST_ACTIVITY_KEY, timestamp);
-  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -122,41 +111,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await SecureStore.deleteItemAsync("user");
       await SecureStore.deleteItemAsync("authToken");
       await SecureStore.deleteItemAsync("pushToken");
-      await SecureStore.deleteItemAsync(LAST_ACTIVITY_KEY);
+      // Legacy key from removed inactivity timeout — clear if present
+      await SecureStore.deleteItemAsync("lastActivityTime").catch(() => {});
     } catch (error) {
       console.error("Failed to logout:", error);
       setUser(null);
     }
   }, []);
 
-  const checkSessionTimeout = useCallback(async () => {
-    try {
-      const lastActivity = await SecureStore.getItemAsync(LAST_ACTIVITY_KEY);
-      if (lastActivity) {
-        const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
-        if (timeSinceLastActivity > SESSION_TIMEOUT) {
-          console.log("Session expired after 5 minutes of inactivity");
-          await logout();
-          return true;
-        }
-      }
-      return false;
-    } catch (e) {
-      console.error("Failed to check session timeout", e);
-      return false;
-    }
-  }, [logout]);
-
   useEffect(() => {
     const loadUser = async () => {
       try {
         const storedUser = await SecureStore.getItemAsync("user");
         if (storedUser) {
-          const expired = await checkSessionTimeout();
-          if (!expired) {
-            setUser(JSON.parse(storedUser));
-            await updateLastActivity();
-          }
+          setUser(JSON.parse(storedUser));
         }
       } catch (e) {
         console.error("Failed to load user from storage", e);
@@ -165,30 +133,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
     loadUser();
-  }, [checkSessionTimeout, updateLastActivity]);
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener(
-      "change",
-      async (nextAppState: AppStateStatus) => {
-        if (
-          appState.current.match(/inactive|background/) &&
-          nextAppState === "active" &&
-          user
-        ) {
-          const expired = await checkSessionTimeout();
-          if (!expired) {
-            await updateLastActivity();
-          }
-        }
-        appState.current = nextAppState;
-      },
-    );
-
-    return () => {
-      subscription.remove();
-    };
-  }, [user, checkSessionTimeout, updateLastActivity]);
+  }, []);
 
   useEffect(() => {
     const fetchAppToken = async () => {
@@ -350,8 +295,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await SecureStore.setItemAsync("user", JSON.stringify(userData));
       console.log("✅ User data saved to SecureStore");
 
-      // Set initial activity timestamp
-      await updateLastActivity();
       setUser(userData);
 
       // Register push notification token in the background (non-blocking)

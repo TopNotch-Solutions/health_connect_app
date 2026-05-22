@@ -8,7 +8,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 
@@ -183,10 +183,7 @@ export default function TransactionsHistoryScreen() {
   );
 
   return (
-    <SafeAreaView
-      className="flex-1 bg-gray-50"
-      edges={["bottom", "left", "right"]}
-    >
+    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
       {/* Transactions List */}
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
@@ -280,6 +277,6 @@ export default function TransactionsHistoryScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }

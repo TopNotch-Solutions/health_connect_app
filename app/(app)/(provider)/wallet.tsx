@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import CryptoJS from "crypto-js";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../../components/AppTextInput";
 import React, {
   useCallback,
   useEffect,
@@ -8,18 +10,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Keyboard,
-  Platform,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ActivityIndicator, Alert, FlatList, Keyboard, Platform, Text, TouchableOpacity, View } from "react-native";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import WebView from "react-native-webview";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
@@ -798,7 +790,7 @@ export default function TransactionsScreen() {
 
   return (
     <View className="flex-1">
-      <SafeAreaView className="flex-1" edges={["bottom", "left", "right"]}>
+      <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#FFFFFF">
         {isLoading ? (
           <ActivityIndicator size="large" className="mt-20" />
         ) : (
@@ -952,7 +944,7 @@ export default function TransactionsScreen() {
             }
           />
         )}
-      </SafeAreaView>
+      </ScreenLayout>
       {dpoSession ? (
         <View
           style={{
@@ -1193,6 +1185,7 @@ export default function TransactionsScreen() {
               Amount
             </Text>
             <TextInput
+              style={withIosStandaloneTextInputStyle()}
               value={addMoneyForm.amount}
               onChangeText={(v) => {
                 setAddMoneyForm((p) => ({ ...p, amount: v }));
@@ -1212,6 +1205,7 @@ export default function TransactionsScreen() {
               Cardholder Name
             </Text>
             <TextInput
+              style={withIosStandaloneTextInputStyle()}
               value={addMoneyForm.cardHolder}
               onChangeText={(v) => {
                 setAddMoneyForm((p) => ({ ...p, cardHolder: v }));
@@ -1230,6 +1224,7 @@ export default function TransactionsScreen() {
               Card Number
             </Text>
             <TextInput
+              style={withIosStandaloneTextInputStyle()}
               value={addMoneyForm.cardNumber}
               onChangeText={(v) => {
                 setAddMoneyForm((p) => ({ ...p, cardNumber: v }));
@@ -1251,6 +1246,7 @@ export default function TransactionsScreen() {
                   Expiry Date
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={addMoneyForm.expiryDate}
                   onChangeText={(v) => {
                     setAddMoneyForm((p) => ({
@@ -1270,6 +1266,7 @@ export default function TransactionsScreen() {
                   CVV
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={addMoneyForm.cvv}
                   onChangeText={(v) => {
                     setAddMoneyForm((p) => ({ ...p, cvv: v }));
@@ -1363,6 +1360,7 @@ export default function TransactionsScreen() {
             Recipient's Wallet ID
           </Text>
           <TextInput
+            style={withIosStandaloneTextInputStyle()}
             value={fundOthersForm.walletID}
             onChangeText={(v) => {
               setFundOthersForm((p) => ({ ...p, walletID: v }));
@@ -1381,6 +1379,7 @@ export default function TransactionsScreen() {
             Amount
           </Text>
           <TextInput
+            style={withIosStandaloneTextInputStyle()}
             value={fundOthersForm.amount}
             onChangeText={(v) => {
               setFundOthersForm((p) => ({ ...p, amount: v }));
@@ -1400,6 +1399,7 @@ export default function TransactionsScreen() {
             Cardholder Name
           </Text>
           <TextInput
+            style={withIosStandaloneTextInputStyle()}
             value={fundOthersForm.cardHolder}
             onChangeText={(v) => {
               setFundOthersForm((p) => ({ ...p, cardHolder: v }));
@@ -1418,6 +1418,7 @@ export default function TransactionsScreen() {
             Card Number
           </Text>
           <TextInput
+            style={withIosStandaloneTextInputStyle()}
             value={fundOthersForm.cardNumber}
             onChangeText={(v) => {
               setFundOthersForm((p) => ({ ...p, cardNumber: v }));
@@ -1439,6 +1440,7 @@ export default function TransactionsScreen() {
                 Expiry Date
               </Text>
               <TextInput
+                style={withIosStandaloneTextInputStyle()}
                 value={fundOthersForm.expiryDate}
                 onChangeText={(v) => {
                   setFundOthersForm((p) => ({
@@ -1458,6 +1460,7 @@ export default function TransactionsScreen() {
                 CVV
               </Text>
               <TextInput
+                style={withIosStandaloneTextInputStyle()}
                 value={fundOthersForm.cvv}
                 onChangeText={(v) => {
                   setFundOthersForm((p) => ({ ...p, cvv: v }));
@@ -1543,6 +1546,7 @@ export default function TransactionsScreen() {
             Amount
           </Text>
           <TextInput
+            style={withIosStandaloneTextInputStyle()}
             value={withdrawForm.amount}
             onChangeText={(v) => {
               setWithdrawForm((p) => ({ ...p, amount: v }));

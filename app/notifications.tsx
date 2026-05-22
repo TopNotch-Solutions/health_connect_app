@@ -1,8 +1,9 @@
+import { HeaderBackButton, iosCustomTopBarStyle } from '../components/HeaderBackButton';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import ScreenLayout, { SCREEN_EDGES_TOP } from "../components/ScreenLayout";
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../lib/api';
 
@@ -341,16 +342,10 @@ export default function NotificationsScreen() {
     });
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <ScreenLayout edges={SCREEN_EDGES_TOP} backgroundColor="#F9FAFB">
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity
-                    onPress={() => router.back()}
-                    style={styles.backButton}
-                    activeOpacity={0.7}
-                >
-                    <Feather name="arrow-left" size={24} color="#111827" />
-                </TouchableOpacity>
+            <View style={[styles.header, iosCustomTopBarStyle]}>
+                <HeaderBackButton color="#111827" size={24} />
                 <Text style={styles.headerTitle}>Notifications</Text>
                 {unreadCount > 0 && (
                     <TouchableOpacity
@@ -474,7 +469,7 @@ export default function NotificationsScreen() {
                     removeClippedSubviews={false}
                 />
             )}
-        </SafeAreaView>
+        </ScreenLayout>
     );
 }
 
@@ -487,21 +482,18 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
+        paddingHorizontal: Platform.OS === 'ios' ? 12 : 20,
         paddingVertical: 16,
         backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
         borderBottomColor: '#E5E7EB',
-    },
-    backButton: {
-        padding: 8,
     },
     headerTitle: {
         fontSize: 24,
         fontWeight: '700',
         color: '#111827',
         flex: 1,
-        marginLeft: 8,
+        marginLeft: Platform.OS === 'ios' ? 4 : 8,
     },
     markAllButton: {
         padding: 8,

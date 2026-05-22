@@ -1,10 +1,24 @@
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../AppTextInput";
 // In components/(patient)/BookingModal.tsx
 
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import RNPickerSelect from 'react-native-picker-select';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { KEYBOARD_VERTICAL_OFFSET } from "../ScreenLayout";
+import { PickerField } from '../PickerField';
 import { namibianRegions, townsByRegion } from '../../constants/locations';
 import apiClient from '../../lib/api';
 
@@ -124,7 +138,11 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View className="flex-1 justify-end bg-black/50">
+      <SafeAreaView className="flex-1 justify-end bg-black/50" edges={["bottom"]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
+        >
         <View className="bg-white rounded-t-3xl p-6 max-h-[85%]">
           <View className="flex-row justify-between items-center mb-6">
             <Text className="text-xl font-bold text-text-main">Book Consultation</Text>
@@ -133,7 +151,10 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={{ backgroundColor: `${category.color}1A` }} className="p-4 rounded-xl mb-6">
               <View className="flex-row items-center">
                 <View style={{ backgroundColor: category.color }} className="p-2 rounded-lg mr-3">
@@ -150,20 +171,37 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
 
             <Text className="text-lg font-semibold text-text-main mb-3">Your Location</Text>
             <TextInput
+              style={withIosStandaloneTextInputStyle()}
               className="bg-gray-100 p-4 rounded-xl mb-3"
               placeholder="Street Address or P.O. Box"
               value={bookingData.address}
               onChangeText={(text) => handleInputChange('address', text)}
             />
-            <View className="bg-gray-100 border-gray-200 rounded-xl px-3 mb-3" style={{ height: 56, justifyContent: 'center' }}>
-              <RNPickerSelect onValueChange={(value) => handleInputChange('region', value)} items={namibianRegions} placeholder={{ label: "Select a region...", value: null }} value={bookingData.region} Icon={() => <Feather name="chevron-down" size={24} color="gray" />} />
+            <View className="mb-3">
+              <PickerField
+                value={bookingData.region}
+                onValueChange={(value) => handleInputChange('region', value)}
+                items={namibianRegions}
+                placeholder="Select a region..."
+                backgroundColor="#F3F4F6"
+                borderColor="#E5E7EB"
+              />
             </View>
-            <View className="bg-gray-100 border-gray-200 rounded-xl px-3 mb-6" style={{ height: 56, justifyContent: 'center' }}>
-              <RNPickerSelect onValueChange={(value) => handleInputChange('town', value)} items={availableTowns} placeholder={{ label: "Select a town...", value: null }} value={bookingData.town} disabled={!bookingData.region} Icon={() => <Feather name="chevron-down" size={24} color="gray" />} />
+            <View className="mb-6">
+              <PickerField
+                value={bookingData.town}
+                onValueChange={(value) => handleInputChange('town', value)}
+                items={availableTowns}
+                placeholder="Select a town..."
+                disabled={!bookingData.region}
+                backgroundColor="#F3F4F6"
+                borderColor="#E5E7EB"
+              />
             </View>
 
             <Text className="text-lg font-semibold text-text-main mb-3">Describe Symptoms (Optional)</Text>
             <TextInput
+              style={withIosMultilineTextInputStyle()}
               className="bg-gray-100 p-4 rounded-xl h-24"
               placeholder="Briefly describe what you're experiencing..."
               multiline
@@ -186,7 +224,8 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
             </TouchableOpacity>
           </ScrollView>
         </View>
-      </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </Modal>
   );
 }

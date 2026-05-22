@@ -13,7 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import ChangePasswordModal from "../../../components/ChangePasswordModal";
 import EditPatientProfileModal from "../../../components/EditPatientProfileModal";
 import { useAuth } from "../../../context/AuthContext";
@@ -231,10 +231,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView
-      className="flex-1 bg-gray-50"
-      edges={["bottom", "left", "right"]}
-    >
+    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
       <ScrollView className="flex-1">
         {/* Profile Header */}
         <View className="bg-white items-center pt-8 pb-6 px-6 border-b border-gray-200">
@@ -614,7 +611,7 @@ export default function ProfileScreen() {
           </View>
         </BottomSheetScrollView>
       </BottomSheet>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 

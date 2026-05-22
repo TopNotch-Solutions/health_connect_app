@@ -2,19 +2,15 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Animated,
-  Image,
-  Linking,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppTextInput as TextInput } from "../../components/AppTextInput";
+import { ActivityIndicator, Animated, Image, Linking, Text, TouchableOpacity, View } from "react-native";
+import ScreenLayout, { SCREEN_EDGES_FULL } from "../../components/ScreenLayout";
 import { useAuth } from "../../context/AuthContext";
+import {
+  iosInputIconSize,
+  withIosInputContainerStyle,
+  withIosTextInputStyle,
+} from "../../lib/iosInputStyles";
 
 const SignInScreen = () => {
   const router = useRouter();
@@ -270,7 +266,10 @@ const SignInScreen = () => {
 
   if (renderError) {
     return (
-      <SafeAreaView className="flex-1 bg-white items-center justify-center">
+      <ScreenLayout
+        backgroundColor="#FFFFFF"
+        style={{ alignItems: "center", justifyContent: "center" }}
+      >
         <Text className="text-red-600 text-lg font-semibold mb-4">
           An error occurred
         </Text>
@@ -283,26 +282,22 @@ const SignInScreen = () => {
         >
           <Text className="text-white font-semibold">Try Again</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </ScreenLayout>
     );
   }
 
   try {
     return (
-      <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
-        <KeyboardAwareScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            paddingHorizontal: 24,
-            paddingTop: 0,
-            paddingBottom: 5,
-          }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          enableOnAndroid={true}
-          enableAutomaticScroll={true}
-          extraScrollHeight={150}
-        >
+      <ScreenLayout
+        backgroundColor="#EFF6FF"
+        keyboardAwareScroll
+        keyboardAwareContentContainerStyle={{
+          flexGrow: 1,
+          paddingHorizontal: 24,
+          paddingTop: 0,
+          paddingBottom: 5,
+        }}
+      >
           {/* Logo/Icon Section */}
           <View className="items-center" style={{ marginBottom: 0 }}>
             <Image
@@ -403,23 +398,24 @@ const SignInScreen = () => {
                 Email
               </Text>
               <View
-                className="flex-row items-center bg-white rounded-2xl px-4 py-3.5 border-2"
-                style={{
+                className="flex-row items-center bg-white rounded-2xl px-4 py-4 border-2"
+                style={withIosInputContainerStyle({
                   borderColor: emailError ? "#EF4444" : "#D1D5DB",
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.06,
                   shadowRadius: 3,
                   elevation: 1,
-                }}
+                })}
               >
                 <MaterialCommunityIcons
                   name="email"
-                  size={20}
+                  size={iosInputIconSize}
                   color={emailError ? "#EF4444" : "#10B981"}
                 />
                 <TextInput
                   className="flex-1 ml-3 text-base text-gray-900"
+                  style={withIosTextInputStyle()}
                   placeholder="Enter your email"
                   placeholderTextColor="#9CA3AF"
                   value={email}
@@ -441,23 +437,24 @@ const SignInScreen = () => {
                 Password
               </Text>
               <View
-                className="flex-row items-center bg-white rounded-2xl px-5 py-4 border-2"
-                style={{
+                className="flex-row items-center bg-white rounded-2xl px-4 py-4 border-2"
+                style={withIosInputContainerStyle({
                   borderColor: passwordError ? "#EF4444" : "#D1D5DB",
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.1,
                   shadowRadius: 4,
                   elevation: 2,
-                }}
+                })}
               >
                 <MaterialCommunityIcons
                   name="lock"
-                  size={20}
+                  size={iosInputIconSize}
                   color={passwordError ? "#EF4444" : "#10B981"}
                 />
                 <TextInput
                   className="flex-1 ml-3 text-base text-gray-900"
+                  style={withIosTextInputStyle()}
                   placeholder="Enter your password"
                   placeholderTextColor="#9CA3AF"
                   value={password}
@@ -471,7 +468,7 @@ const SignInScreen = () => {
                 >
                   <Feather
                     name={showPassword ? "eye" : "eye-off"}
-                    size={20}
+                    size={iosInputIconSize}
                     color="#6B7280"
                   />
                 </TouchableOpacity>
@@ -518,10 +515,8 @@ const SignInScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAwareScrollView>
 
-        {/* Section 4: Login Button - Fixed at bottom with safe area */}
-        <SafeAreaView edges={["bottom"]} className="px-6 pb-4">
+          <View className="px-6 pb-4">
           <TouchableOpacity
             className="w-full py-5 rounded-2xl items-center justify-center"
             style={{
@@ -558,9 +553,9 @@ const SignInScreen = () => {
               </Text>
             </Text>
           </View>
-        </SafeAreaView>
+          </View>
         <StatusBar backgroundColor="#EFF6FF" style="dark" />
-      </SafeAreaView>
+      </ScreenLayout>
     );
   } catch (error: any) {
     console.error("Error rendering SignInScreen:", error);
@@ -568,7 +563,10 @@ const SignInScreen = () => {
       error?.message || "An unknown error occurred while rendering",
     );
     return (
-      <SafeAreaView className="flex-1 bg-white items-center justify-center">
+      <ScreenLayout
+        backgroundColor="#FFFFFF"
+        style={{ alignItems: "center", justifyContent: "center" }}
+      >
         <Text className="text-red-600 text-lg font-semibold mb-4">
           Render Error
         </Text>
@@ -581,7 +579,7 @@ const SignInScreen = () => {
         >
           <Text className="text-white font-semibold">Retry</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </ScreenLayout>
     );
   }
 };

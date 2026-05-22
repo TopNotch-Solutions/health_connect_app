@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_FULL } from "../../components/ScreenLayout";
 
 const OnboardingSummaryScreen = () => {
   const router = useRouter();
@@ -42,7 +42,7 @@ const OnboardingSummaryScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gradient-to-b from-indigo-50 to-white">
+    <ScreenLayout edges={SCREEN_EDGES_FULL}>
       <View className="flex-1">
         {/* Skip Button */}
         <View className="items-end px-6 pt-4">
@@ -171,7 +171,7 @@ const OnboardingSummaryScreen = () => {
         </View>
       </View>
       <StatusBar backgroundColor="#E0E7FF" style="dark" />
-    </SafeAreaView>
+    </ScreenLayout>
   );
 };
 

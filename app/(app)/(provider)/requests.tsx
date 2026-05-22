@@ -3,23 +3,15 @@ import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Linking,
-  Modal,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../../components/AppTextInput";
+import { ActivityIndicator, Alert, Image, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import { useAuth } from "../../../context/AuthContext";
 import { useRoute } from "../../../context/RouteContext";
 import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
+import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 import socketService from "../../../lib/socket";
 
 interface PrescriptionData {
@@ -503,8 +495,10 @@ export default function ProviderRequests() {
 
     setActionLoading({ requestId: request._id, action: "accept" });
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
+      const { granted } = await ensureForegroundLocationPermission({
+        requestIfNeeded: true,
+      });
+      if (!granted) {
         Alert.alert(
           "Location Permission Required",
           "Your current location is required before accepting nearby consultation requests.",
@@ -554,8 +548,11 @@ export default function ProviderRequests() {
             return;
           }
 
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== "granted") {
+          const { granted: bgGranted } =
+            await ensureForegroundLocationPermission({
+              requestIfNeeded: false,
+            });
+          if (!bgGranted) {
             console.warn(
               "Location permission not granted; cannot send en_route with coordinates",
             );
@@ -624,8 +621,10 @@ export default function ProviderRequests() {
     try {
       console.log("🚗 Opening route modal for request:", request._id);
 
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
+      const { granted } = await ensureForegroundLocationPermission({
+        requestIfNeeded: true,
+      });
+      if (!granted) {
         return Alert.alert(
           "Permission Denied",
           "Location permission is required.",
@@ -872,10 +871,7 @@ export default function ProviderRequests() {
   };
 
   return (
-    <SafeAreaView
-      className="flex-1 bg-gray-50"
-      edges={["bottom", "left", "right"]}
-    >
+    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
       <ScrollView className="flex-1">
         {/* Header */}
         <View className="bg-white pt-6 pb-4 px-6 border-b border-gray-200">
@@ -1593,7 +1589,7 @@ export default function ProviderRequests() {
               onChangeText={setRejectReason}
               multiline
               numberOfLines={3}
-              style={{
+              style={withIosMultilineTextInputStyle({
                 borderWidth: 1,
                 borderColor: "#E5E7EB",
                 borderRadius: 10,
@@ -1603,7 +1599,7 @@ export default function ProviderRequests() {
                 minHeight: 72,
                 textAlignVertical: "top",
                 marginBottom: 16,
-              }}
+              })}
             />
             <View style={{ flexDirection: "row", gap: 10 }}>
               <TouchableOpacity
@@ -1642,6 +1638,6 @@ export default function ProviderRequests() {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }

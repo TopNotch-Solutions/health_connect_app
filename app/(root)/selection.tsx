@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_FULL } from "../../components/ScreenLayout";
 
 const STORAGE_KEY = "hasSeenOnboarding";
 
@@ -46,15 +46,15 @@ const SelectionScreen = () => {
 
   if (checking) {
     return (
-      <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white items-center justify-center">
+      <ScreenLayout edges={SCREEN_EDGES_FULL}>
         <ActivityIndicator size="large" color="#3B82F6" />
         <StatusBar backgroundColor="#EFF6FF" style="dark" />
-      </SafeAreaView>
+      </ScreenLayout>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
+    <ScreenLayout edges={SCREEN_EDGES_FULL}>
       <View className="flex-1 px-6 pt-8 pb-4">
         {/* Logo Section - 1/4 of screen */}
         <View className="items-center justify-center" style={{ flex: 1 }}>
@@ -144,7 +144,7 @@ const SelectionScreen = () => {
         )}
       </View>
       <StatusBar backgroundColor="#EFF6FF" style="dark" />
-    </SafeAreaView>
+    </ScreenLayout>
   );
 };
 

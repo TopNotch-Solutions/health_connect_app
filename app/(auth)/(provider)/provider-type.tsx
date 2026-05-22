@@ -3,7 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_FULL } from "../../../components/ScreenLayout";
 type ProviderType =
   | "doctor"
   | "nurse"
@@ -73,7 +73,7 @@ export default function ProviderTypeScreen() {
     });
 
   return (
-    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
+    <ScreenLayout edges={SCREEN_EDGES_FULL}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
         <View className="flex-1 px-6 justify-center py-6">
           {/* Logo Section */}
@@ -132,6 +132,6 @@ export default function ProviderTypeScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }

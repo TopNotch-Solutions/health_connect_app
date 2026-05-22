@@ -1,8 +1,7 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import AilmentCard from "../../../components/(patient)/AilmentCard";
 import CreateRequestModal from "../../../components/(patient)/CreateRequestModal";
 import HistoryCard, {
@@ -25,8 +24,15 @@ import HistoryCard, {
 } from "../../../components/(patient)/HistoryCard";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
+import {
+  getCachedAilmentCategories,
+  normalizeAilmentCategories,
+  prefetchAilmentCategoryImages,
+  setCachedAilmentCategories,
+} from "../../../lib/ailmentCache";
 import { buildBackendAssetUrl } from "../../../lib/backend";
 import { getLocationCoordinates } from "../../../lib/geocoding";
+import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 import { PrescriptionFile, uploadPrescription } from "../../../lib/prescription";
 import socketService from "../../../lib/socket";
 
@@ -49,7 +55,8 @@ export default function PatientHomeScreen() {
   } | null>(null);
   const [recentRequests, setRecentRequests] = useState<HistoryItem[]>([]);
   const [ailmentCategories, setAilmentCategories] = useState<any[]>([]);
-  const [isLoadingAilments, setIsLoadingAilments] = useState(false);
+  const [isLoadingAilments, setIsLoadingAilments] = useState(true);
+  const ailmentsReadyRef = useRef(false);
   const [adverts, setAdverts] = useState<Advert[]>([]);
   const [isLoadingAdverts, setIsLoadingAdverts] = useState(false);
   const [selectedAdvert, setSelectedAdvert] = useState<Advert | null>(null);
@@ -175,9 +182,33 @@ export default function PatientHomeScreen() {
     }
   }, []);
 
+  // Show cached ailments immediately, then refresh from the server in the background
+  useEffect(() => {
+    (async () => {
+      const cached = await getCachedAilmentCategories();
+      if (!cached?.length) return;
+
+      const normalized = normalizeAilmentCategories(cached);
+      setAilmentCategories(normalized);
+      ailmentsReadyRef.current = true;
+      setIsLoadingAilments(false);
+      void prefetchAilmentCategoryImages(normalized, 6);
+    })();
+  }, []);
+
+  const applyAilmentCategories = useCallback((categories: any[]) => {
+    const normalized = normalizeAilmentCategories(categories);
+    setAilmentCategories(normalized);
+    ailmentsReadyRef.current = true;
+    void setCachedAilmentCategories(normalized);
+    void prefetchAilmentCategoryImages(normalized, 6);
+  }, []);
+
   // Function to fetch ailment categories from backend via socket
   const loadAilmentCategories = useCallback(async () => {
-    setIsLoadingAilments(true);
+    if (!ailmentsReadyRef.current) {
+      setIsLoadingAilments(true);
+    }
     try {
       // Wait for socket to be connected before proceeding
       console.log("⏳ Waiting for socket to connect...");
@@ -204,34 +235,8 @@ export default function PatientHomeScreen() {
             categories,
           );
           if (Array.isArray(categories) && categories.length > 0) {
-            setAilmentCategories(categories);
-
-            // Prefetch ailment images for faster loading - prioritize first 6 for home page
-            const categoriesToPrefetch = categories.slice(0, 6); // Only prefetch first 6 for home page
-
-            // Prefetch in parallel for faster loading
-            const prefetchPromises = categoriesToPrefetch.map(
-              (category: any) => {
-                if (category.image) {
-                  const imageUri = buildBackendAssetUrl(
-                    "ailments",
-                    category.image,
-                  );
-                  if (!imageUri) return Promise.resolve();
-                  return Image.prefetch(imageUri).catch((err) => {
-                    console.log("Failed to prefetch image:", imageUri, err);
-                  });
-                }
-                return Promise.resolve();
-              },
-            );
-
-            // Wait for all prefetches to complete
-            Promise.all(prefetchPromises).then(() => {
-              console.log("✅ Prefetched first 6 ailment images");
-            });
-          } else {
-            // If no categories received, set empty array
+            applyAilmentCategories(categories);
+          } else if (!ailmentsReadyRef.current) {
             setAilmentCategories([]);
           }
           socket?.off("ailmentCategories", handleAilmentCategories);
@@ -259,7 +264,7 @@ export default function PatientHomeScreen() {
       console.error("Error loading ailment categories:", error);
       setIsLoadingAilments(false);
     }
-  }, []);
+  }, [applyAilmentCategories]);
 
   // Function to load recent requests
   const loadRecentRequests = useCallback(async () => {
@@ -441,11 +446,21 @@ export default function PatientHomeScreen() {
     }
   }, [loadAilmentCategories, loadAdverts, loadRecentRequests]);
 
-  // Request location permissions on mount
+  // Use location if already granted; do not prompt on login (prompt when booking care)
   useEffect(() => {
+    const defaultLocation = { latitude: -22.55784, longitude: 17.072891 };
+
     (async () => {
       try {
-        const coords = await getLocationCoordinates();
+        const { granted } = await ensureForegroundLocationPermission({
+          requestIfNeeded: false,
+        });
+        if (!granted) {
+          setLocation(defaultLocation);
+          return;
+        }
+
+        const coords = await getLocationCoordinates({ requestPermission: false });
         setLocation({
           latitude: coords.latitude,
           longitude: coords.longitude,
@@ -453,34 +468,7 @@ export default function PatientHomeScreen() {
         console.log("✅ Location obtained successfully:", coords);
       } catch (error: any) {
         console.error("Location error:", error);
-        // Set default location for emulator/testing
-        const defaultLocation = { latitude: -22.55784, longitude: 17.072891 };
         setLocation(defaultLocation);
-
-        Alert.alert(
-          "Location Error",
-          error.message ||
-            "Could not get your current location. Using default location for testing. On a real device, please enable location services.",
-          [
-            {
-              text: "Try Again",
-              onPress: async () => {
-                try {
-                  const coords = await getLocationCoordinates();
-                  setLocation({
-                    latitude: coords.latitude,
-                    longitude: coords.longitude,
-                  });
-                  console.log("✅ Location retry successful:", coords);
-                } catch (retryError: any) {
-                  console.error("Retry failed:", retryError);
-                  // Keep using default location
-                }
-              },
-            },
-            { text: "Use Default", style: "cancel" },
-          ],
-        );
       }
     })();
   }, []);
@@ -509,15 +497,9 @@ export default function PatientHomeScreen() {
 
     if (!currentLocation) {
       try {
-        Alert.alert("Getting Location", "Fetching your current location...");
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        currentLocation = {
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        };
-        setLocation(currentLocation);
+        const coords = await getLocationCoordinates({ requestPermission: true });
+        currentLocation = coords;
+        setLocation(coords);
       } catch {
         throw new Error(
           "Location is required to create a request. Please enable location services and try again.",
@@ -645,10 +627,7 @@ export default function PatientHomeScreen() {
 
   return (
     <>
-      <SafeAreaView
-        className="flex-1 bg-gray-100"
-        edges={["bottom", "left", "right"]}
-      >
+      <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F3F4F6">
         <View className="flex-1">
           <ScrollView
             className="flex-1"
@@ -949,7 +928,7 @@ export default function PatientHomeScreen() {
             </View>
           </Modal>
         </View>
-      </SafeAreaView>
+      </ScreenLayout>
 
       {/* First-time user welcome modal (patient) */}
       <Modal visible={showWelcomeModal} animationType="slide" transparent>

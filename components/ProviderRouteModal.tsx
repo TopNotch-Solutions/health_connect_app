@@ -20,6 +20,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildBackendAssetUrl } from "../lib/backend";
+import { ensureForegroundLocationPermission } from "../lib/locationPermission";
 import socketService from "../lib/socket";
 import { logViewMountDebug } from "../lib/viewErrorLogger";
 
@@ -290,8 +291,10 @@ export default function ProviderRouteModal({
       console.log("🚗 Starting real-time location tracking...");
       setIsTracking(true);
 
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
+      const { granted } = await ensureForegroundLocationPermission({
+        requestIfNeeded: true,
+      });
+      if (!granted) {
         Alert.alert(
           "Permission Denied",
           "Location permission is required for route tracking",

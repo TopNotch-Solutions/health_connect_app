@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
-import { useFocusEffect, useRouter } from "expo-router";
+import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
+import { useFocusEffect, useRouter, type Href } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import PatientProviderTracking from "../../../components/(patient)/PatientProviderTracking";
 import PrescriptionUploadModal, {
   PrescriptionData,
@@ -584,10 +585,9 @@ const RequestCard = ({
         ["ready_for_call", "in_call"].includes(request.status) && (
           <TouchableOpacity
             onPress={() =>
-              router.push({
-                pathname: "/(app)/(patient)/teleconsultation-call",
-                params: { requestId: request._id },
-              })
+              router.push(
+                `/(app)/(patient)/teleconsultation-call?requestId=${encodeURIComponent(request._id)}` as Href,
+              )
             }
             style={styles.joinCallButton}
           >
@@ -847,14 +847,17 @@ export default function WaitingRoom() {
     [user?.userId],
   );
 
-  // Get patient's current location on mount
+  // Use location only if permission was already granted (no prompt on screen open)
   useEffect(() => {
+    const defaultLocation = { latitude: -26.2041, longitude: 28.0473 };
+
     (async () => {
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          console.warn("Location permission denied, using default");
-          setPatientLocation({ latitude: -26.2041, longitude: 28.0473 }); // Pretoria default
+        const { granted } = await ensureForegroundLocationPermission({
+          requestIfNeeded: false,
+        });
+        if (!granted) {
+          setPatientLocation(defaultLocation);
           return;
         }
 
@@ -867,7 +870,7 @@ export default function WaitingRoom() {
         });
       } catch (error) {
         console.error("Error getting location:", error);
-        setPatientLocation({ latitude: -26.2041, longitude: 28.0473 }); // Default location
+        setPatientLocation(defaultLocation);
       }
     })();
   }, []);
@@ -1310,18 +1313,15 @@ export default function WaitingRoom() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-gray-50 items-center justify-center">
+      <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
         <ActivityIndicator size="large" color="#007BFF" />
         <Text style={styles.loadingText}>Loading your requests...</Text>
-      </SafeAreaView>
+      </ScreenLayout>
     );
   }
 
   return (
-    <SafeAreaView
-      className="flex-1 bg-gray-50"
-      edges={["bottom", "left", "right"]}
-    >
+    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
       {/* Map panel: shows provider + route when a provider has accepted and location is available */}
       {showProviderMap && patientLocation && (
         <View style={{ height: 220, width: "100%" }} className="px-4 mb-4">
@@ -1385,7 +1385,7 @@ export default function WaitingRoom() {
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
         }
       />
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 

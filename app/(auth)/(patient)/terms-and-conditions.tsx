@@ -1,9 +1,14 @@
+import {
+  HeaderBackButton,
+  iosCustomTopBarRowStyle,
+  iosCustomTopBarStyle,
+} from "../../../components/HeaderBackButton";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_FULL } from "../../../components/ScreenLayout";
 
 // Extend global type
 declare global {
@@ -28,16 +33,14 @@ export default function TermsAndConditionsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <ScreenLayout edges={SCREEN_EDGES_FULL} backgroundColor="#FFFFFF">
       <StatusBar style="dark" />
 
       {/* Header */}
-      <View className="p-6 border-b border-gray-200">
-        <View className="flex-row items-center mb-2">
-          <TouchableOpacity onPress={() => router.back()} className="mr-3">
-            <Feather name="arrow-left" size={24} color="#1F2937" />
-          </TouchableOpacity>
-          <Text className="text-2xl font-bold text-gray-900">
+      <View className="py-6 border-b border-gray-200" style={iosCustomTopBarStyle}>
+        <View className="flex-row items-center mb-2" style={iosCustomTopBarRowStyle}>
+          <HeaderBackButton color="#1F2937" size={24} />
+          <Text className="text-2xl font-bold text-gray-900 ml-2">
             Terms & Conditions
           </Text>
         </View>
@@ -195,6 +198,6 @@ export default function TermsAndConditionsScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }

@@ -1,23 +1,24 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../components/AppTextInput";
 import {
   ActivityIndicator,
   Alert,
   Text,
-  TextInput,
+  TextInput as RNTextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout from "../../components/ScreenLayout";
 import apiClient from "../../lib/api";
 
 const OTPScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [otp, setOtp] = useState<string[]>(new Array(6).fill(""));
-  const inputs = useRef<(TextInput | null)[]>([]);
+  const inputs = useRef<(RNTextInput | null)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
@@ -160,19 +161,15 @@ const OTPScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
-      <KeyboardAwareScrollView
-        contentContainerStyle={{
-          paddingHorizontal: 15,
-          paddingTop: 5,
-          paddingBottom: 5,
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        enableOnAndroid={true}
-        enableAutomaticScroll={true}
-        extraScrollHeight={150}
-      >
+    <ScreenLayout
+      backgroundColor="#EFF6FF"
+      keyboardAwareScroll
+      keyboardAwareContentContainerStyle={{
+        paddingHorizontal: 15,
+        paddingTop: 5,
+        paddingBottom: 24,
+      }}
+    >
         {/* Content Section - Centered */}
         <View className="items-center">
           <Text className="text-3xl font-bold text-gray-900 text-center mb-2">
@@ -196,13 +193,13 @@ const OTPScreen = () => {
                   inputs.current[index] = ref;
                 }}
                 className="w-14 h-16 bg-white rounded-2xl border-2 border-green-300 text-center text-2xl font-bold text-gray-900"
-                style={{
+                style={withIosOtpTextInputStyle({
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.1,
                   shadowRadius: 4,
                   elevation: 2,
-                }}
+                })}
                 keyboardType="number-pad"
                 maxLength={1}
                 value={digit}
@@ -228,10 +225,7 @@ const OTPScreen = () => {
             )}
           </TouchableOpacity>
         </View>
-      </KeyboardAwareScrollView>
-
-      {/* Bottom Button - Fixed at bottom with safe area */}
-      <SafeAreaView edges={["bottom"]} className="px-6 pb-4">
+        <View className="px-6 pb-4">
         <TouchableOpacity
           className="w-full py-5 rounded-2xl items-center justify-center flex-row"
           style={{
@@ -257,8 +251,8 @@ const OTPScreen = () => {
             </View>
           )}
         </TouchableOpacity>
-      </SafeAreaView>
-    </SafeAreaView>
+        </View>
+    </ScreenLayout>
   );
 };
 

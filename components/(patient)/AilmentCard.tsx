@@ -1,16 +1,17 @@
+import { Image } from "expo-image";
 import React from "react";
 import {
-    ActivityIndicator,
-    Image,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { buildBackendAssetUrl } from "../../lib/backend";
 
 interface AilmentCardProps {
   item: {
-    id: string;
+    _id?: string;
+    id?: string;
     title: string;
     image?: string;
     provider?: string;
@@ -19,27 +20,19 @@ interface AilmentCardProps {
 }
 
 const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
+  const cardKey = item._id ?? item.id ?? item.title;
   const imageUri = buildBackendAssetUrl("ailments", item.image);
-  console.log("AilmentCard imageUri:", imageUri);
-  const [imageLoading, setImageLoading] = React.useState(false);
+  const [imageLoading, setImageLoading] = React.useState(!!imageUri);
   const [imageError, setImageError] = React.useState(false);
-  const loadingTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
 
-  // Image is already prefetched when categories load, so start with loading false
-  // Only show loading if image actually takes time to load
   React.useEffect(() => {
     if (!imageUri) {
       setImageError(true);
       setImageLoading(false);
+      return;
     }
-
-    return () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-      }
-    };
+    setImageError(false);
+    setImageLoading(true);
   }, [imageUri]);
 
   return (
@@ -76,34 +69,17 @@ const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
             </View>
           )}
           <Image
-            source={{ uri: imageUri }}
+            source={imageUri}
             style={{
               width: "100%",
               height: "100%",
             }}
-            resizeMode="cover"
-            onLoadStart={() => {
-              // Only show loading indicator if image takes more than 150ms to load
-              // This way prefetched images won't show loading
-              if (loadingTimeoutRef.current) {
-                clearTimeout(loadingTimeoutRef.current);
-              }
-              loadingTimeoutRef.current = setTimeout(() => {
-                setImageLoading(true);
-              }, 150);
-            }}
-            onLoadEnd={() => {
-              if (loadingTimeoutRef.current) {
-                clearTimeout(loadingTimeoutRef.current);
-                loadingTimeoutRef.current = null;
-              }
-              setImageLoading(false);
-            }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            recyclingKey={cardKey}
+            transition={150}
+            onLoad={() => setImageLoading(false)}
             onError={() => {
-              if (loadingTimeoutRef.current) {
-                clearTimeout(loadingTimeoutRef.current);
-                loadingTimeoutRef.current = null;
-              }
               setImageError(true);
               setImageLoading(false);
             }}
@@ -115,7 +91,6 @@ const AilmentCard = ({ item, onPress }: AilmentCardProps) => {
         />
       )}
 
-      {/* Blurred overlay at the bottom with title */}
       <View
         style={{
           position: "absolute",

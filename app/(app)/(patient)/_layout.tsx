@@ -1,4 +1,9 @@
 import { useAuth } from "@/context/AuthContext";
+import {
+  HeaderBackButton,
+  iosHeaderLeftContainerStyle,
+  iosStackHeaderBackOptions,
+} from "@/components/HeaderBackButton";
 import apiClient from "@/lib/api";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import {
@@ -130,6 +135,8 @@ export default function PatientTabLayout() {
           fontSize: 12,
           marginBottom: 6,
         },
+        ...iosStackHeaderBackOptions,
+        headerLeftContainerStyle: iosHeaderLeftContainerStyle,
         headerRight,
       }}
     >
@@ -174,16 +181,7 @@ export default function PatientTabLayout() {
         options={{
           href: null,
           title: "",
-          headerLeft: () => (
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={{ padding: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-            >
-              <Feather name="arrow-left" size={30} />
-            </TouchableOpacity>
-          ),
+          headerLeft: () => <HeaderBackButton size={30} />,
         }}
       />
       <Tabs.Screen
@@ -197,16 +195,7 @@ export default function PatientTabLayout() {
         options={{
           href: null,
           title: "",
-          headerLeft: () => (
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={{ padding: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-            >
-              <Feather name="arrow-left" size={30} />
-            </TouchableOpacity>
-          ),
+          headerLeft: () => <HeaderBackButton size={30} />,
         }}
       />
       <Tabs.Screen

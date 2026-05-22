@@ -1,20 +1,13 @@
 import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import RNPickerSelect from "react-native-picker-select";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "./AppTextInput";
+import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { PickerField } from "./PickerField";
+import { KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KEYBOARD_VERTICAL_OFFSET } from "./ScreenLayout";
 import { namibianRegions, townsByRegion } from "../constants/locations";
 import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
@@ -51,41 +44,6 @@ interface EditPatientProfileModalProps {
   visible: boolean;
   onClose: () => void;
 }
-
-const pickerStyle = {
-  inputIOS: {
-    color: "#111827",
-    fontSize: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    paddingRight: 30,
-  },
-  inputAndroid: {
-    color: "#111827",
-    fontSize: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingRight: 30,
-  },
-  iconContainer: {
-    top: 16,
-    right: 12,
-  },
-  placeholder: {
-    color: "#9CA3AF",
-  },
-  modalViewMiddle: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  modalViewBottom: {
-    backgroundColor: "white",
-  },
-  chevronContainer: {
-    display: "none",
-  },
-};
 
 export default function EditPatientProfileModal({
   visible,
@@ -302,16 +260,22 @@ export default function EditPatientProfileModal({
           </TouchableOpacity>
         </View>
 
+        <KeyboardAvoidingView
+          style={styles.scrollView}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
+        >
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Full Name */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Full Name</Text>
             <TextInput
-              style={[styles.input, fieldErrors.fullname ? styles.inputError : undefined]}
+              style={withIosStandaloneTextInputStyle([styles.input, fieldErrors.fullname ? styles.inputError : undefined])}
               placeholder="Enter full name"
               placeholderTextColor="#9CA3AF"
               value={formData.fullname}
@@ -325,7 +289,7 @@ export default function EditPatientProfileModal({
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email</Text>
             <TextInput
-              style={[styles.input, fieldErrors.email ? styles.inputError : undefined]}
+              style={withIosStandaloneTextInputStyle([styles.input, fieldErrors.email ? styles.inputError : undefined])}
               placeholder="Enter email"
               placeholderTextColor="#9CA3AF"
               value={formData.email}
@@ -341,7 +305,7 @@ export default function EditPatientProfileModal({
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Cellphone Number</Text>
             <TextInput
-              style={[styles.input, fieldErrors.cellphoneNumber ? styles.inputError : undefined]}
+              style={withIosStandaloneTextInputStyle([styles.input, fieldErrors.cellphoneNumber ? styles.inputError : undefined])}
               placeholder="e.g. 0811234567"
               placeholderTextColor="#9CA3AF"
               value={formData.cellphoneNumber}
@@ -358,7 +322,7 @@ export default function EditPatientProfileModal({
             <TouchableOpacity
               onPress={() => setShowDatePicker(true)}
               disabled={isLoading}
-              style={[styles.input, fieldErrors.dateOfBirth ? styles.inputError : undefined]}
+              style={withIosStandaloneTextInputStyle([styles.input, fieldErrors.dateOfBirth ? styles.inputError : undefined])}
               activeOpacity={0.7}
             >
               <Text
@@ -388,7 +352,7 @@ export default function EditPatientProfileModal({
           <View style={styles.inputContainer}>
             <Text style={styles.label}>National ID Number</Text>
             <TextInput
-              style={styles.input}
+              style={withIosStandaloneTextInputStyle(styles.input)}
               placeholder="Enter your 11-digit National ID"
               placeholderTextColor="#9CA3AF"
               value={formData.nationalId}
@@ -436,7 +400,7 @@ export default function EditPatientProfileModal({
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Address</Text>
             <TextInput
-              style={[styles.input, fieldErrors.address ? styles.inputError : undefined]}
+              style={withIosStandaloneTextInputStyle([styles.input, fieldErrors.address ? styles.inputError : undefined])}
               placeholder="Enter address"
               placeholderTextColor="#9CA3AF"
               value={formData.address}
@@ -449,45 +413,33 @@ export default function EditPatientProfileModal({
           {/* Region */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Region</Text>
-            <View style={[styles.pickerContainer, fieldErrors.region ? styles.inputError : undefined]}>
-              <RNPickerSelect
-                onValueChange={(value) => { handleInputChange("region", value); if (fieldErrors.region) setError("region", null); }}
-                items={namibianRegions}
-                placeholder={{ label: "Select a region...", value: null }}
-                value={formData.region}
-                style={pickerStyle as any}
-                useNativeAndroidPickerStyle={false}
-              />
-              <View style={styles.pickerIcon}>
-                <Feather name="chevron-down" size={20} color="#D1D5DB" />
-              </View>
-            </View>
+            <PickerField
+              value={formData.region}
+              onValueChange={(value) => {
+                handleInputChange("region", value);
+                if (fieldErrors.region) setError("region", null);
+              }}
+              items={namibianRegions}
+              placeholder="Select a region..."
+              error={!!fieldErrors.region}
+            />
             <FieldError field="region" />
           </View>
 
           {/* Town */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Town</Text>
-            <View
-              style={[
-                styles.pickerContainer,
-                !formData.region && styles.pickerContainerDisabled,
-                fieldErrors.town ? styles.inputError : undefined,
-              ]}
-            >
-              <RNPickerSelect
-                onValueChange={(value) => { handleInputChange("town", value); if (fieldErrors.town) setError("town", null); }}
-                items={availableTowns}
-                placeholder={{ label: "Select a town...", value: null }}
-                value={formData.town}
-                disabled={!formData.region}
-                style={pickerStyle as any}
-                useNativeAndroidPickerStyle={false}
-              />
-              <View style={styles.pickerIcon}>
-                <Feather name="chevron-down" size={20} color="#D1D5DB" />
-              </View>
-            </View>
+            <PickerField
+              value={formData.town}
+              onValueChange={(value) => {
+                handleInputChange("town", value);
+                if (fieldErrors.town) setError("town", null);
+              }}
+              items={availableTowns}
+              placeholder="Select a town..."
+              disabled={!formData.region}
+              error={!!fieldErrors.town}
+            />
             <FieldError field="town" />
           </View>
 
@@ -508,6 +460,7 @@ export default function EditPatientProfileModal({
             )}
           </TouchableOpacity>
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );

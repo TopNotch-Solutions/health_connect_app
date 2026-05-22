@@ -1,19 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "./AppTextInput";
+import { ActivityIndicator, Alert, Dimensions, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
 
@@ -210,13 +199,13 @@ export default function ChangePasswordModal({
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>Current Password</Text>
                   <View
-                    style={[
+                    style={withIosInputContainerStyle([
                       styles.inputWrapper,
                       errors.currentPassword && styles.inputWrapperError,
-                    ]}
+                    ])}
                   >
                     <TextInput
-                      style={styles.input}
+                      style={withIosTextInputStyle(styles.input)}
                       placeholder="Enter current password"
                       placeholderTextColor="#9CA3AF"
                       secureTextEntry={!showPasswords.currentPassword}
@@ -257,13 +246,13 @@ export default function ChangePasswordModal({
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>New Password</Text>
                   <View
-                    style={[
+                    style={withIosInputContainerStyle([
                       styles.inputWrapper,
                       errors.newPassword && styles.inputWrapperError,
-                    ]}
+                    ])}
                   >
                     <TextInput
-                      style={styles.input}
+                      style={withIosTextInputStyle(styles.input)}
                       placeholder="Enter new password"
                       placeholderTextColor="#9CA3AF"
                       secureTextEntry={!showPasswords.newPassword}
@@ -302,13 +291,13 @@ export default function ChangePasswordModal({
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>Confirm Password</Text>
                   <View
-                    style={[
+                    style={withIosInputContainerStyle([
                       styles.inputWrapper,
                       errors.confirmPassword && styles.inputWrapperError,
-                    ]}
+                    ])}
                   >
                     <TextInput
-                      style={styles.input}
+                      style={withIosTextInputStyle(styles.input)}
                       placeholder="Confirm new password"
                       placeholderTextColor="#9CA3AF"
                       secureTextEntry={!showPasswords.confirmPassword}

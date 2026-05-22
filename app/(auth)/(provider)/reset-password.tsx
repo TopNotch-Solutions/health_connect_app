@@ -1,16 +1,11 @@
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../../components/AppTextInput";
 // In app/(auth)/reset-password.tsx
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from "react-native";
+import ScreenLayout from "../../../components/ScreenLayout";
 import apiClient from "../../../lib/api";
 
 const ResetPasswordScreen = () => {
@@ -65,7 +60,7 @@ const ResetPasswordScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1">
+    <ScreenLayout keyboardAwareScroll>
       <View className="flex-1 justify-center p-6">
         <View className="mb-10">
           <Text className="text-4xl font-bold text-text-main">
@@ -81,6 +76,7 @@ const ResetPasswordScreen = () => {
             New Password
           </Text>
           <TextInput
+            style={withIosStandaloneTextInputStyle()}
             className="w-full bg-white p-4 rounded-xl text-base border border-gray-200"
             placeholder="Enter new password"
             value={password}
@@ -94,6 +90,7 @@ const ResetPasswordScreen = () => {
             Confirm New Password
           </Text>
           <TextInput
+            style={withIosStandaloneTextInputStyle()}
             className="w-full bg-white p-4 rounded-xl text-base border border-gray-200"
             placeholder="Confirm new password"
             value={confirmPassword}
@@ -116,7 +113,7 @@ const ResetPasswordScreen = () => {
           )}
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 };
 

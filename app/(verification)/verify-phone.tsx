@@ -2,16 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import axios from "axios";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../components/AppTextInput";
+import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from "react-native";
+import ScreenLayout from "../../components/ScreenLayout";
 import apiClient from "../../lib/api";
 
 const VerifyPhoneScreen = () => {
@@ -73,21 +67,17 @@ const VerifyPhoneScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
-      <KeyboardAwareScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: 24,
-          paddingTop: 5,
-          paddingBottom: 5,
-          justifyContent: "space-between",
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        enableOnAndroid={true}
-        enableAutomaticScroll={true}
-        extraScrollHeight={150}
-      >
+    <ScreenLayout
+      backgroundColor="#EFF6FF"
+      keyboardAwareScroll
+      keyboardAwareContentContainerStyle={{
+        flexGrow: 1,
+        paddingHorizontal: 24,
+        paddingTop: 5,
+        paddingBottom: 24,
+        justifyContent: "space-between",
+      }}
+    >
         {/* Content Section - Title, Description, and Phone Input */}
         <View>
           {/* Title and Description Section - Centered */}
@@ -107,13 +97,13 @@ const VerifyPhoneScreen = () => {
             </Text>
             <View
               className="w-full bg-white rounded-2xl border-2 border-gray-300 flex-row items-center px-5 py-4"
-              style={{
+              style={withIosInputContainerStyle({
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.1,
                 shadowRadius: 4,
                 elevation: 2,
-              }}
+              })}
             >
               <View className="mr-3">
                 <Text className="text-2xl">🇳🇦</Text>
@@ -124,8 +114,9 @@ const VerifyPhoneScreen = () => {
                 </Text>
               </View>
               <View className="w-px h-8 bg-gray-300 mr-3" />
-              <Feather name="phone" size={20} color="#3B82F6" />
+              <Feather name="phone" size={iosInputIconSize} color="#3B82F6" />
               <TextInput
+                style={withIosTextInputStyle()}
                 className="flex-1 text-base text-gray-900 ml-3"
                 placeholder="81 234 5678"
                 placeholderTextColor="#9CA3AF"
@@ -141,8 +132,7 @@ const VerifyPhoneScreen = () => {
           </View>
         </View>
 
-        {/* Bottom Button - Fixed at bottom with safe area */}
-        <SafeAreaView edges={["bottom"]} className="px-6 pb-4">
+        <View className="px-6 pb-4">
           <TouchableOpacity
             className="w-full py-5 rounded-2xl items-center justify-center"
             style={{
@@ -168,9 +158,8 @@ const VerifyPhoneScreen = () => {
               </View>
             )}
           </TouchableOpacity>
-        </SafeAreaView>
-      </KeyboardAwareScrollView>
-    </SafeAreaView>
+        </View>
+    </ScreenLayout>
   );
 };
 

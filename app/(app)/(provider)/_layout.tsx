@@ -1,4 +1,9 @@
 import { useAuth } from "@/context/AuthContext";
+import {
+  HeaderBackButton,
+  iosHeaderLeftContainerStyle,
+  iosStackHeaderBackOptions,
+} from "@/components/HeaderBackButton";
 import apiClient from "@/lib/api";
 import { Feather } from "@expo/vector-icons";
 import {
@@ -155,6 +160,8 @@ export default function ProviderTabsLayout() {
           fontSize: 12,
           marginBottom: 6,
         },
+        ...iosStackHeaderBackOptions,
+        headerLeftContainerStyle: iosHeaderLeftContainerStyle,
         headerRight: headerRightCallback,
       }}
     >
@@ -213,6 +220,7 @@ export default function ProviderTabsLayout() {
         options={{
           title: "Transaction History",
           href: null,
+          headerLeft: () => <HeaderBackButton size={30} />,
           tabBarIcon: ({ color, size }) => (
             <Feather name="credit-card" color={color} size={size} />
           ),

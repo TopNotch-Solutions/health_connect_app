@@ -3,11 +3,11 @@ import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  ScrollView,
   Text,
-  View
+  View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_FULL } from "../components/ScreenLayout";
 import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
 import socketService from "../lib/socket";
@@ -218,14 +218,10 @@ export default function Wallet() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <KeyboardAwareScrollView
+    <ScreenLayout edges={SCREEN_EDGES_FULL} backgroundColor="#F9FAFB">
+      <ScrollView
         contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        enableOnAndroid={true}
-        enableAutomaticScroll={true}
-        extraScrollHeight={150}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -283,7 +279,7 @@ export default function Wallet() {
             </View>
           )}
         </View>
-      </KeyboardAwareScrollView>
-    </SafeAreaView>
+      </ScrollView>
+    </ScreenLayout>
   );
 }

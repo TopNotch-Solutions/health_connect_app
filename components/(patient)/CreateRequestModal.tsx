@@ -2,18 +2,9 @@ import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../AppTextInput";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import {
   getCurrentLocationWithAddress,
@@ -338,6 +329,7 @@ export default function CreateRequestModal({
                   Ailment Category *
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base"
                   placeholder="e.g., Flu, Cold & Cough"
                   value={ailmentCategory}
@@ -497,6 +489,7 @@ export default function CreateRequestModal({
                   Street Address *
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-base text-gray-600"
                   placeholder="e.g., 123 Main Street"
                   value={street}
@@ -511,6 +504,7 @@ export default function CreateRequestModal({
                   City/Locality *
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-base text-gray-600"
                   placeholder="e.g., Cape Town"
                   value={locality}
@@ -525,6 +519,7 @@ export default function CreateRequestModal({
                   Region/Province *
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-base text-gray-600"
                   placeholder="e.g., Western Cape"
                   value={region}

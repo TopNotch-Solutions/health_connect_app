@@ -22,7 +22,7 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import { useAuth } from "../../../context/AuthContext";
 import { useRoute } from "../../../context/RouteContext";
 import apiClient from "../../../lib/api";
@@ -30,6 +30,7 @@ import {
   hapticActionConfirm,
   hapticNewRequest,
 } from "../../../lib/haptics";
+import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 import socketService from "../../../lib/socket";
 import { logViewMountDebug } from "../../../lib/viewErrorLogger";
 
@@ -416,8 +417,10 @@ export default function ProviderHome() {
 
     const startLocationTracking = async () => {
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
+        const { granted } = await ensureForegroundLocationPermission({
+          requestIfNeeded: true,
+        });
+        if (!granted) {
           console.warn("Location permission not granted for provider map");
 
           Alert.alert(
@@ -429,7 +432,6 @@ export default function ProviderHome() {
                 text: "Open Settings",
                 onPress: () => {
                   try {
-                    // Open the OS settings page for this app
                     Linking.openSettings();
                   } catch (err) {
                     console.error("Failed to open app settings:", err);
@@ -759,8 +761,10 @@ export default function ProviderHome() {
       return;
     }
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
+      const { granted } = await ensureForegroundLocationPermission({
+        requestIfNeeded: true,
+      });
+      if (!granted) {
         Alert.alert(
           "Location Required",
           "Location permission is required to accept requests.",
@@ -817,8 +821,10 @@ export default function ProviderHome() {
 
     try {
       // 1) Get provider location first (required for en_route status)
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
+      const { granted } = await ensureForegroundLocationPermission({
+        requestIfNeeded: true,
+      });
+      if (!granted) {
         Alert.alert(
           "Location Required",
           "Location permission is required to accept house visit requests.",
@@ -943,10 +949,7 @@ export default function ProviderHome() {
   const greeting = getGreeting();
 
   return (
-    <SafeAreaView
-      className="flex-1 bg-gray-50"
-      edges={["bottom", "left", "right"]}
-    >
+    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
       <ScrollView
         className="flex-1"
         refreshControl={
@@ -1590,7 +1593,7 @@ export default function ProviderHome() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 

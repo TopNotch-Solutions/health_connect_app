@@ -1,18 +1,12 @@
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../../components/AppTextInput";
 // In app/(auth)/reset-password.tsx
 
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from "react-native";
+import ScreenLayout from "../../../components/ScreenLayout";
 import apiClient from "../../../lib/api";
 
 // Define the primary color for clarity
@@ -86,21 +80,16 @@ const ResetPasswordScreen = () => {
   };
 
   return (
-    // Use a soft, subtle background
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <KeyboardAwareScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: 24,
-          paddingVertical: 40, // Increased top padding for better flow
-          justifyContent: "space-between",
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        enableOnAndroid={true}
-        enableAutomaticScroll={true}
-        extraScrollHeight={150}
-      >
+    <ScreenLayout
+      backgroundColor="#F9FAFB"
+      keyboardAwareScroll
+      keyboardAwareContentContainerStyle={{
+        flexGrow: 1,
+        paddingHorizontal: 24,
+        paddingVertical: 40,
+        justifyContent: "space-between",
+      }}
+    >
         {/* Content Section - Card with title and fields */}
         <View>
           <View
@@ -133,13 +122,15 @@ const ResetPasswordScreen = () => {
                   `flex-row items-center bg-gray-50 rounded-xl px-4 py-4 border-2 transition-all duration-200
                   ${isPasswordFocused ? `border-[${ACTIVE_BORDER_COLOR}]` : `border-gray-200`}` // Dynamic border color
                 }
+                style={withIosInputContainerStyle()}
               >
                 <MaterialCommunityIcons
                   name="lock-outline"
-                  size={20}
+                  size={iosInputIconSize}
                   color={isPasswordFocused ? PRIMARY_COLOR : "#9CA3AF"}
                 />
                 <TextInput
+                  style={withIosTextInputStyle()}
                   className="flex-1 ml-3 text-base text-gray-900"
                   placeholder="Enter new password (min 8 characters)"
                   placeholderTextColor="#9CA3AF"
@@ -162,13 +153,15 @@ const ResetPasswordScreen = () => {
                   `flex-row items-center bg-gray-50 rounded-xl px-4 py-4 border-2 transition-all duration-200
                   ${isConfirmPasswordFocused ? `border-[${ACTIVE_BORDER_COLOR}]` : `border-gray-200`}` // Dynamic border color
                 }
+                style={withIosInputContainerStyle()}
               >
                 <MaterialCommunityIcons
                   name="lock-check"
-                  size={20}
+                  size={iosInputIconSize}
                   color={isConfirmPasswordFocused ? PRIMARY_COLOR : "#9CA3AF"}
                 />
                 <TextInput
+                  style={withIosTextInputStyle()}
                   className="flex-1 ml-3 text-base text-gray-900"
                   placeholder="Re-enter new password"
                   placeholderTextColor="#9CA3AF"
@@ -188,8 +181,7 @@ const ResetPasswordScreen = () => {
           </View>
         </View>
 
-        {/* Bottom Button - Kept outside the scroll view for a fixed feel (or inside for simplicity) */}
-        <SafeAreaView edges={["bottom"]} className="px-0 pt-8">
+        <View className="pt-8">
           <TouchableOpacity
             className="w-full py-4 rounded-xl items-center justify-center transition-opacity duration-200"
             style={{
@@ -213,9 +205,8 @@ const ResetPasswordScreen = () => {
               </Text>
             )}
           </TouchableOpacity>
-        </SafeAreaView>
-      </KeyboardAwareScrollView>
-    </SafeAreaView>
+        </View>
+    </ScreenLayout>
   );
 };
 

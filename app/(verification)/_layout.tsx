@@ -1,39 +1,43 @@
+import {
+  HeaderBackButton,
+  iosHeaderLeftContainerStyle,
+  iosStackHeaderBackOptions,
+} from "../../components/HeaderBackButton";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 
+const verificationHeaderOptions = {
+  headerShadowVisible: false,
+  headerStyle: {
+    backgroundColor: "#F9FAFB",
+  },
+  headerTitleStyle: {
+    fontWeight: "600" as const,
+    fontSize: 18,
+  },
+  headerTintColor: "#111827",
+  headerTitleAlign: "center" as const,
+  ...iosStackHeaderBackOptions,
+  headerLeftContainerStyle: iosHeaderLeftContainerStyle,
+};
+
 const VerificationLayout = () => {
   return (
     <>
-      <Stack>
+      <Stack screenOptions={verificationHeaderOptions}>
         <Stack.Screen
           name="verify-phone"
           options={{
-            headerTitle: "Back",
-            headerShadowVisible: false,
-            headerStyle: {
-              backgroundColor: "#F9FAFB",
-            },
-            headerTitleStyle: {
-              fontWeight: "600",
-              fontSize: 18,
-            },
-            headerTintColor: "#111827",
+            headerTitle: "Verify Phone",
+            headerLeft: () => <HeaderBackButton />,
           }}
         />
         <Stack.Screen
           name="verify-otp"
           options={{
             headerTitle: "Enter Code",
-            headerShadowVisible: false,
-            headerStyle: {
-              backgroundColor: "#F9FAFB",
-            },
-            headerTitleStyle: {
-              fontWeight: "600",
-              fontSize: 18,
-            },
-            headerTintColor: "#111827",
+            headerLeft: () => <HeaderBackButton />,
           }}
         />
       </Stack>

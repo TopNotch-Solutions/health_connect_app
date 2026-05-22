@@ -5,18 +5,11 @@ import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import RNPickerSelect from "react-native-picker-select";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../../components/AppTextInput";
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { PickerField } from "../../../components/PickerField";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { namibianRegions, townsByRegion } from "../../../constants/locations";
 import apiClient from "../../../lib/api";
@@ -106,41 +99,6 @@ const ReviewFileRow = ({
     </View>
   </View>
 );
-
-const pickerStyle = {
-  inputIOS: {
-    color: "black",
-    fontSize: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    paddingRight: 30,
-  },
-  inputAndroid: {
-    color: "black",
-    fontSize: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    paddingRight: 30,
-  },
-  iconContainer: {
-    top: 16,
-    right: 12,
-  },
-  placeholder: {
-    color: "#9CA3AF",
-  },
-  modalViewMiddle: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  modalViewBottom: {
-    backgroundColor: "white",
-  },
-  chevronContainer: {
-    display: "none",
-  },
-};
 
 export default function RegistrationScreen() {
   const router = useRouter();
@@ -470,7 +428,15 @@ export default function RegistrationScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        enableOnAndroid
+        enableAutomaticScroll
+        extraScrollHeight={150}
+      >
         <View className="p-6">
           <View className="flex-row items-center mb-8">
             {/* UPDATED to 5 steps */}
@@ -524,6 +490,7 @@ export default function RegistrationScreen() {
                 Full Name
               </Text>
               <TextInput
+                style={withIosStandaloneTextInputStyle()}
                 className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.fullname ? "border-red-400" : "border-gray-300"}`}
                 placeholder="Enter your full name"
                 value={formData.fullname}
@@ -540,6 +507,7 @@ export default function RegistrationScreen() {
                 Email
               </Text>
               <TextInput
+                style={withIosStandaloneTextInputStyle()}
                 className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.email ? "border-red-400" : "border-gray-300"}`}
                 placeholder="youremail@example.com"
                 value={formData.email}
@@ -559,6 +527,7 @@ export default function RegistrationScreen() {
               </Text>
               <View className="relative">
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.password ? "border-red-400" : "border-gray-300"}`}
                   placeholder="Create a strong password"
                   value={formData.password}
@@ -594,6 +563,7 @@ export default function RegistrationScreen() {
               </Text>
               <View className="relative">
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.confirmPassword ? "border-red-400" : "border-gray-300"}`}
                   placeholder="Confirm your password"
                   value={formData.confirmPassword}
@@ -752,6 +722,7 @@ export default function RegistrationScreen() {
                 National ID Number
               </Text>
               <TextInput
+                style={withIosStandaloneTextInputStyle()}
                 className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.nationalId ? "border-red-400" : "border-gray-300"}`}
                 placeholder="Enter your 11-digit National ID"
                 value={formData.nationalId}
@@ -828,6 +799,7 @@ export default function RegistrationScreen() {
                 Address
               </Text>
               <TextInput
+                style={withIosMultilineTextInputStyle()}
                 className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.address ? "border-red-400" : "border-gray-300"}`}
                 placeholder="Your street address or P.O. Box"
                 value={formData.address}
@@ -847,24 +819,15 @@ export default function RegistrationScreen() {
                 Region
               </Text>
 
-              <View
-                className={`bg-white border-2 ${errors.region ? "border-red-400" : "border-gray-300"} rounded-xl px-3 ${errors.region ? "mb-1" : "mb-4"} relative`}
-                style={{ height: 56, justifyContent: "center" }}
-              >
-                <RNPickerSelect
+              <View className={errors.region ? "mb-1" : "mb-4"}>
+                <PickerField
+                  value={formData.region}
                   onValueChange={(value) => handleInputChange("region", value)}
                   items={namibianRegions}
-                  placeholder={{ label: "Select a region...", value: null }}
-                  value={formData.region}
-                  style={pickerStyle as any}
-                  useNativeAndroidPickerStyle={false}
+                  placeholder="Select a region..."
+                  error={!!errors.region}
+                  borderColor="#D1D5DB"
                 />
-                <View
-                  className="absolute right-4 top-4"
-                  style={{ pointerEvents: "none" }}
-                >
-                  <Feather name="chevron-down" size={20} color="#000000" />
-                </View>
               </View>
               {errors.region && (
                 <Text className="text-red-500 text-sm mb-2">
@@ -876,29 +839,16 @@ export default function RegistrationScreen() {
                 Town
               </Text>
 
-              <View
-                className={`bg-white border-2 ${errors.town ? "border-red-400" : "border-gray-300"} rounded-xl px-3 ${errors.town ? "mb-1" : "mb-4"} relative`}
-                style={{ height: 56, justifyContent: "center" }}
-              >
-                <RNPickerSelect
+              <View className={errors.town ? "mb-1" : "mb-4"}>
+                <PickerField
+                  value={formData.town}
                   onValueChange={(value) => handleInputChange("town", value)}
                   items={availableTowns}
-                  placeholder={{ label: "Select a town...", value: null }}
-                  value={formData.town}
+                  placeholder="Select a town..."
                   disabled={!formData.region}
-                  style={pickerStyle as any}
-                  useNativeAndroidPickerStyle={false}
+                  error={!!errors.town}
+                  borderColor="#D1D5DB"
                 />
-                <View
-                  className="absolute right-4 top-4"
-                  style={{ pointerEvents: "none" }}
-                >
-                  <Feather
-                    name="chevron-down"
-                    size={20}
-                    color={formData.region ? "#000000" : "#D1D5DB"}
-                  />
-                </View>
               </View>
               {errors.town && (
                 <Text className="text-red-500 text-sm mb-2">{errors.town}</Text>
@@ -1080,7 +1030,7 @@ export default function RegistrationScreen() {
             </ScrollView>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* --- Sticky Buttons --- */}
       <SafeAreaView

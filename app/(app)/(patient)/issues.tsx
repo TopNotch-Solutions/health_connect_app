@@ -2,19 +2,11 @@ import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import RNPickerSelect from "react-native-picker-select";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../../components/AppTextInput";
+import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { PickerField } from "../../../components/PickerField";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 
@@ -120,41 +112,6 @@ const getSafetyTipColor = (icon: string) => {
     key: { bg: "#E0E7FF", icon: "#6366F1" },
   };
   return colorMap[icon] || { bg: "#D1FAE5", icon: "#10B981" };
-};
-
-const pickerStyle = {
-  inputIOS: {
-    color: "#111827",
-    fontSize: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    paddingRight: 30,
-  },
-  inputAndroid: {
-    color: "#111827",
-    fontSize: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingRight: 30,
-  },
-  iconContainer: {
-    top: 16,
-    right: 12,
-  },
-  placeholder: {
-    color: "#9CA3AF",
-  },
-  modalViewMiddle: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  modalViewBottom: {
-    backgroundColor: "white",
-  },
-  chevronContainer: {
-    display: "none",
-  },
 };
 
 export default function IssuesScreen() {
@@ -434,36 +391,19 @@ export default function IssuesScreen() {
           <View>
             <View style={styles.inputContainer}>
               <Text style={styles.label}>What are you reporting?</Text>
-              <View
-                style={[
-                  styles.pickerContainer,
-                  errors.issueTitle && styles.inputError,
-                ]}
-              >
-                <RNPickerSelect
-                  onValueChange={(value) => {
-                    setIssueTitle(value);
-                    if (errors.issueTitle) {
-                      setErrors({ ...errors, issueTitle: "" });
-                    }
-                  }}
-                  items={issueTypes}
-                  placeholder={{
-                    label: "Select an issue type...",
-                    value: null,
-                  }}
-                  value={issueTitle}
-                  style={pickerStyle as any}
-                  useNativeAndroidPickerStyle={false}
-                />
-                <View style={styles.pickerIcon}>
-                  <Feather
-                    name="chevron-down"
-                    size={20}
-                    color={errors.issueTitle ? "#EF4444" : "#10B981"}
-                  />
-                </View>
-              </View>
+              <PickerField
+                value={issueTitle}
+                onValueChange={(value) => {
+                  setIssueTitle(value);
+                  if (errors.issueTitle) {
+                    setErrors({ ...errors, issueTitle: "" });
+                  }
+                }}
+                items={issueTypes}
+                placeholder="Select an issue type..."
+                error={!!errors.issueTitle}
+                borderColor="#10B981"
+              />
               {errors.issueTitle ? (
                 <Text style={styles.errorText}>{errors.issueTitle}</Text>
               ) : null}
@@ -481,10 +421,10 @@ export default function IssuesScreen() {
                 }}
                 placeholder="Please describe the issue in detail..."
                 placeholderTextColor="#9CA3AF"
-                style={[
+                style={withIosMultilineTextInputStyle([
                   styles.textArea,
                   errors.issueDescription && styles.inputError,
-                ]}
+                ])}
                 multiline
                 textAlignVertical="top"
                 numberOfLines={6}
@@ -538,7 +478,7 @@ export default function IssuesScreen() {
   // --------------------------------------------------------------------------
 
   return (
-    <SafeAreaView className="flex-1" edges={["bottom", "left", "right"]}>
+    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#FFFFFF" keyboard>
       {/* Static Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Help & Support</Text>
@@ -862,7 +802,7 @@ export default function IssuesScreen() {
         </ScrollView>
       )}
       {/* ------------------------------------------- */}
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
 

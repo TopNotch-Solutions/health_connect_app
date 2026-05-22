@@ -1,18 +1,13 @@
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../components/AppTextInput";
 // In app/(auth)/reset-password.tsx
 
 import { MaterialCommunityIcons } from "@expo/vector-icons"; // Added for modern inputs
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from "react-native";
+import ScreenLayout from "../../components/ScreenLayout";
 import apiClient from "../../lib/api";
 
 // Define the primary color for the button and active states (match login/sign-in green)
@@ -106,7 +101,7 @@ const ResetPasswordScreen = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <ScreenLayout backgroundColor="#F9FAFB" keyboardAwareScroll>
       <View className="flex-1 px-6 pt-10 pb-6 justify-between">
         {/* Header and Inputs Container */}
         <View>
@@ -128,21 +123,22 @@ const ResetPasswordScreen = () => {
               </Text>
               <View
                 className="flex-row items-center bg-white rounded-xl px-4 py-3 border-2 transition-all duration-200"
-                style={{
+                style={withIosInputContainerStyle({
                   elevation: 1,
                   borderColor: passwordError
                     ? "#EF4444"
                     : isPasswordFocused
                       ? ACTIVE_BORDER_COLOR
                       : "#E5E7EB",
-                }}
+                })}
               >
                 <MaterialCommunityIcons
                   name="lock-outline"
-                  size={20}
+                  size={iosInputIconSize}
                   color={isPasswordFocused ? PRIMARY_COLOR : "#9CA3AF"}
                 />
                 <TextInput
+                  style={withIosTextInputStyle()}
                   className="flex-1 ml-3 text-base text-gray-900"
                   placeholder="Enter new password"
                   placeholderTextColor="#9CA3AF"
@@ -179,21 +175,22 @@ const ResetPasswordScreen = () => {
               </Text>
               <View
                 className="flex-row items-center bg-white rounded-xl px-4 py-3 border-2 transition-all duration-200"
-                style={{
+                style={withIosInputContainerStyle({
                   elevation: 1,
                   borderColor: confirmPasswordError
                     ? "#EF4444"
                     : isConfirmPasswordFocused
                       ? ACTIVE_BORDER_COLOR
                       : "#E5E7EB",
-                }}
+                })}
               >
                 <MaterialCommunityIcons
                   name="lock-check-outline"
-                  size={20}
+                  size={iosInputIconSize}
                   color={isConfirmPasswordFocused ? PRIMARY_COLOR : "#9CA3AF"}
                 />
                 <TextInput
+                  style={withIosTextInputStyle()}
                   className="flex-1 ml-3 text-base text-gray-900"
                   placeholder="Confirm new password"
                   placeholderTextColor="#9CA3AF"
@@ -252,7 +249,7 @@ const ResetPasswordScreen = () => {
         </TouchableOpacity>
       </View>
       <StatusBar backgroundColor="#F9FAFB" style="dark" />
-    </SafeAreaView>
+    </ScreenLayout>
   );
 };
 

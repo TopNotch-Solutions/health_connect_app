@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_FULL } from "../components/ScreenLayout";
 
 const STORAGE_KEY = "hasSeenOnboarding";
 
@@ -28,12 +28,12 @@ const IndexScreen = () => {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-gradient-to-b from-blue-50 to-white">
+    <ScreenLayout edges={SCREEN_EDGES_FULL}>
       <View className="flex-1 justify-center items-center">
         <ActivityIndicator size="large" color="#3B82F6" />
       </View>
       <StatusBar backgroundColor="#EFF6FF" style="dark" />
-    </SafeAreaView>
+    </ScreenLayout>
   );
 };
 

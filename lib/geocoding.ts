@@ -1,5 +1,6 @@
-import * as Location from 'expo-location';
-import Geolocation from 'react-native-geolocation-service';
+import * as Location from "expo-location";
+import Geolocation from "react-native-geolocation-service";
+import { ensureForegroundLocationPermission } from "./locationPermission";
 
 interface AddressComponent {
   route?: string;
@@ -46,27 +47,6 @@ export const reverseGeocode = async (
       locality: 'Current City',
       administrative_area_level_1: 'Current Region',
     };
-  }
-};
-
-/**
- * Request location permissions for Android and iOS
- */
-const requestLocationPermission = async (): Promise<boolean> => {
-  try {
-    // Request foreground location permission (handles both Android and iOS)
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    
-    if (status !== 'granted') {
-      console.warn('⚠️ Location permission denied');
-      return false;
-    }
-
-    console.log('✅ Location permission granted');
-    return true;
-  } catch (err) {
-    console.error('Error requesting location permission:', err);
-    return false;
   }
 };
 
@@ -135,12 +115,17 @@ const getCurrentLocationCoordinates = async (): Promise<{
  * Gets current location and returns both coordinates and address
  * Handles permissions and provides better error handling
  */
-export const getCurrentLocationWithAddress = async () => {
+export const getCurrentLocationWithAddress = async (options?: {
+  requestPermission?: boolean;
+}) => {
   try {
-    // Request permissions first
-    const permissionGranted = await requestLocationPermission();
-    if (!permissionGranted) {
-      throw new Error('Location permission denied. Please enable location access in settings.');
+    const { granted } = await ensureForegroundLocationPermission({
+      requestIfNeeded: options?.requestPermission !== false,
+    });
+    if (!granted) {
+      throw new Error(
+        "Location permission denied. Please enable location access in settings.",
+      );
     }
 
     // Get location coordinates with fallback mechanism
@@ -164,11 +149,15 @@ export const getCurrentLocationWithAddress = async () => {
  * Gets current location only (coordinates without address lookup)
  * Useful for quick location checks
  */
-export const getLocationCoordinates = async () => {
+export const getLocationCoordinates = async (options?: {
+  requestPermission?: boolean;
+}) => {
   try {
-    const permissionGranted = await requestLocationPermission();
-    if (!permissionGranted) {
-      throw new Error('Location permission denied.');
+    const { granted } = await ensureForegroundLocationPermission({
+      requestIfNeeded: options?.requestPermission !== false,
+    });
+    if (!granted) {
+      throw new Error("Location permission denied.");
     }
 
     return await getCurrentLocationCoordinates();

@@ -1,17 +1,22 @@
 import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useEffect, useRef, useState } from "react";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "./AppTextInput";
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import RNPickerSelect from "react-native-picker-select";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { KEYBOARD_VERTICAL_OFFSET } from "./ScreenLayout";
+import { PickerField } from "./PickerField";
 import { namibianRegions } from "../constants/locations";
 import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
@@ -459,16 +464,24 @@ export default function EditProviderProfileModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
-      <View className="flex-1 bg-gray-50">
+      <SafeAreaView className="flex-1 bg-gray-50" edges={["top", "bottom"]}>
         {/* Header */}
-        <View className="bg-white border-b border-gray-200 pt-12 pb-4 px-4 flex-row items-center justify-between">
+        <View className="bg-white border-b border-gray-200 pb-4 px-4 pt-2 flex-row items-center justify-between">
           <Text className="text-xl font-bold text-gray-900">Edit Profile</Text>
           <TouchableOpacity onPress={onClose}>
             <Feather name="x" size={24} color="#6B7280" />
           </TouchableOpacity>
         </View>
 
-        <ScrollView className="flex-1 px-4 pt-6">
+        <KeyboardAvoidingView
+          className="flex-1"
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
+        >
+        <ScrollView
+          className="flex-1 px-4 pt-6"
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Basic Information Section */}
           <View className="mb-6">
             <Text className="text-lg font-bold text-gray-900 mb-4">
@@ -482,7 +495,7 @@ export default function EditProviderProfileModal({
               </Text>
               <TextInput
                 className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                style={{ borderWidth: 1, borderColor: fieldErrors.fullname ? "#EF4444" : "#D1D5DB" }}
+                style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: fieldErrors.fullname ? "#EF4444" : "#D1D5DB" })}
                 placeholder="Enter full name"
                 value={formData.fullname}
                 onChangeText={(text) => {
@@ -501,7 +514,7 @@ export default function EditProviderProfileModal({
               </Text>
               <TextInput
                 className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                style={{ borderWidth: 1, borderColor: fieldErrors.email ? "#EF4444" : "#D1D5DB" }}
+                style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: fieldErrors.email ? "#EF4444" : "#D1D5DB" })}
                 placeholder="Enter email"
                 value={formData.email}
                 onChangeText={(text) => {
@@ -522,7 +535,7 @@ export default function EditProviderProfileModal({
               </Text>
               <TextInput
                 className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                style={{ borderWidth: 1, borderColor: fieldErrors.cellphoneNumber ? "#EF4444" : "#D1D5DB" }}
+                style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: fieldErrors.cellphoneNumber ? "#EF4444" : "#D1D5DB" })}
                 placeholder="e.g. 0811234567"
                 value={formData.cellphoneNumber}
                 onChangeText={(text) => {
@@ -578,6 +591,7 @@ export default function EditProviderProfileModal({
               </Text>
               <TextInput
                 className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                style={withIosStandaloneTextInputStyle()}
                 placeholder="Enter address"
                 value={formData.address}
                 onChangeText={(text) =>
@@ -616,6 +630,7 @@ export default function EditProviderProfileModal({
                 editable={false}
                 placeholder="Select specialization(s) below"
                 className="bg-white border border-gray-300 rounded-lg px-4 py-3 text-gray-900 mb-2"
+                style={withIosStandaloneTextInputStyle()}
               />
 
               <FieldError field="specializations" />
@@ -671,7 +686,7 @@ export default function EditProviderProfileModal({
               </Text>
               <TextInput
                 className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                style={{ borderWidth: 1, borderColor: fieldErrors.hpcnaNumber ? "#EF4444" : "#D1D5DB" }}
+                style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: fieldErrors.hpcnaNumber ? "#EF4444" : "#D1D5DB" })}
                 placeholder="Enter HPCNA number"
                 value={formData.hpcnaNumber}
                 onChangeText={(text) => {
@@ -715,7 +730,7 @@ export default function EditProviderProfileModal({
               </Text>
               <TextInput
                 className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                style={{ borderWidth: 1, borderColor: fieldErrors.yearsOfExperience ? "#EF4444" : "#D1D5DB" }}
+                style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: fieldErrors.yearsOfExperience ? "#EF4444" : "#D1D5DB" })}
                 placeholder="Enter years (0 – 60)"
                 value={formData.yearsOfExperience}
                 onChangeText={(text) => {
@@ -733,33 +748,18 @@ export default function EditProviderProfileModal({
               <Text className="text-sm font-semibold text-gray-700 mb-2">
                 Operational Zone
               </Text>
-              <View
-                className="bg-white rounded-lg px-3"
-                style={{
-                  height: 56,
-                  justifyContent: "center",
-                  borderWidth: 1,
-                  borderColor: fieldErrors.operationalZone ? "#EF4444" : "#D1D5DB",
+              <PickerField
+                value={formData.operationalZone}
+                onValueChange={(v) => {
+                  setFormData((p) => ({ ...p, operationalZone: String(v || "") }));
+                  if (fieldErrors.operationalZone) setError("operationalZone", null);
                 }}
-              >
-                <RNPickerSelect
-                  onValueChange={(v) => {
-                    setFormData((p) => ({ ...p, operationalZone: String(v || "") }));
-                    if (fieldErrors.operationalZone) setError("operationalZone", null);
-                  }}
-                  value={formData.operationalZone}
-                  items={namibianRegions}
-                  placeholder={{ label: "Select region…", value: "" }}
-                  disabled={isLoading}
-                  Icon={() => null}
-                  useNativeAndroidPickerStyle={false}
-                  style={{
-                    inputAndroid: { fontSize: 16, color: "#111" },
-                    inputIOS: { fontSize: 16, color: "#111" },
-                    placeholder: { color: "#9CA3AF" },
-                  }}
-                />
-              </View>
+                items={namibianRegions}
+                placeholder="Select region…"
+                disabled={isLoading}
+                error={!!fieldErrors.operationalZone}
+                borderColor="#D1D5DB"
+              />
               <FieldError field="operationalZone" />
             </View>
 
@@ -770,11 +770,11 @@ export default function EditProviderProfileModal({
               </Text>
               <TextInput
                 className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                style={{
+                style={withIosMultilineTextInputStyle({
                   height: 120,
                   borderWidth: 1,
                   borderColor: fieldErrors.bio ? "#EF4444" : "#D1D5DB",
-                }}
+                })}
                 placeholder="Tell us about your professional experience and expertise"
                 value={formData.bio}
                 onChangeText={(text) => {
@@ -819,7 +819,7 @@ export default function EditProviderProfileModal({
                 </Text>
                 <TextInput
                   className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: "#D1D5DB" })}
                   placeholder="Name on storefront / BIPA documents"
                   value={formData.registeredTradingName}
                   onChangeText={(t) => setFormData({ ...formData, registeredTradingName: t })}
@@ -834,7 +834,7 @@ export default function EditProviderProfileModal({
                 </Text>
                 <TextInput
                   className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: "#D1D5DB" })}
                   placeholder="e.g. CC/20XX/XXXX"
                   value={formData.companyRegistrationNo}
                   onChangeText={(t) => setFormData({ ...formData, companyRegistrationNo: t })}
@@ -849,7 +849,7 @@ export default function EditProviderProfileModal({
                 </Text>
                 <TextInput
                   className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: "#D1D5DB" })}
                   placeholder="Official contact for orders and notifications"
                   value={formData.businessEmail}
                   onChangeText={(t) => setFormData({ ...formData, businessEmail: t })}
@@ -866,7 +866,7 @@ export default function EditProviderProfileModal({
                 </Text>
                 <TextInput
                   className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: "#D1D5DB" })}
                   placeholder="Premises registration with Pharmacy Council"
                   value={formData.pharmacyCouncilNo}
                   onChangeText={(t) => setFormData({ ...formData, pharmacyCouncilNo: t })}
@@ -881,7 +881,7 @@ export default function EditProviderProfileModal({
                 </Text>
                 <TextInput
                   className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: "#D1D5DB" })}
                   placeholder="Required for medical aid & billing"
                   value={formData.practiceNumber}
                   onChangeText={(t) => setFormData({ ...formData, practiceNumber: t })}
@@ -897,7 +897,7 @@ export default function EditProviderProfileModal({
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <TextInput
                     className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                    style={{ flex: 1, borderWidth: 1, borderColor: "#D1D5DB" }}
+                    style={withIosStandaloneTextInputStyle({ flex: 1, borderWidth: 1, borderColor: "#D1D5DB" })}
                     placeholder="Longitude"
                     value={formData.gpsLongitude}
                     onChangeText={(t) => setFormData({ ...formData, gpsLongitude: t })}
@@ -906,7 +906,7 @@ export default function EditProviderProfileModal({
                   />
                   <TextInput
                     className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                    style={{ flex: 1, borderWidth: 1, borderColor: "#D1D5DB" }}
+                    style={withIosStandaloneTextInputStyle({ flex: 1, borderWidth: 1, borderColor: "#D1D5DB" })}
                     placeholder="Latitude"
                     value={formData.gpsLatitude}
                     onChangeText={(t) => setFormData({ ...formData, gpsLatitude: t })}
@@ -923,7 +923,7 @@ export default function EditProviderProfileModal({
                 </Text>
                 <TextInput
                   className="bg-white rounded-lg px-4 py-3 text-gray-900"
-                  style={{ borderWidth: 1, borderColor: "#D1D5DB" }}
+                  style={withIosStandaloneTextInputStyle({ borderWidth: 1, borderColor: "#D1D5DB" })}
                   placeholder="For prepaid software credit payouts"
                   value={formData.settlementCellNumber}
                   onChangeText={(t) => setFormData({ ...formData, settlementCellNumber: t })}
@@ -1002,7 +1002,8 @@ export default function EditProviderProfileModal({
             )}
           </TouchableOpacity>
         </ScrollView>
-      </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </Modal>
   );
 }

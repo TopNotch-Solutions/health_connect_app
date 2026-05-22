@@ -5,22 +5,15 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Linking,
-  Modal,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import RNPickerSelect from "react-native-picker-select";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../../components/AppTextInput";
+import { ActivityIndicator, Alert, Image, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { PickerField } from "../../../components/PickerField";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { namibianRegions } from "../../../constants/locations";
 import apiClient from "../../../lib/api";
+import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 
 // --- Type Definitions ---
 type PickedImage = ImagePicker.ImagePickerAsset | null;
@@ -578,8 +571,10 @@ export default function ProviderRegistrationScreen() {
   const detectPharmacyLocation = async () => {
     try {
       setIsDetectingPharmacyLocation(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
+      const { granted } = await ensureForegroundLocationPermission({
+        requestIfNeeded: true,
+      });
+      if (!granted) {
         Alert.alert(
           "Permission needed",
           "Location permission is required to detect your pharmacy location.",
@@ -1064,7 +1059,15 @@ export default function ProviderRegistrationScreen() {
   return (
     <>
       <SafeAreaView className="flex-1">
-        <ScrollView contentContainerStyle={{ paddingBottom: 180 }}>
+        <KeyboardAwareScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 180 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          enableOnAndroid
+          enableAutomaticScroll
+          extraScrollHeight={150}
+        >
           <View className="p-6">
             {/* Progress Bar */}
             <View className="flex-row items-center mb-8">
@@ -1114,6 +1117,7 @@ export default function ProviderRegistrationScreen() {
                   Full Name
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={accountInfo.fullname}
                   onChangeText={(t) => {
                     setAccountInfo((p) => ({ ...p, fullname: t }));
@@ -1143,6 +1147,7 @@ export default function ProviderRegistrationScreen() {
                   Email
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={accountInfo.email}
                   onChangeText={(t) => {
                     setAccountInfo((p) => ({ ...p, email: t }));
@@ -1173,6 +1178,7 @@ export default function ProviderRegistrationScreen() {
                 </Text>
                 <View className="relative">
                   <TextInput
+                    style={withIosTextInputStyle()}
                     value={accountInfo.password}
                     onChangeText={(t) => {
                       setAccountInfo((p) => ({ ...p, password: t }));
@@ -1216,6 +1222,7 @@ export default function ProviderRegistrationScreen() {
                 </Text>
                 <View className="relative">
                   <TextInput
+                    style={withIosTextInputStyle()}
                     value={accountInfo.confirmPassword}
                     onChangeText={(t) => {
                       setAccountInfo((p) => ({ ...p, confirmPassword: t }));
@@ -1258,6 +1265,7 @@ export default function ProviderRegistrationScreen() {
                   National ID Number
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={accountInfo.nationalId}
                   onChangeText={(t) => {
                     const numericOnly = t.replace(/[^0-9]/g, "");
@@ -1642,6 +1650,7 @@ export default function ProviderRegistrationScreen() {
                   Specializations
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={professionalDetails.specializations.join(", ")}
                   editable={false}
                   placeholder="Select specialization(s) below"
@@ -1707,6 +1716,7 @@ export default function ProviderRegistrationScreen() {
                   HPCNA Registration Number
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={professionalDetails.hpcnaNumber}
                   onChangeText={(t) => {
                     setProfessionalDetails((p) => ({ ...p, hpcnaNumber: t }));
@@ -1736,6 +1746,7 @@ export default function ProviderRegistrationScreen() {
                   Years of Experience
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={professionalDetails.yearsOfExperience}
                   onChangeText={(t) => {
                     setProfessionalDetails((p) => ({
@@ -1770,6 +1781,7 @@ export default function ProviderRegistrationScreen() {
                   Practice Address
                 </Text>
                 <TextInput
+                  style={withIosMultilineTextInputStyle()}
                   value={professionalDetails.address}
                   onChangeText={(t) => {
                     setProfessionalDetails((p) => ({ ...p, address: t }));
@@ -1797,15 +1809,9 @@ export default function ProviderRegistrationScreen() {
                 <Text className="text-base text-text-main mb-2 font-semibold">
                   Operational Zone
                 </Text>
-                <View
-                  className={`bg-white border-2 rounded-xl px-3 mb-1 ${
-                    profErrors.operationalZone
-                      ? "border-red-400"
-                      : "border-gray-300"
-                  }`}
-                  style={{ height: 56, justifyContent: "center" }}
-                >
-                  <RNPickerSelect
+                <View className="mb-1">
+                  <PickerField
+                    value={professionalDetails.operationalZone}
                     onValueChange={(v) => {
                       setProfessionalDetails((p) => ({
                         ...p,
@@ -1819,16 +1825,10 @@ export default function ProviderRegistrationScreen() {
                         });
                       }
                     }}
-                    value={professionalDetails.operationalZone}
                     items={namibianRegions}
-                    placeholder={{ label: "Select region…", value: "" }}
-                    Icon={() => null}
-                    useNativeAndroidPickerStyle={false}
-                    style={{
-                      inputAndroid: { fontSize: 16, color: "#111" },
-                      inputIOS: { fontSize: 16, color: "#111" },
-                      placeholder: { color: "#888" },
-                    }}
+                    placeholder="Select region…"
+                    error={!!profErrors.operationalZone}
+                    borderColor="#D1D5DB"
                   />
                 </View>
                 {profErrors.operationalZone && (
@@ -1864,6 +1864,7 @@ export default function ProviderRegistrationScreen() {
                   Professional Bio
                 </Text>
                 <TextInput
+                  style={withIosMultilineTextInputStyle()}
                   value={professionalDetails.bio}
                   onChangeText={(t) => {
                     setProfessionalDetails((p) => ({ ...p, bio: t }));
@@ -1911,6 +1912,7 @@ export default function ProviderRegistrationScreen() {
                   Registered Trading Name
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={pharmacyDetails.registeredTradingName}
                   onChangeText={(t) =>
                     setPharmacyDetail("registeredTradingName", t)
@@ -1935,6 +1937,7 @@ export default function ProviderRegistrationScreen() {
                   Company Registration No. / BIPA
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={pharmacyDetails.companyRegistrationNo}
                   onChangeText={(t) =>
                     setPharmacyDetail("companyRegistrationNo", t)
@@ -1948,6 +1951,7 @@ export default function ProviderRegistrationScreen() {
                   Business Email
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={pharmacyDetails.businessEmail}
                   onChangeText={(t) => setPharmacyDetail("businessEmail", t)}
                   placeholder="Official pharmacy email"
@@ -1970,6 +1974,7 @@ export default function ProviderRegistrationScreen() {
                   Pharmacy Council No.
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={pharmacyDetails.pharmacyCouncilNo}
                   onChangeText={(t) =>
                     setPharmacyDetail("pharmacyCouncilNo", t)
@@ -1994,6 +1999,7 @@ export default function ProviderRegistrationScreen() {
                   Practice Number
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={pharmacyDetails.practiceNumber}
                   onChangeText={(t) => setPharmacyDetail("practiceNumber", t)}
                   placeholder="Required for medical aid and billing"
@@ -2047,6 +2053,7 @@ export default function ProviderRegistrationScreen() {
                   Settlement Cell Number
                 </Text>
                 <TextInput
+                  style={withIosStandaloneTextInputStyle()}
                   value={pharmacyDetails.settlementCellNumber}
                   onChangeText={(t) =>
                     setPharmacyDetail("settlementCellNumber", t)
@@ -2296,7 +2303,7 @@ export default function ProviderRegistrationScreen() {
               </View>
             )}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* Sticky Next/Back/Submit Button */}
         <SafeAreaView

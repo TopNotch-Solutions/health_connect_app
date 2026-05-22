@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import { useAuth } from "../../../context/AuthContext";
 import socketService from "../../../lib/socket";
 
@@ -354,15 +354,15 @@ export default function RecentActivities() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-gray-50 items-center justify-center">
+      <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
         <ActivityIndicator size="large" color="#007BFF" />
         <Text className="text-gray-600 mt-4">Loading your activities...</Text>
-      </SafeAreaView>
+      </ScreenLayout>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
       {/* Top Bar with Back Arrow */}
       <FlatList
         data={sortedRequests}
@@ -392,6 +392,6 @@ export default function RecentActivities() {
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
         }
       />
-    </SafeAreaView>
+    </ScreenLayout>
   );
 }
