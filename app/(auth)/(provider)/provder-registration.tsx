@@ -5,7 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import { iosInputIconSize, iosPasswordToggleButtonStyle, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandalonePasswordTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
 import { ActivityIndicator, Alert, Image, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { PickerField } from "../../../components/PickerField";
@@ -1176,9 +1176,9 @@ export default function ProviderRegistrationScreen() {
                 <Text className="text-base text-text-main mb-2 font-semibold">
                   Password
                 </Text>
-                <View className="relative">
+                <View className="relative mb-1">
                   <TextInput
-                    style={withIosTextInputStyle()}
+                    style={withIosStandalonePasswordTextInputStyle()}
                     value={accountInfo.password}
                     onChangeText={(t) => {
                       setAccountInfo((p) => ({ ...p, password: t }));
@@ -1191,21 +1191,26 @@ export default function ProviderRegistrationScreen() {
                       }
                     }}
                     placeholder="Create a strong password"
-                    className={`bg-white p-4 rounded-xl mb-1 border-2 pr-12 ${
+                    className={`bg-white p-4 rounded-xl border-2 ${
                       accountErrors.password
                         ? "border-red-400"
                         : "border-gray-300"
                     }`}
                     secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoComplete="password-new"
                   />
                   <TouchableOpacity
                     onPress={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-4"
-                    style={{ width: 24, height: 24 }}
+                    style={iosPasswordToggleButtonStyle}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                   >
                     <Feather
-                      name={showPassword ? "eye-off" : "eye"}
-                      size={20}
+                      name={showPassword ? "eye" : "eye-off"}
+                      size={iosInputIconSize}
                       color="#6B7280"
                     />
                   </TouchableOpacity>
@@ -1220,9 +1225,9 @@ export default function ProviderRegistrationScreen() {
                 <Text className="text-base text-text-main mb-2 font-semibold">
                   Confirm Password
                 </Text>
-                <View className="relative">
+                <View className="relative mb-1">
                   <TextInput
-                    style={withIosTextInputStyle()}
+                    style={withIosStandalonePasswordTextInputStyle()}
                     value={accountInfo.confirmPassword}
                     onChangeText={(t) => {
                       setAccountInfo((p) => ({ ...p, confirmPassword: t }));
@@ -1235,21 +1240,26 @@ export default function ProviderRegistrationScreen() {
                       }
                     }}
                     placeholder="Confirm your password"
-                    className={`bg-white p-4 rounded-xl mb-1 border-2 pr-12 ${
+                    className={`bg-white p-4 rounded-xl border-2 ${
                       accountErrors.confirmPassword
                         ? "border-red-400"
                         : "border-gray-300"
                     }`}
                     secureTextEntry={!showConfirmPassword}
+                    autoCapitalize="none"
+                    autoComplete="password-new"
                   />
                   <TouchableOpacity
                     onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-4 top-4"
-                    style={{ width: 24, height: 24 }}
+                    style={iosPasswordToggleButtonStyle}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      showConfirmPassword ? "Hide password" : "Show password"
+                    }
                   >
                     <Feather
-                      name={showConfirmPassword ? "eye-off" : "eye"}
-                      size={20}
+                      name={showConfirmPassword ? "eye" : "eye-off"}
+                      size={iosInputIconSize}
                       color="#6B7280"
                     />
                   </TouchableOpacity>

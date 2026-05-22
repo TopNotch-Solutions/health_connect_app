@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useCallback, useRef } from "react";
-import { Platform, Pressable, View } from "react-native";
+import React from "react";
+import { Platform, View } from "react-native";
 import RNPickerSelect, { Item } from "react-native-picker-select";
 import {
   getPickerContainerStyle,
@@ -20,10 +20,6 @@ export type PickerFieldProps = {
   height?: number;
 };
 
-type PickerSelectHandle = {
-  togglePicker: (animate?: boolean) => void;
-};
-
 export function PickerField({
   value,
   onValueChange,
@@ -35,32 +31,19 @@ export function PickerField({
   backgroundColor,
   height,
 }: PickerFieldProps) {
-  const pickerRef = useRef<PickerSelectHandle | null>(null);
-
-  const openPicker = useCallback(() => {
-    if (disabled) return;
-    pickerRef.current?.togglePicker(true);
-  }, [disabled]);
-
-  const containerStyle = getPickerContainerStyle({
-    height,
-    borderColor,
-    backgroundColor,
-    error,
-    disabled,
-  });
-
   return (
-    <View style={containerStyle} collapsable={false}>
-      <Pressable
-        onPress={openPicker}
-        disabled={disabled}
-        style={pickerFieldStyles.pressableOverlay}
-        accessibilityRole="button"
-        accessibilityState={{ disabled }}
-      >
+    <View
+      style={getPickerContainerStyle({
+        height,
+        borderColor,
+        backgroundColor,
+        error,
+        disabled,
+      })}
+      collapsable={false}
+    >
+      <View style={pickerFieldStyles.pickerWrapper}>
         <RNPickerSelect
-          ref={pickerRef as React.RefObject<RNPickerSelect>}
           disabled={disabled}
           value={value ?? null}
           onValueChange={(val, index) =>
@@ -70,18 +53,12 @@ export function PickerField({
           placeholder={{ label: placeholder, value: null }}
           useNativeAndroidPickerStyle={false}
           fixAndroidTouchableBug={Platform.OS === "android"}
-          onOpen={openPicker}
           style={pickerSelectStyles}
           touchableWrapperProps={{
             style: pickerFieldStyles.touchableWrapper,
-            activeOpacity: 1,
-            ...(Platform.OS === "ios"
-              ? { disabled: true, pointerEvents: "none" as const }
-              : {}),
+            activeOpacity: 0.65,
+            disabled,
           }}
-          textInputProps={
-            Platform.OS === "ios" ? { pointerEvents: "none" } : undefined
-          }
           doneText="Done"
           Icon={() => null}
           pickerProps={
@@ -90,7 +67,7 @@ export function PickerField({
               : undefined
           }
         />
-      </Pressable>
+      </View>
       <View style={pickerFieldStyles.iconOverlay} pointerEvents="none">
         <Feather
           name="chevron-down"

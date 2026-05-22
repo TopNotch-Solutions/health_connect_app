@@ -15,6 +15,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Provider } from "react-redux";
 import { PersistGate } from "redux-persist/integration/react";
 import GlobalRouteModal from "../components/(provider)/GlobalRouteModal";
+import { ScreenCaptureProtection } from "../components/ScreenCaptureProtection";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { RouteProvider } from "../context/RouteContext";
 import {
@@ -381,6 +382,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <ScreenCaptureProtection />
       <Provider store={store}>
         <PersistGate loading={null} persistor={persistor}>
           <AuthProvider>

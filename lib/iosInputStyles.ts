@@ -79,3 +79,26 @@ export function withIosOtpTextInputStyle(
   if (!IS_IOS) return style;
   return style ? [style, otpTextInputStyle] : otpTextInputStyle;
 }
+
+const passwordTogglePadding: TextStyle = {
+  paddingRight: IS_IOS ? 48 : 40,
+};
+
+/** Standalone bordered fields with a trailing visibility toggle (registration passwords) */
+export function withIosStandalonePasswordTextInputStyle(
+  style?: StyleProp<TextStyle>,
+): StyleProp<TextStyle> {
+  const base = withIosStandaloneTextInputStyle();
+  return style ? [base, passwordTogglePadding, style] : [base, passwordTogglePadding];
+}
+
+/** Positions the eye icon vertically centered on standalone password fields */
+export const iosPasswordToggleButtonStyle: ViewStyle = {
+  position: "absolute",
+  right: 16,
+  top: 0,
+  bottom: 0,
+  justifyContent: "center",
+  alignItems: "center",
+  width: 32,
+};

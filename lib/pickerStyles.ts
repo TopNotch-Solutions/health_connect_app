@@ -1,5 +1,8 @@
-import { Platform, StyleSheet, ViewStyle } from "react-native";
+import { DimensionValue, Platform, StyleSheet, ViewStyle } from "react-native";
+import type { PickerStyle } from "react-native-picker-select";
 import { INPUT_PLACEHOLDER_COLOR } from "./inputStyles";
+
+const STRETCH_WIDTH = "100%" as DimensionValue;
 
 /** Shared RNPickerSelect styles — iOS touch target must fill the container */
 export const pickerSelectStyles = {
@@ -10,7 +13,7 @@ export const pickerSelectStyles = {
     paddingHorizontal: 12,
     paddingRight: 36,
     color: "#111827",
-    width: "100%",
+    width: STRETCH_WIDTH,
   },
   inputAndroid: {
     fontSize: 16,
@@ -21,22 +24,22 @@ export const pickerSelectStyles = {
   },
   viewContainer: {
     flex: 1,
-    justifyContent: "center" as const,
-    alignSelf: "stretch" as const,
-    width: "100%",
-    height: "100%",
+    justifyContent: "center",
+    alignSelf: "stretch",
+    width: STRETCH_WIDTH,
+    height: STRETCH_WIDTH,
   },
   inputIOSContainer: {
-    width: "100%",
-    alignSelf: "stretch" as const,
+    width: STRETCH_WIDTH,
+    alignSelf: "stretch",
   },
   inputAndroidContainer: {
-    width: "100%",
-    alignSelf: "stretch" as const,
+    width: STRETCH_WIDTH,
+    alignSelf: "stretch",
   },
   headlessAndroidContainer: {
-    width: "100%",
-    alignSelf: "stretch" as const,
+    width: STRETCH_WIDTH,
+    alignSelf: "stretch",
   },
   placeholder: {
     color: INPUT_PLACEHOLDER_COLOR,
@@ -58,7 +61,7 @@ export const pickerSelectStyles = {
   modalViewBottom: {
     backgroundColor: "#FFFFFF",
   },
-};
+} as PickerStyle;
 
 export const pickerFieldStyles = StyleSheet.create({
   container: {
@@ -71,15 +74,13 @@ export const pickerFieldStyles = StyleSheet.create({
     overflow: "visible",
     zIndex: 1,
   },
-  pressableOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    zIndex: 0,
+  pickerWrapper: {
+    flex: 1,
+    alignSelf: "stretch",
+    width: "100%",
   },
   touchableWrapper: {
-    flex: 1,
-    width: "100%",
-    alignSelf: "stretch",
+    ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
   },
   iconOverlay: {
