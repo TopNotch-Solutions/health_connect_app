@@ -21,6 +21,7 @@ jest.mock("react-native-picker-select", () => {
     items?: { label: string; value: string }[];
     placeholder?: { label: string; value: null };
     touchableWrapperProps?: Record<string, unknown>;
+    textInputProps?: Record<string, unknown>;
     fixAndroidTouchableBug?: boolean;
   }) {
     const label =
@@ -30,6 +31,12 @@ jest.mock("react-native-picker-select", () => {
 
     return (
       <View testID="mock-rn-picker-select">
+        {props.textInputProps ? (
+          <View
+            testID="picker-text-input-props"
+            {...props.textInputProps}
+          />
+        ) : null}
         <TouchableOpacity
           testID="picker-touchable"
           accessibilityRole="button"
@@ -112,6 +119,31 @@ describe("PickerField", () => {
 
     fireEvent.press(getByTestId("picker-touchable"));
     expect(mockOnValueChange).not.toHaveBeenCalled();
+  });
+
+  it("passes pointerEvents none to the iOS text input", () => {
+    const originalOS = Platform.OS;
+    Object.defineProperty(Platform, "OS", {
+      configurable: true,
+      get: () => "ios",
+    });
+
+    const { getByTestId } = render(
+      <PickerField
+        value=""
+        onValueChange={mockOnValueChange}
+        items={items}
+      />,
+    );
+
+    expect(getByTestId("picker-text-input-props").props.pointerEvents).toBe(
+      "none",
+    );
+
+    Object.defineProperty(Platform, "OS", {
+      configurable: true,
+      get: () => originalOS,
+    });
   });
 
   it("enables fixAndroidTouchableBug on Android", () => {

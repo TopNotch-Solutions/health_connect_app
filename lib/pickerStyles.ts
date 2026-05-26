@@ -80,8 +80,11 @@ export const pickerFieldStyles = StyleSheet.create({
     width: "100%",
   },
   touchableWrapper: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
+    width: "100%",
+    alignSelf: "stretch",
     justifyContent: "center",
+    minHeight: "100%",
   },
   iconOverlay: {
     position: "absolute",
