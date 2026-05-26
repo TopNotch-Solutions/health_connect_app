@@ -1,4 +1,15 @@
-const sharp = require('sharp');
+// Dev-only script. Install sharp locally before running:
+//   npm install --no-save sharp
+//   node scripts/crop-logo.js
+let sharp;
+try {
+  sharp = require("sharp");
+} catch {
+  console.error(
+    "sharp is not installed. Run: npm install --no-save sharp",
+  );
+  process.exit(1);
+}
 const path = require('path');
 
 async function cropLogo() {
