@@ -33,7 +33,7 @@
     "expo-build-properties": "~55.0.14",
     "expo-checkbox": "~55.0.4",
     "expo-constants": "^55.0.15",
-    "expo-dev-client": "~55.0.33",
+    "expo-dev-client": "~55.0.36",
     "expo-device": "~55.0.17",
     "expo-document-picker": "~55.0.13",
     "expo-font": "~55.0.6",

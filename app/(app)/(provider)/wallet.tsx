@@ -53,16 +53,22 @@ interface DPOQueryResult {
   TRANSACTION_STATUS?: string;
 }
 
+if (!process.env.EXPO_PUBLIC_DPO_PAYGATE_ID || !process.env.EXPO_PUBLIC_DPO_ENCRYPTION_KEY) {
+  throw new Error(
+    "Missing EXPO_PUBLIC_DPO_PAYGATE_ID or EXPO_PUBLIC_DPO_ENCRYPTION_KEY env vars.",
+  );
+}
+
 const DPO_CONFIG = {
-  PAYGATE_ID: "10011072130",
-  ENCRYPTION_KEY: "secret",
+  PAYGATE_ID: process.env.EXPO_PUBLIC_DPO_PAYGATE_ID,
+  ENCRYPTION_KEY: process.env.EXPO_PUBLIC_DPO_ENCRYPTION_KEY,
   INITIATE_URL: "https://secure.paygate.co.za/payweb3/initiate.trans",
   REDIRECT_URL: "https://secure.paygate.co.za/payweb3/process.trans",
   QUERY_URL: "https://secure.paygate.co.za/payweb3/query.trans",
-  CURRENCY: "ZAR",
+  CURRENCY: "NAD",
   RETURN_URL: "https://kopanovertex.com",
   LOCALE: "en-za",
-  COUNTRY: "ZAF",
+  COUNTRY: "NAM",
 } as const;
 
 const DPO_STATUSES = [
@@ -428,7 +434,11 @@ export default function TransactionsScreen() {
     (date = new Date()) => {
       const { year, month, day, hours, minutes, seconds } =
         getDPOTimestampParts(date);
-      return `${year}-${day}-${month} ${hours}:${minutes}:${seconds}`;
+      // FIX: PayGate/DPO expects "YYYY-MM-DD HH:mm:ss" (year-MONTH-day).
+      // The previous version emitted "YYYY-DD-MM", which either produced an
+      // invalid date (DATA_DTTM) or silently mismatched the checksum
+      // (DATA_CHK), causing "Failed to initiate payment".
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     },
     [getDPOTimestampParts],
   );
@@ -473,7 +483,9 @@ export default function TransactionsScreen() {
         formData.append("LOCALE", DPO_CONFIG.LOCALE);
         formData.append("COUNTRY", DPO_CONFIG.COUNTRY);
         formData.append("EMAIL", emailAddress);
-        formData.append("ENCRYPTION_KEY", DPO_CONFIG.ENCRYPTION_KEY);
+        // FIX: ENCRYPTION_KEY must never be POSTed as a field — it is only
+        // used locally to compute CHECKSUM above. PayGate's own reference
+        // implementation never includes it in the request body.
         formData.append("CHECKSUM", checksum);
 
         const response = await fetch(DPO_CONFIG.INITIATE_URL, {
@@ -485,6 +497,7 @@ export default function TransactionsScreen() {
         const data = await response.text();
         console.log("Mydata", data);
         if (!data || !data.includes("PAY_REQUEST_ID")) {
+          console.warn("DPO initiate failed, raw response:", data);
           return { success: false };
         }
 
@@ -505,9 +518,19 @@ export default function TransactionsScreen() {
     async (
       payRequestId: string,
       reference: string,
-      checksum: string,
     ): Promise<DPOQueryResult> => {
       try {
+        // FIX: The query checksum is its own MD5 hash of
+        // PAYGATE_ID + PAY_REQUEST_ID + REFERENCE + ENCRYPTION_KEY.
+        // It is NOT the same checksum returned by the initiate call
+        // (that one is only for the redirect/process.trans form).
+        const hashString =
+          DPO_CONFIG.PAYGATE_ID +
+          payRequestId +
+          reference +
+          DPO_CONFIG.ENCRYPTION_KEY;
+        const checksum = CryptoJS.MD5(hashString).toString();
+
         const formData = new URLSearchParams();
         formData.append("PAYGATE_ID", DPO_CONFIG.PAYGATE_ID);
         formData.append("PAY_REQUEST_ID", payRequestId);
@@ -579,10 +602,11 @@ export default function TransactionsScreen() {
     async (session: DPOSession) => {
       setIsSubmitting(true);
       try {
+        // FIX: no longer pass session.checksum — validateDpoPayment now
+        // computes the correct query checksum itself.
         const verify = await validateDpoPayment(
           session.payRequestId,
           session.reference,
-          session.checksum,
         );
 
         if (!verify?.success) {
