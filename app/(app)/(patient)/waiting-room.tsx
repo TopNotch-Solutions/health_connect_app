@@ -61,6 +61,7 @@ interface RequestStatus {
     role: string;
     walletID: string;
     profileImage?: string;
+    bio?: string;
   };
   patientId?: {
     _id: string;
@@ -441,6 +442,8 @@ const RequestCard = ({
         "provider_confirmation_pending",
         "ready_for_call",
         "in_call",
+        "en_route",
+        "arrived",
       ].includes(request.status) &&
         request.providerId && (
         <View style={styles.providerCard}>
@@ -462,6 +465,9 @@ const RequestCard = ({
               {request.providerId.cellphoneNumber}
             </Text>
           </View>
+          {request.providerId.bio && (
+            <Text style={styles.providerBio}>{request.providerId.bio}</Text>
+          )}
         </View>
       )}
 
@@ -1491,6 +1497,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#374151",
     marginLeft: 6,
+  },
+  providerBio: {
+    fontSize: 12,
+    color: "#4B5563",
+    marginTop: 6,
+    lineHeight: 17,
   },
   paymentInstructionCard: {
     backgroundColor: "#FFF7ED",
