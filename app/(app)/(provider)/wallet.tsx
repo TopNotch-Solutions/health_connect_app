@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
-import CryptoJS from "crypto-js";
 import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
 import React, {
@@ -41,68 +40,13 @@ interface DPOSession {
   packageAmount: number;
 }
 
-interface DPOInitResult {
-  success: boolean;
-  pay_id?: string;
-  checksum?: string;
-}
-
-interface DPOQueryResult {
-  success: boolean;
-  RESULT_CODE?: string;
-  TRANSACTION_STATUS?: string;
-}
-
-if (!process.env.EXPO_PUBLIC_DPO_PAYGATE_ID || !process.env.EXPO_PUBLIC_DPO_ENCRYPTION_KEY) {
-  throw new Error(
-    "Missing EXPO_PUBLIC_DPO_PAYGATE_ID or EXPO_PUBLIC_DPO_ENCRYPTION_KEY env vars.",
-  );
-}
-
+// Merchant credentials live on the server (see backend utils/dpoPayment.js).
+// Only these two public URLs are needed in the app: one to post the hosted
+// payment form to, one to recognise when the user comes back.
 const DPO_CONFIG = {
-  PAYGATE_ID: process.env.EXPO_PUBLIC_DPO_PAYGATE_ID,
-  ENCRYPTION_KEY: process.env.EXPO_PUBLIC_DPO_ENCRYPTION_KEY,
-  INITIATE_URL: "https://secure.paygate.co.za/payweb3/initiate.trans",
   REDIRECT_URL: "https://secure.paygate.co.za/payweb3/process.trans",
-  QUERY_URL: "https://secure.paygate.co.za/payweb3/query.trans",
-  CURRENCY: "NAD",
   RETURN_URL: "https://kopanovertex.com",
-  LOCALE: "en-za",
-  COUNTRY: "NAM",
 } as const;
-
-const DPO_STATUSES = [
-  {
-    transaction_status: 1,
-    result_code: 990017,
-    message: "Transaction Approved",
-    status: true,
-  },
-  {
-    transaction_status: 2,
-    result_code: 900003,
-    message: "Insufficient Funds Transactions",
-    status: false,
-  },
-  {
-    transaction_status: 2,
-    result_code: 900007,
-    message: "Declined Transactions",
-    status: false,
-  },
-  {
-    transaction_status: 0,
-    result_code: 990022,
-    message: "Unprocessed Transactions",
-    status: false,
-  },
-  {
-    transaction_status: 2,
-    result_code: 900004,
-    message: "Invalid Card Number",
-    status: false,
-  },
-] as const;
 
 // --- Reusable Components ---
 const ActionButton = ({
@@ -228,19 +172,11 @@ export default function TransactionsScreen() {
   const [fundOthersForm, setFundOthersForm] = useState({
     amount: "",
     walletID: "",
-    cardNumber: "",
-    expiryDate: "",
-    cvv: "",
-    cardHolder: "",
   });
   const [withdrawForm, setWithdrawForm] = useState({ amount: "" });
   const [fundOthersErrors, setFundOthersErrors] = useState<{
     amount?: string;
     walletID?: string;
-    cardNumber?: string;
-    expiryDate?: string;
-    cvv?: string;
-    cardHolder?: string;
   }>({});
   const [withdrawErrors, setWithdrawErrors] = useState<{ amount?: string }>({});
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -420,152 +356,12 @@ export default function TransactionsScreen() {
     loadData();
   }, [fetchAndUpdateUserDetails, fetchTransactions, fetchPackages]);
 
-  const getDPOTimestampParts = useCallback((date = new Date()) => {
-    const year = date.getFullYear();
-    const day = String(date.getDate()).padStart(2, "0");
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
-    const seconds = String(date.getSeconds()).padStart(2, "0");
-    return { year, month, day, hours, minutes, seconds };
-  }, []);
-
-  const getDPODateString = useCallback(
-    (date = new Date()) => {
-      const { year, month, day, hours, minutes, seconds } =
-        getDPOTimestampParts(date);
-      // FIX: PayGate/DPO expects "YYYY-MM-DD HH:mm:ss" (year-MONTH-day).
-      // The previous version emitted "YYYY-DD-MM", which either produced an
-      // invalid date (DATA_DTTM) or silently mismatched the checksum
-      // (DATA_CHK), causing "Failed to initiate payment".
-      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    },
-    [getDPOTimestampParts],
-  );
-
-  const buildDpoReference = useCallback(() => {
-    return getDPODateString(new Date());
-  }, [getDPODateString]);
-
-  const getDPODate = useCallback(() => {
-    return getDPODateString(new Date());
-  }, [getDPODateString]);
-
-  const processDpoPayment = useCallback(
-    async (
-      reference: string,
-      amountInCents: number,
-      emailAddress: string,
-    ): Promise<DPOInitResult> => {
-      try {
-        const transactionDate = getDPODate();
-        const hashString =
-          DPO_CONFIG.PAYGATE_ID +
-          reference +
-          amountInCents +
-          DPO_CONFIG.CURRENCY +
-          DPO_CONFIG.RETURN_URL +
-          transactionDate +
-          DPO_CONFIG.LOCALE +
-          DPO_CONFIG.COUNTRY +
-          emailAddress +
-          DPO_CONFIG.ENCRYPTION_KEY;
-
-        const checksum = CryptoJS.MD5(hashString).toString();
-
-        const formData = new URLSearchParams();
-        formData.append("PAYGATE_ID", DPO_CONFIG.PAYGATE_ID);
-        formData.append("REFERENCE", reference);
-        formData.append("AMOUNT", amountInCents.toString());
-        formData.append("CURRENCY", DPO_CONFIG.CURRENCY);
-        formData.append("RETURN_URL", DPO_CONFIG.RETURN_URL);
-        formData.append("TRANSACTION_DATE", transactionDate);
-        formData.append("LOCALE", DPO_CONFIG.LOCALE);
-        formData.append("COUNTRY", DPO_CONFIG.COUNTRY);
-        formData.append("EMAIL", emailAddress);
-        // FIX: ENCRYPTION_KEY must never be POSTed as a field — it is only
-        // used locally to compute CHECKSUM above. PayGate's own reference
-        // implementation never includes it in the request body.
-        formData.append("CHECKSUM", checksum);
-
-        const response = await fetch(DPO_CONFIG.INITIATE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: formData.toString(),
-        });
-
-        const data = await response.text();
-        console.log("Mydata", data);
-        if (!data || !data.includes("PAY_REQUEST_ID")) {
-          console.warn("DPO initiate failed, raw response:", data);
-          return { success: false };
-        }
-
-        const values = new URLSearchParams(data);
-        return {
-          success: true,
-          pay_id: values.get("PAY_REQUEST_ID") || undefined,
-          checksum: values.get("CHECKSUM") || undefined,
-        };
-      } catch {
-        return { success: false };
-      }
-    },
-    [getDPODate],
-  );
-
-  const validateDpoPayment = useCallback(
-    async (
-      payRequestId: string,
-      reference: string,
-    ): Promise<DPOQueryResult> => {
-      try {
-        // FIX: The query checksum is its own MD5 hash of
-        // PAYGATE_ID + PAY_REQUEST_ID + REFERENCE + ENCRYPTION_KEY.
-        // It is NOT the same checksum returned by the initiate call
-        // (that one is only for the redirect/process.trans form).
-        const hashString =
-          DPO_CONFIG.PAYGATE_ID +
-          payRequestId +
-          reference +
-          DPO_CONFIG.ENCRYPTION_KEY;
-        const checksum = CryptoJS.MD5(hashString).toString();
-
-        const formData = new URLSearchParams();
-        formData.append("PAYGATE_ID", DPO_CONFIG.PAYGATE_ID);
-        formData.append("PAY_REQUEST_ID", payRequestId);
-        formData.append("REFERENCE", reference);
-        formData.append("CHECKSUM", checksum);
-
-        const response = await fetch(DPO_CONFIG.QUERY_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: formData.toString(),
-        });
-
-        const data = await response.text();
-        console.log("Verify", data);
-        if (!data || !data.includes("PAYGATE_ID")) {
-          return { success: false };
-        }
-
-        const values = new URLSearchParams(data);
-        return {
-          success: true,
-          RESULT_CODE: values.get("RESULT_CODE") || undefined,
-          TRANSACTION_STATUS: values.get("TRANSACTION_STATUS") || undefined,
-        };
-      } catch {
-        return { success: false };
-      }
-    },
-    [],
-  );
-
   const markPackagePurchased = useCallback(
     async (session: DPOSession) => {
       const payload = {
         packageId: session.packageId,
+        payRequestId: session.payRequestId,
+        reference: session.reference,
       };
 
       const response = await apiClient.post(
@@ -602,47 +398,23 @@ export default function TransactionsScreen() {
     async (session: DPOSession) => {
       setIsSubmitting(true);
       try {
-        // FIX: no longer pass session.checksum — validateDpoPayment now
-        // computes the correct query checksum itself.
-        const verify = await validateDpoPayment(
-          session.payRequestId,
-          session.reference,
-        );
-
-        if (!verify?.success) {
-          Alert.alert(
-            "Payment Pending",
-            "Unable to validate payment right now.",
-          );
-          return;
-        }
-
-        const match = DPO_STATUSES.find(
-          (entry) =>
-            entry.transaction_status === Number(verify.TRANSACTION_STATUS) &&
-            entry.result_code === Number(verify.RESULT_CODE),
-        );
-
-        if (!match?.status) {
-          Alert.alert(
-            "Payment Failed",
-            match?.message || "Transaction not approved.",
-          );
-          return;
-        }
-        // Alert.alert("Payment approved", "Wolla" + JSON.stringify(verify));
+        // The server verifies the payment with PayGate itself before granting
+        // anything, so there is nothing useful to check here first — doing so
+        // would only risk dropping a payment that actually succeeded.
         await markPackagePurchased(session);
       } catch (error: any) {
         Alert.alert(
-          "Payment Validation Failed",
-          error?.message || "Could not validate payment.",
+          "Payment Failed",
+          error?.response?.data?.message ||
+            error?.message ||
+            "Could not confirm payment.",
         );
       } finally {
         setDpoSession(null);
         setIsSubmitting(false);
       }
     },
-    [markPackagePurchased, validateDpoPayment],
+    [markPackagePurchased],
   );
 
   const initiatePackagePayment = async (pkg: PackageItem) => {
@@ -664,33 +436,25 @@ export default function TransactionsScreen() {
 
     setIsSubmitting(true);
     try {
-      const reference = buildDpoReference();
-      const amountInCents = Math.round(Number(pkg.amount) * 100);
-      const emailAddress = user?.email || "";
-
-      if (!emailAddress) {
-        Alert.alert(
-          "Missing email",
-          "Please update your account email and try again.",
-        );
-        return;
-      }
-
-      const dpoInit = await processDpoPayment(
-        reference,
-        amountInCents,
-        emailAddress,
+      // The server opens the payment with PayGate — it holds the merchant
+      // credentials and derives the amount from the package itself, so the
+      // app never sees either.
+      const response = await apiClient.post(
+        "/app/transaction/initiate-package-payment",
+        { packageId: pkg._id },
       );
 
-      if (!dpoInit?.success || !dpoInit?.pay_id || !dpoInit?.checksum) {
+      const { reference, payRequestId, checksum } = response.data || {};
+
+      if (!reference || !payRequestId || !checksum) {
         Alert.alert("DPO Error", "Failed to initiate payment.");
         return;
       }
 
       const session: DPOSession = {
         reference,
-        payRequestId: dpoInit.pay_id,
-        checksum: dpoInit.checksum,
+        payRequestId,
+        checksum,
         packageId: pkg._id,
         packageConsultations: pkg.consultations || 0,
         packageAmount: Number(pkg.amount) || 0,
@@ -707,25 +471,16 @@ export default function TransactionsScreen() {
     }
   };
 
-  // --- FULLY IMPLEMENTED handleSendMoney (Fund Someone's Wallet with Card) ---
+  // --- handleSendMoney (Fund Someone's Wallet) ---
+  // Card details are deliberately not collected here. Raw card data must never
+  // touch this app or our backend — it belongs on the DPO hosted page.
   const handleFundOthers = async () => {
     const errors: {
       amount?: string;
       walletID?: string;
-      cardNumber?: string;
-      expiryDate?: string;
-      cvv?: string;
-      cardHolder?: string;
     } = {};
     if (!fundOthersForm.walletID) errors.walletID = "Wallet ID is required";
     if (!fundOthersForm.amount) errors.amount = "Amount is required";
-    if (!fundOthersForm.cardHolder)
-      errors.cardHolder = "Cardholder name is required";
-    if (!fundOthersForm.cardNumber)
-      errors.cardNumber = "Card number is required";
-    if (!fundOthersForm.expiryDate)
-      errors.expiryDate = "Expiry date is required";
-    if (!fundOthersForm.cvv) errors.cvv = "CVV is required";
 
     if (Object.keys(errors).length > 0) {
       setFundOthersErrors(errors);
@@ -745,14 +500,9 @@ export default function TransactionsScreen() {
         setFundOthersForm({
           amount: "",
           walletID: "",
-          cardNumber: "",
-          expiryDate: "",
-          cvv: "",
-          cardHolder: "",
         });
         setFundOthersErrors({});
 
-        // Only refresh transactions (sending from card doesn't affect user balance)
         await fetchTransactions(true, 1);
 
         Alert.alert("Success", response.data.message);
@@ -1373,10 +1123,6 @@ export default function TransactionsScreen() {
                 setFundOthersForm({
                   amount: "",
                   walletID: "",
-                  cardNumber: "",
-                  expiryDate: "",
-                  cvv: "",
-                  cardHolder: "",
                 });
                 fundOthersSheetRef.current?.close();
               }}
@@ -1422,103 +1168,6 @@ export default function TransactionsScreen() {
             <Text className="text-xs text-red-500 mb-2">
               {fundOthersErrors.amount}
             </Text>
-          )}
-          <Text className="text-sm font-semibold text-gray-700 mb-1.5 mt-2">
-            Cardholder Name
-          </Text>
-          <TextInput
-            style={withIosStandaloneTextInputStyle()}
-            value={fundOthersForm.cardHolder}
-            onChangeText={(v) => {
-              setFundOthersForm((p) => ({ ...p, cardHolder: v }));
-              setFundOthersErrors((e) => ({ ...e, cardHolder: undefined }));
-            }}
-            placeholder="Cardholder Name"
-            className={`bg-white p-4 rounded-2xl mb-1 border ${fundOthersErrors.cardHolder ? "border-red-500" : "border-gray-200"}`}
-            placeholderTextColor="#9CA3AF"
-          />
-          {fundOthersErrors.cardHolder && (
-            <Text className="text-xs text-red-500 mb-2">
-              {fundOthersErrors.cardHolder}
-            </Text>
-          )}
-          <Text className="text-sm font-semibold text-gray-700 mb-1.5 mt-2">
-            Card Number
-          </Text>
-          <TextInput
-            style={withIosStandaloneTextInputStyle()}
-            value={fundOthersForm.cardNumber}
-            onChangeText={(v) => {
-              setFundOthersForm((p) => ({ ...p, cardNumber: v }));
-              setFundOthersErrors((e) => ({ ...e, cardNumber: undefined }));
-            }}
-            placeholder="Card Number"
-            className={`bg-white p-4 rounded-2xl mb-1 border ${fundOthersErrors.cardNumber ? "border-red-500" : "border-gray-200"}`}
-            keyboardType="numeric"
-            placeholderTextColor="#9CA3AF"
-          />
-          {fundOthersErrors.cardNumber && (
-            <Text className="text-xs text-red-500 mb-2">
-              {fundOthersErrors.cardNumber}
-            </Text>
-          )}
-          <View className="flex-row mt-2" style={{ gap: 12 }}>
-            <View className="flex-1">
-              <Text className="text-sm font-semibold text-gray-700 mb-1.5">
-                Expiry Date
-              </Text>
-              <TextInput
-                style={withIosStandaloneTextInputStyle()}
-                value={fundOthersForm.expiryDate}
-                onChangeText={(v) => {
-                  setFundOthersForm((p) => ({
-                    ...p,
-                    expiryDate: formatExpiryDate(v),
-                  }));
-                  setFundOthersErrors((e) => ({ ...e, expiryDate: undefined }));
-                }}
-                placeholder="MM/YY"
-                className={`bg-white p-4 rounded-2xl mb-1 border ${fundOthersErrors.expiryDate ? "border-red-500" : "border-gray-200"}`}
-                maxLength={5}
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-            <View className="flex-1">
-              <Text className="text-sm font-semibold text-gray-700 mb-1.5">
-                CVV
-              </Text>
-              <TextInput
-                style={withIosStandaloneTextInputStyle()}
-                value={fundOthersForm.cvv}
-                onChangeText={(v) => {
-                  setFundOthersForm((p) => ({ ...p, cvv: v }));
-                  setFundOthersErrors((e) => ({ ...e, cvv: undefined }));
-                }}
-                placeholder="CVV"
-                className={`bg-white p-4 rounded-2xl mb-1 border ${fundOthersErrors.cvv ? "border-red-500" : "border-gray-200"}`}
-                keyboardType="numeric"
-                secureTextEntry
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-          </View>
-          {(fundOthersErrors.expiryDate || fundOthersErrors.cvv) && (
-            <View className="flex-row justify-between mb-2">
-              <View className="flex-1 pr-1">
-                {fundOthersErrors.expiryDate && (
-                  <Text className="text-xs text-red-500">
-                    {fundOthersErrors.expiryDate}
-                  </Text>
-                )}
-              </View>
-              <View className="flex-1 pl-1">
-                {fundOthersErrors.cvv && (
-                  <Text className="text-xs text-red-500 text-right">
-                    {fundOthersErrors.cvv}
-                  </Text>
-                )}
-              </View>
-            </View>
           )}
           <TouchableOpacity
             onPress={handleFundOthers}
