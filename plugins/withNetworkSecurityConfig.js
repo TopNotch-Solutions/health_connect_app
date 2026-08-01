@@ -22,18 +22,27 @@ module.exports = function withNetworkSecurityConfig(config) {
       }
       
       const xmlPath = path.join(xmlDir, 'network_security_config.xml');
+      // Cleartext is denied by default. Android 9+ already blocks it; this
+      // config must not switch that protection back off, or we cannot honestly
+      // answer "all user data is encrypted in transit" on the Play listing.
+      //
+      // The only exceptions are the loopback addresses used to reach a local
+      // backend from an emulator (see lib/backend.ts). They are unreachable
+      // from a real device, so a shipped build has no cleartext path at all.
       const xmlContent = `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Allow cleartext (HTTP) traffic for all domains -->
-    <!-- This is temporary while setting up SSL certificates -->
-    <base-config cleartextTrafficPermitted="true">
+    <!-- Deny cleartext (HTTP) everywhere. Do not set this to true. -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-    <!-- Allow cleartext traffic for specific IP addresses if needed -->
+    <!-- Local development only: Android emulator host alias and loopback.
+         Never reachable from a real device, so this does not weaken release
+         builds. Do not add public hosts here — use HTTPS instead. -->
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">13.51.207.99</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
     </domain-config>
 </network-security-config>`;
       

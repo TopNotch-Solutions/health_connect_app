@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import apiClient from "../lib/api";
+import apiClient, { setUnauthorizedHandler } from "../lib/api";
 import {
   registerForPushNotifications,
   removePushTokenFromBackend,
@@ -118,6 +118,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(null);
     }
   }, []);
+
+  // Local-only teardown for when the server rejects our token. Deliberately
+  // makes no API calls — the token is already dead, so /logout and the push
+  // token removal would just fail.
+  const clearSession = useCallback(async () => {
+    try {
+      socketService.disconnect();
+    } catch (e) {
+      console.warn("⚠️ Could not disconnect socket on session clear:", e);
+    }
+    setUser(null);
+    await SecureStore.deleteItemAsync("user").catch(() => {});
+    await SecureStore.deleteItemAsync("authToken").catch(() => {});
+  }, []);
+
+  // Let the API layer end the session when the server returns 401.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      console.warn("⚠️ Session rejected by server — signing out.");
+      void clearSession();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [clearSession]);
 
   useEffect(() => {
     const loadUser = async () => {

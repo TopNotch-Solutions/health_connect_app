@@ -9,6 +9,16 @@ const apiClient = axios.create({
   timeout: 120000, // 120 second timeout for large file uploads
 });
 
+// Lets AuthContext react when the server rejects our token (expired or
+// otherwise). Without this the stored token is cleared but the in-memory
+// session survives, leaving the user "signed in" while every call fails.
+type UnauthorizedHandler = () => void;
+let onUnauthorized: UnauthorizedHandler | null = null;
+
+export const setUnauthorizedHandler = (handler: UnauthorizedHandler | null) => {
+  onUnauthorized = handler;
+};
+
 // Add request interceptor to increase timeout for multipart/form-data (file uploads)
 apiClient.interceptors.request.use(
   async (config) => {
@@ -53,6 +63,10 @@ apiClient.interceptors.response.use(
       console.error(
         "[UNAUTHORIZED] Authentication failed. Please log in again.",
       );
+
+      // Drop the in-memory session too, so the protected layout redirects
+      // to sign-in instead of leaving the user on a screen that cannot load.
+      onUnauthorized?.();
     }
     return Promise.reject(error);
   },
