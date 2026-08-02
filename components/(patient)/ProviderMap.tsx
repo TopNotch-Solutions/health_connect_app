@@ -6,8 +6,7 @@ let MapViewDirections: any = null;
 import { generateMarkersFromProviders, calculateRegion, calculateProviderTimes } from '../../lib/map';
 import { logViewMountDebug, logViewMountWarning } from '../../lib/viewErrorLogger';
 import { MarkerData, Provider } from '../../types';
-
-const directionsAPI = process.env.EXPO_PUBLIC_DIRECTIONS_API_KEY || 'AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg';
+import { GOOGLE_MAPS_API_KEY as directionsAPI } from '../../lib/googleMaps';
 
 type Props = {
   userLatitude?: number | null;

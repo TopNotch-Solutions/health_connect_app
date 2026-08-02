@@ -1,6 +1,5 @@
 import { MarkerData, Provider } from '../types';
-
-const directionsAPI = process.env.EXPO_PUBLIC_DIRECTIONS_API_KEY;
+import { GOOGLE_MAPS_API_KEY as directionsAPI } from './googleMaps';
 
 export const generateMarkersFromProviders = ({
   data,
