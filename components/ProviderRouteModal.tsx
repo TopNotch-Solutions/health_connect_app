@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
+import { GOOGLE_MAPS_API_KEY } from "../lib/googleMaps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildBackendAssetUrl } from "../lib/backend";
 import { ensureForegroundLocationPermission } from "../lib/locationPermission";
@@ -47,8 +48,6 @@ const { width, height } = Dimensions.get("window");
 const ASPECT_RATIO = width / height;
 const LATITUDE_DELTA = 0.05;
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
-
-const GOOGLE_MAPS_API_KEY = "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg";
 
 // ✅ Helper to normalize coordinates (handles both formats)
 const normalizeCoordinate = (

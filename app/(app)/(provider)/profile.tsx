@@ -176,6 +176,56 @@ export default function ProfileScreen() {
     }
   };
 
+  // Required by Google Play, which needs an in-app route to delete the account
+  // and its data. Deactivation does not satisfy that — it removes nothing.
+  const performAccountDeletion = async () => {
+    setIsLoading(true);
+    try {
+      await apiClient.delete("/app/auth/delete-account");
+      Alert.alert(
+        "Account Deleted",
+        "Your account, personal details and uploaded documents have been deleted. Consultation and payment records are kept only as long as the law requires.",
+        [{ text: "OK", onPress: async () => await logout() }],
+      );
+    } catch (error: any) {
+      Alert.alert(
+        "Error",
+        error.response?.data?.message || "Failed to delete account",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "This permanently deletes your account, your personal details and your uploaded documents, including your identity documents and professional certificates. It cannot be undone.\n\nYour consultation and payment records are kept only for as long as the law requires.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          style: "destructive",
+          // Second confirmation: this is irreversible and sits directly below
+          // a similarly worded, recoverable action.
+          onPress: () =>
+            Alert.alert(
+              "Are you absolutely sure?",
+              "Your account cannot be recovered afterwards, and you will need to re-submit your credentials for verification if you return.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete my account",
+                  style: "destructive",
+                  onPress: performAccountDeletion,
+                },
+              ],
+            ),
+        },
+      ],
+    );
+  };
+
   const handleDeactivateAccount = () => {
     Alert.alert(
       "Deactivate Account",
@@ -504,6 +554,12 @@ export default function ProfileScreen() {
                 icon="alert-circle"
                 label="Deactivate Account"
                 onPress={handleDeactivateAccount}
+                isDestructive
+              />
+              <ProfileMenuItem
+                icon="trash-2"
+                label="Delete Account"
+                onPress={handleDeleteAccount}
                 isDestructive
               />
             </View>

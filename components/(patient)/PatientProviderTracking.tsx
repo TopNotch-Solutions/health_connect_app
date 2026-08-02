@@ -16,8 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { buildBackendAssetUrl } from "../../lib/backend";
 import socketService from "../../lib/socket";
 import { logViewMountDebug, logViewMountWarning } from "../../lib/viewErrorLogger";
-
-const GOOGLE_MAPS_API_KEY = "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg";
+import { GOOGLE_MAPS_API_KEY } from "../../lib/googleMaps";
 
 interface ProviderLocation {
   latitude: number;
