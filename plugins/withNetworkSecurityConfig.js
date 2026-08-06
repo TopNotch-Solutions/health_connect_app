@@ -43,6 +43,9 @@ module.exports = function withNetworkSecurityConfig(config) {
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">10.0.2.2</domain>
         <domain includeSubdomains="false">localhost</domain>
+        <!-- Android matches hostnames literally: "localhost" does NOT cover
+             127.0.0.1, and expo start dash-dash-localhost connects via 127.0.0.1. -->
+        <domain includeSubdomains="false">127.0.0.1</domain>
     </domain-config>
 </network-security-config>`;
       
