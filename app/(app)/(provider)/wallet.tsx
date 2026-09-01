@@ -51,6 +51,7 @@ interface DPOQueryResult {
   success: boolean;
   RESULT_CODE?: string;
   TRANSACTION_STATUS?: string;
+  RESULT_DESC?: string;
 }
 
 if (!process.env.EXPO_PUBLIC_DPO_PAYGATE_ID || !process.env.EXPO_PUBLIC_DPO_ENCRYPTION_KEY) {
@@ -71,38 +72,29 @@ const DPO_CONFIG = {
   COUNTRY: "NAM",
 } as const;
 
-const DPO_STATUSES = [
-  {
-    transaction_status: 1,
-    result_code: 990017,
-    message: "Transaction Approved",
-    status: true,
-  },
-  {
-    transaction_status: 2,
-    result_code: 900003,
-    message: "Insufficient Funds Transactions",
-    status: false,
-  },
-  {
-    transaction_status: 2,
-    result_code: 900007,
-    message: "Declined Transactions",
-    status: false,
-  },
-  {
-    transaction_status: 0,
-    result_code: 990022,
-    message: "Unprocessed Transactions",
-    status: false,
-  },
-  {
-    transaction_status: 2,
-    result_code: 900004,
-    message: "Invalid Card Number",
-    status: false,
-  },
-] as const;
+// PayWeb3: TRANSACTION_STATUS is the authoritative outcome field (1 = Approved).
+// RESULT_CODE only adds detail (e.g. which approval/decline reason) — approval
+// must NEVER be gated on an exact result code, since PayGate returns many
+// different codes for approved transactions (990017, 990005, ...).
+const DPO_APPROVED_STATUS = 1;
+// Statuses that mean "not final yet" — worth re-querying before giving up.
+const DPO_PENDING_STATUSES = [0, 5]; // 0 = Not Done, 5 = Received by PayGate
+
+const DPO_STATUS_MESSAGES: Record<number, string> = {
+  0: "The transaction was not completed. Please try again.",
+  2: "The transaction was declined by your bank.",
+  3: "The transaction was cancelled.",
+  4: "The payment was cancelled.",
+  5: "Your payment was received and is still being confirmed. If you were charged, your package will be activated shortly — please contact support if it isn't.",
+  7: "The transaction settlement was voided.",
+};
+
+const DPO_RESULT_CODE_MESSAGES: Record<number, string> = {
+  900003: "Insufficient funds.",
+  900004: "Invalid card number.",
+  900007: "Transaction declined by the bank.",
+  990022: "The transaction was not processed.",
+};
 
 // --- Reusable Components ---
 const ActionButton = ({
@@ -554,6 +546,7 @@ export default function TransactionsScreen() {
           success: true,
           RESULT_CODE: values.get("RESULT_CODE") || undefined,
           TRANSACTION_STATUS: values.get("TRANSACTION_STATUS") || undefined,
+          RESULT_DESC: values.get("RESULT_DESC") || undefined,
         };
       } catch {
         return { success: false };
@@ -604,10 +597,26 @@ export default function TransactionsScreen() {
       try {
         // FIX: no longer pass session.checksum — validateDpoPayment now
         // computes the correct query checksum itself.
-        const verify = await validateDpoPayment(
+        let verify = await validateDpoPayment(
           session.payRequestId,
           session.reference,
         );
+
+        // PayGate may still be finalizing when the return URL fires —
+        // re-query a few times before treating a pending status as final.
+        for (
+          let attempt = 0;
+          attempt < 3 &&
+          verify?.success &&
+          DPO_PENDING_STATUSES.includes(Number(verify.TRANSACTION_STATUS));
+          attempt++
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          verify = await validateDpoPayment(
+            session.payRequestId,
+            session.reference,
+          );
+        }
 
         if (!verify?.success) {
           Alert.alert(
@@ -617,16 +626,26 @@ export default function TransactionsScreen() {
           return;
         }
 
-        const match = DPO_STATUSES.find(
-          (entry) =>
-            entry.transaction_status === Number(verify.TRANSACTION_STATUS) &&
-            entry.result_code === Number(verify.RESULT_CODE),
-        );
-
-        if (!match?.status) {
+        const txStatus = Number(verify.TRANSACTION_STATUS);
+        if (txStatus !== DPO_APPROVED_STATUS) {
+          console.warn(
+            "DPO payment not approved:",
+            JSON.stringify({
+              TRANSACTION_STATUS: verify.TRANSACTION_STATUS,
+              RESULT_CODE: verify.RESULT_CODE,
+              RESULT_DESC: verify.RESULT_DESC,
+              reference: session.reference,
+              payRequestId: session.payRequestId,
+            }),
+          );
+          const detail =
+            verify.RESULT_DESC ||
+            DPO_RESULT_CODE_MESSAGES[Number(verify.RESULT_CODE)] ||
+            DPO_STATUS_MESSAGES[txStatus] ||
+            "Transaction not approved.";
           Alert.alert(
             "Payment Failed",
-            match?.message || "Transaction not approved.",
+            `${detail}${verify.RESULT_CODE ? ` (code ${verify.RESULT_CODE})` : ""}`,
           );
           return;
         }
