@@ -15,6 +15,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getModernTabBarOptions } from "@/lib/modernTabBar";
 
 export default function PatientTabLayout() {
   const { logout, user } = useAuth();
@@ -124,16 +125,7 @@ export default function PatientTabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarShowLabel: true,
-        tabBarStyle: {
-          height: 64 + insets.bottom,
-          paddingTop: 6,
-          paddingBottom: insets.bottom,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          marginBottom: 6,
-        },
+        ...getModernTabBarOptions(insets),
         ...iosStackHeaderBackOptions,
         headerRight,
       }}
@@ -142,8 +134,12 @@ export default function PatientTabLayout() {
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="home" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <MaterialCommunityIcons
+              name="home"
+              color={color}
+              size={focused ? size + 2 : size}
+            />
           ),
         }}
       />
@@ -151,8 +147,12 @@ export default function PatientTabLayout() {
         name="waiting-room"
         options={{
           title: "Waiting Room",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="clock" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <MaterialCommunityIcons
+              name="clock"
+              color={color}
+              size={focused ? size + 2 : size}
+            />
           ),
         }}
       />
@@ -160,8 +160,12 @@ export default function PatientTabLayout() {
         name="issues"
         options={{
           title: "Issues",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="book" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <MaterialCommunityIcons
+              name="book"
+              color={color}
+              size={focused ? size + 2 : size}
+            />
           ),
         }}
       />
@@ -169,8 +173,12 @@ export default function PatientTabLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="account" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <MaterialCommunityIcons
+              name="account"
+              color={color}
+              size={focused ? size + 2 : size}
+            />
           ),
         }}
       />

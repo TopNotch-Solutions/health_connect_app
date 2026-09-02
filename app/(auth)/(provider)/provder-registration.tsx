@@ -7,13 +7,24 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { iosInputIconSize, iosPasswordToggleButtonStyle, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandalonePasswordTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
-import { ActivityIndicator, Alert, Image, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
-import { PickerField } from "../../../components/PickerField";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { ActivityIndicator, Alert, Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PickerField } from "../../../components/PickerField";
+import AuthScreenLayout, {
+  AuthProgressBar,
+  RegistrationStepFooter,
+} from "../../../components/AuthScreenLayout";
+import { AuthTopBackButton } from "../../../components/AuthTopBackButton";
+import { AUTH_COLORS, authScreenStyles } from "../../../lib/authScreenTheme";
 import { namibianRegions } from "../../../constants/locations";
 import apiClient from "../../../lib/api";
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+});
 
 // --- Type Definitions ---
 type PickedImage = ImagePicker.ImagePickerAsset | null;
@@ -126,9 +137,10 @@ const UploadBox = ({
   <TouchableOpacity
     onPress={onPick}
     activeOpacity={0.85}
-    className={`bg-gray-100 border rounded-xl items-center justify-center h-32 flex-1 overflow-hidden ${
-      error ? "border-red-400" : "border-gray-200"
+    className={`border rounded-xl items-center justify-center h-32 flex-1 overflow-hidden ${
+      error ? "border-red-400" : "border-[#BBF7D0]"
     }`}
+    style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}
   >
     {file ? (
       <>
@@ -140,7 +152,7 @@ const UploadBox = ({
           />
         ) : (
           <View className="items-center justify-center p-2 w-full h-full">
-            <Feather name="check-circle" size={32} color="#28A745" />
+            <Feather name="check-circle" size={32} color={AUTH_COLORS.green} />
             <Text
               className="text-secondary font-semibold mt-2 text-center"
               numberOfLines={2}
@@ -154,8 +166,8 @@ const UploadBox = ({
       </>
     ) : (
       <View className="items-center justify-center w-full h-full">
-        <Feather name={icon} size={32} color="#6C757D" />
-        <Text className="text-text-main font-semibold mt-2 text-center">
+        <Feather name={icon} size={32} color={AUTH_COLORS.textMuted} />
+        <Text className="text-[#14532D] font-semibold mt-2 text-center">
           {label}
         </Text>
       </View>
@@ -171,8 +183,8 @@ const ReviewRow = ({
   value: string | number | undefined;
 }) => (
   <View className="mb-3">
-    <Text className="text-sm text-gray-500">{label}</Text>
-    <Text className="text-base text-text-main font-semibold">
+    <Text className="text-sm text-[#4B5563]">{label}</Text>
+    <Text className="text-base text-[#14532D] font-semibold">
       {String(value ?? "Not provided")}
     </Text>
   </View>
@@ -200,23 +212,23 @@ const DocRow = ({
             resizeMode="cover"
           />
         ) : (
-          <View className="w-12 h-12 rounded-lg mr-3 bg-gray-100 border border-gray-200 items-center justify-center overflow-hidden">
-            <Feather name="file-text" size={20} color="#6C757D" />
-            <Text className="text-[9px] mt-0.5 text-gray-600">
+          <View className="w-12 h-12 rounded-lg mr-3 border border-[#BBF7D0] items-center justify-center overflow-hidden" style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}>
+            <Feather name="file-text" size={20} color={AUTH_COLORS.textMuted} />
+            <Text className="text-[9px] mt-0.5 text-[#4B5563]">
               {getExt(file) || "FILE"}
             </Text>
           </View>
         )
       ) : (
-        <View className="w-12 h-12 rounded-lg mr-3 bg-gray-100 border border-gray-200 items-center justify-center">
-          <Feather name="upload" size={18} color="#9CA3AF" />
+        <View className="w-12 h-12 rounded-lg mr-3 border border-[#BBF7D0] items-center justify-center" style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}>
+          <Feather name="upload" size={18} color={AUTH_COLORS.textMuted} />
         </View>
       )}
 
       {/* Middle: labels */}
       <View className="flex-1">
-        <Text className="text-text-main font-medium">{label}</Text>
-        <Text className="text-gray-500 text-xs" numberOfLines={1}>
+        <Text className="text-[#14532D] font-medium">{label}</Text>
+        <Text className="text-[#4B5563] text-xs" numberOfLines={1}>
           {file
             ? (file as any)?.name ||
               (file as any)?.fileName ||
@@ -228,10 +240,10 @@ const DocRow = ({
       {/* Right: action */}
       {showOpen && file ? (
         <TouchableOpacity onPress={() => openFile(file)}>
-          <Text className="text-primary font-semibold">Open</Text>
+          <Text className="text-[#16A34A] font-semibold">Open</Text>
         </TouchableOpacity>
       ) : file ? (
-        <Feather name="check-circle" size={20} color="#28A745" />
+        <Feather name="check-circle" size={20} color={AUTH_COLORS.green} />
       ) : (
         <Text className="text-gray-400 text-xs">—</Text>
       )}
@@ -1058,51 +1070,49 @@ export default function ProviderRegistrationScreen() {
 
   return (
     <>
-      <SafeAreaView className="flex-1">
-        <KeyboardAwareScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 180 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          enableOnAndroid
-          enableAutomaticScroll
-          extraScrollHeight={150}
+      <View style={styles.screen}>
+        <AuthScreenLayout
+          hideBrandHeader
+          hideFooter
+          extraScrollTopPadding={56}
+          scrollBottomPadding={24}
+          stickyFooter={
+            <RegistrationStepFooter
+              step={step}
+              totalSteps={reviewStep}
+              onBack={handleBack}
+              onNext={handleNext}
+              onSubmit={handleSubmit}
+              isLoading={isLoading}
+              nextDisabled={step === 1 && !accountInfo.agreeToTerms}
+              backDisabled={isLoading}
+              submitLabel="Submit"
+            />
+          }
         >
-          <View className="p-6">
-            {/* Progress Bar */}
-            <View className="flex-row items-center mb-8">
-              <Text className="text-base font-semibold text-text-main mr-4">
-                Step {step} of {totalSteps}
-              </Text>
-              <View className="flex-1 h-2 bg-gray-200 rounded-full">
-                <View
-                  style={{ width: `${(step / totalSteps) * 100}%` }}
-                  className="h-2 bg-primary rounded-full "
-                />
-              </View>
-            </View>
+        <AuthProgressBar step={step} totalSteps={totalSteps} />
 
             {/* Step 1: Account Information */}
             {step === 1 && (
               <View>
-                <Text className="text-2xl font-bold text-text-main mb-6">
+                <Text className="text-[22px] font-bold text-[#14532D] mb-6">
                   Account Information
                 </Text>
 
                 {showDisclaimer && (
-                  <View className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-6">
+                  <View style={authScreenStyles.disclaimerBox}>
                     <View className="flex-row items-start">
                       <Feather
                         name="shield"
                         size={20}
-                        color="#3B82F6"
+                        color={AUTH_COLORS.green}
                         style={{ marginRight: 12, marginTop: 2 }}
                       />
                       <View className="flex-1">
-                        <Text className="text-sm text-blue-900 font-semibold mb-1">
+                        <Text style={authScreenStyles.disclaimerTitle}>
                           Data Privacy Assurance
                         </Text>
-                        <Text className="text-xs text-blue-700 leading-5">
+                        <Text style={authScreenStyles.disclaimerBody}>
                           Your personal information is treated with the utmost
                           confidentiality. We do not share, sell, or distribute
                           your data to any third parties. Your privacy and data
@@ -1113,7 +1123,7 @@ export default function ProviderRegistrationScreen() {
                   </View>
                 )}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Full Name
                 </Text>
                 <TextInput
@@ -1133,7 +1143,7 @@ export default function ProviderRegistrationScreen() {
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     accountErrors.fullname
                       ? "border-red-400"
-                      : "border-gray-300"
+                      : "border-[#BBF7D0]"
                   }`}
                 />
                 {accountErrors.fullname && (
@@ -1143,7 +1153,7 @@ export default function ProviderRegistrationScreen() {
                 )}
                 {!accountErrors.fullname && <View className="mb-3" />}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Email
                 </Text>
                 <TextInput
@@ -1161,7 +1171,7 @@ export default function ProviderRegistrationScreen() {
                   }}
                   placeholder="youremail@example.com"
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
-                    accountErrors.email ? "border-red-400" : "border-gray-300"
+                    accountErrors.email ? "border-red-400" : "border-[#BBF7D0]"
                   }`}
                   autoCapitalize="none"
                   keyboardType="email-address"
@@ -1173,7 +1183,7 @@ export default function ProviderRegistrationScreen() {
                 )}
                 {!accountErrors.email && <View className="mb-3" />}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Password
                 </Text>
                 <View className="relative mb-1">
@@ -1194,7 +1204,7 @@ export default function ProviderRegistrationScreen() {
                     className={`bg-white p-4 rounded-xl border-2 ${
                       accountErrors.password
                         ? "border-red-400"
-                        : "border-gray-300"
+                        : "border-[#BBF7D0]"
                     }`}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
@@ -1222,7 +1232,7 @@ export default function ProviderRegistrationScreen() {
                 )}
                 {!accountErrors.password && <View className="mb-3" />}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Confirm Password
                 </Text>
                 <View className="relative mb-1">
@@ -1243,7 +1253,7 @@ export default function ProviderRegistrationScreen() {
                     className={`bg-white p-4 rounded-xl border-2 ${
                       accountErrors.confirmPassword
                         ? "border-red-400"
-                        : "border-gray-300"
+                        : "border-[#BBF7D0]"
                     }`}
                     secureTextEntry={!showConfirmPassword}
                     autoCapitalize="none"
@@ -1271,7 +1281,7 @@ export default function ProviderRegistrationScreen() {
                 )}
                 {!accountErrors.confirmPassword && <View className="mb-3" />}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   National ID Number
                 </Text>
                 <TextInput
@@ -1297,7 +1307,7 @@ export default function ProviderRegistrationScreen() {
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     accountErrors.nationalId
                       ? "border-red-400"
-                      : "border-gray-300"
+                      : "border-[#BBF7D0]"
                   }`}
                   keyboardType="numeric"
                   maxLength={11}
@@ -1309,7 +1319,7 @@ export default function ProviderRegistrationScreen() {
                 )}
                 {!accountErrors.nationalId && <View className="mb-3" />}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Gender
                 </Text>
                 <View className="mb-1" style={{ gap: 12 }}>
@@ -1318,10 +1328,10 @@ export default function ProviderRegistrationScreen() {
                       key={g}
                       className={`p-4 rounded-xl border-2 ${
                         accountInfo.gender === g
-                          ? "bg-blue-600 border-blue-600"
+                          ? "bg-[#16A34A] border-[#16A34A]"
                           : accountErrors.gender
                             ? "bg-white border-red-400"
-                            : "bg-white border-gray-200"
+                            : "bg-white border-[#BBF7D0]"
                       }`}
                       onPress={() => {
                         setAccountInfo((p) => ({
@@ -1342,7 +1352,7 @@ export default function ProviderRegistrationScreen() {
                         className={`text-center font-semibold ${
                           accountInfo.gender === g
                             ? "text-white"
-                            : "text-gray-700"
+                            : "text-[#14532D]"
                         }`}
                       >
                         {g}
@@ -1357,7 +1367,7 @@ export default function ProviderRegistrationScreen() {
                 )}
                 {!accountErrors.gender && <View className="mb-3" />}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   National ID Documents
                 </Text>
                 <View className="flex-row mb-1" style={{ gap: 16 }}>
@@ -1392,7 +1402,7 @@ export default function ProviderRegistrationScreen() {
                     {docErrors.idDocumentBack}
                   </Text>
                 )}
-                <Text className="text-xs text-gray-500 mb-4">
+                <Text className="text-xs text-[#4B5563] mb-4">
                   Upload clear photos of the front and back of your ID (JPG or
                   PNG)
                 </Text>
@@ -1413,20 +1423,21 @@ export default function ProviderRegistrationScreen() {
                       });
                     }
                   }}
-                  className={`flex-row items-start p-4 bg-gray-50 rounded-xl border-2 mb-1 mt-4 ${
-                    accountErrors.terms ? "border-red-400" : "border-gray-200"
+                  className={`flex-row items-start p-4 rounded-xl border-2 mb-1 mt-4 ${
+                    accountErrors.terms ? "border-red-400" : "border-[#BBF7D0]"
                   }`}
+                  style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}
                   activeOpacity={0.7}
                 >
                   <View
-                    className={`w-6 h-6 rounded-md mr-3 items-center justify-center border-2 ${accountInfo.agreeToTerms ? "bg-green-600 border-gray-600" : "bg-white border-gray-300"}`}
+                    className={`w-6 h-6 rounded-md mr-3 items-center justify-center border-2 ${accountInfo.agreeToTerms ? "bg-[#16A34A] border-[#16A34A]" : "bg-white border-[#BBF7D0]"}`}
                   >
                     {accountInfo.agreeToTerms && (
                       <Feather name="check" size={16} color="white" />
                     )}
                   </View>
                   <View className="flex-1">
-                    <Text className="text-gray-700 text-sm leading-5">
+                    <Text className="text-[#14532D] text-sm leading-5">
                       {accountInfo.agreeToTerms ? (
                         <Text className="text-green-600 font-semibold">
                           ✓ You have agreed to the Terms and Conditions and
@@ -1464,7 +1475,7 @@ export default function ProviderRegistrationScreen() {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
-                <Text className="text-2xl font-bold text-text-main mb-6">
+                <Text className="text-[22px] font-bold text-[#14532D] mb-6">
                   Documents & Qualifications
                 </Text>
 
@@ -1525,7 +1536,7 @@ export default function ProviderRegistrationScreen() {
                       )}
                     </View>
 
-                    <Text className="text-base text-text-main mb-2 font-semibold">
+                    <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                       Qualification Origin
                     </Text>
                     <View className="mb-4" style={{ gap: 12 }}>
@@ -1537,8 +1548,8 @@ export default function ProviderRegistrationScreen() {
                           key={o.value}
                           className={`p-4 rounded-xl border-2 ${
                             qualificationOrigin === (o.value as any)
-                              ? "bg-blue-600 border-blue-600"
-                              : "bg-white border-gray-200"
+                              ? "bg-[#16A34A] border-[#16A34A]"
+                              : "bg-white border-[#BBF7D0]"
                           }`}
                           onPress={() => {
                             setQualificationOrigin(o.value as any);
@@ -1556,7 +1567,7 @@ export default function ProviderRegistrationScreen() {
                             className={`text-center font-semibold ${
                               qualificationOrigin === (o.value as any)
                                 ? "text-white"
-                                : "text-gray-700"
+                                : "text-[#14532D]"
                             }`}
                           >
                             {o.label}
@@ -1644,19 +1655,19 @@ export default function ProviderRegistrationScreen() {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
-                <Text className="text-2xl font-bold text-text-main mb-6">
+                <Text className="text-[22px] font-bold text-[#14532D] mb-6">
                   Professional Details
                 </Text>
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Medical Council
                 </Text>
-                <View className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-200">
+                <View className="bg-white p-4 rounded-xl mb-4 border-2 border-[#BBF7D0]">
                   <Text>{professionalDetails.governingCouncil}</Text>
                 </View>
 
                 {/* Specializations - Dynamic from API */}
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Specializations
                 </Text>
                 <TextInput
@@ -1667,7 +1678,7 @@ export default function ProviderRegistrationScreen() {
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     profErrors.specializations
                       ? "border-red-400"
-                      : "border-gray-300"
+                      : "border-[#BBF7D0]"
                   }`}
                 />
                 {profErrors.specializations && (
@@ -1680,7 +1691,7 @@ export default function ProviderRegistrationScreen() {
                 {loadingSpecializations ? (
                   <View className="py-4">
                     <ActivityIndicator size="small" color="#007BFF" />
-                    <Text className="text-center text-gray-500 mt-2">
+                    <Text className="text-center text-[#4B5563] mt-2">
                       Loading specializations...
                     </Text>
                   </View>
@@ -1698,12 +1709,12 @@ export default function ProviderRegistrationScreen() {
                         >
                           <View
                             className={`px-3 py-1 rounded-full ${
-                              selected ? "bg-primary" : "bg-gray-200"
+                              selected ? "bg-[#16A34A]" : "bg-[#BBF7D0]"
                             }`}
                           >
                             <Text
                               className={`${
-                                selected ? "text-white" : "text-text-main"
+                                selected ? "text-white" : "text-[#14532D]"
                               } font-semibold`}
                             >
                               {spec.title}
@@ -1714,15 +1725,15 @@ export default function ProviderRegistrationScreen() {
                     })}
                   </View>
                 ) : (
-                  <View className="bg-gray-100 p-4 rounded-xl">
-                    <Text className="text-gray-600 text-center">
+                  <View className="p-4 rounded-xl" style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}>
+                    <Text className="text-[#4B5563] text-center">
                       No specializations available for{" "}
                       {params.providerType || "this provider type"}
                     </Text>
                   </View>
                 )}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   HPCNA Registration Number
                 </Text>
                 <TextInput
@@ -1742,7 +1753,7 @@ export default function ProviderRegistrationScreen() {
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     profErrors.hpcnaNumber
                       ? "border-red-400"
-                      : "border-gray-300"
+                      : "border-[#BBF7D0]"
                   }`}
                 />
                 {profErrors.hpcnaNumber && (
@@ -1752,7 +1763,7 @@ export default function ProviderRegistrationScreen() {
                 )}
                 {!profErrors.hpcnaNumber && <View className="mb-3" />}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Years of Experience
                 </Text>
                 <TextInput
@@ -1776,7 +1787,7 @@ export default function ProviderRegistrationScreen() {
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     profErrors.yearsOfExperience
                       ? "border-red-400"
-                      : "border-gray-300"
+                      : "border-[#BBF7D0]"
                   }`}
                 />
                 {profErrors.yearsOfExperience && (
@@ -1787,7 +1798,7 @@ export default function ProviderRegistrationScreen() {
                 {!profErrors.yearsOfExperience && <View className="mb-3" />}
 
                 {/* Practice Address */}
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Practice Address
                 </Text>
                 <TextInput
@@ -1805,7 +1816,7 @@ export default function ProviderRegistrationScreen() {
                   }}
                   placeholder="Street and number, area, town (e.g. 123 Independence Ave, Windhoek)"
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
-                    profErrors.address ? "border-red-400" : "border-gray-300"
+                    profErrors.address ? "border-red-400" : "border-[#BBF7D0]"
                   }`}
                   multiline
                 />
@@ -1816,7 +1827,7 @@ export default function ProviderRegistrationScreen() {
                 )}
                 {!profErrors.address && <View className="mb-3" />}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Operational Zone
                 </Text>
                 <View className="mb-1">
@@ -1849,14 +1860,14 @@ export default function ProviderRegistrationScreen() {
                 {!profErrors.operationalZone && <View className="mb-3" />}
 
                 {/* Date of Expiration */}
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Date of Expiration
                 </Text>
                 <TouchableOpacity
                   onPress={() => setShowDatePicker(true)}
-                  className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-300"
+                  className="bg-white p-4 rounded-xl mb-4 border-2 border-[#BBF7D0]"
                 >
-                  <Text className="text-base text-text-main">
+                  <Text className="text-base text-[#14532D]">
                     {expirationDate.toLocaleDateString()}
                   </Text>
                 </TouchableOpacity>
@@ -1870,7 +1881,7 @@ export default function ProviderRegistrationScreen() {
                 )}
 
                 {/* Bio */}
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Professional Bio
                 </Text>
                 <TextInput
@@ -1888,7 +1899,7 @@ export default function ProviderRegistrationScreen() {
                   }}
                   placeholder="Tell us about your professional experience and expertise"
                   className={`bg-white p-4 rounded-xl mb-1 border-2 h-24 ${
-                    profErrors.bio ? "border-red-400" : "border-gray-300"
+                    profErrors.bio ? "border-red-400" : "border-[#BBF7D0]"
                   }`}
                   multiline
                   textAlignVertical="top"
@@ -1910,15 +1921,15 @@ export default function ProviderRegistrationScreen() {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
-                <Text className="text-2xl font-bold text-text-main mb-2">
+                <Text className="text-[22px] font-bold text-[#14532D] mb-2">
                   Pharmacy Details
                 </Text>
-                <Text className="text-base text-gray-500 mb-6">
+                <Text className="text-base text-[#4B5563] mb-6">
                   Complete the pharmacy-specific details required for pharmacist
                   registration.
                 </Text>
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Registered Trading Name
                 </Text>
                 <TextInput
@@ -1931,7 +1942,7 @@ export default function ProviderRegistrationScreen() {
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     pharmacyErrors.registeredTradingName
                       ? "border-red-400"
-                      : "border-gray-300"
+                      : "border-[#BBF7D0]"
                   }`}
                 />
                 {pharmacyErrors.registeredTradingName && (
@@ -1943,7 +1954,7 @@ export default function ProviderRegistrationScreen() {
                   <View className="mb-3" />
                 )}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Company Registration No. / BIPA
                 </Text>
                 <TextInput
@@ -1954,10 +1965,10 @@ export default function ProviderRegistrationScreen() {
                   }
                   placeholder="e.g. CC/20XX/XXXX"
                   autoCapitalize="characters"
-                  className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-300"
+                  className="bg-white p-4 rounded-xl mb-4 border-2 border-[#BBF7D0]"
                 />
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Business Email
                 </Text>
                 <TextInput
@@ -1970,7 +1981,7 @@ export default function ProviderRegistrationScreen() {
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     pharmacyErrors.businessEmail
                       ? "border-red-400"
-                      : "border-gray-300"
+                      : "border-[#BBF7D0]"
                   }`}
                 />
                 {pharmacyErrors.businessEmail && (
@@ -1980,7 +1991,7 @@ export default function ProviderRegistrationScreen() {
                 )}
                 {!pharmacyErrors.businessEmail && <View className="mb-3" />}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Pharmacy Council No.
                 </Text>
                 <TextInput
@@ -1993,7 +2004,7 @@ export default function ProviderRegistrationScreen() {
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     pharmacyErrors.pharmacyCouncilNo
                       ? "border-red-400"
-                      : "border-gray-300"
+                      : "border-[#BBF7D0]"
                   }`}
                 />
                 {pharmacyErrors.pharmacyCouncilNo && (
@@ -2005,7 +2016,7 @@ export default function ProviderRegistrationScreen() {
                   <View className="mb-3" />
                 )}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Practice Number
                 </Text>
                 <TextInput
@@ -2016,7 +2027,7 @@ export default function ProviderRegistrationScreen() {
                   className={`bg-white p-4 rounded-xl mb-1 border-2 ${
                     pharmacyErrors.practiceNumber
                       ? "border-red-400"
-                      : "border-gray-300"
+                      : "border-[#BBF7D0]"
                   }`}
                 />
                 {pharmacyErrors.practiceNumber && (
@@ -2026,16 +2037,16 @@ export default function ProviderRegistrationScreen() {
                 )}
                 {!pharmacyErrors.practiceNumber && <View className="mb-3" />}
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Pharmacy Location
                 </Text>
-                <View className="bg-white p-4 rounded-xl mb-3 border-2 border-gray-300">
-                  <Text className="text-text-main font-semibold">
+                <View className="bg-white p-4 rounded-xl mb-3 border-2 border-[#BBF7D0]">
+                  <Text className="text-[#14532D] font-semibold">
                     {pharmacyDetails.gpsAddress || "No location detected yet"}
                   </Text>
                   {!!pharmacyDetails.gpsLatitude &&
                     !!pharmacyDetails.gpsLongitude && (
-                      <Text className="text-gray-500 text-xs mt-1">
+                      <Text className="text-[#4B5563] text-xs mt-1">
                         {pharmacyDetails.gpsLatitude},{" "}
                         {pharmacyDetails.gpsLongitude}
                       </Text>
@@ -2044,7 +2055,7 @@ export default function ProviderRegistrationScreen() {
                 <TouchableOpacity
                   onPress={detectPharmacyLocation}
                   disabled={isDetectingPharmacyLocation}
-                  className="bg-blue-600 p-4 rounded-xl mb-4 flex-row items-center justify-center"
+                  className="bg-[#16A34A] p-4 rounded-xl mb-4 flex-row items-center justify-center"
                   style={{ gap: 8, opacity: isDetectingPharmacyLocation ? 0.7 : 1 }}
                 >
                   {isDetectingPharmacyLocation ? (
@@ -2059,7 +2070,7 @@ export default function ProviderRegistrationScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                <Text className="text-base text-text-main mb-2 font-semibold">
+                <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                   Settlement Cell Number
                 </Text>
                 <TextInput
@@ -2070,7 +2081,7 @@ export default function ProviderRegistrationScreen() {
                   }
                   placeholder="For prepaid software credit payouts"
                   keyboardType="phone-pad"
-                  className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-300"
+                  className="bg-white p-4 rounded-xl mb-4 border-2 border-[#BBF7D0]"
                 />
 
                 <TouchableOpacity
@@ -2085,7 +2096,7 @@ export default function ProviderRegistrationScreen() {
                       ? "bg-white border-red-400"
                       : pharmacyDetails.hpcnaLicenseExpiryAcknowledged
                         ? "bg-green-50 border-green-300"
-                        : "bg-white border-gray-300"
+                        : "bg-white border-[#BBF7D0]"
                   }`}
                   style={{ gap: 12 }}
                 >
@@ -2093,14 +2104,14 @@ export default function ProviderRegistrationScreen() {
                     className={`w-6 h-6 rounded-md items-center justify-center border-2 ${
                       pharmacyDetails.hpcnaLicenseExpiryAcknowledged
                         ? "bg-green-600 border-green-600"
-                        : "bg-white border-gray-300"
+                        : "bg-white border-[#BBF7D0]"
                     }`}
                   >
                     {pharmacyDetails.hpcnaLicenseExpiryAcknowledged && (
                       <Feather name="check" size={16} color="#FFFFFF" />
                     )}
                   </View>
-                  <Text className="text-gray-700 text-sm leading-5 flex-1">
+                  <Text className="text-[#14532D] text-sm leading-5 flex-1">
                     I acknowledge my liability under HPCNA and confirm that my
                     pharmacy registration information and certificate are valid
                     and up to date.
@@ -2120,15 +2131,15 @@ export default function ProviderRegistrationScreen() {
                 <View className="w-16 h-16 rounded-full bg-green-100 items-center justify-center mb-4">
                   <Feather name="check" size={32} color="#28A745" />
                 </View>
-                <Text className="text-2xl font-bold text-text-main mb-2">
+                <Text className="text-[22px] font-bold text-[#14532D] mb-2">
                   Review & Submit
                 </Text>
-                <Text className="text-base text-gray-500 text-center mb-8">
+                <Text className="text-base text-[#4B5563] text-center mb-8">
                   Please review your information before submitting.
                 </Text>
 
                 {/* Single container card */}
-                <View className="w-full bg-white p-5 rounded-xl border border-gray-200">
+                <View className="w-full bg-white p-5 rounded-xl border border-[#BBF7D0]">
                   <ReviewRow label="Full Name" value={accountInfo.fullname} />
                   <ReviewRow label="Email" value={accountInfo.email} />
                   <ReviewRow
@@ -2141,7 +2152,7 @@ export default function ProviderRegistrationScreen() {
                   />
                   <ReviewRow label="Gender" value={accountInfo.gender} />
 
-                  <View className="h-px bg-gray-200 my-3" />
+                  <View className="h-px my-3" style={{ backgroundColor: AUTH_COLORS.inputBorder }} />
 
                   <ReviewRow
                     label="Medical Council"
@@ -2166,7 +2177,7 @@ export default function ProviderRegistrationScreen() {
 
                   {isPharmacist && (
                     <>
-                      <View className="h-px bg-gray-200 my-3" />
+                      <View className="h-px my-3" style={{ backgroundColor: AUTH_COLORS.inputBorder }} />
                       <ReviewRow
                         label="Registered Trading Name"
                         value={pharmacyDetails.registeredTradingName}
@@ -2214,7 +2225,7 @@ export default function ProviderRegistrationScreen() {
 
                   {/* Specializations on review */}
                   <View className="mb-3 mt-3">
-                    <Text className="text-sm text-gray-500">
+                    <Text className="text-sm text-[#4B5563]">
                       Specializations
                     </Text>
                     <View
@@ -2233,7 +2244,7 @@ export default function ProviderRegistrationScreen() {
                           </View>
                         ))
                       ) : (
-                        <Text className="text-base text-text-main font-semibold">
+                        <Text className="text-base text-[#14532D] font-semibold">
                           Not provided
                         </Text>
                       )}
@@ -2241,10 +2252,10 @@ export default function ProviderRegistrationScreen() {
                   </View>
 
                   {/* Divider before files */}
-                  <View className="h-px bg-gray-200 my-4" />
+                  <View className="h-px my-4" style={{ backgroundColor: AUTH_COLORS.inputBorder }} />
 
                   {/* Stacked file previews */}
-                  <Text className="text-lg font-semibold text-text-main mb-2">
+                  <Text className="text-lg font-semibold text-[#14532D] mb-2">
                     Uploaded Files
                   </Text>
                   <DocRow
@@ -2312,94 +2323,12 @@ export default function ProviderRegistrationScreen() {
                 </View>
               </View>
             )}
-          </View>
-        </KeyboardAwareScrollView>
+        </AuthScreenLayout>
 
-        {/* Sticky Next/Back/Submit Button */}
-        <SafeAreaView
-          edges={["bottom"]}
-          className="absolute bottom-0 left-0 right-0 border-t border-t-gray-200 bg-white"
-        >
-          <View className="flex-row px-6 pt-4 pb-4" style={{ gap: 12 }}>
-            {step > 1 && (
-              <TouchableOpacity
-                onPress={handleBack}
-                disabled={isLoading}
-                className="py-5 rounded-2xl flex-1 items-center justify-center border-2"
-                style={{
-                  backgroundColor: "#F3F4F6",
-                  borderColor: "#D1D5DB",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 2,
-                }}
-                activeOpacity={0.8}
-              >
-                <Text className="text-gray-700 text-xl font-semibold">
-                  Back
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {step < reviewStep ? (
-              <TouchableOpacity
-                onPress={handleNext}
-                disabled={
-                  isLoading || (step === 1 && !accountInfo.agreeToTerms)
-                }
-                className="py-5 rounded-2xl flex-1 items-center justify-center"
-                style={{
-                  backgroundColor:
-                    isLoading || (step === 1 && !accountInfo.agreeToTerms)
-                      ? "#9CA3AF"
-                      : "#10B981",
-                  shadowColor: "#10B981",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 6,
-                }}
-                activeOpacity={0.8}
-              >
-                <View className="flex-row items-center">
-                  <Text className="text-white text-xl font-semibold mr-2">
-                    Next
-                  </Text>
-                  <Feather name="arrow-right" size={20} color="#FFFFFF" />
-                </View>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={handleSubmit}
-                disabled={isLoading}
-                className="py-5 rounded-2xl flex-1 items-center justify-center"
-                style={{
-                  backgroundColor: isLoading ? "#9CA3AF" : "#10B981",
-                  shadowColor: "#10B981",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 6,
-                }}
-                activeOpacity={0.8}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <View className="flex-row items-center">
-                    <Text className="text-white text-xl font-semibold mr-2">
-                      Submit
-                    </Text>
-                    <Feather name="arrow-right" size={20} color="#FFFFFF" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-        </SafeAreaView>
-      </SafeAreaView>
+        <AuthTopBackButton
+          onPress={() => (step > 1 ? handleBack() : router.back())}
+        />
+      </View>
 
       {/* Terms and Conditions Modal */}
       <Modal
@@ -2408,11 +2337,11 @@ export default function ProviderRegistrationScreen() {
         animationType="slide"
         onRequestClose={() => setShowTermsModal(false)}
       >
-        <SafeAreaView className="flex-1 bg-white">
-          <View className="flex-1 bg-white">
+        <SafeAreaView style={{ flex: 1, backgroundColor: AUTH_COLORS.bg }}>
+          <View style={{ flex: 1, backgroundColor: AUTH_COLORS.bg }}>
             {/* Header */}
-            <View className="flex-row items-center justify-between p-6 border-b-2 border-gray-100">
-              <Text className="text-2xl font-bold text-black flex-1">
+            <View className="flex-row items-center justify-between p-6 border-b-2 border-[#BBF7D0]">
+              <Text className="text-2xl font-bold text-[#14532D] flex-1">
                 Terms & Conditions
               </Text>
               <TouchableOpacity
@@ -2429,16 +2358,16 @@ export default function ProviderRegistrationScreen() {
                 {" "}
                 Absolute Provider Liability and Indemnification Agreement
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 leading-6">
                 By accepting these terms and providing services through the
                 Health_Connect platform, I (the &quot;Provider&quot;)
                 irrevocably agree to the following:
               </Text>
 
-              <Text className="text-base font-bold text-gray-900 mb-3">
+              <Text className="text-base font-bold text-[#14532D] mb-3">
                 Status and Sole Responsibility
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 leading-6">
                 I confirm that my engagement with Kopano-Vertex Trading cc
                 (trading as Health_Connect) is strictly and exclusively that of
                 an independent contractor. I acknowledge that I am not, and
@@ -2447,10 +2376,10 @@ export default function ProviderRegistrationScreen() {
                 whatsoever.
               </Text>
 
-              <Text className="text-base font-bold text-gray-900 mb-3">
+              <Text className="text-base font-bold text-[#14532D] mb-3">
                 Absolute Clinical Liability
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 leading-6">
                 I accept full, absolute, and unreserved personal and
                 professional liability for any and all acts, omissions,
                 negligence, error, or breach arising from the healthcare
@@ -2461,10 +2390,10 @@ export default function ProviderRegistrationScreen() {
                 governed by the Health Professions Councils of Namibia (HPCNA).
               </Text>
 
-              <Text className="text-base font-bold text-gray-900 mb-3">
+              <Text className="text-base font-bold text-[#14532D] mb-3">
                 Duty to Defend and Maximum Indemnification
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 leading-6">
                 I shall defend, indemnify, and hold completely harmless
                 Kopano-Vertex Trading cc, its owners, directors, employees,
                 successors, and assigns (collectively, the &quot;Indemnified
@@ -2474,17 +2403,17 @@ export default function ProviderRegistrationScreen() {
                 attorney fees, regardless of the merit of the claim) that may
                 arise, directly or indirectly, from or relate to:
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 ml-3 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 ml-3 leading-6">
                 • My professional services or clinical decisions on or off the
                 platform.{"\n"}• Any breach of my professional duties or this
                 Agreement.{"\n"}• Any claim brought by a patient or third party
                 regarding my medical practice.
               </Text>
 
-              <Text className="text-base font-bold text-gray-900 mb-3">
+              <Text className="text-base font-bold text-[#14532D] mb-3">
                 Insurance Obligation
               </Text>
-              <Text className="text-sm text-gray-700 mb-6 leading-6">
+              <Text className="text-sm text-[#14532D] mb-6 leading-6">
                 I confirm and warrant that I possess and shall maintain, at my
                 sole expense, adequate and current professional liability
                 insurance (malpractice insurance) required by the HPCNA, with
@@ -2494,13 +2423,17 @@ export default function ProviderRegistrationScreen() {
             </ScrollView>
 
             {/* Footer with Accept Button */}
-            <View className="p-6 border-t-2 border-gray-100 bg-white">
+            <View
+              className="p-6 border-t-2 border-[#BBF7D0]"
+              style={{ backgroundColor: AUTH_COLORS.bg }}
+            >
               <TouchableOpacity
                 onPress={() => {
                   setAccountInfo((p) => ({ ...p, agreeToTerms: true }));
                   setShowTermsModal(false);
                 }}
-                className="bg-green-600 p-4 rounded-xl"
+                style={{ backgroundColor: AUTH_COLORS.green }}
+                className="p-4 rounded-xl"
               >
                 <Text className="text-white text-center text-lg font-bold">
                   I Accept

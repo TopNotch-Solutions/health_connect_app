@@ -1,44 +1,21 @@
-import {
-  HeaderBackButton,
-  iosStackHeaderBackOptions,
-} from "../../components/HeaderBackButton";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
-
-const verificationHeaderOptions = {
-  headerShadowVisible: false,
-  headerStyle: {
-    backgroundColor: "#F9FAFB",
-  },
-  headerTitleStyle: {
-    fontWeight: "600" as const,
-    fontSize: 18,
-  },
-  headerTintColor: "#111827",
-  ...iosStackHeaderBackOptions,
-};
+import { AUTH_COLORS } from "../../lib/authScreenTheme";
 
 const VerificationLayout = () => {
   return (
     <>
-      <Stack screenOptions={verificationHeaderOptions}>
-        <Stack.Screen
-          name="verify-phone"
-          options={{
-            headerTitle: "Verify Phone",
-            headerLeft: () => <HeaderBackButton />,
-          }}
-        />
-        <Stack.Screen
-          name="verify-otp"
-          options={{
-            headerTitle: "Enter Code",
-            headerLeft: () => <HeaderBackButton />,
-          }}
-        />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: AUTH_COLORS.bg },
+        }}
+      >
+        <Stack.Screen name="verify-phone" />
+        <Stack.Screen name="verify-otp" />
       </Stack>
-      <StatusBar backgroundColor="#F9FAFB" style="dark" />
+      <StatusBar backgroundColor={AUTH_COLORS.bg} style="dark" />
     </>
   );
 };

@@ -3,7 +3,15 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import ScreenLayout, { SCREEN_EDGES_TOP } from "../components/ScreenLayout";
+import {
+  AppEmptyState,
+  AppFilterChips,
+  AppLoadingCard,
+  AppScreenShell,
+  appScreenStyles,
+  AUTH_COLORS,
+} from '../components/app/AppScreenUI';
+import { SCREEN_EDGES_TOP } from "../components/ScreenLayout";
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../lib/api';
 
@@ -132,9 +140,15 @@ const NotificationCard = ({ item, onPress, onDelete }: { item: Notification; onP
       style={[
         styles.card,
         {
-          backgroundColor: isUnread ? config.bgColor : '#FFFFFF',
-          borderLeftWidth: priority === 'urgent' || priority === 'high' ? 4 : 0,
-          borderLeftColor: getPriorityBorder(),
+          backgroundColor: AUTH_COLORS.white,
+          borderColor: isUnread ? AUTH_COLORS.green : AUTH_COLORS.inputBorder,
+          borderLeftWidth: priority === 'urgent' || priority === 'high' ? 4 : 2,
+          borderLeftColor:
+            priority === 'urgent' || priority === 'high'
+              ? getPriorityBorder()
+              : isUnread
+                ? AUTH_COLORS.green
+                : AUTH_COLORS.inputBorder,
         },
       ]}
     >
@@ -342,10 +356,10 @@ export default function NotificationsScreen() {
     });
 
     return (
-        <ScreenLayout edges={SCREEN_EDGES_TOP} backgroundColor="#F9FAFB">
+        <AppScreenShell edges={SCREEN_EDGES_TOP} backgroundVariant="notifications">
             {/* Header */}
             <View style={[styles.header, iosCustomTopBarStyle]}>
-                <HeaderBackButton color="#111827" size={24} />
+                <HeaderBackButton color={AUTH_COLORS.textDark} size={24} />
                 <Text style={styles.headerTitle}>Notifications</Text>
                 {unreadCount > 0 && (
                     <TouchableOpacity
@@ -358,37 +372,19 @@ export default function NotificationsScreen() {
                 )}
             </View>
 
-            {/* Filter Tabs */}
-            <View style={styles.filterContainer}>
-                <TouchableOpacity
-                    style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
-                    onPress={() => setFilter('all')}
-                    activeOpacity={0.7}
-                >
-                    <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-                        All
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.filterTab, filter === 'unread' && styles.filterTabActive]}
-                    onPress={() => setFilter('unread')}
-                    activeOpacity={0.7}
-                >
-                    <Text style={[styles.filterText, filter === 'unread' && styles.filterTextActive]}>
-                        Unread
-                    </Text>
-                    {unreadCount > 0 && (
-                        <View style={styles.badge}>
-                            <Text style={styles.badgeText}>{unreadCount}</Text>
-                        </View>
-                    )}
-                </TouchableOpacity>
-            </View>
+            <AppFilterChips
+                filters={[
+                    { key: 'all', label: 'All' },
+                    { key: 'unread', label: unreadCount > 0 ? `Unread (${unreadCount})` : 'Unread' },
+                ]}
+                active={filter}
+                onChange={(key) => setFilter(key as 'all' | 'unread')}
+            />
 
             {/* Notifications List */}
             {isLoading ? (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#10B981" />
+                    <AppLoadingCard message="Loading notifications…" />
                 </View>
             ) : (
                 <FlatList
@@ -398,26 +394,22 @@ export default function NotificationsScreen() {
                         <NotificationCard
                             item={item}
                             onPress={() => {
-                                // Note: Backend doesn't support marking individual notifications as read
-                                // You would need to implement this on backend first
                                 console.log('Notification tapped:', item._id);
                             }}
                             onDelete={() => deleteNotification(item._id)}
                         />
                     )}
-                    contentContainerStyle={styles.listContent}
+                    contentContainerStyle={appScreenStyles.scrollContent}
                     ListEmptyComponent={
-                        <View style={styles.emptyContainer}>
-                            <Feather name="bell-off" size={64} color="#CBD5E1" />
-                            <Text style={styles.emptyTitle}>
-                                {filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
-                            </Text>
-                            <Text style={styles.emptyText}>
-                                {filter === 'unread'
-                                    ? 'You\'re all caught up!'
-                                    : 'You\'ll see notifications here when you receive them.'}
-                            </Text>
-                        </View>
+                        <AppEmptyState
+                            icon="bell-off"
+                            title={filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
+                            body={
+                                filter === 'unread'
+                                    ? "You're all caught up!"
+                                    : "You'll see notifications here when you receive them."
+                            }
+                        />
                     }
                     ListFooterComponent={
                         filteredNotifications.length > 0 ? (
@@ -469,29 +461,23 @@ export default function NotificationsScreen() {
                     removeClippedSubviews={false}
                 />
             )}
-        </ScreenLayout>
+        </AppScreenShell>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F9FAFB',
-    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: Platform.OS === 'ios' ? 12 : 20,
-        paddingVertical: 16,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
+        paddingVertical: 12,
+        backgroundColor: 'transparent',
     },
     headerTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#111827',
+        fontSize: 22,
+        fontWeight: '800',
+        color: AUTH_COLORS.textDark,
         flex: 1,
         marginLeft: Platform.OS === 'ios' ? 4 : 8,
     },
@@ -500,72 +486,26 @@ const styles = StyleSheet.create({
     },
     markAllText: {
         fontSize: 14,
-        fontWeight: '600',
-        color: '#10B981',
-    },
-    filterContainer: {
-        flexDirection: 'row',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
-        gap: 12,
-    },
-    filterTab: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: '#F3F4F6',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    filterTabActive: {
-        backgroundColor: '#10B981',
-    },
-    filterText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#6B7280',
-    },
-    filterTextActive: {
-        color: '#FFFFFF',
-    },
-    badge: {
-        backgroundColor: '#EF4444',
-        borderRadius: 10,
-        minWidth: 20,
-        height: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 6,
-    },
-    badgeText: {
-        fontSize: 11,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: AUTH_COLORS.green,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    listContent: {
-        padding: 16,
-        paddingBottom: 32,
+        paddingHorizontal: 20,
     },
     card: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: AUTH_COLORS.white,
         borderRadius: 16,
         marginBottom: 12,
-        shadowColor: '#000',
+        marginHorizontal: 20,
+        shadowColor: AUTH_COLORS.green,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.08,
         shadowRadius: 8,
         elevation: 2,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderWidth: 2,
     },
     cardContent: {
         flexDirection: 'row',
@@ -591,7 +531,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#111827',
+        color: AUTH_COLORS.textDark,
         flex: 1,
     },
     titleBold: {
@@ -601,11 +541,11 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#10B981',
+        backgroundColor: AUTH_COLORS.green,
     },
     message: {
         fontSize: 14,
-        color: '#6B7280',
+        color: AUTH_COLORS.textMuted,
         lineHeight: 20,
         marginBottom: 8,
     },
@@ -650,28 +590,10 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#F59E0B',
     },
-    emptyContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 80,
-        paddingHorizontal: 40,
-    },
-    emptyTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#111827',
-        marginTop: 24,
-        marginBottom: 8,
-    },
-    emptyText: {
-        fontSize: 14,
-        color: '#6B7280',
-        textAlign: 'center',
-        lineHeight: 20,
-    },
     paginationContainer: {
         paddingVertical: 32,
         alignItems: 'center',
+        paddingHorizontal: 20,
     },
     paginationDivider: {
         flexDirection: 'row',
@@ -683,7 +605,7 @@ const styles = StyleSheet.create({
     paginationLine: {
         flex: 1,
         height: 1,
-        backgroundColor: '#E5E7EB',
+        backgroundColor: AUTH_COLORS.inputBorder,
     },
     paginationTextContainer: {
         paddingHorizontal: 16,
@@ -691,7 +613,7 @@ const styles = StyleSheet.create({
     paginationText: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#6B7280',
+        color: AUTH_COLORS.textMuted,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
@@ -699,11 +621,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#10B981',
+        backgroundColor: AUTH_COLORS.green,
         paddingVertical: 14,
         paddingHorizontal: 32,
-        borderRadius: 16,
-        shadowColor: '#10B981',
+        borderRadius: 999,
+        shadowColor: AUTH_COLORS.green,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -713,7 +635,7 @@ const styles = StyleSheet.create({
         opacity: 0.6,
     },
     loadMoreButtonText: {
-        color: '#FFFFFF',
+        color: AUTH_COLORS.white,
         fontSize: 16,
         fontWeight: '600',
     },
@@ -724,7 +646,7 @@ const styles = StyleSheet.create({
     },
     allLoadedText: {
         fontSize: 14,
-        color: '#9CA3AF',
+        color: AUTH_COLORS.textMuted,
         fontWeight: '500',
     },
 });

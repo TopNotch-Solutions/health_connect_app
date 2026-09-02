@@ -15,6 +15,7 @@ import {
 import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getModernTabBarOptions } from "@/lib/modernTabBar";
 
 // Separate component for header right to ensure proper re-rendering
 const HeaderRight = ({
@@ -149,16 +150,7 @@ export default function ProviderTabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarShowLabel: true,
-        tabBarStyle: {
-          height: 64 + insets.bottom,
-          paddingTop: 6,
-          paddingBottom: insets.bottom,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          marginBottom: 6,
-        },
+        ...getModernTabBarOptions(insets),
         ...iosStackHeaderBackOptions,
         headerRight: headerRightCallback,
       }}
@@ -167,8 +159,8 @@ export default function ProviderTabsLayout() {
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="home" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Feather name="home" color={color} size={focused ? size + 2 : size} />
           ),
         }}
       />
@@ -177,8 +169,8 @@ export default function ProviderTabsLayout() {
         name="requests"
         options={{
           title: "Requests",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="inbox" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Feather name="inbox" color={color} size={focused ? size + 2 : size} />
           ),
         }}
       />
@@ -187,8 +179,8 @@ export default function ProviderTabsLayout() {
         name="wallet"
         options={{
           title: "Account",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="credit-card" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Feather name="credit-card" color={color} size={focused ? size + 2 : size} />
           ),
         }}
       />
@@ -197,8 +189,8 @@ export default function ProviderTabsLayout() {
         name="issues"
         options={{
           title: "Issues",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="book" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Feather name="book" color={color} size={focused ? size + 2 : size} />
           ),
         }}
       />
@@ -207,8 +199,8 @@ export default function ProviderTabsLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="user" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Feather name="user" color={color} size={focused ? size + 2 : size} />
           ),
         }}
       />
@@ -219,8 +211,8 @@ export default function ProviderTabsLayout() {
           title: "Transaction History",
           href: null,
           headerLeft: () => <HeaderBackButton size={30} />,
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="credit-card" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Feather name="credit-card" color={color} size={focused ? size + 2 : size} />
           ),
         }}
       />

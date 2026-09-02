@@ -20,6 +20,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import {
+  AppBottomSheetCloseHeader,
+  appBottomSheetStyles,
+  appModalBottomSheetStyles,
+} from "../app/AppBottomSheetUI";
+import { AUTH_COLORS } from "../../lib/authScreenTheme";
 import { PrescriptionFile, uploadPrescription } from "../../lib/prescription";
 
 export interface PrescriptionData {
@@ -152,15 +158,10 @@ export default function PrescriptionUploadModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Prescription</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Feather name="x" size={22} color="#374151" />
-            </TouchableOpacity>
-          </View>
+      <View style={appModalBottomSheetStyles.overlay}>
+        <View style={[appModalBottomSheetStyles.sheet, styles.sheet]}>
+          <View style={appModalBottomSheetStyles.handle} />
+          <AppBottomSheetCloseHeader title="Prescription" onClose={onClose} />
 
           {/* Status */}
           {renderStatusBadge()}
@@ -203,7 +204,7 @@ export default function PrescriptionUploadModal({
           {canEdit && (
             <View style={styles.buttonGroup}>
               {isUploading ? (
-                <ActivityIndicator size="large" color="#10B981" style={{ marginVertical: 20 }} />
+                <ActivityIndicator size="large" color={AUTH_COLORS.green} style={{ marginVertical: 20 }} />
               ) : (
                 <>
                   <TouchableOpacity style={styles.uploadBtn} onPress={pickImage}>
@@ -234,28 +235,9 @@ export default function PrescriptionUploadModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-  },
   sheet: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
     padding: 20,
     paddingBottom: 36,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
   },
   statusBadge: {
     flexDirection: "row",
@@ -286,24 +268,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fileCard: {
-    backgroundColor: "#EFF6FF",
-    borderRadius: 10,
-    padding: 10,
+    backgroundColor: AUTH_COLORS.greenSoft,
+    borderRadius: 14,
+    padding: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   fileText: {
     fontSize: 13,
-    color: "#1D4ED8",
+    color: AUTH_COLORS.textDark,
     flex: 1,
   },
   instructions: {
     fontSize: 13,
-    color: "#6B7280",
+    color: AUTH_COLORS.textMuted,
     lineHeight: 18,
     marginBottom: 16,
   },
@@ -312,19 +294,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   uploadBtn: {
-    backgroundColor: "#10B981",
-    borderRadius: 12,
+    backgroundColor: AUTH_COLORS.green,
+    borderRadius: 999,
     paddingVertical: 13,
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.greenDark,
   },
   uploadBtnSecondary: {
-    backgroundColor: "#EFF6FF",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
+    backgroundColor: AUTH_COLORS.greenSoft,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   uploadBtnText: {
     fontSize: 14,
@@ -332,10 +316,12 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   closeBtn: {
-    backgroundColor: "#F3F4F6",
-    borderRadius: 10,
+    backgroundColor: AUTH_COLORS.greenSoft,
+    borderRadius: 999,
     paddingVertical: 12,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   closeBtnText: {
     fontSize: 14,

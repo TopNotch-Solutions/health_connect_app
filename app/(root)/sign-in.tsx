@@ -2,9 +2,19 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
-import { AppTextInput as TextInput } from "../../components/AppTextInput";
-import { ActivityIndicator, Animated, Image, Linking, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Animated,
+  Image,
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { AppTextInput as TextInput } from "../../components/AppTextInput";
 import ScreenLayout, {
   KEYBOARD_AWARE_EXTRA_SCROLL,
 } from "../../components/ScreenLayout";
@@ -14,6 +24,18 @@ import {
   withIosInputContainerStyle,
   withIosTextInputStyle,
 } from "../../lib/iosInputStyles";
+
+const COLORS = {
+  bg: "#FAFFFE",
+  textDark: "#14532D",
+  textMuted: "#4B5563",
+  green: "#16A34A",
+  greenSoft: "rgba(187, 247, 208, 0.45)",
+  placeholder: "#C4A574",
+  inputBorder: "#BBF7D0",
+  white: "#FFFFFF",
+  footer: "#6B7280",
+};
 
 const SignInScreen = () => {
   const router = useRouter();
@@ -31,47 +53,77 @@ const SignInScreen = () => {
   } | null>(null);
   const credentialErrorAnim = useRef(new Animated.Value(0)).current;
   const credentialErrorHeight = useRef(new Animated.Value(0)).current;
-
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
-    // Start animations on mount
-    const animationRef = Animated.parallel([
-      Animated.timing(fadeAnim, {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
+
+  const showCredentialError = (
+    errorMessage: string,
+    errorType: "invalid" | "network" | "server",
+  ) => {
+    setCredentialError({ message: errorMessage, type: errorType });
+    Animated.parallel([
+      Animated.spring(credentialErrorAnim, {
         toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 4,
+        friction: 6,
         tension: 40,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
-    ]);
+      Animated.spring(credentialErrorHeight, {
+        toValue: 1,
+        friction: 6,
+        tension: 40,
+        useNativeDriver: false,
+      }),
+    ]).start(() => {
+      Animated.sequence([
+        Animated.delay(5000),
+        Animated.parallel([
+          Animated.timing(credentialErrorAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: false,
+          }),
+          Animated.timing(credentialErrorHeight, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: false,
+          }),
+        ]),
+      ]).start(() => setCredentialError(null));
+    });
+  };
 
-    animationRef.start();
-
-    return () => {
-      // Clean up animation on unmount
-      animationRef.stop?.();
-    };
-  }, [fadeAnim, scaleAnim]);
+  const dismissCredentialError = () => {
+    if (!credentialError) return;
+    Animated.parallel([
+      Animated.timing(credentialErrorAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+      Animated.timing(credentialErrorHeight, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+    ]).start(() => setCredentialError(null));
+  };
 
   const handleSignIn = async () => {
-    // Clear previous errors
     setEmailError("");
     setPasswordError("");
-    // Reset animation values before clearing error
     credentialErrorAnim.setValue(0);
     credentialErrorHeight.setValue(0);
     setCredentialError(null);
 
-    // Validate inputs
     let hasError = false;
-
     if (!email) {
       setEmailError("Email is required");
       hasError = true;
@@ -79,38 +131,16 @@ const SignInScreen = () => {
       setEmailError("Please enter a valid email address");
       hasError = true;
     }
-
     if (!password) {
       setPasswordError("Password is required");
       hasError = true;
     }
-
-    if (hasError) {
-      return;
-    }
+    if (hasError) return;
 
     try {
       setIsLoading(true);
-
-      console.log("🔐 Starting login process...");
-      const user = await login(email, password);
-      console.log(
-        "✅ Login successful for user:",
-        user.email,
-        "Role:",
-        user.role,
-      );
-      // Don't manually navigate - let the root layout handle it automatically
-      // The _layout.tsx will detect the authentication change and redirect to the correct home screen
+      await login(email, password);
     } catch (error: any) {
-      console.error("❌ Sign-in error:", {
-        message: error?.message,
-        status: error?.response?.status,
-        data: error?.response?.data,
-        code: error?.code,
-      });
-
-      // Determine error type and message
       const status = error?.response?.status;
       const message = error?.response?.data?.message || error?.message;
       const code = error?.code;
@@ -118,7 +148,6 @@ const SignInScreen = () => {
       let errorType: "invalid" | "network" | "server" = "server";
       let errorMessage = "Failed to sign in. Please try again.";
 
-      // Network errors (no response from server)
       if (
         !error?.response ||
         code === "ECONNABORTED" ||
@@ -128,18 +157,14 @@ const SignInScreen = () => {
         errorType = "network";
         errorMessage =
           "Cannot connect to server. Please check your internet connection and try again.";
-      }
-      // Timeout errors
-      else if (
+      } else if (
         code === "ETIMEDOUT" ||
         message?.toLowerCase().includes("timeout")
       ) {
         errorType = "network";
         errorMessage =
           "Connection timeout. Please check your internet and try again.";
-      }
-      // Invalid credentials
-      else if (
+      } else if (
         status === 401 ||
         message?.toLowerCase().includes("invalid") ||
         message?.toLowerCase().includes("incorrect")
@@ -147,9 +172,7 @@ const SignInScreen = () => {
         errorType = "invalid";
         errorMessage =
           "The email address or password you entered is incorrect. Double-check the credentials or sign up to get started.";
-      }
-      // Account not found
-      else if (
+      } else if (
         status === 403 ||
         status === 404 ||
         message?.toLowerCase().includes("not found")
@@ -157,133 +180,48 @@ const SignInScreen = () => {
         errorType = "invalid";
         errorMessage =
           "The email address or password you entered is incorrect. Double-check the credentials or sign up to get started.";
-      }
-      // Server errors
-      else if (status && status >= 500) {
+      } else if (status && status >= 500) {
         errorType = "server";
         errorMessage = "Server error. Please try again later.";
-      }
-      // Generic error with backend message
-      else if (message) {
+      } else if (message) {
         errorType = "server";
         errorMessage = message;
       }
 
-      setCredentialError({ message: errorMessage, type: errorType });
-
-      // Animate error appearance
-      Animated.parallel([
-        Animated.spring(credentialErrorAnim, {
-          toValue: 1,
-          friction: 6,
-          tension: 40,
-          useNativeDriver: false, // Height animation requires useNativeDriver: false
-        }),
-        Animated.spring(credentialErrorHeight, {
-          toValue: 1,
-          friction: 6,
-          tension: 40,
-          useNativeDriver: false,
-        }),
-      ]).start(() => {
-        // After showing, wait 5 seconds then fade out
-        Animated.sequence([
-          Animated.delay(5000), // Show for 5 seconds
-          Animated.parallel([
-            Animated.timing(credentialErrorAnim, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-            Animated.timing(credentialErrorHeight, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-          ]),
-        ]).start(() => {
-          // Clear error after animation completes
-          setCredentialError(null);
-        });
-      });
+      showCredentialError(errorMessage, errorType);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleEmailChange = (text: string) => {
-    try {
-      setEmail(text);
-      if (emailError) {
-        setEmailError("");
-      }
-      // Animate out and clear credential error when user starts typing
-      if (credentialError) {
-        Animated.parallel([
-          Animated.timing(credentialErrorAnim, {
-            toValue: 0,
-            duration: 200,
-            useNativeDriver: false,
-          }),
-          Animated.timing(credentialErrorHeight, {
-            toValue: 0,
-            duration: 200,
-            useNativeDriver: false,
-          }),
-        ]).start(() => {
-          setCredentialError(null);
-        });
-      }
-    } catch (error) {
-      console.error("Error in handleEmailChange:", error);
-    }
+    setEmail(text);
+    if (emailError) setEmailError("");
+    dismissCredentialError();
   };
 
   const handlePasswordChange = (text: string) => {
-    try {
-      setPassword(text);
-      if (passwordError) {
-        setPasswordError("");
-      }
-      // Animate out and clear credential error when user starts typing
-      if (credentialError) {
-        Animated.parallel([
-          Animated.timing(credentialErrorAnim, {
-            toValue: 0,
-            duration: 200,
-            useNativeDriver: false,
-          }),
-          Animated.timing(credentialErrorHeight, {
-            toValue: 0,
-            duration: 200,
-            useNativeDriver: false,
-          }),
-        ]).start(() => {
-          setCredentialError(null);
-        });
-      }
-    } catch (error) {
-      console.error("Error in handlePasswordChange:", error);
-    }
+    setPassword(text);
+    if (passwordError) setPasswordError("");
+    dismissCredentialError();
   };
+
+  const inputBorder = (hasError: boolean) =>
+    hasError ? "#EF4444" : COLORS.inputBorder;
 
   if (renderError) {
     return (
       <ScreenLayout
-        backgroundColor="#FFFFFF"
+        backgroundColor={COLORS.bg}
         style={{ alignItems: "center", justifyContent: "center" }}
       >
-        <Text className="text-red-600 text-lg font-semibold mb-4">
-          An error occurred
-        </Text>
-        <Text className="text-gray-600 text-base mb-6 px-4 text-center">
-          {renderError}
-        </Text>
+        <Text style={styles.errorTitle}>An error occurred</Text>
+        <Text style={styles.errorBody}>{renderError}</Text>
         <TouchableOpacity
-          className="bg-green-600 px-6 py-3 rounded-lg"
+          style={styles.retryButton}
           onPress={() => setRenderError(null)}
         >
-          <Text className="text-white font-semibold">Try Again</Text>
+          <Text style={styles.retryButtonText}>Try Again</Text>
         </TouchableOpacity>
       </ScreenLayout>
     );
@@ -291,207 +229,162 @@ const SignInScreen = () => {
 
   try {
     return (
-      <ScreenLayout backgroundColor="#EFF6FF">
-        <View style={{ flex: 1 }}>
-          <KeyboardAwareScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{
-              flexGrow: 1,
-              paddingHorizontal: 24,
-              paddingTop: 0,
-              paddingBottom: 16,
-            }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            enableOnAndroid
-            enableAutomaticScroll
-            extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
-          >
-          {/* Logo/Icon Section */}
-          <View className="items-center" style={{ marginBottom: 0 }}>
-            <Image
-              source={require("../../assets/images/healthconnectlogo-cropped.png")}
-              style={{ width: 180, height: 180, marginBottom: 0 }}
-              resizeMode="contain"
-            />
-          </View>
+      <ScreenLayout backgroundColor={COLORS.bg}>
+        <View style={styles.root}>
+          <View style={styles.bgBlobTop} pointerEvents="none" />
+          <View style={styles.bgBlobMid} pointerEvents="none" />
+          <View style={styles.bgBlobBottom} pointerEvents="none" />
 
-          {/* Form Section */}
-          <View className="mb-4">
-            <Text className="text-2xl mb-2 font-bold text-gray-900">
-              Welcome
-            </Text>
+          <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+            <KeyboardAwareScrollView
+              style={styles.flex}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              enableOnAndroid
+              enableAutomaticScroll
+              extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+            >
+              <View style={styles.brandRow}>
+                <View style={styles.logoGlow}>
+                  <Image
+                    source={require("../../assets/images/connectlogo.png")}
+                    style={styles.logo}
+                    resizeMode="contain"
+                  />
+                </View>
+                <View style={styles.brandTextWrap}>
+                  <Text style={styles.brandTitle}>Health Connect</Text>
+                  <Text style={styles.brandSubtitle}>Namibia</Text>
+                </View>
+              </View>
 
-            {/* Credential Error Display */}
-            {credentialError && (
-              <Animated.View
-                style={{
-                  opacity: credentialErrorAnim,
-                  maxHeight: credentialErrorHeight.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 200], // Max height for error message
-                  }),
-                  overflow: "hidden",
-                  marginBottom: credentialErrorHeight.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 16], // Match mb-4 (16px)
-                  }),
-                  transform: [
-                    {
-                      translateY: credentialErrorAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-20, 0],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <View
-                  className="rounded-lg px-4 py-3 flex-row items-start"
+              <Text style={styles.greeting}>Hello there!</Text>
+              <Text style={styles.greetingSub}>Welcome back.</Text>
+
+              {credentialError ? (
+                <Animated.View
                   style={{
-                    backgroundColor:
-                      credentialError.type === "network"
-                        ? "#FEF3C7"
-                        : credentialError.type === "invalid"
-                          ? "#FEE2E2"
-                          : "#FEF3C7",
-                    borderLeftWidth: 4,
-                    borderLeftColor:
-                      credentialError.type === "network"
-                        ? "#F59E0B"
-                        : credentialError.type === "invalid"
-                          ? "#EF4444"
-                          : "#F59E0B",
+                    opacity: credentialErrorAnim,
+                    maxHeight: credentialErrorHeight.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 200],
+                    }),
+                    overflow: "hidden",
+                    marginBottom: credentialErrorHeight.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 16],
+                    }),
                   }}
                 >
-                  <Feather
-                    name={
-                      credentialError.type === "network"
-                        ? "wifi-off"
-                        : credentialError.type === "invalid"
-                          ? "alert-circle"
-                          : "alert-triangle"
-                    }
-                    size={18}
-                    color={
-                      credentialError.type === "network"
-                        ? "#D97706"
-                        : credentialError.type === "invalid"
-                          ? "#DC2626"
-                          : "#D97706"
-                    }
-                    style={{ marginRight: 10, marginTop: 2 }}
-                  />
-                  <Text
-                    style={{
-                      color:
+                  <View style={styles.credentialErrorBox}>
+                    <Feather
+                      name={
                         credentialError.type === "network"
-                          ? "#92400E"
-                          : credentialError.type === "invalid"
-                            ? "#B91C1C"
-                            : "#92400E",
-                      fontSize: 14,
-                      fontWeight: "500",
-                      flex: 1,
-                    }}
-                  >
-                    {credentialError.message}
-                  </Text>
-                </View>
-              </Animated.View>
-            )}
-
-            {/* Email Input */}
-            <View className="mb-5">
-              <Text className="text-base text-gray-900 mb-2 font-medium">
-                Email
-              </Text>
-              <View
-                className="flex-row items-center bg-white rounded-2xl px-4 py-4 border-2"
-                style={withIosInputContainerStyle({
-                  borderColor: emailError ? "#EF4444" : "#D1D5DB",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 3,
-                  elevation: 1,
-                })}
-              >
-                <MaterialCommunityIcons
-                  name="email"
-                  size={iosInputIconSize}
-                  color={emailError ? "#EF4444" : "#10B981"}
-                />
-                <TextInput
-                  className="flex-1 ml-3 text-base text-gray-900"
-                  style={withIosTextInputStyle()}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#9CA3AF"
-                  value={email}
-                  onChangeText={handleEmailChange}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-              {emailError ? (
-                <Text className="text-red-500 text-sm mt-1 ml-1">
-                  {emailError}
-                </Text>
+                          ? "wifi-off"
+                          : "alert-circle"
+                      }
+                      size={18}
+                      color={COLORS.textDark}
+                      style={{ marginRight: 10, marginTop: 2 }}
+                    />
+                    <Text style={styles.credentialErrorText}>
+                      {credentialError.message}
+                    </Text>
+                  </View>
+                </Animated.View>
               ) : null}
-            </View>
 
-            {/* Password Input */}
-            <View className="mb-4">
-              <Text className="text-base text-gray-900 mb-2 font-medium">
-                Password
-              </Text>
-              <View
-                className="flex-row items-center bg-white rounded-2xl px-4 py-4 border-2"
-                style={withIosInputContainerStyle({
-                  borderColor: passwordError ? "#EF4444" : "#D1D5DB",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 2,
-                })}
-              >
-                <MaterialCommunityIcons
-                  name="lock"
-                  size={iosInputIconSize}
-                  color={passwordError ? "#EF4444" : "#10B981"}
-                />
-                <TextInput
-                  className="flex-1 ml-3 text-base text-gray-900"
-                  style={withIosTextInputStyle()}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#9CA3AF"
-                  value={password}
-                  onChangeText={handlePasswordChange}
-                  secureTextEntry={!showPassword}
-                  autoComplete="password"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  className="ml-3"
+              <View style={styles.inputWrap}>
+                <Text style={styles.inputLabel}>Email</Text>
+                <View
+                  style={[
+                    styles.inputField,
+                    withIosInputContainerStyle({
+                      borderColor: inputBorder(Boolean(emailError)),
+                    }),
+                  ]}
                 >
-                  <Feather
-                    name={showPassword ? "eye" : "eye-off"}
+                  <MaterialCommunityIcons
+                    name="email-outline"
                     size={iosInputIconSize}
-                    color="#6B7280"
+                    color={emailError ? "#EF4444" : COLORS.green}
                   />
+                  <TextInput
+                    style={[styles.inputText, withIosTextInputStyle()]}
+                    placeholder="Email Address"
+                    placeholderTextColor={COLORS.placeholder}
+                    value={email}
+                    onChangeText={handleEmailChange}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+                {emailError ? (
+                  <Text style={styles.fieldError}>{emailError}</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.inputWrap}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <View
+                  style={[
+                    styles.inputField,
+                    withIosInputContainerStyle({
+                      borderColor: inputBorder(Boolean(passwordError)),
+                    }),
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="lock-outline"
+                    size={iosInputIconSize}
+                    color={passwordError ? "#EF4444" : COLORS.green}
+                  />
+                  <TextInput
+                    style={[styles.inputText, withIosTextInputStyle()]}
+                    placeholder="Password"
+                    placeholderTextColor={COLORS.placeholder}
+                    value={password}
+                    onChangeText={handlePasswordChange}
+                    secureTextEntry={!showPassword}
+                    autoComplete="password"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Feather
+                      name={showPassword ? "eye" : "eye-off"}
+                      size={iosInputIconSize}
+                      color={COLORS.green}
+                    />
+                  </TouchableOpacity>
+                </View>
+                {passwordError ? (
+                  <Text style={styles.fieldError}>{passwordError}</Text>
+                ) : null}
+              </View>
+
+              <View style={styles.ctaGlowWrap}>
+                <TouchableOpacity
+                  style={[
+                    styles.ctaButton,
+                    isLoading && styles.ctaButtonDisabled,
+                  ]}
+                  onPress={handleSignIn}
+                  disabled={isLoading}
+                  activeOpacity={0.85}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color={COLORS.white} size="small" />
+                  ) : (
+                    <Text style={styles.ctaText}>Log in</Text>
+                  )}
                 </TouchableOpacity>
               </View>
-              {passwordError ? (
-                <Text className="text-red-500 text-sm mt-1 ml-1">
-                  {passwordError}
-                </Text>
-              ) : null}
-            </View>
 
-            {/* Forgot Password */}
-            <View className="flex-row justify-end mb-4">
               <TouchableOpacity
+                style={styles.forgotWrap}
                 onPress={() =>
                   router.push({
                     pathname: "/(verification)/verify-phone",
@@ -499,107 +392,287 @@ const SignInScreen = () => {
                   })
                 }
               >
-                <Text className="text-base text-green-600 font-medium">
-                  Forgot Password?
-                </Text>
+                <Text style={styles.forgotText}>Forgot Password?</Text>
               </TouchableOpacity>
-            </View>
 
-            {/* Sign Up Link */}
-            <View className="flex-row justify-center items-center">
-              <Text className="text-gray-600 text-base">
-                Don&apos;t have an account?{" "}
-              </Text>
-              <TouchableOpacity
-                onPress={() =>
-                  router.push({
-                    pathname: "/selection",
-                    params: { mode: "signup" },
-                  })
-                }
-              >
-                <Text className="text-green-600 font-semibold text-base">
-                  Sign Up
+              <View style={styles.signUpRow}>
+                <Text style={styles.signUpMuted}>
+                  Don&apos;t have an account?{" "}
                 </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          </KeyboardAwareScrollView>
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: "/selection",
+                      params: { mode: "signup" },
+                    })
+                  }
+                >
+                  <Text style={styles.signUpLink}>Sign Up</Text>
+                </TouchableOpacity>
+              </View>
+            </KeyboardAwareScrollView>
 
-          <View
-            style={{
-              paddingHorizontal: 24,
-              paddingTop: 12,
-              paddingBottom: 8,
-              backgroundColor: "#EFF6FF",
-            }}
-          >
-            <TouchableOpacity
-              className="w-full py-5 rounded-2xl items-center justify-center"
-              style={{
-                backgroundColor: isLoading ? "#9CA3AF" : "#10B981",
-                shadowColor: "#10B981",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 6,
-              }}
-              onPress={handleSignIn}
-              disabled={isLoading}
-              activeOpacity={0.8}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <View className="flex-row items-center">
-                  <Text className="text-white text-xl font-semibold mr-2">
-                    Log In
-                  </Text>
-                  <Feather name="arrow-right" size={20} color="#FFFFFF" />
-                </View>
-              )}
-            </TouchableOpacity>
-            <View className="flex-row justify-center items-center">
-              <Text className="text-gray-600 text-xs mt-4 text-center">
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
                 A digital health solution by{" "}
                 <Text
-                  className="text-blue-600"
+                  style={styles.footerLink}
                   onPress={() => Linking.openURL("https://kopanovertex.com")}
                 >
-                  Kopano-Vertex Trading cc
+                  Kopano-Vertex Trading CC
                 </Text>
               </Text>
             </View>
-          </View>
+          </Animated.View>
         </View>
-        <StatusBar backgroundColor="#EFF6FF" style="dark" />
+        <StatusBar backgroundColor={COLORS.bg} style="dark" />
       </ScreenLayout>
     );
   } catch (error: any) {
-    console.error("Error rendering SignInScreen:", error);
     setRenderError(
       error?.message || "An unknown error occurred while rendering",
     );
-    return (
-      <ScreenLayout
-        backgroundColor="#FFFFFF"
-        style={{ alignItems: "center", justifyContent: "center" }}
-      >
-        <Text className="text-red-600 text-lg font-semibold mb-4">
-          Render Error
-        </Text>
-        <Text className="text-gray-600 text-base mb-6 px-4 text-center">
-          {error?.message}
-        </Text>
-        <TouchableOpacity
-          className="bg-green-600 px-6 py-3 rounded-lg"
-          onPress={() => setRenderError(null)}
-        >
-          <Text className="text-white font-semibold">Retry</Text>
-        </TouchableOpacity>
-      </ScreenLayout>
-    );
+    return null;
   }
 };
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+  flex: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 28,
+    paddingTop: Platform.OS === "ios" ? 8 : 24,
+    paddingBottom: 16,
+  },
+  bgBlobTop: {
+    position: "absolute",
+    top: -40,
+    right: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: COLORS.greenSoft,
+  },
+  bgBlobMid: {
+    position: "absolute",
+    top: 120,
+    left: -80,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(134, 239, 172, 0.25)",
+  },
+  bgBlobBottom: {
+    position: "absolute",
+    bottom: 140,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: COLORS.greenSoft,
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 28,
+    marginTop: 8,
+  },
+  logoGlow: {
+    shadowColor: COLORS.green,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  logo: {
+    width: 72,
+    height: 72,
+  },
+  brandTextWrap: {
+    marginLeft: 14,
+  },
+  brandTitle: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: COLORS.textDark,
+    letterSpacing: -0.3,
+  },
+  brandSubtitle: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: COLORS.textDark,
+    marginTop: -2,
+  },
+  greeting: {
+    fontSize: 34,
+    fontWeight: "700",
+    color: COLORS.textDark,
+    letterSpacing: -0.5,
+  },
+  greetingSub: {
+    fontSize: 34,
+    fontWeight: "700",
+    color: COLORS.textDark,
+    letterSpacing: -0.5,
+    marginBottom: 28,
+  },
+  credentialErrorBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FEF2F2",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  credentialErrorText: {
+    flex: 1,
+    color: "#991B1B",
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 20,
+  },
+  inputWrap: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.textDark,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  inputField: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 4,
+    borderWidth: 2,
+    shadowColor: COLORS.green,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  inputText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: COLORS.textDark,
+  },
+  fieldError: {
+    color: "#EF4444",
+    fontSize: 13,
+    marginTop: 6,
+    marginLeft: 16,
+  },
+  ctaGlowWrap: {
+    marginTop: 8,
+    marginBottom: 20,
+    shadowColor: COLORS.green,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.55,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  ctaButton: {
+    backgroundColor: COLORS.green,
+    borderRadius: 999,
+    paddingVertical: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#15803D",
+  },
+  ctaButtonDisabled: {
+    backgroundColor: "#9CA3AF",
+    borderColor: "#6B7280",
+  },
+  ctaText: {
+    color: COLORS.white,
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  forgotWrap: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  forgotText: {
+    color: COLORS.textDark,
+    fontSize: 16,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  signUpRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  signUpMuted: {
+    color: COLORS.textMuted,
+    fontSize: 15,
+  },
+  signUpLink: {
+    color: COLORS.textDark,
+    fontSize: 15,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
+  footer: {
+    paddingHorizontal: 28,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: COLORS.bg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+  },
+  footerText: {
+    textAlign: "center",
+    fontSize: 10,
+    color: COLORS.footer,
+    lineHeight: 14,
+  },
+  footerLink: {
+    color: COLORS.footer,
+    fontWeight: "600",
+  },
+  errorTitle: {
+    color: "#DC2626",
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 16,
+  },
+  errorBody: {
+    color: COLORS.textMuted,
+    fontSize: 16,
+    marginBottom: 24,
+    paddingHorizontal: 16,
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: COLORS.green,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: COLORS.white,
+    fontWeight: "600",
+  },
+});
 
 export default SignInScreen;

@@ -6,7 +6,11 @@ import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInput
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
 import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { PickerField } from "../../../components/PickerField";
-import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
+import {
+  AppHeroCard,
+  AppScreenShell,
+  AUTH_COLORS,
+} from "../../../components/app/AppScreenUI";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 
@@ -478,14 +482,12 @@ export default function IssuesScreen() {
   // --------------------------------------------------------------------------
 
   return (
-    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#FFFFFF" keyboard>
-      {/* Static Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Help & Support</Text>
-        <Text style={styles.headerSubtitle}>
-          Find answers or report an issue.
-        </Text>
-      </View>
+    <AppScreenShell keyboard>
+      <AppHeroCard
+        eyebrow="Support"
+        name="Help & support"
+        tagline="Find answers or report an issue"
+      />
 
       {/* Static Tab Selector */}
       <View style={styles.tabContainer}>
@@ -802,29 +804,14 @@ export default function IssuesScreen() {
         </ScrollView>
       )}
       {/* ------------------------------------------- */}
-    </ScreenLayout>
+    </AppScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-    marginTop: 4,
-  },
   tabContainer: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
   tabScrollContent: {
     paddingRight: 24,
@@ -834,21 +821,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 20,
     marginRight: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AUTH_COLORS.white,
     borderWidth: 2,
-    borderColor: "#10B981",
+    borderColor: AUTH_COLORS.inputBorder,
   },
   tabButtonActive: {
-    backgroundColor: "#10B981",
-    borderColor: "#10B981",
+    backgroundColor: AUTH_COLORS.green,
+    borderColor: AUTH_COLORS.greenDark,
   },
   tabButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#10B981",
+    color: AUTH_COLORS.textMuted,
   },
   tabButtonTextActive: {
-    color: "#FFFFFF",
+    color: AUTH_COLORS.white,
   },
   inputContainer: {
     marginBottom: 20,
@@ -856,13 +843,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
+    color: AUTH_COLORS.textDark,
     marginBottom: 8,
   },
   pickerContainer: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AUTH_COLORS.white,
     borderWidth: 2,
-    borderColor: "#10B981",
+    borderColor: AUTH_COLORS.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 56,
@@ -879,13 +866,13 @@ const styles = StyleSheet.create({
     borderColor: "#EF4444",
   },
   textArea: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AUTH_COLORS.white,
     borderWidth: 2,
-    borderColor: "#10B981",
+    borderColor: AUTH_COLORS.inputBorder,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: "#111827",
+    color: AUTH_COLORS.textDark,
     minHeight: 120,
     textAlignVertical: "top",
   },
@@ -914,15 +901,15 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   imageButtonTextSuccess: {
-    color: "#10B981",
+    color: AUTH_COLORS.green,
   },
   submitButton: {
-    backgroundColor: "#10B981",
+    backgroundColor: AUTH_COLORS.green,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#10B981",
+    shadowColor: AUTH_COLORS.green,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -937,13 +924,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   ticketCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AUTH_COLORS.white,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    shadowColor: AUTH_COLORS.green,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -962,7 +949,7 @@ const styles = StyleSheet.create({
   ticketTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: AUTH_COLORS.textDark,
     lineHeight: 22,
   },
   statusBadge: {
@@ -981,7 +968,7 @@ const styles = StyleSheet.create({
   },
   ticketDescription: {
     fontSize: 14,
-    color: "#6B7280",
+    color: AUTH_COLORS.textMuted,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -1003,13 +990,13 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   faqCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AUTH_COLORS.white,
     padding: 20,
     borderRadius: 16,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    shadowColor: AUTH_COLORS.green,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -1028,7 +1015,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: AUTH_COLORS.greenSoft,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -1039,20 +1026,20 @@ const styles = StyleSheet.create({
   faqQuestion: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: AUTH_COLORS.textDark,
     lineHeight: 24,
   },
   faqAnswerContainer: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: AUTH_COLORS.greenSoft,
     padding: 16,
     borderRadius: 12,
     borderLeftWidth: 3,
-    borderLeftColor: "#10B981",
+    borderLeftColor: AUTH_COLORS.green,
     marginTop: 12,
   },
   faqAnswer: {
     fontSize: 15,
-    color: "#4B5563",
+    color: AUTH_COLORS.textMuted,
     lineHeight: 22,
   },
   emptyContainer: {
@@ -1101,11 +1088,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#10B981",
+    backgroundColor: AUTH_COLORS.green,
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 16,
-    shadowColor: "#10B981",
+    shadowColor: AUTH_COLORS.green,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

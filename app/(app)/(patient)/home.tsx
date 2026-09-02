@@ -17,6 +17,7 @@ import {
   View,
 } from "react-native";
 import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
+import { AuthBackgroundDecor } from "../../../components/AuthScreenLayout";
 import AilmentCard from "../../../components/(patient)/AilmentCard";
 import CreateRequestModal from "../../../components/(patient)/CreateRequestModal";
 import HistoryCard, {
@@ -35,6 +36,8 @@ import { getLocationCoordinates } from "../../../lib/geocoding";
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 import { PrescriptionFile, uploadPrescription } from "../../../lib/prescription";
 import socketService from "../../../lib/socket";
+import { AUTH_COLORS } from "../../../lib/authScreenTheme";
+import { appBottomSheetStyles, appModalBottomSheetStyles } from "../../../components/app/AppBottomSheetUI";
 
 interface Advert {
   _id: string;
@@ -42,6 +45,47 @@ interface Advert {
   image: string;
   createdAt: string;
   updatedAt: string;
+}
+
+type SectionHeaderProps = {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  title: string;
+  subtitle: string;
+  onSeeAll?: () => void;
+  /** Use neutral styling (no green) — for service sections */
+  neutral?: boolean;
+};
+
+function SectionHeader({ icon, title, subtitle, onSeeAll, neutral }: SectionHeaderProps) {
+  const iconColor = neutral ? AUTH_COLORS.textDark : AUTH_COLORS.green;
+  const linkColor = neutral ? AUTH_COLORS.textDark : AUTH_COLORS.green;
+
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionHeaderLeft}>
+        <View
+          style={[
+            styles.sectionIconWrap,
+            neutral && styles.sectionIconWrapNeutral,
+          ]}
+        >
+          <Feather name={icon} size={18} color={iconColor} />
+        </View>
+        <View style={styles.sectionHeaderText}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          <Text style={styles.sectionSubtitle}>{subtitle}</Text>
+        </View>
+      </View>
+      {onSeeAll ? (
+        <TouchableOpacity onPress={onSeeAll} style={styles.seeAllBtn} activeOpacity={0.85}>
+          <Text style={[styles.linkText, neutral && styles.linkTextNeutral]}>
+            See all
+          </Text>
+          <Feather name="chevron-right" size={16} color={linkColor} />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
 }
 
 export default function PatientHomeScreen() {
@@ -617,64 +661,141 @@ export default function PatientHomeScreen() {
     if (hour < 12) {
       return "Good morning";
     } else if (hour < 18) {
-      return "Good Afternoon";
+      return "Good afternoon";
     } else {
-      return "Good Evening";
+      return "Good evening";
     }
   };
 
+  const getGreetingEmoji = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "🌤️";
+    if (hour < 18) return "☀️";
+    return "🌙";
+  };
+
   const greeting = getGreeting();
+  const firstName =
+    user?.fullname?.trim().split(/\s+/)[0] || "there";
 
   return (
     <>
-      <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F3F4F6">
-        <View className="flex-1">
+      <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor={AUTH_COLORS.bg}>
+        <View style={styles.screen}>
+          <AuthBackgroundDecor />
           <ScrollView
             className="flex-1"
+            showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={["#10B981"]}
-                tintColor="#10B981"
+                colors={[AUTH_COLORS.green]}
+                tintColor={AUTH_COLORS.green}
               />
             }
+            contentContainerStyle={styles.scrollContent}
           >
-            <View className="px-2 px-4">
-              <View>
-                <Text className="text-2xl font-bold">{greeting},</Text>
+            {/* Hero welcome card */}
+            <View style={styles.heroCard}>
+              <View style={styles.heroOrbLarge} pointerEvents="none" />
+              <View style={styles.heroOrbSmall} pointerEvents="none" />
+              <View style={styles.heroRow}>
+                <View style={styles.heroTextBlock}>
+                  <Text style={styles.heroEyebrow}>
+                    {greeting} {getGreetingEmoji()}
+                  </Text>
+                  <Text style={styles.heroName}>{firstName}</Text>
+                  <Text style={styles.heroTagline}>
+                    Care that comes to you — book a visit in a few taps.
+                  </Text>
+                </View>
+                <View style={styles.heroLogoWrap}>
+                  <Image
+                    source={require("../../../assets/images/connectlogo.png")}
+                    style={styles.heroLogo}
+                    resizeMode="contain"
+                  />
+                </View>
               </View>
-              <View>
-                <Text className="font-bold text-gray-500">
-                  {user?.fullname || "Patient"}
-                </Text>
+              <View style={styles.heroStatsRow}>
+                <View style={styles.statPill}>
+                  <Feather name="clock" size={14} color={AUTH_COLORS.green} />
+                  <Text style={styles.statPillText}>
+                    {recentRequests.length} recent
+                  </Text>
+                </View>
+                <View style={styles.statPill}>
+                  <Feather name="heart" size={14} color={AUTH_COLORS.green} />
+                  <Text style={styles.statPillText}>
+                    {ailmentCategories.length || "—"} services
+                  </Text>
+                </View>
               </View>
+            </View>
+
+            {/* Quick actions */}
+            <View style={styles.quickActionsRow}>
+              <TouchableOpacity
+                style={styles.quickAction}
+                activeOpacity={0.88}
+                onPress={() => router.push("/(app)/(patient)/all_ailments")}
+              >
+                <View style={[styles.quickActionIcon, styles.quickActionIconPrimary]}>
+                  <Feather name="grid" size={20} color={AUTH_COLORS.white} />
+                </View>
+                <Text style={styles.quickActionLabel}>Browse care</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickAction}
+                activeOpacity={0.88}
+                onPress={() =>
+                  router.push("/(app)/(patient)/recent-activities")
+                }
+              >
+                <View style={styles.quickActionIcon}>
+                  <Feather name="activity" size={20} color={AUTH_COLORS.green} />
+                </View>
+                <Text style={styles.quickActionLabel}>My activity</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickAction}
+                activeOpacity={0.88}
+                onPress={() => router.push("/(app)/(patient)/profile")}
+              >
+                <View style={styles.quickActionIcon}>
+                  <Feather name="user" size={20} color={AUTH_COLORS.green} />
+                </View>
+                <Text style={styles.quickActionLabel}>Profile</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Adverts or Health Tips Section */}
             {adverts.length > 0 ? (
-              <View className="mb-8 py-2 px-4">
+              <View style={styles.spotlightSection}>
+                <View style={styles.spotlightBadge}>
+                  <Feather name="star" size={12} color={AUTH_COLORS.white} />
+                  <Text style={styles.spotlightBadgeText}>Spotlight</Text>
+                </View>
                 <Animated.View
-                  style={[
-                    {
-                      opacity: advertSlideAnim,
-                      transform: [
-                        {
-                          translateX: advertSlideAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [50, 0],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
+                  style={{
+                    opacity: advertSlideAnim,
+                    transform: [
+                      {
+                        translateX: advertSlideAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [40, 0],
+                        }),
+                      },
+                    ],
+                  }}
                 >
                   <TouchableOpacity
                     onPress={() => {
                       setSelectedAdvert(adverts[currentAdvertIndex]);
                       setAdvertModalVisible(true);
                     }}
-                    activeOpacity={0.9}
+                    activeOpacity={0.92}
                     style={styles.advertContainer}
                   >
                     {advertImageLoading && (
@@ -683,13 +804,13 @@ export default function PatientHomeScreen() {
                           position: "absolute",
                           width: "100%",
                           height: "100%",
-                          backgroundColor: "#F3F4F6",
+                          backgroundColor: AUTH_COLORS.bg,
                           justifyContent: "center",
                           alignItems: "center",
                           zIndex: 1,
                         }}
                       >
-                        <ActivityIndicator size="small" color="#10B981" />
+                        <ActivityIndicator size="small" color={AUTH_COLORS.green} />
                       </View>
                     )}
                     {!advertImageError &&
@@ -717,7 +838,7 @@ export default function PatientHomeScreen() {
                         style={{
                           width: "100%",
                           height: "100%",
-                          backgroundColor: "#F3F4F6",
+                          backgroundColor: AUTH_COLORS.bg,
                           justifyContent: "center",
                           alignItems: "center",
                         }}
@@ -736,8 +857,8 @@ export default function PatientHomeScreen() {
                       onPress={() => setCurrentAdvertIndex(index)}
                       className={`rounded-full transition-all ${
                         index === currentAdvertIndex
-                          ? "bg-blue-600 w-3 h-3"
-                          : "bg-gray-300 w-2 h-2"
+                          ? "bg-[#16A34A] w-3 h-3"
+                          : "bg-[#BBF7D0] w-2 h-2"
                       }`}
                     />
                   ))}
@@ -745,34 +866,28 @@ export default function PatientHomeScreen() {
               </View>
             ) : null}
 
-            {/* Main Content Area */}
-            <View className="px-4 mb-6">
-              <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
-                <Text className="text-lg font-bold text-gray-800 flex-shrink">
-                  What do you need help with today?
-                </Text>
-                <TouchableOpacity
-                  onPress={() => router.push("/(app)/(patient)/all_ailments")}
-                  className="flex-shrink-0"
-                >
-                  <Text className="font-bold text-blue-600 text-lg">
-                    See all
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            {/* Ailments */}
+            <View style={styles.contentSection}>
+              <SectionHeader
+                icon="plus-circle"
+                title="Book care"
+                subtitle="Pick a service to get started"
+                neutral
+                onSeeAll={() => router.push("/(app)/(patient)/all_ailments")}
+              />
 
-              {/* Ailment Grid (cards styled like Provider request cards) */}
               {isLoadingAilments ? (
-                <View className="items-center justify-center py-8">
-                  <Text className="text-gray-600">Loading ailments...</Text>
+                <View style={styles.loadingCard}>
+                  <ActivityIndicator size="small" color={AUTH_COLORS.textMuted} />
+                  <Text style={styles.mutedText}>Finding available services…</Text>
                 </View>
               ) : ailmentCategories.length > 0 ? (
                 <FlatList
                   data={ailmentCategories.slice(0, 6)}
                   keyExtractor={(item) => item._id}
                   numColumns={2}
-                  scrollEnabled={false} // Disable scrolling for this nested list
-                  columnWrapperStyle={{ justifyContent: "space-between" }}
+                  scrollEnabled={false}
+                  columnWrapperStyle={styles.ailmentRow}
                   renderItem={({ item }) => (
                     <AilmentCard
                       item={item}
@@ -781,78 +896,41 @@ export default function PatientHomeScreen() {
                   )}
                 />
               ) : (
-                <View className="items-center justify-center py-8">
-                  <Text className="text-gray-500">No ailments available</Text>
+                <View style={styles.loadingCard}>
+                  <Feather name="inbox" size={28} color={AUTH_COLORS.textMuted} />
+                  <Text style={styles.mutedText}>No services available right now</Text>
                 </View>
               )}
             </View>
 
-            {/* Recent Activity / History Section (similar spacing to Ailments) */}
-            <View className="px-4 mb-8">
-              <View className="flex-row justify-between items-center mb-4 flex-wrap gap-2">
-                <Text className="text-lg font-bold text-gray-800 flex-shrink">
-                  Recent Activity
-                </Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    router.push("/(app)/(patient)/recent-activities")
-                  }
-                  className="flex-shrink-0"
-                >
-                  <Text className="font-bold text-blue-600 text-lg">
-                    See all
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            {/* Recent Activity */}
+            <View style={styles.contentSection}>
+              <SectionHeader
+                icon="clock"
+                title="Recent activity"
+                subtitle="Your latest consultation requests"
+                onSeeAll={() =>
+                  router.push("/(app)/(patient)/recent-activities")
+                }
+              />
 
               {recentRequests.length === 0 ? (
-                <View
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: "#E5E7EB",
-                    padding: 24,
-                    alignItems: "center",
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 8,
-                    elevation: 2,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: 32,
-                      backgroundColor: "#F3F4F6",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginBottom: 12,
-                    }}
-                  >
-                    <Feather name="clock" size={32} color="#9CA3AF" />
+                <View style={styles.emptyCard}>
+                  <View style={styles.emptyIconWrap}>
+                    <Feather name="clock" size={32} color={AUTH_COLORS.green} />
                   </View>
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "600",
-                      color: "#374151",
-                      marginBottom: 4,
-                    }}
-                  >
-                    No Recent Activity
+                  <Text style={styles.emptyTitle}>Nothing here yet</Text>
+                  <Text style={styles.emptyBody}>
+                    When you book care, your requests will show up here.
                   </Text>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: "#6B7280",
-                      textAlign: "center",
-                    }}
+                  <TouchableOpacity
+                    style={styles.emptyCta}
+                    onPress={() => router.push("/(app)/(patient)/all_ailments")}
+                    activeOpacity={0.85}
                   >
-                    Your recent healthcare requests will appear here
-                  </Text>
+                    <Text style={styles.emptyCtaText}>Explore services</Text>
+                    <Feather name="arrow-right" size={16} color={AUTH_COLORS.white} />
+                  </TouchableOpacity>
                 </View>
               ) : (
                 <FlatList
@@ -860,7 +938,7 @@ export default function PatientHomeScreen() {
                   keyExtractor={(item) => item._id}
                   numColumns={2}
                   scrollEnabled={false}
-                  columnWrapperStyle={{ justifyContent: "space-between" }}
+                  columnWrapperStyle={styles.ailmentRow}
                   renderItem={({ item }) => <HistoryCard item={item} />}
                 />
               )}
@@ -917,10 +995,13 @@ export default function PatientHomeScreen() {
                         setAdvertModalVisible(false);
                         setSelectedAdvert(null);
                       }}
-                      style={styles.modalCancelButton}
+                      style={[
+                        appBottomSheetStyles.primaryCta,
+                        styles.modalCancelButton,
+                      ]}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.modalCancelButtonText}>Close</Text>
+                      <Text style={appBottomSheetStyles.primaryCtaText}>Close</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -932,11 +1013,14 @@ export default function PatientHomeScreen() {
 
       {/* First-time user welcome modal (patient) */}
       <Modal visible={showWelcomeModal} animationType="slide" transparent>
-        <View className="flex-1 justify-end items-center bg-black/50">
+        <View style={appModalBottomSheetStyles.overlay}>
           <View
-            className="bg-white rounded-t-3xl p-6 w-full"
-            style={{ height: "65%" }}
+            style={[
+              appModalBottomSheetStyles.sheet,
+              styles.welcomeSheet,
+            ]}
           >
+            <View style={appModalBottomSheetStyles.handle} />
             {/* Progress */}
             <View className="mb-4">
               <View className="flex-row justify-between items-center mb-2">
@@ -944,16 +1028,16 @@ export default function PatientHomeScreen() {
                   Step {currentOnboardingStep + 1} of {onboardingSteps.length}
                 </Text>
                 <TouchableOpacity onPress={handleOnboardingSkip}>
-                  <Text className="text-sm text-blue-600 font-semibold">
+                  <Text style={styles.linkText} className="text-sm font-semibold">
                     Skip
                   </Text>
                 </TouchableOpacity>
               </View>
-              <View className="w-full h-2 bg-gray-200 rounded-full">
+              <View className="w-full h-2 rounded-full" style={{ backgroundColor: "#E5E7EB" }}>
                 <View
                   style={{
                     height: "100%",
-                    backgroundColor: "#FACC15",
+                    backgroundColor: AUTH_COLORS.green,
                     borderRadius: 999,
                     width: `${((currentOnboardingStep + 1) / onboardingSteps.length) * 100}%`,
                   }}
@@ -972,19 +1056,22 @@ export default function PatientHomeScreen() {
                   />
                 </View>
               ) : (
-                <View className="w-24 h-24 bg-green-500 rounded-full justify-center items-center mb-6">
+                <View
+                  className="w-24 h-24 rounded-full justify-center items-center mb-6"
+                  style={{ backgroundColor: AUTH_COLORS.greenSoft }}
+                >
                   <MaterialCommunityIcons
                     name={onboardingSteps[currentOnboardingStep].icon}
                     size={48}
-                    color="#CA8A04"
+                    color={AUTH_COLORS.green}
                   />
                 </View>
               )}
 
-              <Text className="text-2xl font-bold text-center mb-4 text-gray-800">
+              <Text style={styles.sectionTitle} className="text-2xl font-bold text-center mb-4">
                 {onboardingSteps[currentOnboardingStep].title}
               </Text>
-              <Text className="text-base text-center text-gray-600 mb-8 px-4 leading-6">
+              <Text style={styles.mutedText} className="text-base text-center mb-8 px-4 leading-6">
                 {onboardingSteps[currentOnboardingStep].description}
               </Text>
             </View>
@@ -993,12 +1080,13 @@ export default function PatientHomeScreen() {
             <View className="flex-row justify-between items-center">
               <TouchableOpacity
                 onPress={handleOnboardingPrevious}
-                className={`flex-1 mr-2 p-4 rounded-lg border border-gray-300 ${
+                className={`flex-1 mr-2 p-4 rounded-lg border-2 ${
                   currentOnboardingStep === 0 ? "opacity-50" : ""
                 }`}
+                style={{ borderColor: AUTH_COLORS.inputBorder }}
                 disabled={currentOnboardingStep === 0}
               >
-                <Text className="text-center text-gray-700 font-semibold">
+                <Text style={styles.mutedText} className="text-center font-semibold">
                   Previous
                 </Text>
               </TouchableOpacity>
@@ -1006,9 +1094,9 @@ export default function PatientHomeScreen() {
               <TouchableOpacity
                 onPress={handleOnboardingNext}
                 className="flex-1 ml-2 p-4 rounded-lg"
-                style={{ backgroundColor: "#FACC15" }}
+                style={{ backgroundColor: AUTH_COLORS.green }}
               >
-                <Text className="text-center text-gray-800 font-bold">
+                <Text className="text-center text-white font-bold">
                   {currentOnboardingStep === onboardingSteps.length - 1
                     ? "Get Started!"
                     : "Next"}
@@ -1023,8 +1111,8 @@ export default function PatientHomeScreen() {
                   key={step.id}
                   className={`w-2 h-2 rounded-full mx-1 ${
                     index === currentOnboardingStep
-                      ? "bg-green-500"
-                      : "bg-gray-300"
+                      ? "bg-[#16A34A]"
+                      : "bg-[#BBF7D0]"
                   }`}
                 />
               ))}
@@ -1037,38 +1125,320 @@ export default function PatientHomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+  heroCard: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 20,
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    padding: 20,
+    overflow: "hidden",
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  heroOrbLarge: {
+    position: "absolute",
+    top: -30,
+    right: -20,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: AUTH_COLORS.greenSoft,
+  },
+  heroOrbSmall: {
+    position: "absolute",
+    bottom: -20,
+    left: -10,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(134, 239, 172, 0.3)",
+  },
+  heroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  heroTextBlock: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  heroEyebrow: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: AUTH_COLORS.textMuted,
+    marginBottom: 4,
+  },
+  heroName: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: AUTH_COLORS.textDark,
+    letterSpacing: -0.5,
+    marginBottom: 6,
+  },
+  heroTagline: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: AUTH_COLORS.textMuted,
+  },
+  heroLogoWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: AUTH_COLORS.greenSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  heroLogo: {
+    width: 48,
+    height: 48,
+  },
+  heroStatsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+  },
+  statPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(187, 247, 208, 0.45)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  statPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+  },
+  quickActionsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 24,
+  },
+  quickAction: {
+    flex: 1,
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  quickActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: AUTH_COLORS.greenSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  quickActionIconPrimary: {
+    backgroundColor: AUTH_COLORS.green,
+  },
+  quickActionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    textAlign: "center",
+  },
+  spotlightSection: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    position: "relative",
+  },
+  spotlightBadge: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    zIndex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: AUTH_COLORS.green,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  spotlightBadgeText: {
+    color: AUTH_COLORS.white,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  contentSection: {
+    paddingHorizontal: 20,
+    marginBottom: 28,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    gap: 8,
+  },
+  sectionHeaderLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  sectionIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: AUTH_COLORS.greenSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  sectionIconWrapNeutral: {
+    backgroundColor: AUTH_COLORS.white,
+  },
+  sectionHeaderText: {
+    flex: 1,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: AUTH_COLORS.textMuted,
+    marginTop: 2,
+  },
+  seeAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  ailmentRow: {
+    justifyContent: "space-between",
+  },
+  loadingCard: {
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    padding: 28,
+    alignItems: "center",
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+  },
+  linkText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: AUTH_COLORS.green,
+  },
+  linkTextNeutral: {
+    color: AUTH_COLORS.textDark,
+  },
+  mutedText: {
+    fontSize: 14,
+    color: AUTH_COLORS.textMuted,
+    textAlign: "center",
+  },
+  emptyCard: {
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    padding: 28,
+    alignItems: "center",
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: AUTH_COLORS.greenSoft,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    marginBottom: 6,
+  },
+  emptyBody: {
+    fontSize: 14,
+    color: AUTH_COLORS.textMuted,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  emptyCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: AUTH_COLORS.green,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
+  emptyCtaText: {
+    color: AUTH_COLORS.white,
+    fontSize: 15,
+    fontWeight: "700",
+  },
   advertContainer: {
     width: "100%",
-    height: 200,
-    borderRadius: 0,
+    height: 180,
+    borderRadius: 16,
     overflow: "hidden",
-    marginBottom: 12,
-    backgroundColor: "#F3F4F6",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 12,
+    elevation: 5,
   },
   advertImage: {
     width: "100%",
     height: "100%",
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+  modalOverlay: appModalBottomSheetStyles.overlayCenter,
+  modalContent: appModalBottomSheetStyles.centeredCard,
+  welcomeSheet: {
+    height: "65%",
     width: "100%",
-    maxWidth: 400,
-    maxHeight: "90%",
-    padding: 20,
-    alignItems: "center",
+    padding: 24,
   },
   modalImage: {
     width: "100%",
@@ -1086,21 +1456,13 @@ const styles = StyleSheet.create({
   },
   modalDescription: {
     fontSize: 16,
-    color: "#374151",
+    color: AUTH_COLORS.textMuted,
     lineHeight: 24,
     textAlign: "center",
   },
   modalCancelButton: {
-    backgroundColor: "#10B981",
     paddingVertical: 12,
     paddingHorizontal: 32,
-    borderRadius: 12,
     minWidth: 120,
-  },
-  modalCancelButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
   },
 });

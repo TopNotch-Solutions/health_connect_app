@@ -30,6 +30,12 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "wilhelmwork85@gmail.com",
+        "appleTeamId": "HLZN2496HM",
+        "ascAppId": "6773344792"
+      }
+    }
   }
 }

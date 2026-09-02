@@ -22,7 +22,17 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import {
+  AppHeroCard,
+  AppQuickActionsRow,
+  AppSectionHeader,
+  appScreenStyles,
+  getFirstName,
+  getGreeting,
+  getGreetingEmoji,
+} from "../../../components/app/AppScreenUI";
 import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
+import { AuthBackgroundDecor } from "../../../components/AuthScreenLayout";
 import { useAuth } from "../../../context/AuthContext";
 import { useRoute } from "../../../context/RouteContext";
 import apiClient from "../../../lib/api";
@@ -33,13 +43,7 @@ import {
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 import socketService from "../../../lib/socket";
 import { logViewMountDebug } from "../../../lib/viewErrorLogger";
-
-const getGreeting = () => {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good Afternoon";
-  return "Good Evening";
-};
+import { AUTH_COLORS } from "../../../lib/authScreenTheme";
 
 export default function ProviderHome() {
   const [requests, setRequests] = useState<any[]>([]);
@@ -947,48 +951,77 @@ export default function ProviderHome() {
   };
 
   const greeting = getGreeting();
+  const firstName = getFirstName(user?.fullname);
+
+  const onlineToggle = (
+    <TouchableOpacity
+      onPress={toggleOnline}
+      style={[
+        appScreenStyles.onlineToggle,
+        { backgroundColor: isOnline ? AUTH_COLORS.green : "#9CA3AF" },
+      ]}
+      activeOpacity={0.88}
+    >
+      <View
+        style={[
+          appScreenStyles.onlineDot,
+          { backgroundColor: isOnline ? AUTH_COLORS.white : "#E5E7EB" },
+        ]}
+      />
+      <Text style={appScreenStyles.onlineToggleText}>
+        {isOnline ? "Online" : "Offline"}
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
-    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
+    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor={AUTH_COLORS.bg}>
+      <View style={styles.screen}>
+        <AuthBackgroundDecor />
       <ScrollView
         className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={appScreenStyles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#3B82F6"]}
-            tintColor="#3B82F6"
+            colors={[AUTH_COLORS.green]}
+            tintColor={AUTH_COLORS.green}
           />
         }
       >
-        {/* Header with provider name + Online/Offline toggle */}
-        <View className="bg-white pt-6 pb-4 px-6 border-b border-gray-200">
-          <View className="flex-row items-center justify-between">
-            <View>
-              <Text className="text-sm text-gray-500">{greeting}</Text>
-              <Text className="text-2xl font-bold text-gray-900 mt-1">
-                {user?.fullname || "Provider"}
-              </Text>
-            </View>
+        <AppHeroCard
+          eyebrow={`${greeting} ${getGreetingEmoji()}`}
+          name={firstName}
+          tagline="Manage consultations and grow your practice."
+          stats={[
+            { icon: "inbox", label: `${requests.length} pending` },
+            { icon: "dollar-sign", label: `N$ ${monthlyEarnings.toFixed(0)} this month` },
+          ]}
+          headerRight={onlineToggle}
+        />
 
-            {/* Online/Offline toggle button */}
-            <TouchableOpacity
-              onPress={toggleOnline}
-              className={`flex-row items-center px-5 py-2.5 rounded-full ${
-                isOnline ? "bg-green-500" : "bg-gray-400"
-              }`}
-            >
-              <View
-                className={`w-2 h-2 rounded-full mr-2 ${
-                  isOnline ? "bg-white" : "bg-gray-200"
-                }`}
-              />
-              <Text className="text-white font-bold text-sm">
-                {isOnline ? "Online" : "Offline"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <AppQuickActionsRow
+          actions={[
+            {
+              icon: "inbox",
+              label: "Requests",
+              primary: true,
+              onPress: () => router.push("/(app)/(provider)/requests"),
+            },
+            {
+              icon: "credit-card",
+              label: "Account",
+              onPress: () => router.push("/(app)/(provider)/wallet"),
+            },
+            {
+              icon: "user",
+              label: "Profile",
+              onPress: () => router.push("/(app)/(provider)/profile"),
+            },
+          ]}
+        />
 
         {/* Verification Status Banner */}
         {!user?.isDocumentVerified && (
@@ -1024,85 +1057,21 @@ export default function ProviderHome() {
           </View>
         )}
 
-        {/* Stats Cards */}
-        <View className="px-6 py-6">
-          <View className="flex-row" style={{ gap: 12 }}>
-            <View className="flex-1 bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-              <View className="flex-row items-center justify-between mb-3">
-                <Text className="text-xs text-gray-500 uppercase font-bold tracking-wide">
-                  Requests
-                </Text>
-                <View className="w-8 h-8 bg-blue-50 rounded-full items-center justify-center">
-                  <Feather name="users" size={16} color="#3B82F6" />
-                </View>
-              </View>
-              <Text className="text-2xl font-bold text-gray-900">
-                {requests.length}
-              </Text>
-              <Text className="text-xs text-gray-500 mt-1">Pending</Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => router.push("/(app)/(provider)/transactions")}
-              className="flex-1 bg-white rounded-xl border border-gray-200 p-4 shadow-sm"
-              activeOpacity={0.7}
-            >
-              <View className="flex-row items-center justify-between mb-3">
-                <Text className="text-xs text-gray-500 uppercase font-bold tracking-wide">
-                  Earnings
-                </Text>
-                <View className="w-8 h-8 bg-green-50 rounded-full items-center justify-center">
-                  <Feather name="dollar-sign" size={16} color="#10B981" />
-                </View>
-              </View>
-              <Text className="text-2xl font-bold text-gray-900">
-                N$ {monthlyEarnings.toFixed(2)}
-              </Text>
-              <Text className="text-xs text-gray-500 mt-1">This Month</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Provider map removed from home screen: map only appears in Route modal after Accept */}
-
         {/* Incoming Consultation Requests */}
-        <View className="px-6 pb-6">
-          <View className="flex-row items-center justify-between mb-4">
-            <View>
-              <Text className="text-lg font-bold text-gray-900">
-                Incoming Requests
-              </Text>
-              <Text className="text-xs text-gray-500 mt-0.5">
-                {isOnline
-                  ? "New requests appear here in real time."
-                  : "Go online to start receiving requests."}
-              </Text>
-            </View>
-            <View className="flex-row items-center" style={{ gap: 8 }}>
-              <View
-                className={`px-3 py-1 rounded-full border ${
-                  isOnline
-                    ? "bg-green-50 border-green-200"
-                    : "bg-gray-50 border-gray-200"
-                }`}
-              >
-                <Text
-                  className={`text-xs font-bold ${
-                    isOnline ? "text-green-700" : "text-gray-600"
-                  }`}
-                >
-                  {isOnline ? "ONLINE" : "OFFLINE"}
-                </Text>
-              </View>
-              <View className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
-                <Text className="text-xs font-bold text-blue-700">
-                  {isOnline ? requests.length : 0}
-                </Text>
-              </View>
-            </View>
-          </View>
+        <View style={appScreenStyles.contentSection}>
+          <AppSectionHeader
+            icon="inbox"
+            title="Incoming requests"
+            subtitle={
+              isOnline
+                ? "New requests appear here in real time"
+                : "Go online to start receiving requests"
+            }
+            onSeeAll={() => router.push("/(app)/(provider)/requests")}
+          />
 
           {!isOnline ? (
-            <View className="bg-white rounded-2xl border border-gray-200 p-6">
+            <View className="bg-white rounded-2xl border-2 border-[#BBF7D0] p-6">
               <View className="flex-row items-start">
                 <View className="w-12 h-12 bg-gray-100 rounded-2xl items-center justify-center mr-4">
                   <Feather name="power" size={22} color="#6B7280" />
@@ -1118,10 +1087,10 @@ export default function ProviderHome() {
               </View>
             </View>
           ) : isLoadingRequests ? (
-            <View className="bg-white rounded-2xl border border-gray-200 p-6">
+            <View className="bg-white rounded-2xl border-2 border-[#BBF7D0] p-6">
               <View className="flex-row items-center">
                 <View className="w-12 h-12 bg-blue-50 rounded-2xl items-center justify-center mr-4">
-                  <ActivityIndicator size="small" color="#3B82F6" />
+                  <ActivityIndicator size="small" color={AUTH_COLORS.green} />
                 </View>
                 <View className="flex-1">
                   <Text className="text-base font-bold text-gray-900">
@@ -1134,7 +1103,7 @@ export default function ProviderHome() {
               </View>
             </View>
           ) : requests.length === 0 ? (
-            <View className="bg-white rounded-2xl border border-gray-200 p-6">
+            <View className="bg-white rounded-2xl border-2 border-[#BBF7D0] p-6">
               <View className="flex-row items-start">
                 <View className="w-12 h-12 bg-green-50 rounded-2xl items-center justify-center mr-4">
                   <Feather name="check-circle" size={22} color="#10B981" />
@@ -1195,7 +1164,7 @@ export default function ProviderHome() {
                 <TouchableOpacity
                   key={request._id}
                   onPress={() => setSelectedRequest(request)}
-                  className="bg-white rounded-xl border border-gray-200 p-4 mb-3"
+                  className="bg-white rounded-xl border-2 border-[#BBF7D0] p-4 mb-3"
                 >
                   <View className="flex-row items-start justify-between mb-2">
                     <View className="flex-1">
@@ -1203,8 +1172,11 @@ export default function ProviderHome() {
                         {patientName}
                       </Text>
                     </View>
-                    <View className="bg-blue-50 px-2.5 py-1 rounded-md">
-                      <Text className="text-blue-700 text-[11px] font-semibold">
+                    <View
+                      className="px-2.5 py-1 rounded-md"
+                      style={{ backgroundColor: AUTH_COLORS.greenSoft }}
+                    >
+                      <Text style={styles.linkText} className="text-[11px] font-semibold">
                         New
                       </Text>
                     </View>
@@ -1219,7 +1191,7 @@ export default function ProviderHome() {
                     <Text className="text-sm text-gray-600 ml-2">{distance}</Text>
                   </View>
 
-                  <View className="flex-row items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 mb-3">
+                  <View className="flex-row items-center justify-between bg-gray-50 border-2 border-[#BBF7D0] rounded-lg px-3 py-2.5 mb-3">
                     <View
                       className={`${consultationModeMeta.bgClass} border px-2.5 py-1 rounded-md flex-row items-center`}
                     >
@@ -1248,7 +1220,7 @@ export default function ProviderHome() {
                         e.stopPropagation();
                         confirmDecline(request._id, patientName);
                       }}
-                      className="flex-1 bg-gray-100 py-3 rounded-lg border border-gray-200"
+                      className="flex-1 bg-gray-100 py-3 rounded-lg border-2 border-[#BBF7D0]"
                       activeOpacity={0.85}
                     >
                       <View className="flex-row items-center justify-center">
@@ -1267,7 +1239,8 @@ export default function ProviderHome() {
                           confirmAccept(request);
                         }
                       }}
-                      className="flex-1 bg-blue-600 py-3 rounded-xl"
+                      className="flex-1 py-3 rounded-xl"
+                      style={{ backgroundColor: AUTH_COLORS.green }}
                       activeOpacity={0.9}
                     >
                       <View className="flex-row items-center justify-center">
@@ -1284,6 +1257,7 @@ export default function ProviderHome() {
           )}
         </View>
       </ScrollView>
+      </View>
 
       {/* --- MODAL WITH TRANSPARENT BACKGROUND --- */}
       {selectedRequest && (
@@ -1406,7 +1380,7 @@ export default function ProviderHome() {
                       </Text>
                     </View>
 
-                    <View className="rounded-xl overflow-hidden h-48 bg-gray-100 border border-gray-200">
+                    <View className="rounded-xl overflow-hidden h-48 bg-gray-100 border-2 border-[#BBF7D0]">
                       <MapView
                         style={styles.map}
                         pointerEvents="auto"
@@ -1463,7 +1437,7 @@ export default function ProviderHome() {
                       selectedRequest.patientId?.fullname || "Unknown",
                     )
                   }
-                  className="flex-1 bg-gray-100 py-3.5 rounded-xl border border-gray-200"
+                  className="flex-1 bg-gray-100 py-3.5 rounded-xl border-2 border-[#BBF7D0]"
                 >
                   <Text className="text-gray-700 font-bold text-center">
                     Decline
@@ -1477,7 +1451,8 @@ export default function ProviderHome() {
                       confirmAccept(selectedRequest);
                     }
                   }}
-                  className="flex-1 bg-blue-600 py-3.5 rounded-xl"
+                  className="flex-1 py-3.5 rounded-xl"
+                  style={{ backgroundColor: AUTH_COLORS.green }}
                 >
                   <Text className="text-white font-bold text-center">
                     {isPrescriptionRequest(selectedRequest) ? "Check Prescription" : "Accept Request"}
@@ -1506,16 +1481,16 @@ export default function ProviderHome() {
                   Step {currentOnboardingStep + 1} of {onboardingSteps.length}
                 </Text>
                 <TouchableOpacity onPress={handleOnboardingSkip}>
-                  <Text className="text-sm text-blue-600 font-semibold">
+                  <Text style={styles.linkText} className="text-sm font-semibold">
                     Skip
                   </Text>
                 </TouchableOpacity>
               </View>
-              <View className="w-full h-2 bg-gray-200 rounded-full">
+              <View className="w-full h-2 rounded-full" style={{ backgroundColor: "#E5E7EB" }}>
                 <View
                   style={{
                     height: "100%",
-                    backgroundColor: "#FACC15",
+                    backgroundColor: AUTH_COLORS.green,
                     borderRadius: 999,
                     width: `${((currentOnboardingStep + 1) / onboardingSteps.length) * 100}%`,
                   }}
@@ -1567,7 +1542,8 @@ export default function ProviderHome() {
 
               <TouchableOpacity
                 onPress={handleOnboardingNext}
-                className="flex-1 ml-2 p-4 rounded-lg bg-green-500"
+                className="flex-1 ml-2 p-4 rounded-lg"
+                style={{ backgroundColor: AUTH_COLORS.green }}
               >
                 <Text className="text-center text-white font-bold">
                   {currentOnboardingStep === onboardingSteps.length - 1
@@ -1598,6 +1574,18 @@ export default function ProviderHome() {
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  titleText: {
+    color: AUTH_COLORS.textDark,
+  },
+  mutedText: {
+    color: AUTH_COLORS.textMuted,
+  },
+  linkText: {
+    color: AUTH_COLORS.green,
+  },
   map: {
     ...StyleSheet.absoluteFillObject,
   },

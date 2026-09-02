@@ -3,14 +3,18 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import { iosInputIconSize, iosPasswordToggleButtonStyle, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandalonePasswordTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
-import { PickerField } from "../../../components/PickerField";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PickerField } from "../../../components/PickerField";
+import AuthScreenLayout, {
+  AuthProgressBar,
+  RegistrationStepFooter,
+} from "../../../components/AuthScreenLayout";
+import { AuthTopBackButton } from "../../../components/AuthTopBackButton";
+import { AUTH_COLORS, authScreenStyles } from "../../../lib/authScreenTheme";
 import { namibianRegions, townsByRegion } from "../../../constants/locations";
 import apiClient from "../../../lib/api";
 
@@ -36,7 +40,8 @@ const UploadSquare = ({
 }) => (
   <TouchableOpacity
     onPress={onPick}
-    className={`bg-gray-100 border border-dashed ${hasError ? "border-red-400" : "border-gray-400"} rounded-xl items-center justify-center h-32 flex-1 overflow-hidden`}
+    className={`border border-dashed ${hasError ? "border-red-400" : "border-[#BBF7D0]"} rounded-xl items-center justify-center h-32 flex-1 overflow-hidden`}
+    style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}
   >
     {file ? (
       <>
@@ -48,9 +53,9 @@ const UploadSquare = ({
           />
         ) : (
           <View className="items-center justify-center p-2 w-full h-full">
-            <Feather name="check-circle" size={32} color="#28A745" />
+            <Feather name="check-circle" size={32} color={AUTH_COLORS.green} />
             <Text
-              className="text-secondary font-semibold mt-2 text-center text-xs"
+              className="text-[#4B5563] font-semibold mt-2 text-center text-xs"
               numberOfLines={2}
             >
               {(file as any).name || (file as any).fileName || "File uploaded"}
@@ -60,8 +65,8 @@ const UploadSquare = ({
       </>
     ) : (
       <View className="items-center justify-center p-2 w-full h-full">
-        <Feather name={icon} size={32} color="#6C757D" />
-        <Text className="text-text-main font-semibold mt-2 text-center text-sm">
+        <Feather name={icon} size={32} color={AUTH_COLORS.textMuted} />
+        <Text className="text-[#14532D] font-semibold mt-2 text-center text-sm">
           {label}
         </Text>
       </View>
@@ -71,8 +76,8 @@ const UploadSquare = ({
 
 const ReviewRow = ({ label, value }: { label: string; value?: string }) => (
   <View className="mb-3">
-    <Text className="text-sm text-gray-500">{label}</Text>
-    <Text className="text-base text-text-main font-semibold">
+    <Text className="text-sm text-[#4B5563]">{label}</Text>
+    <Text className="text-base text-[#14532D] font-semibold">
       {value || "Not provided"}
     </Text>
   </View>
@@ -86,7 +91,7 @@ const ReviewFileRow = ({
   file: DocFile | PdfFile;
 }) => (
   <View className="mb-3">
-    <Text className="text-sm text-gray-500">{label}</Text>
+    <Text className="text-sm text-[#4B5563]">{label}</Text>
     <View className="flex-row items-center" style={{ gap: 6 }}>
       <Feather
         name={file ? "check-circle" : "x-circle"}
@@ -427,29 +432,27 @@ export default function RegistrationScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <KeyboardAwareScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        enableOnAndroid
-        enableAutomaticScroll
-        extraScrollHeight={150}
-      >
-        <View className="p-6">
-          <View className="flex-row items-center mb-8">
-            {/* UPDATED to 5 steps */}
-            <Text className="text-base font-semibold text-text-main mr-4">
-              Step {step} of 5
-            </Text>
-            <View className="flex-1 h-2 bg-gray-200 rounded-full">
-              <View
-                style={{ width: `${(step / 5) * 100}%` }}
-                className="h-2 bg-green-600 rounded-full"
-              />
-            </View>
-          </View>
+    <>
+      <View style={styles.screen}>
+        <AuthScreenLayout
+          hideBrandHeader
+          hideFooter
+          extraScrollTopPadding={56}
+          scrollBottomPadding={24}
+          stickyFooter={
+            <RegistrationStepFooter
+              step={step}
+              totalSteps={5}
+              onBack={handleBack}
+              onNext={handleNext}
+              onSubmit={handleRegister}
+              isLoading={isLoading}
+              nextDisabled={step === 1 && !acceptedTerms}
+              submitLabel="Register"
+            />
+          }
+        >
+        <AuthProgressBar step={step} totalSteps={5} />
 
           {step === 1 && (
             <ScrollView
@@ -458,24 +461,24 @@ export default function RegistrationScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <Text className="text-2xl font-bold text-blue-600 mb-6">
+              <Text className="text-[22px] font-bold text-[#14532D] mb-6">
                 Account Information
               </Text>
 
               {showDisclaimer && (
-                <View className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-6">
+                <View style={authScreenStyles.disclaimerBox}>
                   <View className="flex-row items-start">
                     <Feather
                       name="shield"
                       size={20}
-                      color="#3B82F6"
+                      color={AUTH_COLORS.green}
                       style={{ marginRight: 12, marginTop: 2 }}
                     />
                     <View className="flex-1">
-                      <Text className="text-sm text-blue-900 font-semibold mb-1">
+                      <Text style={authScreenStyles.disclaimerTitle}>
                         Data Privacy Assurance
                       </Text>
-                      <Text className="text-xs text-blue-700 leading-5">
+                      <Text style={authScreenStyles.disclaimerBody}>
                         Your personal information is treated with the utmost
                         confidentiality. We do not share, sell, or distribute
                         your data to any third parties. Your privacy and data
@@ -486,12 +489,12 @@ export default function RegistrationScreen() {
                 </View>
               )}
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 Full Name
               </Text>
               <TextInput
                 style={withIosStandaloneTextInputStyle()}
-                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.fullname ? "border-red-400" : "border-gray-300"}`}
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.fullname ? "border-red-400" : "border-[#BBF7D0]"}`}
                 placeholder="Enter your full name"
                 value={formData.fullname}
                 onChangeText={(val) => handleInputChange("fullname", val)}
@@ -503,12 +506,12 @@ export default function RegistrationScreen() {
               )}
               {!errors.fullname && <View className="mb-3" />}
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 Email
               </Text>
               <TextInput
                 style={withIosStandaloneTextInputStyle()}
-                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.email ? "border-red-400" : "border-gray-300"}`}
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.email ? "border-red-400" : "border-[#BBF7D0]"}`}
                 placeholder="youremail@example.com"
                 value={formData.email}
                 onChangeText={(val) => handleInputChange("email", val)}
@@ -522,13 +525,13 @@ export default function RegistrationScreen() {
               )}
               {!errors.email && <View className="mb-3" />}
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 Password
               </Text>
               <View className="relative mb-1">
                 <TextInput
                   style={withIosStandalonePasswordTextInputStyle()}
-                  className={`bg-white p-4 rounded-xl border-2 ${errors.password ? "border-red-400" : "border-gray-300"}`}
+                  className={`bg-white p-4 rounded-xl border-2 ${errors.password ? "border-red-400" : "border-[#BBF7D0]"}`}
                   placeholder="Create a strong password"
                   value={formData.password}
                   onChangeText={(val) => handleInputChange("password", val)}
@@ -558,13 +561,13 @@ export default function RegistrationScreen() {
               )}
               {!errors.password && <View className="mb-3" />}
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 Confirm Password
               </Text>
               <View className="relative mb-1">
                 <TextInput
                   style={withIosStandalonePasswordTextInputStyle()}
-                  className={`bg-white p-4 rounded-xl border-2 ${errors.confirmPassword ? "border-red-400" : "border-gray-300"}`}
+                  className={`bg-white p-4 rounded-xl border-2 ${errors.confirmPassword ? "border-red-400" : "border-[#BBF7D0]"}`}
                   placeholder="Confirm your password"
                   value={formData.confirmPassword}
                   onChangeText={(val) =>
@@ -613,18 +616,18 @@ export default function RegistrationScreen() {
                     });
                   }
                 }}
-                className={`flex-row items-start p-4 bg-gray-50 rounded-xl border-2 ${errors.terms ? "border-red-400" : "border-gray-200"} mt-2`}
+                className={`flex-row items-start p-4 bg-gray-50 rounded-xl border-2 ${errors.terms ? "border-red-400" : "border-[#BBF7D0]"} mt-2`}
                 activeOpacity={0.7}
               >
                 <View
-                  className={`w-6 h-6 rounded-md mr-3 items-center justify-center border-2 ${acceptedTerms ? "bg-green-600 border-green-600" : "bg-white border-gray-300"}`}
+                  className={`w-6 h-6 rounded-md mr-3 items-center justify-center border-2 ${acceptedTerms ? "bg-[#16A34A] border-[#16A34A]" : "bg-white border-[#BBF7D0]"}`}
                 >
                   {acceptedTerms && (
                     <Feather name="check" size={16} color="white" />
                   )}
                 </View>
                 <View className="flex-1">
-                  <Text className="text-gray-700 text-sm leading-5">
+                  <Text className="text-[#14532D] text-sm leading-5">
                     {acceptedTerms ? (
                       <Text className="text-green-600 font-semibold">
                         ✓ You have agreed to the Terms and Conditions and
@@ -660,27 +663,30 @@ export default function RegistrationScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <Text className="text-2xl font-bold text-blue-600 mb-6">
+              <Text className="text-[22px] font-bold text-[#14532D] mb-6">
                 Personal Information
               </Text>
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 Mobile
               </Text>
-              <View className="bg-blue-50 p-4 rounded-xl mb-4 border-2 border-blue-100">
-                <Text className="text-base text-gray-700">
+              <View
+                style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}
+                className="p-4 rounded-xl mb-4 border-2 border-[#BBF7D0]"
+              >
+                <Text className="text-base text-[#14532D]">
                   {formData.cellphoneNumber}
                 </Text>
               </View>
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 Date of Birth
               </Text>
               <TouchableOpacity
                 onPress={() => setShowDatePicker(true)}
-                className="bg-white p-4 rounded-xl mb-4 border-2 border-gray-200"
+                className="bg-white p-4 rounded-xl mb-4 border-2 border-[#BBF7D0]"
               >
-                <Text className="text-base text-gray-700">
+                <Text className="text-base text-[#14532D]">
                   {formData.dateOfBirth.toLocaleDateString()}
                 </Text>
               </TouchableOpacity>
@@ -693,18 +699,18 @@ export default function RegistrationScreen() {
                 />
               )}
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 Gender
               </Text>
               <View className="mb-1" style={{ gap: 12 }}>
                 {["Male", "Female"].map((g) => (
                   <TouchableOpacity
                     key={g}
-                    className={`p-4 rounded-xl border-2 ${formData.gender === g ? "bg-blue-600 border-blue-600" : errors.gender ? "bg-white border-red-400" : "bg-white border-gray-200"}`}
+                    className={`p-4 rounded-xl border-2 ${formData.gender === g ? "bg-[#16A34A] border-[#16A34A]" : errors.gender ? "bg-white border-red-400" : "bg-white border-[#BBF7D0]"}`}
                     onPress={() => handleInputChange("gender", g)}
                   >
                     <Text
-                      className={`text-center font-semibold ${formData.gender === g ? "text-white" : "text-gray-700"}`}
+                      className={`text-center font-semibold ${formData.gender === g ? "text-white" : "text-[#14532D]"}`}
                     >
                       {g}
                     </Text>
@@ -718,12 +724,12 @@ export default function RegistrationScreen() {
               )}
               {!errors.gender && <View className="mb-3" />}
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 National ID Number
               </Text>
               <TextInput
                 style={withIosStandaloneTextInputStyle()}
-                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.nationalId ? "border-red-400" : "border-gray-300"}`}
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.nationalId ? "border-red-400" : "border-[#BBF7D0]"}`}
                 placeholder="Enter your 11-digit National ID"
                 value={formData.nationalId}
                 onChangeText={(val) => {
@@ -742,7 +748,7 @@ export default function RegistrationScreen() {
               )}
               {!errors.nationalId && <View className="mb-3" />}
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 National ID Documents
               </Text>
               <View className="flex-row mb-1" style={{ gap: 16 }}>
@@ -777,7 +783,7 @@ export default function RegistrationScreen() {
                   {errors.idDocumentBack}
                 </Text>
               )}
-              <Text className="text-xs text-gray-500 mb-4">
+              <Text className="text-xs text-[#4B5563] mb-4">
                 Upload clear photos of the front and back of your ID (JPG or
                 PNG)
               </Text>
@@ -791,16 +797,16 @@ export default function RegistrationScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <Text className="text-2xl font-bold text-blue-600 mb-6">
+              <Text className="text-[22px] font-bold text-[#14532D] mb-6">
                 Address Information
               </Text>
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 Address
               </Text>
               <TextInput
                 style={withIosMultilineTextInputStyle()}
-                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.address ? "border-red-400" : "border-gray-300"}`}
+                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.address ? "border-red-400" : "border-[#BBF7D0]"}`}
                 placeholder="Your street address or P.O. Box"
                 value={formData.address}
                 onChangeText={(val) => handleInputChange("address", val)}
@@ -815,7 +821,7 @@ export default function RegistrationScreen() {
               )}
               {!errors.address && <View className="mb-3" />}
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 Region
               </Text>
 
@@ -835,7 +841,7 @@ export default function RegistrationScreen() {
                 </Text>
               )}
 
-              <Text className="text-base text-gray-700 mb-2 font-semibold">
+              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
                 Town
               </Text>
 
@@ -863,14 +869,14 @@ export default function RegistrationScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <Text className="text-2xl font-bold text-blue-600 mb-6">
+              <Text className="text-[22px] font-bold text-[#14532D] mb-6">
                 Profile Picture
               </Text>
 
               <View className="items-center mb-1">
                 <TouchableOpacity
                   onPress={() => pickImage("profileImage")}
-                  className={`w-40 h-40 rounded-full bg-gray-100 border-2 ${errors.profileImage ? "border-red-400" : "border-gray-300"} justify-center items-center overflow-hidden`}
+                  className={`w-40 h-40 rounded-full bg-gray-100 border-2 ${errors.profileImage ? "border-red-400" : "border-[#BBF7D0]"} justify-center items-center overflow-hidden`}
                   activeOpacity={0.7}
                 >
                   {formData.profileImage ? (
@@ -881,7 +887,7 @@ export default function RegistrationScreen() {
                   ) : (
                     <View className="items-center">
                       <Feather name="camera" size={32} color="#6B7280" />
-                      <Text className="text-gray-500 text-sm mt-2 font-semibold">
+                      <Text className="text-[#4B5563] text-sm mt-2 font-semibold">
                         Tap to upload
                       </Text>
                     </View>
@@ -908,18 +914,18 @@ export default function RegistrationScreen() {
                 <View className="w-20 h-20 rounded-full bg-blue-100 items-center justify-center mb-4">
                   <Feather name="check" size={36} color="#2563EB" />
                 </View>
-                <Text className="text-2xl font-bold text-blue-600 mb-2">
+                <Text className="text-[22px] font-bold text-[#14532D] mb-2">
                   Review & Submit
                 </Text>
-                <Text className="text-base text-gray-600 text-center px-4">
+                <Text className="text-base text-[#4B5563] text-center px-4">
                   Review your information before submitting
                 </Text>
               </View>
 
-              <View className="w-full bg-white p-5 rounded-xl border-2 border-gray-200 mb-6">
+              <View className="w-full bg-white p-5 rounded-xl border-2 border-[#BBF7D0] mb-6">
                 {/* Account Info Review */}
                 <View>
-                  <Text className="text-lg font-bold text-blue-600 mb-3">
+                  <Text className="text-lg font-bold text-[#14532D] mb-3">
                     Account
                   </Text>
                   <ReviewRow label="Full Name" value={formData.fullname} />
@@ -929,7 +935,7 @@ export default function RegistrationScreen() {
 
                 {/* Personal Info Review */}
                 <View>
-                  <Text className="text-lg font-bold text-blue-600 mb-3">
+                  <Text className="text-lg font-bold text-[#14532D] mb-3">
                     Personal
                   </Text>
                   <ReviewRow label="Mobile" value={formData.cellphoneNumber} />
@@ -944,7 +950,7 @@ export default function RegistrationScreen() {
 
                 {/* Address Review */}
                 <View>
-                  <Text className="text-lg font-bold text-blue-600 mb-3">
+                  <Text className="text-lg font-bold text-[#14532D] mb-3">
                     Address
                   </Text>
                   <ReviewRow label="Region" value={formData.region} />
@@ -955,26 +961,26 @@ export default function RegistrationScreen() {
 
                 {/* Documents & Profile Image Review */}
                 <View>
-                  <Text className="text-lg font-bold text-blue-600 mb-3">
+                  <Text className="text-lg font-bold text-[#14532D] mb-3">
                     Documents & Photo
                   </Text>
 
                   {/* Profile Picture Preview */}
                   <View className="mb-4">
-                    <Text className="text-sm text-gray-500 mb-2">
+                    <Text className="text-sm text-[#4B5563] mb-2">
                       Profile Picture
                     </Text>
                     {formData.profileImage ? (
                       <View className="items-center">
                         <Image
                           source={{ uri: formData.profileImage.uri }}
-                          className="w-32 h-32 rounded-full border-2 border-gray-200"
+                          className="w-32 h-32 rounded-full border-2 border-[#BBF7D0]"
                         />
                       </View>
                     ) : (
                       <View className="flex-row items-center">
                         <Feather name="x-circle" size={16} color="#EF4444" />
-                        <Text className="text-base text-gray-700 font-semibold ml-2">
+                        <Text className="text-base text-[#14532D] font-semibold ml-2">
                           Not uploaded
                         </Text>
                       </View>
@@ -983,21 +989,21 @@ export default function RegistrationScreen() {
 
                   {/* ID Documents Preview */}
                   <View className="mb-4">
-                    <Text className="text-sm text-gray-500 mb-2">
+                    <Text className="text-sm text-[#4B5563] mb-2">
                       National ID (Front)
                     </Text>
                     {formData.idDocumentFront ? (
                       <View className="items-center">
                         <Image
                           source={{ uri: formData.idDocumentFront.uri }}
-                          className="w-full h-48 rounded-xl border-2 border-gray-200"
+                          className="w-full h-48 rounded-xl border-2 border-[#BBF7D0]"
                           resizeMode="contain"
                         />
                       </View>
                     ) : (
                       <View className="flex-row items-center">
                         <Feather name="x-circle" size={16} color="#EF4444" />
-                        <Text className="text-base text-gray-700 font-semibold ml-2">
+                        <Text className="text-base text-[#14532D] font-semibold ml-2">
                           Not uploaded
                         </Text>
                       </View>
@@ -1005,21 +1011,21 @@ export default function RegistrationScreen() {
                   </View>
 
                   <View className="mb-3">
-                    <Text className="text-sm text-gray-500 mb-2">
+                    <Text className="text-sm text-[#4B5563] mb-2">
                       National ID (Back)
                     </Text>
                     {formData.idDocumentBack ? (
                       <View className="items-center">
                         <Image
                           source={{ uri: formData.idDocumentBack.uri }}
-                          className="w-full h-48 rounded-xl border-2 border-gray-200"
+                          className="w-full h-48 rounded-xl border-2 border-[#BBF7D0]"
                           resizeMode="contain"
                         />
                       </View>
                     ) : (
                       <View className="flex-row items-center">
                         <Feather name="x-circle" size={16} color="#EF4444" />
-                        <Text className="text-base text-gray-700 font-semibold ml-2">
+                        <Text className="text-base text-[#14532D] font-semibold ml-2">
                           Not uploaded
                         </Text>
                       </View>
@@ -1029,85 +1035,12 @@ export default function RegistrationScreen() {
               </View>
             </ScrollView>
           )}
-        </View>
-      </KeyboardAwareScrollView>
+        </AuthScreenLayout>
 
-      {/* --- Sticky Buttons --- */}
-      <SafeAreaView
-        edges={["bottom"]}
-        className="absolute bottom-0 left-0 right-0 bg-white border-t-2 border-gray-100"
-      >
-        <View className="flex-row px-6 pt-4 pb-4" style={{ gap: 12 }}>
-          {step > 1 && (
-            <TouchableOpacity
-              onPress={handleBack}
-              className="py-5 rounded-2xl flex-1 items-center justify-center border-2"
-              style={{
-                backgroundColor: "#F3F4F6",
-                borderColor: "#D1D5DB",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 2,
-              }}
-            >
-              <Text className="text-gray-700 text-xl font-semibold">Back</Text>
-            </TouchableOpacity>
-          )}
-          {step < 5 ? (
-            <TouchableOpacity
-              onPress={handleNext}
-              disabled={step === 1 && !acceptedTerms}
-              className="py-5 rounded-2xl flex-1 items-center justify-center"
-              style={{
-                backgroundColor:
-                  step === 1 && !acceptedTerms ? "#9CA3AF" : "#10B981",
-                shadowColor: "#10B981",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 6,
-              }}
-              activeOpacity={0.8}
-            >
-              <View className="flex-row items-center">
-                <Text className="text-white text-xl font-semibold mr-2">
-                  Next
-                </Text>
-                <Feather name="arrow-right" size={20} color="#FFFFFF" />
-              </View>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              onPress={handleRegister}
-              disabled={isLoading}
-              className="py-5 rounded-2xl flex-1 items-center justify-center"
-              style={{
-                backgroundColor: isLoading ? "#9CA3AF" : "#10B981",
-                shadowColor: "#10B981",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 6,
-              }}
-              activeOpacity={0.8}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <View className="flex-row items-center">
-                  <Text className="text-white text-lg font-semibold mr-2">
-                    Register
-                  </Text>
-                  <Feather name="arrow-right" size={20} color="#FFFFFF" />
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
-      </SafeAreaView>
-      <StatusBar style="dark" />
+        <AuthTopBackButton
+          onPress={() => (step > 1 ? handleBack() : router.back())}
+        />
+      </View>
 
       {/* Terms and Conditions Modal */}
       <Modal
@@ -1116,11 +1049,14 @@ export default function RegistrationScreen() {
         animationType="slide"
         onRequestClose={() => setShowTermsModal(false)}
       >
-        <SafeAreaView className="flex-1 bg-white">
-          <View className="flex-1 bg-white">
+        <SafeAreaView style={{ flex: 1, backgroundColor: AUTH_COLORS.bg }}>
+          <View style={{ flex: 1, backgroundColor: AUTH_COLORS.bg }}>
             {/* Header */}
-            <View className="flex-row items-center justify-between p-6 border-b-2 border-gray-100">
-              <Text className="text-2xl font-bold text-black flex-1">
+            <View
+              className="flex-row items-center justify-between p-6 border-b-2"
+              style={{ borderBottomColor: AUTH_COLORS.inputBorder }}
+            >
+              <Text className="text-2xl font-bold text-[#14532D] flex-1">
                 Terms & Conditions
               </Text>
               <TouchableOpacity
@@ -1136,7 +1072,7 @@ export default function RegistrationScreen() {
               <Text className="text-lg font-bold text-red-600 mb-4">
                 Absolute Patient Waiver and Release of Liability
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 leading-6">
                 By clicking &quot;Accept&quot; and using the Health_Connect
                 platform, you (the &quot;User&quot;) confirm and irrevocably
                 agree to the following legally binding terms. Your acceptance
@@ -1144,10 +1080,10 @@ export default function RegistrationScreen() {
                 the platform.
               </Text>
 
-              <Text className="text-base font-bold text-gray-900 mb-3">
+              <Text className="text-base font-bold text-[#14532D] mb-3">
                 Technology Platform Status (Not a Healthcare Provider)
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 leading-6">
                 You acknowledge and agree that Kopano-Vertex Trading cc (trading
                 as Health_Connect) is exclusively a technology service provider.
                 The platform provides a logistical connection between you and
@@ -1156,20 +1092,20 @@ export default function RegistrationScreen() {
                 of medical care, diagnosis, advice, or treatment.
               </Text>
 
-              <Text className="text-base font-bold text-gray-900 mb-3">
+              <Text className="text-base font-bold text-[#14532D] mb-3">
                 Absolute Assumption of Risk and Release of Claims
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 leading-6">
                 You understand and agree that the entire responsibility and
                 liability for the clinical services, advice, and outcomes rests
                 solely and exclusively with the independent healthcare provider
                 you select.
               </Text>
 
-              <Text className="text-base font-bold text-gray-900 mb-3">
+              <Text className="text-base font-bold text-[#14532D] mb-3">
                 Irrevocable Waiver
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 leading-6">
                 You hereby irrevocably and absolutely release, waive, and
                 forever discharge Kopano-Vertex Trading cc, its affiliates,
                 directors, owners, and employees from any and all claims,
@@ -1180,29 +1116,29 @@ export default function RegistrationScreen() {
                 connected through the platform.
               </Text>
 
-              <Text className="text-base font-bold text-gray-900 mb-3">
+              <Text className="text-base font-bold text-[#14532D] mb-3">
                 No Recourse Against Platform
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 leading-6">
                 You acknowledge that your sole and exclusive recourse for any
                 claim of malpractice, negligence, misdiagnosis, or professional
                 error is directly against the independent healthcare provider
                 and not against Health_Connect.
               </Text>
 
-              <Text className="text-base font-bold text-gray-900 mb-3">
+              <Text className="text-base font-bold text-[#14532D] mb-3">
                 Independent Contractor Status of Providers
               </Text>
-              <Text className="text-sm text-gray-700 mb-4 leading-6">
+              <Text className="text-sm text-[#14532D] mb-4 leading-6">
                 You acknowledge and agree that the healthcare practitioners on
                 this platform are independent contractors and are not employees,
                 agents, partners, or representatives of Health_Connect.
               </Text>
 
-              <Text className="text-base font-bold text-gray-900 mb-3">
+              <Text className="text-base font-bold text-[#14532D] mb-3">
                 Emergency Services Exclusion
               </Text>
-              <Text className="text-sm text-gray-700 mb-6 leading-6">
+              <Text className="text-sm text-[#14532D] mb-6 leading-6">
                 You understand that this platform is NOT a substitute for
                 emergency medical care. You warrant that you will not use this
                 platform for any medical emergency, and you accept full
@@ -1212,13 +1148,17 @@ export default function RegistrationScreen() {
             </ScrollView>
 
             {/* Footer with Accept Button */}
-            <View className="p-6 border-t-2 border-gray-100 bg-white">
+            <View
+              className="p-6 border-t-2 border-[#BBF7D0]"
+              style={{ backgroundColor: AUTH_COLORS.bg }}
+            >
               <TouchableOpacity
                 onPress={() => {
                   setAcceptedTerms(true);
                   setShowTermsModal(false);
                 }}
-                className="bg-green-600 p-4 rounded-xl"
+                style={{ backgroundColor: AUTH_COLORS.green }}
+                className="p-4 rounded-xl"
               >
                 <Text className="text-white text-center text-lg font-bold">
                   I Accept
@@ -1228,6 +1168,12 @@ export default function RegistrationScreen() {
           </View>
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+});

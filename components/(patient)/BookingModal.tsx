@@ -18,6 +18,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KEYBOARD_VERTICAL_OFFSET } from "../ScreenLayout";
+import {
+  AppBottomSheetCloseHeader,
+  appBottomSheetStyles,
+  appModalBottomSheetStyles,
+} from '../app/AppBottomSheetUI';
+import { AUTH_COLORS } from '../../lib/authScreenTheme';
 import { PickerField } from '../PickerField';
 import { namibianRegions, townsByRegion } from '../../constants/locations';
 import apiClient from '../../lib/api';
@@ -138,18 +144,14 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <SafeAreaView className="flex-1 justify-end bg-black/50" edges={["bottom"]}>
+      <SafeAreaView style={appModalBottomSheetStyles.overlay} edges={["bottom"]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
         >
-        <View className="bg-white rounded-t-3xl p-6 max-h-[85%]">
-          <View className="flex-row justify-between items-center mb-6">
-            <Text className="text-xl font-bold text-text-main">Book Consultation</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Feather name="x" size={24} color="#6C757D" />
-            </TouchableOpacity>
-          </View>
+        <View style={[appModalBottomSheetStyles.sheet, appModalBottomSheetStyles.sheetCompact, { padding: 24 }]}>
+          <View style={appModalBottomSheetStyles.handle} />
+          <AppBottomSheetCloseHeader title="Book Consultation" onClose={onClose} />
 
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -216,11 +218,21 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
             ))}
 
             <TouchableOpacity
-              className={`bg-primary py-4 rounded-xl items-center mt-6 ${isBooking ? 'opacity-50' : ''}`}
+              style={[
+                appBottomSheetStyles.primaryCta,
+                { marginTop: 24 },
+                isBooking && { opacity: 0.5 },
+              ]}
               onPress={handleBookingSubmit}
               disabled={isBooking}
             >
-              {isBooking ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-lg">Request Healthcare Provider</Text>}
+              {isBooking ? (
+                <ActivityIndicator color={AUTH_COLORS.white} />
+              ) : (
+                <Text style={appBottomSheetStyles.primaryCtaText}>
+                  Request Healthcare Provider
+                </Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </View>

@@ -8,59 +8,29 @@ import {
     Alert,
     Image,
     ScrollView,
-    StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
-import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
+import {
+  AppBottomSheetHeader,
+  appBottomSheetAppearance,
+  appBottomSheetScrollPadding,
+  appBottomSheetStyles,
+} from "../../../components/app/AppBottomSheetUI";
+import {
+  AppMenuDivider,
+  AppMenuItem,
+  AppMenuSection,
+  AppScreenShell,
+  appScreenStyles,
+} from "../../../components/app/AppScreenUI";
+import { AUTH_COLORS } from "../../../lib/authScreenTheme";
 import ChangePasswordModal from "../../../components/ChangePasswordModal";
 import EditPatientProfileModal from "../../../components/EditPatientProfileModal";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
-
-// --- A Reusable Component for the Menu Items ---
-const ProfileMenuItem = ({
-  icon,
-  label,
-  onPress,
-  isDestructive = false,
-}: {
-  icon: any;
-  label: string;
-  onPress: () => void;
-  isDestructive?: boolean;
-}) => (
-  <TouchableOpacity
-    onPress={onPress}
-    className="flex-row items-center justify-between p-4"
-  >
-    <View className="flex-row items-center">
-      <View
-        className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
-          isDestructive ? "bg-red-50" : "bg-gray-50"
-        }`}
-      >
-        <Feather
-          name={icon}
-          size={18}
-          color={isDestructive ? "#EF4444" : "#6B7280"}
-        />
-      </View>
-      <Text
-        className={`text-base font-semibold ${
-          isDestructive ? "text-red-500" : "text-gray-900"
-        }`}
-      >
-        {label}
-      </Text>
-    </View>
-    {!isDestructive && (
-      <Feather name="chevron-right" size={20} color="#D1D5DB" />
-    )}
-  </TouchableOpacity>
-);
 
 export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
@@ -281,15 +251,18 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
-      <ScrollView className="flex-1">
-        {/* Profile Header */}
-        <View className="bg-white items-center pt-8 pb-6 px-6 border-b border-gray-200">
+    <AppScreenShell>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={appScreenStyles.scrollContent}
+      >
+        <View style={appScreenStyles.profileHero}>
+          <View style={appScreenStyles.heroOrbLarge} pointerEvents="none" />
           {selectedImage ? (
             <Image
               source={{ uri: selectedImage.uri }}
-              className="w-32 h-32 rounded-full mb-4 border-4 border-blue-100"
-              style={{ width: 128, height: 128, borderRadius: 64 }}
+              style={appScreenStyles.profileAvatar}
             />
           ) : user?.profileImage ? (
             <Image
@@ -298,126 +271,98 @@ export default function ProfileScreen() {
                   buildBackendAssetUrl("images", user.profileImage) ||
                   undefined,
               }}
-              className="w-32 h-32 rounded-full mb-4 border-4 border-blue-100"
-              style={{ width: 128, height: 128, borderRadius: 64 }}
+              style={appScreenStyles.profileAvatar}
             />
           ) : (
-            <View className="w-32 h-32 rounded-full bg-blue-50 justify-center items-center mb-4 border-4 border-blue-100">
-              <Feather name="user" size={50} color="#3B82F6" />
+            <View style={appScreenStyles.profileAvatarPlaceholder}>
+              <Feather name="user" size={48} color={AUTH_COLORS.green} />
             </View>
           )}
-          <Text className="text-2xl font-bold text-gray-900">
+          <Text style={appScreenStyles.profileName}>
             {user?.fullname || "Patient Name"}
           </Text>
-          <Text className="text-base text-gray-500 mt-1">
+          <Text style={appScreenStyles.profileEmail}>
             {user?.email || "patient@email.com"}
           </Text>
           <TouchableOpacity
             onPress={handlePickImage}
             disabled={isLoading || isUploading}
-            className="mt-4 bg-blue-100 px-4 py-2 rounded-lg"
-            style={{ opacity: isLoading || isUploading ? 0.6 : 1 }}
+            style={[appScreenStyles.uploadPhotoBtn, { opacity: isLoading || isUploading ? 0.6 : 1 }]}
           >
             {isUploading ? (
               <View className="flex-row items-center">
                 <ActivityIndicator
                   size="small"
-                  color="#3B82F6"
+                  color={AUTH_COLORS.green}
                   style={{ marginRight: 8 }}
                 />
-                <Text className="text-blue-600 font-semibold text-sm">
-                  Uploading...
-                </Text>
+                <Text style={appScreenStyles.uploadPhotoText}>Uploading…</Text>
               </View>
             ) : (
-              <Text className="text-blue-600 font-semibold text-sm">
-                Upload Photo
-              </Text>
+              <Text style={appScreenStyles.uploadPhotoText}>Upload photo</Text>
             )}
           </TouchableOpacity>
         </View>
 
-        {/* Menu Sections */}
-        <View className="px-6 pt-6">
-          {/* Account Section */}
-          <View className="mb-4">
-            <Text className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3 px-2">
-              Account
-            </Text>
-            <View className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <ProfileMenuItem
-                icon="edit-3"
-                label="Edit Profile"
-                onPress={() => setEditProfileVisible(true)}
-              />
-              <View className="h-px bg-gray-100 mx-4" />
-              <ProfileMenuItem
-                icon="lock"
-                label="Change Password"
-                onPress={() => setChangePasswordVisible(true)}
-              />
-            </View>
-          </View>
+        <AppMenuSection title="Account">
+          <AppMenuItem
+            icon="edit-3"
+            label="Edit Profile"
+            onPress={() => setEditProfileVisible(true)}
+          />
+          <AppMenuDivider />
+          <AppMenuItem
+            icon="lock"
+            label="Change Password"
+            onPress={() => setChangePasswordVisible(true)}
+          />
+        </AppMenuSection>
 
-          {/* Support Section */}
-          <View className="mb-4">
-            <Text className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3 px-2">
-              Support
-            </Text>
-            <View className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <ProfileMenuItem
-                icon="help-circle"
-                label="Help & Support"
-                onPress={handleHelpSupportPress}
-              />
-              <View className="h-px bg-gray-100 mx-4" />
-              <ProfileMenuItem
-                icon="info"
-                label="About HealthConnect"
-                onPress={handleAboutHealthConnectPress}
-              />
-            </View>
-          </View>
+        <AppMenuSection title="Support">
+          <AppMenuItem
+            icon="help-circle"
+            label="Help & Support"
+            onPress={handleHelpSupportPress}
+          />
+          <AppMenuDivider />
+          <AppMenuItem
+            icon="info"
+            label="About HealthConnect"
+            onPress={handleAboutHealthConnectPress}
+          />
+        </AppMenuSection>
 
-          {/* Danger Zone */}
-          <View className="mb-6">
-            <Text className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3 px-2">
-              Danger Zone
-            </Text>
-            <View className="bg-white rounded-xl border border-red-200 overflow-hidden">
-              <ProfileMenuItem
-                icon="alert-circle"
-                label="Deactivate Account"
-                onPress={handleDeactivateAccount}
-                isDestructive
-              />
-              <ProfileMenuItem
-                icon="trash-2"
-                label="Delete Account"
-                onPress={handleDeleteAccount}
-                isDestructive
-              />
-            </View>
-          </View>
-
-          {/* Logout */}
-          <View className="mb-6">
-            <View className="bg-white rounded-xl border border-red-200 overflow-hidden">
-              <ProfileMenuItem
-                icon="log-out"
-                label="Log Out"
-                onPress={handleLogout}
-                isDestructive
-              />
-            </View>
-          </View>
-        </View>
+        <AppMenuSection title="Danger zone">
+          <AppMenuItem
+            icon="alert-circle"
+            label="Deactivate Account"
+            onPress={handleDeactivateAccount}
+            isDestructive
+          />
+          <AppMenuDivider />
+          <AppMenuItem
+            icon="trash-2"
+            label="Delete Account"
+            onPress={handleDeleteAccount}
+            isDestructive
+          />
+          <AppMenuDivider />
+          <AppMenuItem
+            icon="log-out"
+            label="Log Out"
+            onPress={handleLogout}
+            isDestructive
+          />
+        </AppMenuSection>
 
         {isLoading && (
           <View className="absolute inset-0 bg-black/20 justify-center items-center">
-            <View className="bg-white rounded-2xl p-6">
-              <ActivityIndicator size="large" color="#3B82F6" />
-              <Text className="text-gray-900 mt-3 font-semibold">
+            <View
+              className="rounded-2xl p-6"
+              style={{ backgroundColor: AUTH_COLORS.white, borderWidth: 2, borderColor: AUTH_COLORS.inputBorder }}
+            >
+              <ActivityIndicator size="large" color={AUTH_COLORS.green} />
+              <Text className="mt-3 font-semibold" style={{ color: AUTH_COLORS.textDark }}>
                 Logging out...
               </Text>
             </View>
@@ -443,61 +388,63 @@ export default function ProfileScreen() {
         index={-1}
         snapPoints={helpSupportSnapPoints}
         enablePanDownToClose
-        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
-        handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
+        {...appBottomSheetAppearance}
       >
         <BottomSheetScrollView
-          style={{ paddingTop: 24, paddingHorizontal: 24 }}
+          style={appBottomSheetScrollPadding}
+          contentContainerStyle={{ paddingBottom: 32 }}
         >
-          <Text style={styles.bottomSheetTitle}>Help & Support</Text>
-          <Text style={styles.bottomSheetSubtitle}>Get in touch with us</Text>
+          <AppBottomSheetHeader
+            title="Help & Support"
+            subtitle="Get in touch with us"
+          />
 
           <TouchableOpacity
             onPress={handleEmailPress}
-            style={styles.contactCard}
+            style={appBottomSheetStyles.contactCard}
             activeOpacity={0.7}
           >
-            <View style={styles.contactIconContainer}>
-              <Feather name="mail" size={32} color="#10B981" />
+            <View style={appBottomSheetStyles.contactIconContainer}>
+              <Feather name="mail" size={32} color={AUTH_COLORS.green} />
             </View>
-            <Text style={styles.contactTitle}>Contact Support</Text>
-            <Text style={styles.contactText}>support@healthconnect.com</Text>
+            <Text style={appBottomSheetStyles.contactTitle}>Contact Support</Text>
+            <Text style={appBottomSheetStyles.contactText}>support@healthconnect.com</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={handlePhonePress}
-            style={styles.contactCard}
+            style={appBottomSheetStyles.contactCard}
             activeOpacity={0.7}
           >
-            <View style={styles.contactIconContainer}>
-              <Feather name="phone" size={32} color="#10B981" />
+            <View style={appBottomSheetStyles.contactIconContainer}>
+              <Feather name="phone" size={32} color={AUTH_COLORS.green} />
             </View>
-            <Text style={styles.contactTitle}>Call Us</Text>
-            <Text style={styles.contactText}>+264 81 811 1703</Text>
+            <Text style={appBottomSheetStyles.contactTitle}>Call Us</Text>
+            <Text style={appBottomSheetStyles.contactText}>+264 81 811 1703</Text>
           </TouchableOpacity>
 
           {/* Ambulance Emergency Section */}
-          <View style={styles.ambulanceCard}>
+          <View style={appBottomSheetStyles.ambulanceCard}>
             <Image
               source={require("../../../assets/images/eme.png")}
-              style={styles.ambulanceImage}
+              style={appBottomSheetStyles.ambulanceImage}
               resizeMode="contain"
             />
-            <Text style={styles.ambulanceTitle}>
+            <Text style={appBottomSheetStyles.ambulanceTitle}>
               Do you require an ambulance?
             </Text>
-            <Text style={styles.ambulanceDescription}>
+            <Text style={appBottomSheetStyles.ambulanceDescription}>
               For immediate medical emergencies, please contact our partner MR
               24/7 directly. They are available 24 hours a day to provide rapid
               emergency response.
             </Text>
             <TouchableOpacity
               onPress={handleAmbulancePress}
-              style={styles.ambulanceButton}
+              style={appBottomSheetStyles.ambulanceButton}
               activeOpacity={0.7}
             >
               <Feather name="phone" size={20} color="#FFFFFF" />
-              <Text style={styles.ambulanceButtonText}>
+              <Text style={appBottomSheetStyles.ambulanceButtonText}>
                 Dial 956 immediately
               </Text>
             </TouchableOpacity>
@@ -511,50 +458,50 @@ export default function ProfileScreen() {
         index={-1}
         snapPoints={aboutHealthConnectSnapPoints}
         enablePanDownToClose
-        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
-        handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
+        {...appBottomSheetAppearance}
       >
         <BottomSheetScrollView
-          style={{ paddingTop: 24, paddingHorizontal: 24 }}
+          style={appBottomSheetScrollPadding}
+          contentContainerStyle={{ paddingBottom: 32 }}
         >
-          <Text style={styles.bottomSheetTitle}>About HealthConnect</Text>
-          <Text style={styles.bottomSheetSubtitle}>
-            Your trusted healthcare companion
-          </Text>
+          <AppBottomSheetHeader
+            title="About HealthConnect"
+            subtitle="Your trusted healthcare companion"
+          />
 
           {/* Functionality Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Feather name="activity" size={24} color="#10B981" />
-              <Text style={styles.sectionTitle}>Functionality</Text>
+          <View style={appBottomSheetStyles.sectionContainer}>
+            <View style={appBottomSheetStyles.sectionHeader}>
+              <Feather name="activity" size={24} color={AUTH_COLORS.green} />
+              <Text style={appBottomSheetStyles.sectionTitle}>Functionality</Text>
             </View>
-            <Text style={styles.sectionText}>
+            <Text style={appBottomSheetStyles.sectionText}>
               HealthConnect is a comprehensive healthcare platform designed to
               connect patients with healthcare providers seamlessly. Our
               platform offers:
             </Text>
-            <View style={styles.bulletList}>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
+            <View style={appBottomSheetStyles.bulletList}>
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
                   Easy appointment booking and management
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
                   Secure payment processing for consultations
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
                   24/7 emergency services integration
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
                   Issue reporting and support ticket system
                 </Text>
               </View>
@@ -562,46 +509,46 @@ export default function ProfileScreen() {
           </View>
 
           {/* Privacy Policy Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Feather name="shield" size={24} color="#10B981" />
-              <Text style={styles.sectionTitle}>Privacy Policy</Text>
+          <View style={appBottomSheetStyles.sectionContainer}>
+            <View style={appBottomSheetStyles.sectionHeader}>
+              <Feather name="shield" size={24} color={AUTH_COLORS.green} />
+              <Text style={appBottomSheetStyles.sectionTitle}>Privacy Policy</Text>
             </View>
-            <Text style={styles.sectionText}>
+            <Text style={appBottomSheetStyles.sectionText}>
               Your privacy and data security are our top priorities. We are
               committed to protecting your personal health information:
             </Text>
-            <View style={styles.bulletList}>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
+            <View style={appBottomSheetStyles.bulletList}>
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
                   We comply with healthcare data protection regulations
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
                   Your information is only shared with authorized healthcare
                   providers
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
                   We never sell or share your data with third parties for
                   marketing purposes
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
                   You have full control over your data and can request deletion
                   at any time
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
                   Regular security audits and updates ensure your data remains
                   protected
                 </Text>
@@ -610,48 +557,48 @@ export default function ProfileScreen() {
           </View>
 
           {/* User Rights Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Feather name="user-check" size={24} color="#10B981" />
-              <Text style={styles.sectionTitle}>Your Rights</Text>
+          <View style={appBottomSheetStyles.sectionContainer}>
+            <View style={appBottomSheetStyles.sectionHeader}>
+              <Feather name="user-check" size={24} color={AUTH_COLORS.green} />
+              <Text style={appBottomSheetStyles.sectionTitle}>Your Rights</Text>
             </View>
-            <Text style={styles.sectionText}>
+            <Text style={appBottomSheetStyles.sectionText}>
               As a HealthConnect user, you have the following rights and
               responsibilities:
             </Text>
-            <View style={styles.bulletList}>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
-                  <Text style={styles.boldText}>Right to Correction:</Text> You
+            <View style={appBottomSheetStyles.bulletList}>
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
+                  <Text style={appBottomSheetStyles.boldText}>Right to Correction:</Text> You
                   can request corrections to inaccurate information
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
-                  <Text style={styles.boldText}>Right to Deletion:</Text> You
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
+                  <Text style={appBottomSheetStyles.boldText}>Right to Deletion:</Text> You
                   can request account deactivation and data deletion
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
-                  <Text style={styles.boldText}>Right to Privacy:</Text> Your
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
+                  <Text style={appBottomSheetStyles.boldText}>Right to Privacy:</Text> Your
                   health information is confidential and protected
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
-                  <Text style={styles.boldText}>Right to Support:</Text> Access
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
+                  <Text style={appBottomSheetStyles.boldText}>Right to Support:</Text> Access
                   to 24/7 customer support and issue reporting
                 </Text>
               </View>
-              <View style={styles.bulletItem}>
-                <Text style={styles.bullet}>•</Text>
-                <Text style={styles.bulletText}>
-                  <Text style={styles.boldText}>Your Responsibility:</Text> Keep
+              <View style={appBottomSheetStyles.bulletItem}>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
+                <Text style={appBottomSheetStyles.bulletText}>
+                  <Text style={appBottomSheetStyles.boldText}>Your Responsibility:</Text> Keep
                   your account credentials secure and provide accurate
                   information
                 </Text>
@@ -659,172 +606,14 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <View style={styles.footerContainer}>
-            <Text style={styles.footerText}>
+          <View style={appBottomSheetStyles.footerContainer}>
+            <Text style={appBottomSheetStyles.footerText}>
               For more information, contact our support team or visit our
               website.
             </Text>
           </View>
         </BottomSheetScrollView>
       </BottomSheet>
-    </ScreenLayout>
+    </AppScreenShell>
   );
 }
-
-const styles = StyleSheet.create({
-  bottomSheetTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 8,
-  },
-  bottomSheetSubtitle: {
-    fontSize: 16,
-    color: "#6B7280",
-    marginBottom: 24,
-  },
-  contactCard: {
-    backgroundColor: "#FFFFFF",
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    alignItems: "center",
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  contactIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#D1FAE5",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  contactTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 8,
-  },
-  contactText: {
-    fontSize: 16,
-    color: "#6B7280",
-  },
-  ambulanceCard: {
-    backgroundColor: "#FFFFFF",
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    alignItems: "center",
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  ambulanceImage: {
-    width: 120,
-    height: 120,
-    marginBottom: 16,
-  },
-  ambulanceTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  ambulanceDescription: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  ambulanceButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#EF4444",
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    gap: 8,
-  },
-  ambulanceButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  sectionContainer: {
-    backgroundColor: "#F9FAFB",
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-    marginLeft: 12,
-  },
-  sectionText: {
-    fontSize: 15,
-    color: "#374151",
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  bulletList: {
-    marginTop: 8,
-  },
-  bulletItem: {
-    flexDirection: "row",
-    marginBottom: 10,
-    paddingLeft: 4,
-  },
-  bullet: {
-    fontSize: 16,
-    color: "#10B981",
-    marginRight: 12,
-    fontWeight: "700",
-  },
-  bulletText: {
-    fontSize: 14,
-    color: "#4B5563",
-    lineHeight: 20,
-    flex: 1,
-  },
-  boldText: {
-    fontWeight: "700",
-    color: "#111827",
-  },
-  footerContainer: {
-    backgroundColor: "#EFF6FF",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 24,
-    borderLeftWidth: 4,
-    borderLeftColor: "#3B82F6",
-  },
-  footerText: {
-    fontSize: 14,
-    color: "#1E40AF",
-    lineHeight: 20,
-    fontStyle: "italic",
-  },
-});

@@ -2,11 +2,24 @@ import { Feather } from "@expo/vector-icons";
 import axios from "axios";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
-import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../lib/iosInputStyles";
+import {
+  iosInputIconSize,
+  withIosInputContainerStyle,
+  withIosTextInputStyle,
+} from "../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../components/AppTextInput";
-import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from "react-native";
-import ScreenLayout from "../../components/ScreenLayout";
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import AuthScreenLayout from "../../components/AuthScreenLayout";
+import { AuthTopBackButton } from "../../components/AuthTopBackButton";
 import apiClient from "../../lib/api";
+import { AUTH_COLORS, authScreenStyles } from "../../lib/authScreenTheme";
 
 const VerifyPhoneScreen = () => {
   const router = useRouter();
@@ -15,12 +28,10 @@ const VerifyPhoneScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSendCode = async (): Promise<void> => {
-    // Keep digits only, then strip country code if user typed it
     let sanitizedNumber = phoneNumber.replace(/\D/g, "");
     if (sanitizedNumber.startsWith("264"))
       sanitizedNumber = sanitizedNumber.slice(3);
 
-    // Validate
     if (sanitizedNumber.length !== 9) {
       return Alert.alert(
         "Invalid Number",
@@ -30,9 +41,7 @@ const VerifyPhoneScreen = () => {
 
     setIsLoading(true);
 
-    // Construct full number
     const fullPhoneNumber = `264${sanitizedNumber}`;
-    console.log("Sending this phone number to the backend:", fullPhoneNumber);
 
     try {
       const response = await apiClient.post("/auth/send-otp", {
@@ -40,13 +49,12 @@ const VerifyPhoneScreen = () => {
       });
 
       if (response.status === 200) {
-        console.log("OTP from backend:", response.data?.otp);
         router.push({
           pathname: "/verify-otp",
           params: {
             phoneNumber: fullPhoneNumber,
             flow: params.flow,
-            role: params.role, // Pass the role we received
+            role: params.role,
           },
         });
       }
@@ -67,100 +75,132 @@ const VerifyPhoneScreen = () => {
   };
 
   return (
-    <ScreenLayout
-      backgroundColor="#EFF6FF"
-      keyboardAwareScroll
-      keyboardAwareContentContainerStyle={{
-        flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingTop: 5,
-        paddingBottom: 24,
-        justifyContent: "space-between",
-      }}
-    >
-        {/* Content Section - Title, Description, and Phone Input */}
-        <View>
-          {/* Title and Description Section - Centered */}
-          <View className="items-center mb-2">
-            <Text className="text-3xl font-bold text-gray-900 text-center mb-1">
-              Verify Your Phone
-            </Text>
-            <Text className="text-base text-gray-600 text-center px-4">
-              We&apos;ll send you a verification code to confirm your number
-            </Text>
-          </View>
-
-          {/* Phone Input Section */}
-          <View className="mb-6">
-            <Text className="text-base font-medium text-gray-700 mb-2">
-              Phone Number
-            </Text>
-            <View
-              className="w-full bg-white rounded-2xl border-2 border-gray-300 flex-row items-center px-5 py-4"
-              style={withIosInputContainerStyle({
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 2,
-              })}
-            >
-              <View className="mr-3">
-                <Text className="text-2xl">🇳🇦</Text>
-              </View>
-              <View className="w-16 mr-3">
-                <Text className="text-base font-semibold text-gray-700">
-                  +264
-                </Text>
-              </View>
-              <View className="w-px h-8 bg-gray-300 mr-3" />
-              <Feather name="phone" size={iosInputIconSize} color="#3B82F6" />
-              <TextInput
-                style={withIosTextInputStyle()}
-                className="flex-1 text-base text-gray-900 ml-3"
-                placeholder="81 234 5678"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad"
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                maxLength={12}
-              />
-            </View>
-            <Text className="text-sm text-gray-500 mt-2 ml-1">
-              Enter your 9-digit Namibian phone number
-            </Text>
-          </View>
-        </View>
-
-        <View className="px-6 pb-4">
+    <View style={styles.screen}>
+      <AuthScreenLayout
+        hideBrandHeader
+        hideFooter
+        extraScrollTopPadding={56}
+        scrollBottomPadding={24}
+      stickyFooter={
+        <View style={authScreenStyles.ctaGlowWrapBlock}>
           <TouchableOpacity
-            className="w-full py-5 rounded-2xl items-center justify-center"
-            style={{
-              backgroundColor: isLoading ? "#9CA3AF" : "#10B981",
-              shadowColor: "#10B981",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 6,
-            }}
+            style={[
+              authScreenStyles.ctaButton,
+              isLoading && authScreenStyles.ctaButtonDisabled,
+            ]}
             onPress={handleSendCode}
             disabled={isLoading}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={AUTH_COLORS.white} size="small" />
             ) : (
-              <View className="flex-row items-center">
-                <Text className="text-white text-xl font-semibold mr-2">
+              <View style={styles.ctaRow}>
+                <Text style={authScreenStyles.ctaText}>
                   Send Verification Code
                 </Text>
-                <Feather name="arrow-right" size={20} color="#FFFFFF" />
+                <Feather
+                  name="arrow-right"
+                  size={18}
+                  color={AUTH_COLORS.white}
+                  style={{ marginLeft: 8 }}
+                />
               </View>
             )}
           </TouchableOpacity>
         </View>
-    </ScreenLayout>
+      }
+    >
+      <Text style={authScreenStyles.sectionTitle}>Verify Your Phone</Text>
+      <Text style={styles.subtitle}>
+        We&apos;ll send you a verification code to confirm your number
+      </Text>
+
+      <Text style={authScreenStyles.inputLabel}>Phone Number</Text>
+      <View
+        style={[
+          styles.phoneField,
+          withIosInputContainerStyle({ borderColor: AUTH_COLORS.inputBorder }),
+        ]}
+      >
+        <Text style={styles.flag}>🇳🇦</Text>
+        <Text style={styles.dialCode}>+264</Text>
+        <View style={styles.divider} />
+        <Feather name="phone" size={iosInputIconSize} color={AUTH_COLORS.green} />
+        <TextInput
+          style={[styles.phoneInput, withIosTextInputStyle()]}
+          placeholder="81 234 5678"
+          placeholderTextColor={AUTH_COLORS.placeholder}
+          keyboardType="phone-pad"
+          value={phoneNumber}
+          onChangeText={setPhoneNumber}
+          maxLength={12}
+        />
+      </View>
+      <Text style={styles.hint}>Enter your 9-digit Namibian phone number</Text>
+      </AuthScreenLayout>
+
+      <AuthTopBackButton accessibilityLabel="Go back" />
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: AUTH_COLORS.textMuted,
+    marginBottom: 24,
+  },
+  phoneField: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 12,
+    borderWidth: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    marginBottom: 8,
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  flag: {
+    fontSize: 22,
+    marginRight: 10,
+  },
+  dialCode: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: AUTH_COLORS.textDark,
+    marginRight: 10,
+  },
+  divider: {
+    width: 1,
+    height: 28,
+    backgroundColor: AUTH_COLORS.inputBorder,
+    marginRight: 10,
+  },
+  phoneInput: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 16,
+    color: AUTH_COLORS.textDark,
+  },
+  hint: {
+    fontSize: 13,
+    color: AUTH_COLORS.textMuted,
+    marginLeft: 4,
+  },
+  ctaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+});
 
 export default VerifyPhoneScreen;

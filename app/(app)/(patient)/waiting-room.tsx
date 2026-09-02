@@ -14,7 +14,16 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
+import {
+  AppEmptyState,
+  AppHeroCard,
+  AppScreenShell,
+  appScreenStyles,
+  getFirstName,
+  getGreeting,
+  getGreetingEmoji,
+  AUTH_COLORS,
+} from "../../../components/app/AppScreenUI";
 import PatientProviderTracking from "../../../components/(patient)/PatientProviderTracking";
 import PrescriptionUploadModal, {
   PrescriptionData,
@@ -1319,34 +1328,19 @@ export default function WaitingRoom() {
 
   if (isLoading) {
     return (
-      <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text style={styles.loadingText}>Loading your requests...</Text>
-      </ScreenLayout>
+      <AppScreenShell>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={AUTH_COLORS.green} />
+          <Text style={styles.loadingText}>Loading your requests…</Text>
+        </View>
+      </AppScreenShell>
     );
   }
 
+  const firstName = getFirstName(user?.fullname);
+
   return (
-    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
-      {/* Map panel: shows provider + route when a provider has accepted and location is available */}
-      {showProviderMap && patientLocation && (
-        <View style={{ height: 220, width: "100%" }} className="px-4 mb-4">
-          <ProviderMap
-            userLatitude={patientLocation.latitude}
-            userLongitude={patientLocation.longitude}
-            destinationLatitude={
-              providerLocations[activeRequest?.request._id!]?.latitude
-            }
-            destinationLongitude={
-              providerLocations[activeRequest?.request._id!]?.longitude
-            }
-            providers={providersForMap}
-            onTimesCalculated={() => {
-              /* can store times if needed */
-            }}
-          />
-        </View>
-      )}
+    <AppScreenShell>
       <FlatList
         data={sortedRequests}
         keyExtractor={(item) => item.request._id}
@@ -1361,70 +1355,82 @@ export default function WaitingRoom() {
             onPrescriptionUploaded={handlePrescriptionUploaded}
           />
         )}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[appScreenStyles.scrollContent, styles.listContent]}
         ListHeaderComponent={
-          <View style={styles.headerContainer}>
-            <Text style={styles.headerTitle}>
-              Track your healthcare requests and provider status
-            </Text>
-            <Text style={styles.headerSubtitle}>
-              Track your healthcare requests and see your provider&apos;s status
-              in real time.
-            </Text>
-          </View>
+          <>
+            <AppHeroCard
+              eyebrow={`${getGreeting()} ${getGreetingEmoji()}`}
+              name={firstName}
+              tagline="Track your healthcare requests and provider status in real time"
+              stats={[
+                { icon: "inbox", label: `${sortedRequests.length} active` },
+                { icon: "clock", label: "Live updates" },
+              ]}
+            />
+            {showProviderMap && patientLocation ? (
+              <View style={{ height: 220, width: "100%", marginBottom: 16 }}>
+                <ProviderMap
+                  userLatitude={patientLocation.latitude}
+                  userLongitude={patientLocation.longitude}
+                  destinationLatitude={
+                    providerLocations[activeRequest?.request._id!]?.latitude
+                  }
+                  destinationLongitude={
+                    providerLocations[activeRequest?.request._id!]?.longitude
+                  }
+                  providers={providersForMap}
+                  onTimesCalculated={() => {
+                    /* can store times if needed */
+                  }}
+                />
+              </View>
+            ) : null}
+          </>
         }
         ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <Feather name="inbox" size={48} color="#9CA3AF" />
-            <Text style={styles.emptyTitle}>No Active Requests</Text>
-            <Text style={styles.emptyText}>
-              When you submit a healthcare request, it will appear here. You can
-              track the status of your request and see provider details once
-              they accept.
-            </Text>
-            <Text style={styles.emptyHint}>
-              Accepted requests will be shown here for 24 hours
-            </Text>
-          </View>
+          <AppEmptyState
+            icon="inbox"
+            title="No active requests"
+            body="When you submit a healthcare request, it will appear here. Track status and see provider details once they accept."
+          />
         }
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            colors={[AUTH_COLORS.green]}
+            tintColor={AUTH_COLORS.green}
+          />
         }
       />
-    </ScreenLayout>
+    </AppScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  headerContainer: {
-    paddingHorizontal: 0,
-    paddingTop: 0,
-    paddingBottom: 8,
+  loadingWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 4,
-  },
-  headerSubtitle: {
+  loadingText: {
     fontSize: 14,
-    color: "#6B7280",
+    color: AUTH_COLORS.textMuted,
   },
   listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
+    paddingHorizontal: 20,
   },
   requestCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AUTH_COLORS.white,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    shadowColor: AUTH_COLORS.green,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
   },
@@ -1437,7 +1443,7 @@ const styles = StyleSheet.create({
   requestTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: AUTH_COLORS.textDark,
     marginBottom: 4,
   },
   requestStatusRow: {
@@ -1450,17 +1456,17 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   providerCard: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: AUTH_COLORS.greenSoft,
     borderRadius: 12,
     padding: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#BFDBFE",
+    borderColor: AUTH_COLORS.inputBorder,
   },
   providerCardLabel: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#1D4ED8",
+    color: AUTH_COLORS.green,
     marginBottom: 4,
     textTransform: "uppercase",
   },
@@ -1478,15 +1484,17 @@ const styles = StyleSheet.create({
   },
   providerRolePill: {
     marginLeft: "auto",
-    backgroundColor: "#DBEAFE",
+    backgroundColor: AUTH_COLORS.greenSoft,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 999,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   providerRoleText: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#1D4ED8",
+    color: AUTH_COLORS.green,
     textTransform: "capitalize",
   },
   providerPhoneRow: {
@@ -1602,7 +1610,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   payButton: {
-    backgroundColor: "#2563EB",
+    backgroundColor: AUTH_COLORS.green,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1620,7 +1628,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   joinCallButton: {
-    backgroundColor: "#0F766E",
+    backgroundColor: AUTH_COLORS.greenDark,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1655,38 +1663,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#DC2626",
     marginLeft: 6,
-  },
-  emptyCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 24,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    marginTop: 8,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginTop: 16,
-  },
-  emptyText: {
-    fontSize: 13,
-    color: "#4B5563",
-    textAlign: "center",
-    marginTop: 8,
-  },
-  emptyHint: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    textAlign: "center",
-    marginTop: 8,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: "#4B5563",
-    marginTop: 8,
   },
   prescriptionSection: {
     backgroundColor: "#F0FDF4",

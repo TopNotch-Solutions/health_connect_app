@@ -10,7 +10,20 @@ import React, {
   useState,
 } from "react";
 import { ActivityIndicator, Alert, FlatList, Keyboard, Platform, Text, TouchableOpacity, View } from "react-native";
-import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
+import {
+  AppHeroCard,
+  AppScreenShell,
+  appScreenStyles,
+  getGreeting,
+  getGreetingEmoji,
+  AUTH_COLORS,
+} from "../../../components/app/AppScreenUI";
+import {
+  AppBottomSheetCloseHeader,
+  appBottomSheetAppearance,
+  appBottomSheetScrollPadding,
+  appBottomSheetStyles,
+} from "../../../components/app/AppBottomSheetUI";
 import WebView from "react-native-webview";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
@@ -567,10 +580,10 @@ export default function TransactionsScreen() {
   };
 
   return (
-    <View className="flex-1">
-      <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#FFFFFF">
+    <>
+    <AppScreenShell>
         {isLoading ? (
-          <ActivityIndicator size="large" className="mt-20" />
+          <ActivityIndicator size="large" color={AUTH_COLORS.green} style={{ marginTop: 80 }} />
         ) : (
           <FlatList
             data={transactions}
@@ -578,7 +591,7 @@ export default function TransactionsScreen() {
             renderItem={({ item }) => (
               <TransactionRow item={item} userWalletID={user?.walletID} />
             )}
-            contentContainerStyle={{ padding: 16 }}
+            contentContainerStyle={appScreenStyles.scrollContent}
             onRefresh={() => fetchTransactions(true, 1)}
             refreshing={isRefreshing}
             removeClippedSubviews={false}
@@ -651,18 +664,19 @@ export default function TransactionsScreen() {
             }
             ListHeaderComponent={
               <>
-                <View className="p-6 mb-6 border-2 border-green-600 rounded-2xl">
-                  <View className="mb-6">
-                    <Text className="text-gray-600 text-lg">
-                      Available Consultations
-                    </Text>
-                    <Text className="text-gray-900 text-4xl font-bold mt-1">
-                      {user?.consultations || 0}
-                    </Text>
-                  </View>
-                </View>
+                <AppHeroCard
+                  eyebrow={`${getGreeting()} ${getGreetingEmoji()}`}
+                  name="Account"
+                  tagline="Manage consultations and packages"
+                  stats={[
+                    {
+                      icon: "briefcase",
+                      label: `${user?.consultations || 0} consultations`,
+                    },
+                  ]}
+                />
                 {!isDocumentVerified ? (
-                  <View className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+                  <View className="mb-6 mx-5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
                     <Text className="text-sm font-semibold text-amber-800">
                       Disclaimer
                     </Text>
@@ -672,13 +686,26 @@ export default function TransactionsScreen() {
                     </Text>
                   </View>
                 ) : (
-                  <View className="mb-6" style={{ gap: 12 }}>
+                  <View className="mb-6 px-5" style={{ gap: 12 }}>
                     {hasActivePackage ? (
-                      <View className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                        <Text className="text-sm font-semibold text-blue-800">
+                      <View
+                        className="rounded-2xl p-4"
+                        style={{
+                          borderWidth: 2,
+                          borderColor: AUTH_COLORS.inputBorder,
+                          backgroundColor: AUTH_COLORS.greenSoft,
+                        }}
+                      >
+                        <Text
+                          className="text-sm font-semibold"
+                          style={{ color: AUTH_COLORS.textDark }}
+                        >
                           Active package in use
                         </Text>
-                        <Text className="mt-1 text-sm text-blue-700">
+                        <Text
+                          className="mt-1 text-sm"
+                          style={{ color: AUTH_COLORS.textMuted }}
+                        >
                           You still have {consultationsLeft} consultation
                           {consultationsLeft > 1 ? "s" : ""}. You can select a
                           new package when your consultations reach 0.
@@ -695,34 +722,37 @@ export default function TransactionsScreen() {
                     )}
                   </View>
                 )}
-                {/* <ActionButton
-                    icon="send"
-                    label="Send Funds"
-                    onPress={() => fundOthersSheetRef.current?.expand()}
-                  /> */}
-                {/* <View className="flex-row mb-6" style={{ gap: 16 }}>
-                  <ActionButton
-                    icon="arrow-up-right"
-                    label="Withdraw"
-                    onPress={() => withdrawSheetRef.current?.expand()}
-                  />
-                </View> */}
-                <Text className="text-xl font-bold text-text-main mb-4">
-                  Recent Activity
+                <Text
+                  className="text-xl font-bold mb-4 px-5"
+                  style={{ color: AUTH_COLORS.textDark }}
+                >
+                  Recent activity
                 </Text>
               </>
             }
             ListEmptyComponent={
-              <View className="items-center mt-10">
-                <Feather name="folder" size={48} color="#CBD5E1" />
-                <Text className="text-lg text-gray-500 mt-4">
+              <View className="items-center mt-10 px-5">
+                <View
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 36,
+                    backgroundColor: AUTH_COLORS.greenSoft,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 12,
+                  }}
+                >
+                  <Feather name="folder" size={32} color={AUTH_COLORS.green} />
+                </View>
+                <Text className="text-lg" style={{ color: AUTH_COLORS.textMuted }}>
                   No transactions yet.
                 </Text>
               </View>
             }
           />
         )}
-      </ScreenLayout>
+    </AppScreenShell>
       {dpoSession ? (
         <View
           style={{
@@ -772,118 +802,140 @@ export default function TransactionsScreen() {
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
-        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
-        handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
+        {...appBottomSheetAppearance}
       >
-        <View className="flex-1 bg-white">
-          <BottomSheetScrollView
-            style={{ paddingTop: 24, paddingHorizontal: 24 }}
-            contentContainerStyle={{ paddingBottom: 24 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-2xl font-bold text-text-main">
-                Select Package
-              </Text>
+        <BottomSheetScrollView
+          style={appBottomSheetScrollPadding}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <AppBottomSheetCloseHeader
+            title="Select Package"
+            onClose={() => addMoneySheetRef.current?.close()}
+          />
 
-              <TouchableOpacity
-                onPress={() => addMoneySheetRef.current?.close()}
-              >
-                <Feather name="x" size={24} color="#374151" />
-              </TouchableOpacity>
+          {!isDocumentVerified ? (
+            <View style={appBottomSheetStyles.warningBanner}>
+              <Text style={appBottomSheetStyles.warningBannerTitle}>
+                Production disclaimer
+              </Text>
+              <Text style={appBottomSheetStyles.warningBannerBody}>
+                Document verification is required before selecting packages.
+              </Text>
             </View>
-
-            {!isDocumentVerified ? (
-              <View className="mt-8 rounded-2xl border border-amber-300 bg-amber-50 p-4">
-                <Text className="text-base font-semibold text-amber-800">
-                  Production disclaimer
-                </Text>
-                <Text className="mt-2 text-sm text-amber-700">
-                  Document verification is required before selecting packages.
-                </Text>
-              </View>
-            ) : hasActivePackage ? (
-              <View className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                <Text className="text-base font-semibold text-blue-800">
-                  Active package in use
-                </Text>
-                <Text className="mt-2 text-sm text-blue-700">
-                  You have {consultationsLeft} consultation
-                  {consultationsLeft > 1 ? "s" : ""} remaining. You can buy a
-                  new package once your consultations are 0.
-                </Text>
-              </View>
-            ) : isFetchingPackages ? (
-              <View className="mt-10 items-center">
-                <ActivityIndicator size="large" color="#16a34a" />
-                <Text className="text-gray-500 mt-3">Loading packages...</Text>
-              </View>
-            ) : packages.length === 0 ? (
-              <Text className="text-gray-500 text-center mt-10">
-                No packages available.
+          ) : hasActivePackage ? (
+            <View style={appBottomSheetStyles.noticeBanner}>
+              <Text style={appBottomSheetStyles.noticeBannerTitle}>
+                Active package in use
               </Text>
-            ) : (
-              <View className="mt-2">
-                {packages.map((pkg, index) => {
-                  const isBestValue = index === 1; // highlight middle option
-                  return (
-                    <TouchableOpacity
-                      key={pkg._id}
-                      activeOpacity={0.9}
-                      className={`mb-4 rounded-3xl overflow-hidden border border-gray-200 shadow-sm`}
-                      onPress={() => initiatePackagePayment(pkg)}
-                    >
-                      <View className="p-5 bg-white">
-                        <View className="flex-row justify-between items-center mb-2">
-                          <View>
-                            <Text className="text-xs font-semibold uppercase tracking-wide text-gray-90">
-                              {pkg.consultations} Consultation
-                              {pkg.consultations > 1 ? "s" : ""}
-                            </Text>
-                            <Text className="text-2xl font-extrabold text-gray-900">
-                              N$ {pkg.amount}
-                            </Text>
-                          </View>
-
-                          <View className="items-end">
-                            {isBestValue && (
-                              <View className="px-3 py-1 rounded-full bg-emerald-100/90 mb-2">
-                                <Text className="text-[11px] font-semibold text-black">
-                                  Most Popular
-                                </Text>
-                              </View>
-                            )}
-                            <View className="w-10 h-10 rounded-full items-center justify-center bg-green-50">
-                              <Feather
-                                name="plus-circle"
-                                size={22}
-                                color={"#16A34A"}
-                              />
-                            </View>
-                          </View>
+              <Text style={appBottomSheetStyles.noticeBannerBody}>
+                You have {consultationsLeft} consultation
+                {consultationsLeft > 1 ? "s" : ""} remaining. You can buy a
+                new package once your consultations are 0.
+              </Text>
+            </View>
+          ) : isFetchingPackages ? (
+            <View style={appBottomSheetStyles.loadingWrap}>
+              <ActivityIndicator size="large" color={AUTH_COLORS.green} />
+              <Text style={appBottomSheetStyles.loadingLabel}>
+                Loading packages...
+              </Text>
+            </View>
+          ) : packages.length === 0 ? (
+            <Text style={appBottomSheetStyles.emptyStateText}>
+              No packages available.
+            </Text>
+          ) : (
+            <View style={{ marginTop: 4 }}>
+              {packages.map((pkg, index) => {
+                const isBestValue = index === 1;
+                return (
+                  <TouchableOpacity
+                    key={pkg._id}
+                    activeOpacity={0.9}
+                    style={appBottomSheetStyles.packageCard}
+                    onPress={() => initiatePackagePayment(pkg)}
+                  >
+                    <View style={appBottomSheetStyles.packageCardInner}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <View>
+                          <Text style={appBottomSheetStyles.packageMeta}>
+                            {pkg.consultations} Consultation
+                            {pkg.consultations > 1 ? "s" : ""}
+                          </Text>
+                          <Text style={appBottomSheetStyles.packagePrice}>
+                            N$ {pkg.amount}
+                          </Text>
                         </View>
 
-                        <View className="flex-row justify-between items-center mt-2">
-                          <Text className="text-xs text-gray-500">
-                            Ideal for{" "}
-                            <Text className="font-semibold">
-                              {pkg.consultations} session
-                              {pkg.consultations > 1 ? "s" : ""}
-                            </Text>
-                          </Text>
-                          <Text className="text-[11px] font-medium text-gray-500">
-                            Tap to continue
-                          </Text>
+                        <View style={{ alignItems: "flex-end" }}>
+                          {isBestValue && (
+                            <View style={appBottomSheetStyles.packageBadge}>
+                              <Text style={appBottomSheetStyles.packageBadgeText}>
+                                Most Popular
+                              </Text>
+                            </View>
+                          )}
+                          <View
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 20,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: AUTH_COLORS.greenSoft,
+                              borderWidth: 1,
+                              borderColor: AUTH_COLORS.inputBorder,
+                            }}
+                          >
+                            <Feather
+                              name="plus-circle"
+                              size={22}
+                              color={AUTH_COLORS.green}
+                            />
+                          </View>
                         </View>
                       </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </BottomSheetScrollView>
-        </View>
+
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginTop: 8,
+                        }}
+                      >
+                        <Text style={appBottomSheetStyles.packageHint}>
+                          Ideal for{" "}
+                          <Text style={{ fontWeight: "700" }}>
+                            {pkg.consultations} session
+                            {pkg.consultations > 1 ? "s" : ""}
+                          </Text>
+                        </Text>
+                        <Text
+                          style={[
+                            appBottomSheetStyles.packageHint,
+                            { fontWeight: "600" },
+                          ]}
+                        >
+                          Tap to continue
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </BottomSheetScrollView>
       </BottomSheet>
 
       {/* <BottomSheet
@@ -1102,84 +1154,82 @@ export default function TransactionsScreen() {
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
-        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
-        handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
+        {...appBottomSheetAppearance}
       >
         <BottomSheetScrollView
-          style={{ paddingTop: 24, paddingHorizontal: 24 }}
+          style={appBottomSheetScrollPadding}
           contentContainerStyle={{
             paddingBottom: Math.max(24, keyboardHeight + 20),
           }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={true}
         >
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-2xl font-bold text-text-main">
-              Send Funds
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                setFundOthersErrors({});
-                setFundOthersForm({
-                  amount: "",
-                  walletID: "",
-                });
-                fundOthersSheetRef.current?.close();
-              }}
-            >
-              <Feather name="x" size={24} color="#374151" />
-            </TouchableOpacity>
-          </View>
-          <Text className="text-sm font-semibold text-gray-700 mb-1.5">
+          <AppBottomSheetCloseHeader
+            title="Send Funds"
+            onClose={() => {
+              setFundOthersErrors({});
+              setFundOthersForm({
+                amount: "",
+                walletID: "",
+              });
+              fundOthersSheetRef.current?.close();
+            }}
+          />
+          <Text style={appBottomSheetStyles.inputLabel}>
             Recipient's Wallet ID
           </Text>
           <TextInput
-            style={withIosStandaloneTextInputStyle()}
+            style={[
+              withIosStandaloneTextInputStyle(),
+              appBottomSheetStyles.input,
+              fundOthersErrors.walletID && appBottomSheetStyles.inputError,
+            ]}
             value={fundOthersForm.walletID}
             onChangeText={(v) => {
               setFundOthersForm((p) => ({ ...p, walletID: v }));
               setFundOthersErrors((e) => ({ ...e, walletID: undefined }));
             }}
             placeholder="Recipient's Wallet ID"
-            className={`bg-white p-4 rounded-2xl mb-1 border ${fundOthersErrors.walletID ? "border-red-500" : "border-gray-200"}`}
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={AUTH_COLORS.textMuted}
           />
           {fundOthersErrors.walletID && (
-            <Text className="text-xs text-red-500 mb-2">
+            <Text style={appBottomSheetStyles.fieldError}>
               {fundOthersErrors.walletID}
             </Text>
           )}
-          <Text className="text-sm font-semibold text-gray-700 mb-1.5 mt-2">
-            Amount
-          </Text>
+          <Text style={appBottomSheetStyles.inputLabel}>Amount</Text>
           <TextInput
-            style={withIosStandaloneTextInputStyle()}
+            style={[
+              withIosStandaloneTextInputStyle(),
+              appBottomSheetStyles.input,
+              fundOthersErrors.amount && appBottomSheetStyles.inputError,
+            ]}
             value={fundOthersForm.amount}
             onChangeText={(v) => {
               setFundOthersForm((p) => ({ ...p, amount: v }));
               setFundOthersErrors((e) => ({ ...e, amount: undefined }));
             }}
             placeholder="Amount (N$)"
-            className={`bg-white p-4 rounded-2xl mb-1 border ${fundOthersErrors.amount ? "border-red-500" : "border-gray-200"}`}
             keyboardType="numeric"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={AUTH_COLORS.textMuted}
           />
           {fundOthersErrors.amount && (
-            <Text className="text-xs text-red-500 mb-2">
+            <Text style={appBottomSheetStyles.fieldError}>
               {fundOthersErrors.amount}
             </Text>
           )}
           <TouchableOpacity
             onPress={handleFundOthers}
             disabled={isSubmitting}
-            className={`bg-green-600 p-4 rounded-xl mb-4 ${isSubmitting && "opacity-50"}`}
+            style={[
+              appBottomSheetStyles.primaryCta,
+              isSubmitting && { opacity: 0.5 },
+            ]}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={AUTH_COLORS.white} />
             ) : (
-              <Text className="text-white font-semibold text-center text-lg">
-                Send Money
-              </Text>
+              <Text style={appBottomSheetStyles.primaryCtaText}>Send Money</Text>
             )}
           </TouchableOpacity>
           <View style={{ height: Math.max(100, keyboardHeight + 50) }} />
@@ -1194,60 +1244,57 @@ export default function TransactionsScreen() {
         keyboardBehavior="interactive"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
-        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
-        handleIndicatorStyle={{ backgroundColor: "#9CA3AF", width: 40 }}
+        {...appBottomSheetAppearance}
       >
         <BottomSheetScrollView
-          style={{ paddingTop: 24, paddingHorizontal: 24 }}
+          style={appBottomSheetScrollPadding}
           contentContainerStyle={{
             paddingBottom: Math.max(24, keyboardHeight + 20),
           }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={true}
         >
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-2xl font-bold text-text-main">
-              Withdraw to Card
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                setWithdrawErrors({});
-                setWithdrawForm({ amount: "" });
-                withdrawSheetRef.current?.close();
-              }}
-            >
-              <Feather name="x" size={24} color="#374151" />
-            </TouchableOpacity>
-          </View>
-          <Text className="text-sm font-semibold text-gray-700 mb-1.5">
-            Amount
-          </Text>
+          <AppBottomSheetCloseHeader
+            title="Withdraw to Card"
+            onClose={() => {
+              setWithdrawErrors({});
+              setWithdrawForm({ amount: "" });
+              withdrawSheetRef.current?.close();
+            }}
+          />
+          <Text style={appBottomSheetStyles.inputLabel}>Amount</Text>
           <TextInput
-            style={withIosStandaloneTextInputStyle()}
+            style={[
+              withIosStandaloneTextInputStyle(),
+              appBottomSheetStyles.input,
+              withdrawErrors.amount && appBottomSheetStyles.inputError,
+            ]}
             value={withdrawForm.amount}
             onChangeText={(v) => {
               setWithdrawForm((p) => ({ ...p, amount: v }));
               setWithdrawErrors((e) => ({ ...e, amount: undefined }));
             }}
             placeholder="Amount to Withdraw (N$)"
-            className={`bg-white p-4 rounded-2xl mb-1 border ${withdrawErrors.amount ? "border-red-500" : "border-gray-200"}`}
             keyboardType="numeric"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={AUTH_COLORS.textMuted}
           />
           {withdrawErrors.amount && (
-            <Text className="text-xs text-red-500 mb-3">
+            <Text style={appBottomSheetStyles.fieldError}>
               {withdrawErrors.amount}
             </Text>
           )}
           <TouchableOpacity
             onPress={handleWithdraw}
             disabled={isSubmitting}
-            className={`bg-green-600 p-4 rounded-xl mb-4 ${isSubmitting && "opacity-50"}`}
+            style={[
+              appBottomSheetStyles.primaryCta,
+              isSubmitting && { opacity: 0.5 },
+            ]}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={AUTH_COLORS.white} />
             ) : (
-              <Text className="text-white font-semibold text-center text-lg">
+              <Text style={appBottomSheetStyles.primaryCtaText}>
                 Confirm Withdrawal
               </Text>
             )}
@@ -1255,6 +1302,6 @@ export default function TransactionsScreen() {
           <View style={{ height: Math.max(100, keyboardHeight + 50) }} />
         </BottomSheetScrollView>
       </BottomSheet>
-    </View>
+    </>
   );
 }

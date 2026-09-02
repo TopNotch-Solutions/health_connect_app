@@ -4,7 +4,13 @@ import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
 import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../AppTextInput";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  AppBottomSheetCloseHeader,
+  appBottomSheetStyles,
+  appModalBottomSheetStyles,
+} from "../app/AppBottomSheetUI";
+import { AUTH_COLORS } from "../../lib/authScreenTheme";
 import MapView, { Marker } from "react-native-maps";
 import {
   getCurrentLocationWithAddress,
@@ -324,22 +330,27 @@ export default function CreateRequestModal({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        <View className="flex-1 bg-black/50 justify-end">
+        <View style={appModalBottomSheetStyles.overlay}>
           <View
-            className="bg-gray-200 rounded-t-3xl flex-1"
-            style={{ marginTop: "10%" }}
+            style={[
+              appModalBottomSheetStyles.sheet,
+              appModalBottomSheetStyles.sheetTall,
+            ]}
           >
-            {/* Header */}
-            <View className="flex-row items-center justify-between p-6 border-b border-gray-200">
-              <Text className="text-2xl font-bold text-gray-900">
-                Request Healthcare
-              </Text>
-              <TouchableOpacity onPress={onClose} disabled={isLoading}>
-                <Feather name="x" size={24} color="#6B7280" />
-              </TouchableOpacity>
+            <View style={appModalBottomSheetStyles.handle} />
+
+            <View style={localStyles.headerWrap}>
+              <AppBottomSheetCloseHeader
+                title="Request Healthcare"
+                onClose={onClose}
+              />
             </View>
 
-            <ScrollView className="p-6" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={localStyles.scrollBody}
+              contentContainerStyle={localStyles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
               {/* Ailment Category */}
               <View className="mb-6">
                 <Text className="text-base font-semibold text-gray-900 mb-2">
@@ -366,14 +377,19 @@ export default function CreateRequestModal({
                     disabled={isLoading}
                     className={`flex-1 rounded-lg border-2 p-3 ${
                       consultationMode === "house_visit"
-                        ? "bg-blue-50 border-blue-500"
+                        ? "border-[#BBF7D0]"
                         : "bg-white border-gray-300"
                     }`}
+                    style={
+                      consultationMode === "house_visit"
+                        ? { backgroundColor: AUTH_COLORS.greenSoft }
+                        : undefined
+                    }
                   >
                     <Text
                       className={`text-center font-semibold ${
                         consultationMode === "house_visit"
-                          ? "text-blue-700"
+                          ? "text-[#14532D]"
                           : "text-gray-700"
                       }`}
                     >
@@ -386,14 +402,19 @@ export default function CreateRequestModal({
                       disabled={isLoading}
                       className={`flex-1 rounded-lg border-2 p-3 ${
                         consultationMode === "video_consultation"
-                          ? "bg-blue-50 border-blue-500"
+                          ? "border-[#BBF7D0]"
                           : "bg-white border-gray-300"
                       }`}
+                      style={
+                        consultationMode === "video_consultation"
+                          ? { backgroundColor: AUTH_COLORS.greenSoft }
+                          : undefined
+                      }
                     >
                       <Text
                         className={`text-center font-semibold ${
                           consultationMode === "video_consultation"
-                            ? "text-blue-700"
+                            ? "text-[#14532D]"
                             : "text-gray-700"
                         }`}
                       >
@@ -669,21 +690,28 @@ export default function CreateRequestModal({
                       disabled={isLoading}
                       className={`flex-1 flex-row items-center justify-center p-4 rounded-lg border-2 ${
                         paymentMethod === option.value
-                          ? "bg-blue-50 border-blue-500"
+                          ? "border-[#BBF7D0]"
                           : "bg-white border-gray-300"
                       }`}
+                      style={
+                        paymentMethod === option.value
+                          ? { backgroundColor: AUTH_COLORS.greenSoft }
+                          : undefined
+                      }
                     >
                       <Feather
                         name={option.icon as any}
                         size={20}
                         color={
-                          paymentMethod === option.value ? "#3B82F6" : "#6B7280"
+                          paymentMethod === option.value
+                            ? AUTH_COLORS.green
+                            : "#6B7280"
                         }
                       />
                       <Text
                         className={`ml-2 font-semibold ${
                           paymentMethod === option.value
-                            ? "text-blue-600"
+                            ? "text-[#14532D]"
                             : "text-gray-600"
                         }`}
                       >
@@ -702,14 +730,14 @@ export default function CreateRequestModal({
               </View>
 
               {/* Info Box */}
-              <View className="bg-amber-50 rounded-lg p-4 mb-6 border border-amber-300">
+              <View style={appBottomSheetStyles.warningBanner}>
                 <View className="flex-row items-start">
                   <Feather name="info" size={20} color="#92400E" />
                   <View className="flex-1 ml-3">
-                    <Text className="text-sm text-amber-900 font-semibold mb-1">
+                    <Text style={appBottomSheetStyles.warningBannerTitle}>
                       Request will be sent to nearby providers
                     </Text>
-                    <Text className="text-sm text-amber-800">
+                    <Text style={appBottomSheetStyles.warningBannerBody}>
                       Your location will be shared with the healthcare provider
                       who accepts your request. The request expires after 6
                       hours if not accepted.
@@ -720,7 +748,7 @@ export default function CreateRequestModal({
             </ScrollView>
 
             {/* Footer Actions */}
-            <View className="p-6 border-t border-gray-200">
+            <View style={appModalBottomSheetStyles.footer}>
               {isLoadingLocation && (
                 <Text className="text-sm text-gray-600 text-center mb-3">
                   Detecting your location — submit is disabled until we have your
@@ -740,26 +768,32 @@ export default function CreateRequestModal({
               <TouchableOpacity
                 onPress={handleSubmit}
                 disabled={!canSubmit}
-                className={`py-4 rounded-lg flex-row items-center justify-center ${
-                  canSubmit ? "bg-blue-600" : "bg-gray-300"
-                }`}
-                style={{ gap: 8 }}
+                style={[
+                  appBottomSheetStyles.primaryCta,
+                  !canSubmit && { backgroundColor: "#D1D5DB", borderColor: "#D1D5DB" },
+                ]}
+                activeOpacity={0.88}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color={AUTH_COLORS.white} />
                 ) : isLoadingLocation ? (
                   <>
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text className="text-white text-center text-lg font-semibold">
+                    <ActivityIndicator color={AUTH_COLORS.white} size="small" />
+                    <Text style={appBottomSheetStyles.primaryCtaText}>
                       Getting location…
                     </Text>
                   </>
                 ) : locationError || !markerCoord ? (
-                  <Text className="text-gray-600 text-center text-lg font-semibold">
+                  <Text
+                    style={[
+                      appBottomSheetStyles.primaryCtaText,
+                      { color: AUTH_COLORS.textMuted },
+                    ]}
+                  >
                     Waiting for location
                   </Text>
                 ) : (
-                  <Text className="text-white text-center text-lg font-semibold">
+                  <Text style={appBottomSheetStyles.primaryCtaText}>
                     Submit Request
                   </Text>
                 )}
@@ -771,3 +805,17 @@ export default function CreateRequestModal({
     </Modal>
   );
 }
+
+const localStyles = StyleSheet.create({
+  headerWrap: {
+    paddingHorizontal: 24,
+    paddingTop: 4,
+  },
+  scrollBody: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+  },
+});

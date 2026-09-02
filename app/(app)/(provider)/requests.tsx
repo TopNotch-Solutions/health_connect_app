@@ -6,7 +6,17 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
 import { ActivityIndicator, Alert, Image, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
-import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
+import {
+  AppEmptyState,
+  AppFilterChips,
+  AppHeroCard,
+  AppLoadingCard,
+  AppScreenShell,
+  appScreenStyles,
+  getGreeting,
+  getGreetingEmoji,
+  AUTH_COLORS,
+} from "../../../components/app/AppScreenUI";
 import { useAuth } from "../../../context/AuthContext";
 import { useRoute } from "../../../context/RouteContext";
 import apiClient from "../../../lib/api";
@@ -871,66 +881,43 @@ export default function ProviderRequests() {
   };
 
   return (
-    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
-      <ScrollView className="flex-1">
-        {/* Header */}
-        <View className="bg-white pt-6 pb-4 px-6 border-b border-gray-200">
-          <Text className="text-2xl font-bold text-gray-900 mb-1">
-            My Requests
-          </Text>
-          <Text className="text-sm text-gray-500">
-            View and manage your consultations
-          </Text>
-        </View>
+    <AppScreenShell>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={appScreenStyles.scrollContent}
+      >
+        <AppHeroCard
+          eyebrow={`${getGreeting()} ${getGreetingEmoji()}`}
+          name="My requests"
+          tagline="View and manage your consultations"
+          stats={[
+            { icon: "folder", label: `${filteredRequests.length} shown` },
+            { icon: "filter", label: filter },
+          ]}
+        />
 
-        {/* Filter Tabs */}
-        <View className="px-6 pt-4 pb-2">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View className="flex-row" style={{ gap: 8 }}>
-              {["all", "pending", "accepted", "completed"].map((f) => (
-                <TouchableOpacity
-                  key={f}
-                  onPress={() => setFilter(f as any)}
-                  className={`px-5 py-2.5 rounded-xl ${
-                    filter === f
-                      ? "bg-blue-600"
-                      : "bg-white border border-gray-200"
-                  }`}
-                >
-                  <Text
-                    className={`font-bold text-sm capitalize ${
-                      filter === f ? "text-white" : "text-gray-600"
-                    }`}
-                  >
-                    {f}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
+        <AppFilterChips
+          filters={[
+            { key: "all", label: "All" },
+            { key: "pending", label: "Pending" },
+            { key: "accepted", label: "Accepted" },
+            { key: "completed", label: "Completed" },
+          ]}
+          active={filter}
+          onChange={(key) => setFilter(key as typeof filter)}
+        />
 
         {/* Requests List */}
-        <View className="px-6 pt-4 pb-6">
+        <View style={appScreenStyles.contentSection}>
           {isLoading ? (
-            <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
-              <ActivityIndicator size="large" color="#3B82F6" />
-              <Text className="text-sm text-gray-500 mt-4">
-                Loading requests...
-              </Text>
-            </View>
+            <AppLoadingCard message="Loading requests…" />
           ) : filteredRequests.length === 0 ? (
-            <View className="bg-white rounded-xl border border-gray-200 p-10 items-center">
-              <View className="w-16 h-16 bg-gray-50 rounded-full items-center justify-center mb-4">
-                <Feather name="folder" size={32} color="#9CA3AF" />
-              </View>
-              <Text className="text-lg font-semibold text-gray-900 mb-1">
-                No Requests
-              </Text>
-              <Text className="text-sm text-gray-500 text-center">
-                No {filter !== "all" && filter} requests found
-              </Text>
-            </View>
+            <AppEmptyState
+              icon="folder"
+              title="No requests"
+              body={`No ${filter !== "all" ? filter + " " : ""}requests found`}
+            />
           ) : (
             filteredRequests.map((request) => {
               const statusStyle = getStatusStyle(request.status);
@@ -991,7 +978,7 @@ export default function ProviderRequests() {
               return (
                 <View
                   key={request._id}
-                  className="bg-white rounded-xl border border-gray-200 p-4 mb-3 shadow-sm"
+                  style={appScreenStyles.requestCard}
                 >
                   <View className="flex-row items-start justify-between mb-3">
                     <View className="flex-1">
@@ -1638,6 +1625,6 @@ export default function ProviderRequests() {
         </View>
       </Modal>
 
-    </ScreenLayout>
+    </AppScreenShell>
   );
 }

@@ -3,6 +3,13 @@ import React, { useState } from "react";
 import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "./AppTextInput";
 import { ActivityIndicator, Alert, Dimensions, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  AppBottomSheetCloseHeader,
+  appBottomSheetAppearance,
+  appBottomSheetStyles,
+  appModalBottomSheetStyles,
+} from "./app/AppBottomSheetUI";
+import { AUTH_COLORS } from "../lib/authScreenTheme";
 import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
 
@@ -162,14 +169,12 @@ export default function ChangePasswordModal({
             onPress={(e) => e.stopPropagation()}
           >
             <View style={[styles.bottomSheet, { height: MAX_HEIGHT }]}>
-              {/* Drag Handle */}
-              <View style={styles.dragHandle} />
+              <View style={appModalBottomSheetStyles.handle} />
 
-              {/* Header */}
               <View style={styles.header}>
-                <Text style={styles.headerTitle}>Change Password</Text>
-                <TouchableOpacity
-                  onPress={() => {
+                <AppBottomSheetCloseHeader
+                  title="Change Password"
+                  onClose={() => {
                     setErrors({
                       currentPassword: "",
                       newPassword: "",
@@ -182,11 +187,7 @@ export default function ChangePasswordModal({
                     });
                     onClose();
                   }}
-                  style={styles.closeButton}
-                  activeOpacity={0.7}
-                >
-                  <Feather name="x" size={24} color="#6B7280" />
-                </TouchableOpacity>
+                />
               </View>
 
               <ScrollView
@@ -335,8 +336,8 @@ export default function ChangePasswordModal({
                 </View>
 
                 {/* Password Requirements */}
-                <View style={styles.requirementsContainer}>
-                  <Text style={styles.requirementsTitle}>
+                <View style={[appBottomSheetStyles.noticeBanner, { marginBottom: 24 }]}>
+                  <Text style={appBottomSheetStyles.noticeBannerTitle}>
                     Password Requirements:
                   </Text>
                   <Text style={styles.requirementsText}>
@@ -352,7 +353,8 @@ export default function ChangePasswordModal({
                   onPress={handleChangePassword}
                   disabled={isLoading}
                   style={[
-                    styles.primaryButton,
+                    appBottomSheetStyles.primaryCta,
+                    styles.primaryButtonRow,
                     isLoading && styles.primaryButtonDisabled,
                   ]}
                   activeOpacity={0.8}
@@ -362,7 +364,7 @@ export default function ChangePasswordModal({
                   ) : (
                     <>
                       <Feather name="lock" size={20} color="#FFFFFF" />
-                      <Text style={styles.primaryButtonText}>
+                      <Text style={appBottomSheetStyles.primaryCtaText}>
                         Change Password
                       </Text>
                     </>
@@ -403,42 +405,14 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
+  overlay: appModalBottomSheetStyles.overlay,
   bottomSheet: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    ...appBottomSheetAppearance.backgroundStyle,
     paddingBottom: 0,
   },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#D1D5DB",
-    borderRadius: 2,
-    alignSelf: "center",
-    marginTop: 12,
-    marginBottom: 8,
-  },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  closeButton: {
-    padding: 8,
+    paddingBottom: 4,
   },
   scrollView: {
     flex: 1,
@@ -450,30 +424,18 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 20,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 8,
-  },
+  label: appBottomSheetStyles.inputLabel,
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: AUTH_COLORS.white,
     borderWidth: 2,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
+    borderColor: AUTH_COLORS.inputBorder,
+    borderRadius: 14,
     paddingHorizontal: 16,
   },
-  inputWrapperError: {
-    borderColor: "#EF4444",
-  },
-  errorText: {
-    fontSize: 12,
-    color: "#EF4444",
-    marginTop: 4,
-    marginLeft: 4,
-  },
+  inputWrapperError: appBottomSheetStyles.inputError,
+  errorText: appBottomSheetStyles.fieldError,
   input: {
     flex: 1,
     paddingVertical: 12,
@@ -483,57 +445,29 @@ const styles = StyleSheet.create({
   eyeButton: {
     padding: 8,
   },
-  requirementsContainer: {
-    backgroundColor: "#DBEAFE",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  requirementsTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1E40AF",
-    marginBottom: 8,
-  },
   requirementsText: {
     fontSize: 12,
-    color: "#1E3A8A",
+    color: "#1D4ED8",
     marginBottom: 4,
   },
-  primaryButton: {
-    backgroundColor: "#10B981",
-    paddingVertical: 16,
-    borderRadius: 12,
+  primaryButtonRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     marginBottom: 12,
-    shadowColor: "#10B981",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   primaryButtonDisabled: {
     opacity: 0.6,
   },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 8,
-  },
   cancelButton: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: AUTH_COLORS.greenSoft,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   cancelButtonText: {
-    color: "#374151",
+    color: AUTH_COLORS.textDark,
     fontSize: 16,
     fontWeight: "600",
   },

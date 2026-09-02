@@ -22,6 +22,7 @@ import {
   addNotificationListeners,
   configureForegroundHandler,
 } from "../lib/pushNotifications";
+import { isExpoGoRuntime } from "../lib/isExpoGoRuntime";
 import { installGlobalViewErrorLogger } from "../lib/viewErrorLogger";
 import "./globals.css";
 
@@ -343,6 +344,10 @@ export default function RootLayout() {
     let isMounted = true;
 
     const setupNotifications = async () => {
+      if (isExpoGoRuntime()) {
+        return;
+      }
+
       // Configure foreground notification display (banner + sound while app is open)
       await configureForegroundHandler();
 

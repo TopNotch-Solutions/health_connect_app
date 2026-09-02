@@ -1,21 +1,23 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
-import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../lib/iosInputStyles";
+import {
+  withIosOtpTextInputStyle,
+} from "../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../components/AppTextInput";
 import {
   ActivityIndicator,
   Alert,
+  StyleSheet,
   Text,
   TextInput as RNTextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import ScreenLayout, {
-  KEYBOARD_AWARE_EXTRA_SCROLL,
-} from "../../components/ScreenLayout";
+import AuthScreenLayout from "../../components/AuthScreenLayout";
+import { AuthTopBackButton } from "../../components/AuthTopBackButton";
 import apiClient from "../../lib/api";
+import { AUTH_COLORS, authScreenStyles } from "../../lib/authScreenTheme";
 
 const OTPScreen = () => {
   const router = useRouter();
@@ -25,7 +27,6 @@ const OTPScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
-  // Normalize params to ensure they are always strings
   const role: "provider" | "patient" =
     typeof params.role === "string" && params.role === "provider"
       ? "provider"
@@ -51,7 +52,6 @@ const OTPScreen = () => {
   };
 
   const handleVerifyOtp = () => {
-    console.log("Current flow parameter:", params.flow); // Removed 'async' to use .then/.catch for better debugging
     const finalOtp = otp.join("");
     if (finalOtp.length < 6) {
       return Alert.alert(
@@ -69,7 +69,7 @@ const OTPScreen = () => {
     setIsLoading(true);
 
     let promise;
-    let isResetFlow =
+    const isResetFlow =
       typeof params.flow === "string" && params.flow === "resetPassword";
 
     if (isResetFlow) {
@@ -87,14 +87,9 @@ const OTPScreen = () => {
     promise
       .then((response) => {
         setIsLoading(false);
-        console.log(
-          "Backend Response:",
-          JSON.stringify(response.data, null, 2),
-        );
 
         if (isResetFlow) {
           if (response.status === 200 && response.data?.userId) {
-            // Navigate directly without success message
             router.replace({
               pathname: "/(auth)/reset-password",
               params: { userId: String(response.data.userId) },
@@ -107,35 +102,23 @@ const OTPScreen = () => {
           }
         } else {
           const { activeUser } = response.data || {};
-          // Navigate directly without success message
           if (activeUser) {
             router.replace("/(root)/sign-in");
+          } else if (role === "provider") {
+            router.replace({
+              pathname: "/(auth)/(provider)/provider-type",
+              params: { cellphoneNumber },
+            });
           } else {
-            if (role === "provider") {
-              router.replace({
-                pathname: "/(auth)/(provider)/provider-type",
-                params: { cellphoneNumber },
-              });
-            } else {
-              router.replace({
-                pathname: "/(auth)/(patient)/registration",
-                params: { cellphoneNumber },
-              });
-            }
+            router.replace({
+              pathname: "/(auth)/(patient)/registration",
+              params: { cellphoneNumber },
+            });
           }
         }
       })
       .catch((error) => {
         setIsLoading(false);
-        console.error("--- DETAILED API ERROR ---");
-        if (error.response) {
-          console.error("Response Data:", error.response.data);
-          console.error("Response Status:", error.response.status);
-        } else if (error.request) {
-          console.error("No response received:", error.request);
-        } else {
-          console.error("Error Message:", error.message);
-        }
         const errorMessage =
           error.response?.data?.message ||
           "A network error occurred. Please check your connection and the API endpoint.";
@@ -164,116 +147,141 @@ const OTPScreen = () => {
   };
 
   return (
-    <ScreenLayout backgroundColor="#EFF6FF">
-      <View style={{ flex: 1 }}>
-        <KeyboardAwareScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{
-            flexGrow: 1,
-            paddingHorizontal: 15,
-            paddingTop: 5,
-            paddingBottom: 16,
-          }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          enableOnAndroid
-          enableAutomaticScroll
-          extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
-        >
-        {/* Content Section - Centered */}
-        <View className="items-center">
-          <Text className="text-3xl font-bold text-gray-900 text-center mb-2">
-            Verify Your Code
-          </Text>
-          <Text className="text-base text-gray-600 text-center px-4">
-            Enter the 6-digit code sent to {"\n"}
-            <Text className="font-semibold text-gray-900">
-              {cellphoneNumber || "your number"}
-            </Text>
-          </Text>
-        </View>
-
-        {/* OTP Input Section */}
-        <View className="mb-6 mt-6">
-          <View className="flex-row justify-between w-full">
-            {otp.map((digit, index) => (
-              <TextInput
-                key={index}
-                ref={(ref: RNTextInput | null) => {
-                  inputs.current[index] = ref;
-                }}
-                className="w-14 h-16 bg-white rounded-2xl border-2 border-green-300 text-center text-2xl font-bold text-gray-900"
-                style={withIosOtpTextInputStyle({
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 2,
-                })}
-                keyboardType="number-pad"
-                maxLength={1}
-                value={digit}
-                onChangeText={(text) => handleOtpChange(text, index)}
-                onKeyPress={(e) => handleKeyPress(e, index)}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* Resend Section */}
-        <View className="flex-row justify-center items-center">
-          <Text className="text-gray-600 text-base">
-            Didn&apos;t receive code?{" "}
-          </Text>
-          <TouchableOpacity onPress={handleResendOtp} disabled={isResending}>
-            {isResending ? (
-              <ActivityIndicator size="small" color="#10B981" />
-            ) : (
-              <Text className="text-green-600 font-semibold text-base">
-                Resend
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-        </KeyboardAwareScrollView>
-
-        <View
-          style={{
-            paddingHorizontal: 24,
-            paddingTop: 12,
-            paddingBottom: 8,
-            backgroundColor: "#EFF6FF",
-          }}
-        >
+    <View style={styles.screen}>
+      <AuthScreenLayout
+        hideBrandHeader
+        hideFooter
+        extraScrollTopPadding={56}
+        scrollBottomPadding={24}
+      stickyFooter={
+        <View style={authScreenStyles.ctaGlowWrapBlock}>
           <TouchableOpacity
-            className="w-full py-5 rounded-2xl items-center justify-center flex-row"
-            style={{
-              backgroundColor: isLoading ? "#9CA3AF" : "#10B981",
-              shadowColor: "#10B981",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 6,
-            }}
+            style={[
+              authScreenStyles.ctaButton,
+              isLoading && authScreenStyles.ctaButtonDisabled,
+            ]}
             onPress={handleVerifyOtp}
             disabled={isLoading}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={AUTH_COLORS.white} size="small" />
             ) : (
-              <View className="flex-row items-center">
-                <Text className="text-white text-xl font-semibold mr-2">
-                  Verify & Continue
-                </Text>
-                <Feather name="arrow-right" size={20} color="#FFFFFF" />
+              <View style={styles.ctaRow}>
+                <Text style={authScreenStyles.ctaText}>Verify & Continue</Text>
+                <Feather
+                  name="arrow-right"
+                  size={18}
+                  color={AUTH_COLORS.white}
+                  style={{ marginLeft: 8 }}
+                />
               </View>
             )}
           </TouchableOpacity>
         </View>
+      }
+    >
+      <Text style={authScreenStyles.sectionTitle}>Verify Your Code</Text>
+      <Text style={styles.subtitle}>
+        Enter the 6-digit code sent to{"\n"}
+        <Text style={styles.phoneHighlight}>
+          {cellphoneNumber || "your number"}
+        </Text>
+      </Text>
+
+      <View style={styles.otpRow}>
+        {otp.map((digit, index) => (
+          <TextInput
+            key={index}
+            ref={(ref: RNTextInput | null) => {
+              inputs.current[index] = ref;
+            }}
+            style={[
+              styles.otpBox,
+              withIosOtpTextInputStyle({
+                shadowColor: AUTH_COLORS.green,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.12,
+                shadowRadius: 6,
+                elevation: 3,
+              }),
+            ]}
+            keyboardType="number-pad"
+            maxLength={1}
+            value={digit}
+            onChangeText={(text) => handleOtpChange(text, index)}
+            onKeyPress={(e) => handleKeyPress(e, index)}
+          />
+        ))}
       </View>
-    </ScreenLayout>
+
+      <View style={styles.resendRow}>
+        <Text style={styles.resendMuted}>Didn&apos;t receive code? </Text>
+        <TouchableOpacity onPress={handleResendOtp} disabled={isResending}>
+          {isResending ? (
+            <ActivityIndicator size="small" color={AUTH_COLORS.green} />
+          ) : (
+            <Text style={styles.resendLink}>Resend</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+      </AuthScreenLayout>
+
+      <AuthTopBackButton accessibilityLabel="Go back" />
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: AUTH_COLORS.textMuted,
+    textAlign: "center",
+    marginBottom: 28,
+  },
+  phoneHighlight: {
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+  },
+  otpRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  otpBox: {
+    width: 48,
+    height: 56,
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    textAlign: "center",
+    fontSize: 22,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+  },
+  resendRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  resendMuted: {
+    fontSize: 15,
+    color: AUTH_COLORS.textMuted,
+  },
+  resendLink: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: AUTH_COLORS.green,
+  },
+  ctaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+});
 
 export default OTPScreen;

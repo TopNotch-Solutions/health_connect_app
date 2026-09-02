@@ -15,6 +15,7 @@
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import apiClient from "./api";
+import { isExpoGoRuntime } from "./isExpoGoRuntime";
 
 type NotificationsModule = typeof import("expo-notifications");
 
@@ -26,6 +27,14 @@ let notificationsModulePromise: Promise<NotificationsModule | null> | null =
 
 export async function getNotificationsModule(): Promise<NotificationsModule | null> {
   if (notificationsModulePromise) {
+    return notificationsModulePromise;
+  }
+
+  if (isExpoGoRuntime()) {
+    console.warn(
+      "ℹ️ Push notifications are skipped in Expo Go. Use a development build for remote notifications.",
+    );
+    notificationsModulePromise = Promise.resolve(null);
     return notificationsModulePromise;
   }
 

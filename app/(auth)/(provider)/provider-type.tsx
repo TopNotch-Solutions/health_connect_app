@@ -1,9 +1,10 @@
-// app/(auth)/provider-type.tsx
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
-import ScreenLayout, { SCREEN_EDGES_FULL } from "../../../components/ScreenLayout";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import AuthScreenLayout from "../../../components/AuthScreenLayout";
+import { AUTH_COLORS, authScreenStyles } from "../../../lib/authScreenTheme";
+
 type ProviderType =
   | "doctor"
   | "nurse"
@@ -15,48 +16,36 @@ const CARDS: {
   type: ProviderType;
   title: string;
   icon: React.ComponentProps<typeof Feather>["name"];
-  color: string;
-  bgColor: string;
   desc: string;
 }[] = [
   {
     type: "doctor",
     title: "Doctor",
     icon: "user-check",
-    color: "#3B82F6",
-    bgColor: "#DBEAFE",
     desc: "Diagnose, prescribe & manage care.",
   },
   {
     type: "nurse",
     title: "Nurse",
     icon: "heart",
-    color: "#EF4444",
-    bgColor: "#FEE2E2",
     desc: "Provide nursing care & follow-ups.",
   },
   {
     type: "physiotherapist",
     title: "Physiotherapist",
     icon: "activity",
-    color: "#10B981",
-    bgColor: "#D1FAE5",
     desc: "Rehab, mobility plans & exercises.",
   },
   {
     type: "social worker",
     title: "Social Worker",
     icon: "users",
-    color: "#8B5CF6",
-    bgColor: "#EDE9FE",
     desc: "Support services & case management.",
   },
   {
     type: "pharmacist",
     title: "Pharmacist",
     icon: "clipboard",
-    color: "#F59E0B",
-    bgColor: "#FEF3C7",
     desc: "Dispense medicines & support safe use.",
   },
 ];
@@ -73,65 +62,103 @@ export default function ProviderTypeScreen() {
     });
 
   return (
-    <ScreenLayout edges={SCREEN_EDGES_FULL}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <View className="flex-1 px-6 justify-center py-6">
-          {/* Logo Section */}
-          <View className="items-center mb-6">
-            {/* <Image
-              source={require("../../../assets/images/healthconnectlogo-cropped.png")}
-              style={{ width: 120, height: 120, backgroundColor: "red" }}
-              resizeMode="contain"
-            /> */}
-            <Text className="text-3xl font-bold text-gray-900 text-center mb-2">
-              Select Your Specialty
-            </Text>
-            <Text className="text-base text-gray-600 text-center px-4">
-              Choose your medical profession
-            </Text>
-          </View>
+    <AuthScreenLayout
+      greeting="Hello there!"
+      greetingSub="Select your specialty."
+      scrollBottomPadding={24}
+    >
+      <Text style={authScreenStyles.sectionTitle}>Choose your profession</Text>
 
-          {/* Provider Type Cards - 2-column grid */}
-          <View style={{ gap: 16 }}>
-            {Array.from({ length: Math.ceil(CARDS.length / 2) }).map((_, r) => {
-              const row = CARDS.slice(r * 2, r * 2 + 2);
-              return (
-                <View key={r} className="flex-row" style={{ gap: 16 }}>
-                  {row.map((c) => (
-                    <TouchableOpacity
-                      key={c.type}
-                      className="flex-1 bg-white p-4 rounded-3xl border-2 border-gray-200 items-center"
-                      style={{
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: 0.25,
-                        shadowRadius: 12,
-                        elevation: 8,
-                      }}
-                      onPress={() => go(c.type)}
-                      activeOpacity={0.7}
-                    >
-                      <View
-                        className="w-16 h-16 rounded-full items-center justify-center mb-3"
-                        style={{ backgroundColor: c.bgColor }}
-                      >
-                        <Feather name={c.icon} size={30} color={c.color} />
-                      </View>
-                      <Text className="text-lg font-bold text-gray-900 mb-1 text-center">
-                        {c.title}
-                      </Text>
-                      <Text className="text-sm text-gray-700 text-center font-medium">
-                        {c.desc}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                  {row.length === 1 && <View className="flex-1" />}
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      </ScrollView>
-    </ScreenLayout>
+      <View style={styles.grid}>
+        {Array.from({ length: Math.ceil(CARDS.length / 2) }).map((_, rowIndex) => {
+          const row = CARDS.slice(rowIndex * 2, rowIndex * 2 + 2);
+          return (
+            <View key={rowIndex} style={styles.row}>
+              {row.map((card) => (
+                <TouchableOpacity
+                  key={card.type}
+                  style={styles.card}
+                  onPress={() => go(card.type)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.iconCircle}>
+                    <Feather name={card.icon} size={28} color={AUTH_COLORS.green} />
+                  </View>
+                  <Text style={styles.cardTitle}>{card.title}</Text>
+                  <Text style={styles.cardDesc}>{card.desc}</Text>
+                  <View style={styles.cardArrow}>
+                    <Feather
+                      name="arrow-right"
+                      size={16}
+                      color={AUTH_COLORS.green}
+                    />
+                  </View>
+                </TouchableOpacity>
+              ))}
+              {row.length === 1 ? <View style={styles.cardSpacer} /> : null}
+            </View>
+          );
+        })}
+      </View>
+    </AuthScreenLayout>
   );
 }
+
+const styles = StyleSheet.create({
+  grid: {
+    gap: 14,
+  },
+  row: {
+    flexDirection: "row",
+    gap: 14,
+  },
+  card: {
+    flex: 1,
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    padding: 16,
+    alignItems: "center",
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  cardSpacer: {
+    flex: 1,
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: AUTH_COLORS.greenSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  cardDesc: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: AUTH_COLORS.textMuted,
+    textAlign: "center",
+    fontWeight: "500",
+  },
+  cardArrow: {
+    marginTop: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(187, 247, 208, 0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
