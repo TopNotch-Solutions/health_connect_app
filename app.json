@@ -93,11 +93,11 @@
         "expo-build-properties",
         {
           "android": {
-            "newArchEnabled": false,
+            "newArchEnabled": true,
             "edgeToEdgeEnabled": true
           },
           "ios": {
-            "newArchEnabled": false,
+            "newArchEnabled": true,
             "deploymentTarget": "16.4"
           }
         }
