@@ -864,7 +864,13 @@ export default function ProviderRegistrationScreen() {
       ["hpcnaExpiryDate", expirationDate.toISOString()],
       ["yearsOfExperience", professionalDetails.yearsOfExperience || ""],
       ["operationalZone", professionalDetails.operationalZone || ""],
-      ["specializations", professionalDetails.specializations.join(", ")],
+      // Send JSON, not a comma-joined string: multipart/form-data has no
+      // array type, and a joined string was being stored as ONE
+      // specialization entry, which never matched an ailment category.
+      [
+        "specializations",
+        JSON.stringify(professionalDetails.specializations),
+      ],
     ];
 
     if (isPharmacist) {
