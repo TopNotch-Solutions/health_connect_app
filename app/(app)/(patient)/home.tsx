@@ -312,14 +312,21 @@ export default function PatientHomeScreen() {
 
   // Function to load recent requests
   const loadRecentRequests = useCallback(async () => {
+    if (!user?.userId) {
+      setRecentRequests([]);
+      return;
+    }
+
     try {
-      // Fetch requests from backend via socket
+      // Wait for socket connect — otherwise mount/focus races clear the list
+      // and nothing retries until the user pull-to-refreshes.
+      await socketService.waitForConnection(10000);
+
       const socket = socketService.getSocket();
-      if (!user?.userId || !socket || !socket.connected) {
+      if (!socket?.connected) {
         console.warn(
-          "Socket not ready or user ID missing. Skipping recent requests load.",
+          "Socket not ready after waiting. Keeping existing recent requests.",
         );
-        setRecentRequests([]);
         return;
       }
 

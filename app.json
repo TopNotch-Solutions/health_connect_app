@@ -115,7 +115,11 @@
         }
       ],
       "@stream-io/video-react-native-sdk",
-      "expo-font"
+      "expo-font",
+      "@react-native-community/datetimepicker",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
