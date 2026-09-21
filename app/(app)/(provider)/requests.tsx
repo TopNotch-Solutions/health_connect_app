@@ -173,29 +173,81 @@ export default function ProviderRequests() {
       }
       console.log("📥 Fetching provider requests for:", user.userId);
 
-      // Fetch live requests via socket
-      const socketRequests = await socketService.getProviderRequests(
-        user.userId,
-      );
-      const liveRequests: Request[] = Array.isArray(socketRequests) ? socketRequests : [];
+      await socketService.waitForConnection(10000);
+
+      // Home shows unclaimed "searching" jobs via getAvailableRequests.
+      // Requests previously only loaded assigned jobs (providerId match), so
+      // new requests appeared on Home but vanished from this tab on reload.
+      let providerLocation: { latitude: number; longitude: number } | null =
+        null;
+      try {
+        const { granted } = await ensureForegroundLocationPermission({
+          requestIfNeeded: !hasLoadedOnce.current,
+        });
+        if (granted) {
+          const lastKnown = await Location.getLastKnownPositionAsync();
+          const position =
+            lastKnown ??
+            (await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            }));
+          providerLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+        }
+      } catch (locErr) {
+        console.warn(
+          "⚠️ Could not get provider location for available requests:",
+          locErr,
+        );
+      }
+
+      const [socketRequests, availableRequests] = await Promise.all([
+        socketService.getProviderRequests(user.userId).catch((err) => {
+          console.warn("⚠️ getProviderRequests failed:", err);
+          return [];
+        }),
+        providerLocation
+          ? socketService
+              .getAvailableRequests(user.userId, providerLocation)
+              .catch((err) => {
+                console.warn("⚠️ getAvailableRequests failed:", err);
+                return [];
+              })
+          : Promise.resolve([]),
+      ]);
+
+      const liveRequests: Request[] = Array.isArray(socketRequests)
+        ? socketRequests
+        : [];
+      const available: Request[] = Array.isArray(availableRequests)
+        ? availableRequests
+        : [];
 
       // Also fetch full history via REST so completed requests are always visible
       let historyRequests: Request[] = [];
       try {
         const histRes = await apiClient.get("/app/requests/my-history");
-        historyRequests = Array.isArray(histRes.data?.requests) ? histRes.data.requests : [];
+        historyRequests = Array.isArray(histRes.data?.requests)
+          ? histRes.data.requests
+          : [];
       } catch (histErr) {
         console.warn("⚠️ Could not fetch request history:", histErr);
       }
 
-      // Merge: socket data first (catches brand-new requests not yet in history),
-      // then REST overwrites — REST reflects actual DB state and is always most accurate
-      // for payment/status progression (e.g. provider_confirmation_pending).
+      // Available (unclaimed) first, then assigned live, then REST wins on conflicts
+      // so payment/status progression stays accurate for claimed requests.
       const merged = new Map<string, Request>();
+      available.forEach((r) => merged.set(r._id, r));
       liveRequests.forEach((r) => merged.set(r._id, r));
-      historyRequests.forEach((r) => merged.set(r._id, r)); // REST wins
+      historyRequests.forEach((r) => merged.set(r._id, r));
 
-      console.log("✅ Merged requests:", merged.size);
+      console.log("✅ Merged requests:", merged.size, {
+        available: available.length,
+        assigned: liveRequests.length,
+        history: historyRequests.length,
+      });
       setRequests(Array.from(merged.values()));
       hasLoadedOnce.current = true;
     } catch (error: any) {

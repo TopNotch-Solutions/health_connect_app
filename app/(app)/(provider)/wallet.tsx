@@ -10,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import { ActivityIndicator, Alert, FlatList, Keyboard, Platform, Text, TouchableOpacity, View } from "react-native";
+import { useFocusEffect } from "expo-router";
 import {
   AppHeroCard,
   AppScreenShell,
@@ -110,7 +111,7 @@ const TransactionRow = ({
   } else if (isDeposit && !isFundedToOthers) {
     label = "Deposit";
   } else if (isEarning) {
-    label = "Earning";
+    label = "Consultation completed";
   }
 
   return (
@@ -368,6 +369,15 @@ export default function TransactionsScreen() {
 
     loadData();
   }, [fetchAndUpdateUserDetails, fetchTransactions, fetchPackages]);
+
+  // Refresh recent activity when Account tab is focused (e.g. after completing
+  // a consultation on the Requests tab).
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.userId) return;
+      fetchTransactions(true, 1);
+    }, [user?.userId, fetchTransactions]),
+  );
 
   const markPackagePurchased = useCallback(
     async (session: DPOSession) => {

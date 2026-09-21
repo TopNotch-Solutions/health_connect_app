@@ -679,6 +679,9 @@ export default function ProviderHome() {
           ) {
             setRequests((prev) => prev.filter((req) => req._id !== data._id));
           }
+          if (data.status === "completed") {
+            loadMonthlyEarnings();
+          }
         }
       };
 
@@ -1587,7 +1590,7 @@ const styles = StyleSheet.create({
     color: AUTH_COLORS.green,
   },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   modalOverlay: {
     flex: 1,

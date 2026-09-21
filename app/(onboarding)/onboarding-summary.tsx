@@ -111,9 +111,8 @@ const OnboardingSummaryScreen = () => {
                 <Feather name="check" size={20} color="#4F46E5" />
               </View>
               <Text className="text-base text-gray-700 flex-1">
-                Our app keeps you connected with instant, real-time alerts. From
-                the moment your home consultation is confirmed to live ETA
-                tracking of your medical provider en route to your doorstep.
+                Get instant alerts for your home visit, including live tracking
+                as your medical provider is on their way.
               </Text>
             </View>
             <View className="flex-row items-center">
@@ -121,8 +120,8 @@ const OnboardingSummaryScreen = () => {
                 <Feather name="check" size={20} color="#4F46E5" />
               </View>
               <Text className="text-base text-gray-700 flex-1">
-                We employ end-to-end data protection frameworks that safeguard
-                sensitive health and personal data at rest and in transit.
+                Your health and personal data are fully protected every step of
+                the way, whether saved or in transit
               </Text>
             </View>
             <View className="flex-row items-center">
@@ -130,9 +129,8 @@ const OnboardingSummaryScreen = () => {
                 <Feather name="check" size={20} color="#4F46E5" />
               </View>
               <Text className="text-base text-gray-700 flex-1">
-                Whether you are at home, traveling, or preparing for a
-                specialist consultation, your complete health records are
-                securely accessible on your device 24/7.
+                Whether at home or traveling, your medical records are always
+                secure and at your fingertips 24/7.
               </Text>
             </View>
           </View>
@@ -170,7 +168,7 @@ const OnboardingSummaryScreen = () => {
           </View>
         </View>
       </View>
-      <StatusBar backgroundColor="#E0E7FF" style="dark" />
+      <StatusBar style="dark" />
     </ScreenLayout>
   );
 };

@@ -2,9 +2,9 @@
 import { persistor, store } from "@/store/store";
 import { Feather } from "@expo/vector-icons";
 import { Stack, useRouter, useSegments } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Image,
   StyleSheet,
@@ -26,6 +26,11 @@ import { isExpoGoRuntime } from "../lib/isExpoGoRuntime";
 import { installGlobalViewErrorLogger } from "../lib/viewErrorLogger";
 import "./globals.css";
 
+// Keep the native splash visible until IntroSplash is ready to take over.
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Ignore if the splash was already hidden (e.g. Fast Refresh).
+});
+
 // Import splash image
 const splashImage = require("../assets/images/splashscreen_image.jpg");
 
@@ -35,6 +40,8 @@ const IntroSplash = () => {
   const translateY = useState(new Animated.Value(40))[0];
 
   useEffect(() => {
+    void SplashScreen.hideAsync();
+
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
@@ -52,7 +59,7 @@ const IntroSplash = () => {
   return (
     <View
       style={[
-        StyleSheet.absoluteFillObject,
+        StyleSheet.absoluteFill,
         {
           backgroundColor: "#000",
           zIndex: 999,
@@ -73,7 +80,7 @@ const IntroSplash = () => {
         {/* Subtle overlay to keep tone consistent */}
         <View
           style={{
-            ...StyleSheet.absoluteFillObject,
+            ...StyleSheet.absoluteFill,
             backgroundColor: "rgba(0, 0, 0, 0.25)",
           }}
         />
@@ -303,30 +310,19 @@ const ProtectedLayout = () => {
     return () => clearTimeout(timeout);
   }, [isAuthenticated, isLoading, segments, router, user?.role]);
 
-  if (isLoading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#E9F7EF",
-        }}
-      >
-        <ActivityIndicator size="large" color="#16A34A" />
-      </View>
-    );
-  }
-
+  // Keep a single IntroSplash instance across auth loading → ready so the
+  // animation does not restart when isLoading flips.
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
       {showIntroSplash && <IntroSplash />}
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(onboarding)" />
-        <Stack.Screen name="(root)" />
-        <Stack.Screen name="(verification)" />
-      </Stack>
+      {!isLoading && (
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(onboarding)" />
+          <Stack.Screen name="(root)" />
+          <Stack.Screen name="(verification)" />
+        </Stack>
+      )}
     </View>
   );
 };

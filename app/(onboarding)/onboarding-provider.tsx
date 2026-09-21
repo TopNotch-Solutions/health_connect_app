@@ -169,7 +169,7 @@ const OnboardingProviderScreen = () => {
           </View>
         </View>
       </View>
-      <StatusBar backgroundColor="#D1FAE5" style="dark" />
+      <StatusBar style="dark" />
     </ScreenLayout>
   );
 };
