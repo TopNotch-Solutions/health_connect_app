@@ -1882,6 +1882,7 @@ export default function ProviderRegistrationScreen() {
                     value={expirationDate}
                     mode="date"
                     display="default"
+                    minimumDate={new Date()}
                     onChange={onExpirationDateChange}
                   />
                 )}

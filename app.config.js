@@ -33,23 +33,27 @@ module.exports = ({ config }) => {
 
   // react-native-maps takes its own copy of the Android key.
   const plugins = (config.plugins || []).map((plugin) => {
-    if (Array.isArray(plugin) && plugin[0] === "react-native-maps") {
+    const name = Array.isArray(plugin) ? plugin[0] : plugin;
+    if (name === "react-native-maps") {
       return [
         "react-native-maps",
-        { ...plugin[1], androidGoogleMapsApiKey: androidMapsKey },
+        {
+          ...(Array.isArray(plugin) ? plugin[1] : {}),
+          androidGoogleMapsApiKey: androidMapsKey,
+          iosGoogleMapsApiKey: iosMapsKey,
+        },
       ];
     }
     return plugin;
   });
 
+  const { googleMapsApiKey, ...iosConfigRest } = config.ios?.config || {};
+
   return {
     ...config,
     ios: {
       ...config.ios,
-      config: {
-        ...config.ios?.config,
-        googleMapsApiKey: iosMapsKey,
-      },
+      config: iosConfigRest,
     },
     android: {
       ...config.android,

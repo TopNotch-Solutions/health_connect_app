@@ -18,10 +18,6 @@
           "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "bitcode": false,
-      "config": {
-        "googleMapsApiKey": "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg"
       }
     },
     "android": {

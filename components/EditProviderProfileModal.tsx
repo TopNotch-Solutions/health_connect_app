@@ -390,7 +390,7 @@ export default function EditProviderProfileModal({
 
     setIsLoading(true);
     try {
-      await apiClient.put("/app/auth/update-health-provider-details/", {
+      const res = await apiClient.put("/app/auth/update-health-provider-details/", {
         fullname: formData.fullname,
         email: formData.email,
         cellphoneNumber: cleanedPhone,
@@ -436,7 +436,10 @@ export default function EditProviderProfileModal({
       });
 
       setFieldErrors({});
-      Alert.alert("Success", "Profile updated successfully");
+      Alert.alert(
+        res.data?.requiresReverification ? "Re-verification needed" : "Success",
+        res.data?.message || "Profile updated successfully"
+      );
       onClose();
     } catch (error: any) {
       console.log("❌ [EditProfile] API error:", JSON.stringify({
@@ -712,12 +715,16 @@ export default function EditProviderProfileModal({
                   {expirationDate.toLocaleDateString()}
                 </Text>
               </TouchableOpacity>
+              <Text className="text-xs text-amber-700 mt-1">
+                Changing your HPCNA number or expiry date requires admin re-verification.
+              </Text>
               {showDatePicker && (
                 <DateTimePicker
                   key={datePickerKey.current}
                   value={expirationDate}
                   mode="date"
                   display="default"
+                  minimumDate={new Date()}
                   onChange={onExpirationDateChange}
                 />
               )}

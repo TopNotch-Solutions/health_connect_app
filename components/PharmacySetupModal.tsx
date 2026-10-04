@@ -187,7 +187,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
       }
       Alert.alert(
         "Saved",
-        "Pharmacy profile updated successfully.",
+        res.data?.message || "Pharmacy profile updated successfully.",
         [{ text: "OK", onPress: onClose }],
       );
     } catch (err: any) {
@@ -505,7 +505,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
                 value={form.hpcnaExpiryDate || new Date()}
                 mode="date"
                 display={Platform.OS === "ios" ? "spinner" : "default"}
-                minimumDate={new Date(2000, 0, 1)}
+                minimumDate={new Date()}
                 onChange={(_, date) => {
                   setShowDatePicker(Platform.OS === "ios");
                   if (date) set("hpcnaExpiryDate", date);
