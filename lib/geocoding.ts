@@ -1,5 +1,4 @@
 import * as Location from "expo-location";
-import Geolocation from "react-native-geolocation-service";
 import { ensureForegroundLocationPermission } from "./locationPermission";
 
 interface AddressComponent {
@@ -51,8 +50,7 @@ export const reverseGeocode = async (
 };
 
 /**
- * Gets current location using expo-location primarily (most compatible with Expo)
- * Falls back to Geolocation service if available
+ * Gets current location using expo-location (compatible with Expo Go)
  */
 const getCurrentLocationCoordinates = async (): Promise<{
   latitude: number;
@@ -68,46 +66,11 @@ const getCurrentLocationCoordinates = async (): Promise<{
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
     };
-  } catch (expoError) {
-    console.warn('⚠️ expo-location failed, trying Geolocation service:', expoError);
-
-    // Fallback to Geolocation service
-    try {
-      return await new Promise((resolve, reject) => {
-        if (!Geolocation) {
-          reject(new Error('Geolocation service not available'));
-          return;
-        }
-
-        const timeout = setTimeout(() => {
-          reject(new Error('Geolocation timeout'));
-        }, 15000);
-
-        Geolocation.getCurrentPosition(
-          (position) => {
-            clearTimeout(timeout);
-            console.log('✅ Successfully got location from Geolocation service:', position.coords);
-            resolve({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            });
-          },
-          (error) => {
-            clearTimeout(timeout);
-            console.warn('❌ Geolocation service error:', error);
-            reject(error);
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 10000,
-          }
-        );
-      });
-    } catch (geolocationError) {
-      console.error('❌ Both location services failed:', geolocationError);
-      throw new Error('Failed to get current location. Please ensure:\n1. Location services are enabled\n2. App has location permissions\n3. GPS is available');
-    }
+  } catch (error) {
+    console.error('❌ Failed to get location from expo-location:', error);
+    throw new Error(
+      'Failed to get current location. Please ensure:\n1. Location services are enabled\n2. App has location permissions\n3. GPS is available'
+    );
   }
 };
 
@@ -128,7 +91,7 @@ export const getCurrentLocationWithAddress = async (options?: {
       );
     }
 
-    // Get location coordinates with fallback mechanism
+    // Get location coordinates
     const coords = await getCurrentLocationCoordinates();
 
     // Get address from coordinates

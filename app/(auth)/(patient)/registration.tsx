@@ -3,20 +3,43 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { iosInputIconSize, iosPasswordToggleButtonStyle, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandalonePasswordTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import React, { useEffect, useRef, useState } from "react";
+import { iosPasswordToggleButtonStyle, withIosMultilineTextInputStyle, withIosStandalonePasswordTextInputStyle, withIosStandaloneTextInputStyle } from "../../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Alert, Image, Modal, Platform, StyleProp, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from "react-native";
 import { PickerField } from "../../../components/PickerField";
-import AuthScreenLayout, {
-  AuthProgressBar,
-  RegistrationStepFooter,
-} from "../../../components/AuthScreenLayout";
-import { AuthTopBackButton } from "../../../components/AuthTopBackButton";
+import RegistrationFeatureShell, {
+  ProfileSectionRail,
+  RegistrationStepActions,
+  profileFeatureStyles,
+} from "../../../components/RegistrationFeatureShell";
+import TermsConditionsModal from "../../../components/TermsConditionsModal";
 import { AUTH_COLORS, authScreenStyles } from "../../../lib/authScreenTheme";
 import { namibianRegions, townsByRegion } from "../../../constants/locations";
 import apiClient from "../../../lib/api";
+
+const PATIENT_STEP_META = [
+  {
+    title: "Account",
+    subtitle: "Create your Health Connect login credentials.",
+  },
+  {
+    title: "Personal details",
+    subtitle: "Tell us about yourself so we can personalize care.",
+  },
+  {
+    title: "Address",
+    subtitle: "Where can we find you when care is needed?",
+  },
+  {
+    title: "Profile photo",
+    subtitle: "Add a clear photo so providers can recognize you.",
+  },
+  {
+    title: "Review",
+    subtitle: "Confirm your details before finishing registration.",
+  },
+] as const;
 
 // --- Type Definitions ---
 type DocFile = ImagePicker.ImagePickerAsset | null;
@@ -128,6 +151,7 @@ export default function RegistrationScreen() {
   const [step, setStep] = useState(1);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const iosDateBeforeEdit = useRef<Date | null>(null);
   const [availableTowns, setAvailableTowns] = useState<
     { label: string; value: string }[]
   >([]);
@@ -237,10 +261,28 @@ export default function RegistrationScreen() {
     }
   };
 
-  const onDateChange = (_: any, selectedDate?: Date) => {
-    const currentDate = selectedDate || formData.dateOfBirth;
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+    }
+    if (event?.type === "dismissed") return;
+    if (selectedDate) {
+      handleInputChange("dateOfBirth", selectedDate);
+    }
+  };
+
+  const openDatePicker = () => {
+    iosDateBeforeEdit.current = formData.dateOfBirth;
+    setShowDatePicker(true);
+  };
+
+  const confirmIosDate = () => setShowDatePicker(false);
+
+  const cancelIosDate = () => {
+    if (iosDateBeforeEdit.current) {
+      handleInputChange("dateOfBirth", iosDateBeforeEdit.current);
+    }
     setShowDatePicker(false);
-    handleInputChange("dateOfBirth", currentDate);
   };
 
   const validateEmail = (email: string): boolean => {
@@ -431,39 +473,32 @@ export default function RegistrationScreen() {
     }
   };
 
+  const stepMeta = PATIENT_STEP_META[step - 1] ?? PATIENT_STEP_META[0];
+
   return (
     <>
-      <View style={styles.screen}>
-        <AuthScreenLayout
-          hideBrandHeader
-          hideFooter
-          extraScrollTopPadding={56}
-          scrollBottomPadding={24}
-          stickyFooter={
-            <RegistrationStepFooter
-              step={step}
-              totalSteps={5}
-              onBack={handleBack}
-              onNext={handleNext}
-              onSubmit={handleRegister}
-              isLoading={isLoading}
-              nextDisabled={step === 1 && !acceptedTerms}
-              submitLabel="Register"
-            />
-          }
-        >
-        <AuthProgressBar step={step} totalSteps={5} />
-
+      <RegistrationFeatureShell
+        step={step}
+        totalSteps={5}
+        title={stepMeta.title}
+        subtitle={stepMeta.subtitle}
+        onBack={() => (step > 1 ? handleBack() : router.back())}
+        footer={
+          <RegistrationStepActions
+            step={step}
+            totalSteps={5}
+            onBack={handleBack}
+            onNext={handleNext}
+            onSubmit={handleRegister}
+            isLoading={isLoading}
+            nextDisabled={step === 1 && !acceptedTerms}
+            submitLabel="Register"
+          />
+        }
+      >
           {step === 1 && (
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ paddingBottom: 150 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <Text className="text-[22px] font-bold text-[#14532D] mb-6">
-                Account Information
-              </Text>
+            <View>
+              <ProfileSectionRail title="Account information" />
 
               {showDisclaimer && (
                 <View style={authScreenStyles.disclaimerBox}>
@@ -489,115 +524,117 @@ export default function RegistrationScreen() {
                 </View>
               )}
 
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                Full Name
-              </Text>
-              <TextInput
-                style={withIosStandaloneTextInputStyle()}
-                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.fullname ? "border-red-400" : "border-[#BBF7D0]"}`}
-                placeholder="Enter your full name"
-                value={formData.fullname}
-                onChangeText={(val) => handleInputChange("fullname", val)}
-              />
-              {errors.fullname && (
-                <Text className="text-red-500 text-sm mb-3">
-                  {errors.fullname}
-                </Text>
-              )}
-              {!errors.fullname && <View className="mb-3" />}
-
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                Email
-              </Text>
-              <TextInput
-                style={withIosStandaloneTextInputStyle()}
-                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.email ? "border-red-400" : "border-[#BBF7D0]"}`}
-                placeholder="youremail@example.com"
-                value={formData.email}
-                onChangeText={(val) => handleInputChange("email", val)}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-              {errors.email && (
-                <Text className="text-red-500 text-sm mb-3">
-                  {errors.email}
-                </Text>
-              )}
-              {!errors.email && <View className="mb-3" />}
-
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                Password
-              </Text>
-              <View className="relative mb-1">
+              <View style={profileFeatureStyles.fieldBlock}>
+                <Text style={profileFeatureStyles.label}>Full name</Text>
                 <TextInput
-                  style={withIosStandalonePasswordTextInputStyle()}
-                  className={`bg-white p-4 rounded-xl border-2 ${errors.password ? "border-red-400" : "border-[#BBF7D0]"}`}
-                  placeholder="Create a strong password"
-                  value={formData.password}
-                  onChangeText={(val) => handleInputChange("password", val)}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoComplete="password-new"
+                  style={withIosStandaloneTextInputStyle([
+                    profileFeatureStyles.input,
+                    errors.fullname ? regStyles.inputError : undefined,
+                  ])}
+                  placeholder="Enter your full name"
+                  placeholderTextColor={AUTH_COLORS.placeholder}
+                  value={formData.fullname}
+                  onChangeText={(val) => handleInputChange("fullname", val)}
                 />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={iosPasswordToggleButtonStyle}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    showPassword ? "Hide password" : "Show password"
-                  }
-                >
-                  <Feather
-                    name={showPassword ? "eye" : "eye-off"}
-                    size={iosInputIconSize}
-                    color="#6B7280"
-                  />
-                </TouchableOpacity>
+                {errors.fullname ? (
+                  <Text style={regStyles.errorText}>{errors.fullname}</Text>
+                ) : null}
               </View>
-              {errors.password && (
-                <Text className="text-red-500 text-sm mb-3">
-                  {errors.password}
-                </Text>
-              )}
-              {!errors.password && <View className="mb-3" />}
 
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                Confirm Password
-              </Text>
-              <View className="relative mb-1">
+              <View style={profileFeatureStyles.fieldBlock}>
+                <Text style={profileFeatureStyles.label}>Email</Text>
                 <TextInput
-                  style={withIosStandalonePasswordTextInputStyle()}
-                  className={`bg-white p-4 rounded-xl border-2 ${errors.confirmPassword ? "border-red-400" : "border-[#BBF7D0]"}`}
-                  placeholder="Confirm your password"
-                  value={formData.confirmPassword}
-                  onChangeText={(val) =>
-                    handleInputChange("confirmPassword", val)
-                  }
-                  secureTextEntry={!showConfirmPassword}
+                  style={withIosStandaloneTextInputStyle([
+                    profileFeatureStyles.input,
+                    errors.email ? regStyles.inputError : undefined,
+                  ])}
+                  placeholder="youremail@example.com"
+                  placeholderTextColor={AUTH_COLORS.placeholder}
+                  value={formData.email}
+                  onChangeText={(val) => handleInputChange("email", val)}
+                  keyboardType="email-address"
                   autoCapitalize="none"
-                  autoComplete="password-new"
                 />
-                <TouchableOpacity
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={iosPasswordToggleButtonStyle}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    showConfirmPassword ? "Hide password" : "Show password"
-                  }
-                >
-                  <Feather
-                    name={showConfirmPassword ? "eye" : "eye-off"}
-                    size={iosInputIconSize}
-                    color="#6B7280"
-                  />
-                </TouchableOpacity>
+                {errors.email ? (
+                  <Text style={regStyles.errorText}>{errors.email}</Text>
+                ) : null}
               </View>
-              {errors.confirmPassword && (
-                <Text className="text-red-500 text-sm mb-3">
-                  {errors.confirmPassword}
-                </Text>
-              )}
-              {!errors.confirmPassword && <View className="mb-3" />}
+
+              <View style={profileFeatureStyles.fieldBlock}>
+                <Text style={profileFeatureStyles.label}>Password</Text>
+                <View style={{ position: "relative" }}>
+                  <TextInput
+                    style={withIosStandalonePasswordTextInputStyle([
+                      profileFeatureStyles.input,
+                      errors.password ? regStyles.inputError : undefined,
+                    ])}
+                    placeholder="Create a strong password"
+                    placeholderTextColor={AUTH_COLORS.placeholder}
+                    value={formData.password}
+                    onChangeText={(val) => handleInputChange("password", val)}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoComplete="password-new"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={iosPasswordToggleButtonStyle}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    <Feather
+                      name={showPassword ? "eye" : "eye-off"}
+                      size={20}
+                      color="#6B7280"
+                    />
+                  </TouchableOpacity>
+                </View>
+                {errors.password ? (
+                  <Text style={regStyles.errorText}>{errors.password}</Text>
+                ) : null}
+              </View>
+
+              <View style={profileFeatureStyles.fieldBlock}>
+                <Text style={profileFeatureStyles.label}>Confirm password</Text>
+                <View style={{ position: "relative" }}>
+                  <TextInput
+                    style={withIosStandalonePasswordTextInputStyle([
+                      profileFeatureStyles.input,
+                      errors.confirmPassword ? regStyles.inputError : undefined,
+                    ])}
+                    placeholder="Confirm your password"
+                    placeholderTextColor={AUTH_COLORS.placeholder}
+                    value={formData.confirmPassword}
+                    onChangeText={(val) =>
+                      handleInputChange("confirmPassword", val)
+                    }
+                    secureTextEntry={!showConfirmPassword}
+                    autoCapitalize="none"
+                    autoComplete="password-new"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={iosPasswordToggleButtonStyle}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      showConfirmPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    <Feather
+                      name={showConfirmPassword ? "eye" : "eye-off"}
+                      size={20}
+                      color="#6B7280"
+                    />
+                  </TouchableOpacity>
+                </View>
+                {errors.confirmPassword ? (
+                  <Text style={regStyles.errorText}>
+                    {errors.confirmPassword}
+                  </Text>
+                ) : null}
+              </View>
 
               {/* Terms and Conditions Checkbox */}
               <TouchableOpacity
@@ -607,7 +644,6 @@ export default function RegistrationScreen() {
                   } else {
                     setShowTermsModal(true);
                   }
-                  // Clear error when user interacts with terms
                   if (errors.terms) {
                     setErrors((prev) => {
                       const newErrors = { ...prev };
@@ -616,236 +652,263 @@ export default function RegistrationScreen() {
                     });
                   }
                 }}
-                className={`flex-row items-start p-4 bg-gray-50 rounded-xl border-2 ${errors.terms ? "border-red-400" : "border-[#BBF7D0]"} mt-2`}
+                style={[
+                  regStyles.termsBox,
+                  errors.terms ? regStyles.termsBoxError : null,
+                ]}
                 activeOpacity={0.7}
               >
                 <View
-                  className={`w-6 h-6 rounded-md mr-3 items-center justify-center border-2 ${acceptedTerms ? "bg-[#16A34A] border-[#16A34A]" : "bg-white border-[#BBF7D0]"}`}
+                  style={[
+                    regStyles.checkbox,
+                    acceptedTerms ? regStyles.checkboxChecked : null,
+                  ]}
                 >
-                  {acceptedTerms && (
+                  {acceptedTerms ? (
                     <Feather name="check" size={16} color="white" />
-                  )}
+                  ) : null}
                 </View>
-                <View className="flex-1">
-                  <Text className="text-[#14532D] text-sm leading-5">
-                    {acceptedTerms ? (
-                      <Text className="text-green-600 font-semibold">
-                        ✓ You have agreed to the Terms and Conditions and
-                        Privacy Policy (Tap to revoke)
-                      </Text>
-                    ) : (
-                      <Text>
-                        Tap to read and agree to the{" "}
-                        <Text className="text-green-600 font-semibold underline">
-                          Terms and Conditions
-                        </Text>{" "}
-                        and{" "}
-                        <Text className="text-green-600 font-semibold underline">
-                          Privacy Policy
-                        </Text>
-                      </Text>
-                    )}
+                <View style={{ flex: 1 }}>
+                  <Text style={regStyles.termsText}>
+                    {acceptedTerms
+                      ? "You have agreed to the Terms and Conditions and Privacy Policy (tap to revoke)"
+                      : "Tap to read and agree to the Terms and Conditions and Privacy Policy"}
                   </Text>
                 </View>
               </TouchableOpacity>
-              {errors.terms && (
-                <Text className="text-red-500 text-sm mt-2">
-                  {errors.terms}
-                </Text>
-              )}
-            </ScrollView>
+              {errors.terms ? (
+                <Text style={regStyles.errorText}>{errors.terms}</Text>
+              ) : null}
+            </View>
           )}
 
           {step === 2 && (
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ paddingBottom: 150 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <Text className="text-[22px] font-bold text-[#14532D] mb-6">
-                Personal Information
-              </Text>
+            <View>
+              <ProfileSectionRail title="Personal information" />
 
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                Mobile
-              </Text>
-              <View
-                style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}
-                className="p-4 rounded-xl mb-4 border-2 border-[#BBF7D0]"
-              >
-                <Text className="text-base text-[#14532D]">
-                  {formData.cellphoneNumber}
+              <View style={profileFeatureStyles.fieldBlock}>
+                <Text style={profileFeatureStyles.label}>Mobile</Text>
+                <Text style={regStyles.readOnlyValue}>
+                  {formData.cellphoneNumber || "Not provided"}
                 </Text>
               </View>
 
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                Date of Birth
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowDatePicker(true)}
-                className="bg-white p-4 rounded-xl mb-4 border-2 border-[#BBF7D0]"
-              >
-                <Text className="text-base text-[#14532D]">
-                  {formData.dateOfBirth.toLocaleDateString()}
-                </Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={formData.dateOfBirth}
-                  mode="date"
-                  display="default"
-                  onChange={onDateChange}
-                />
-              )}
-
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                Gender
-              </Text>
-              <View className="mb-1" style={{ gap: 12 }}>
-                {["Male", "Female"].map((g) => (
-                  <TouchableOpacity
-                    key={g}
-                    className={`p-4 rounded-xl border-2 ${formData.gender === g ? "bg-[#16A34A] border-[#16A34A]" : errors.gender ? "bg-white border-red-400" : "bg-white border-[#BBF7D0]"}`}
-                    onPress={() => handleInputChange("gender", g)}
-                  >
-                    <Text
-                      className={`text-center font-semibold ${formData.gender === g ? "text-white" : "text-[#14532D]"}`}
-                    >
-                      {g}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {errors.gender && (
-                <Text className="text-red-500 text-sm mb-3">
-                  {errors.gender}
-                </Text>
-              )}
-              {!errors.gender && <View className="mb-3" />}
-
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                National ID Number
-              </Text>
-              <TextInput
-                style={withIosStandaloneTextInputStyle()}
-                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.nationalId ? "border-red-400" : "border-[#BBF7D0]"}`}
-                placeholder="Enter your 11-digit National ID"
-                value={formData.nationalId}
-                onChangeText={(val) => {
-                  const numericOnly = val.replace(/[^0-9]/g, "");
-                  if (numericOnly.length <= 11) {
-                    handleInputChange("nationalId", numericOnly);
+              <View style={profileFeatureStyles.fieldBlock}>
+                <Text style={profileFeatureStyles.label}>Date of birth</Text>
+                <TouchableOpacity
+                  onPress={openDatePicker}
+                  style={
+                    withIosStandaloneTextInputStyle([
+                      profileFeatureStyles.input,
+                      errors.dateOfBirth ? regStyles.inputError : undefined,
+                    ]) as StyleProp<ViewStyle>
                   }
-                }}
-                keyboardType="numeric"
-                maxLength={11}
-              />
-              {errors.nationalId && (
-                <Text className="text-red-500 text-sm mb-3">
-                  {errors.nationalId}
-                </Text>
-              )}
-              {!errors.nationalId && <View className="mb-3" />}
-
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                National ID Documents
-              </Text>
-              <View className="flex-row mb-1" style={{ gap: 16 }}>
-                <View className="flex-1">
-                  <UploadSquare
-                    label="Upload ID (Front)"
-                    file={formData.idDocumentFront}
-                    onPick={() => pickDocument("idDocumentFront")}
-                    icon="camera"
-                    isImage={true}
-                    hasError={!!errors.idDocumentFront}
+                  activeOpacity={0.7}
+                >
+                  <Text style={regStyles.dateText}>
+                    {formData.dateOfBirth.toLocaleDateString()}
+                  </Text>
+                </TouchableOpacity>
+                {errors.dateOfBirth ? (
+                  <Text style={regStyles.errorText}>{errors.dateOfBirth}</Text>
+                ) : null}
+                {showDatePicker && Platform.OS === "android" ? (
+                  <DateTimePicker
+                    value={formData.dateOfBirth}
+                    mode="date"
+                    display="default"
+                    onChange={onDateChange}
+                    maximumDate={new Date()}
                   />
-                </View>
-                <View className="flex-1">
-                  <UploadSquare
-                    label="Upload ID (Back)"
-                    file={formData.idDocumentBack}
-                    onPick={() => pickDocument("idDocumentBack")}
-                    icon="camera"
-                    isImage={true}
-                    hasError={!!errors.idDocumentBack}
-                  />
-                </View>
+                ) : null}
               </View>
-              {errors.idDocumentFront && (
-                <Text className="text-red-500 text-sm mb-1">
-                  {errors.idDocumentFront}
+
+              {showDatePicker && Platform.OS === "ios" ? (
+                <Modal
+                  transparent
+                  animationType="slide"
+                  visible={showDatePicker}
+                  onRequestClose={cancelIosDate}
+                >
+                  <View style={regStyles.iosPickerOverlay}>
+                    <TouchableOpacity
+                      style={regStyles.iosPickerBackdrop}
+                      activeOpacity={1}
+                      onPress={cancelIosDate}
+                    />
+                    <View style={regStyles.iosPickerSheet}>
+                      <View style={regStyles.iosPickerToolbar}>
+                        <TouchableOpacity onPress={cancelIosDate} hitSlop={12}>
+                          <Text style={regStyles.iosPickerCancel}>Cancel</Text>
+                        </TouchableOpacity>
+                        <Text style={regStyles.iosPickerTitle}>
+                          Date of birth
+                        </Text>
+                        <TouchableOpacity onPress={confirmIosDate} hitSlop={12}>
+                          <Text style={regStyles.iosPickerDone}>Done</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <DateTimePicker
+                        value={formData.dateOfBirth}
+                        mode="date"
+                        display="spinner"
+                        themeVariant="light"
+                        onChange={onDateChange}
+                        maximumDate={new Date()}
+                        style={regStyles.iosPicker}
+                      />
+                    </View>
+                  </View>
+                </Modal>
+              ) : null}
+
+              <View style={profileFeatureStyles.fieldBlock}>
+                <Text style={profileFeatureStyles.label}>Gender</Text>
+                <View style={regStyles.segment}>
+                  {["Male", "Female"].map((g) => (
+                    <TouchableOpacity
+                      key={g}
+                      onPress={() => handleInputChange("gender", g)}
+                      style={[
+                        regStyles.segmentItem,
+                        formData.gender === g && regStyles.segmentItemActive,
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          regStyles.segmentText,
+                          formData.gender === g && regStyles.segmentTextActive,
+                        ]}
+                      >
+                        {g}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {errors.gender ? (
+                  <Text style={regStyles.errorText}>{errors.gender}</Text>
+                ) : null}
+              </View>
+
+              <View style={profileFeatureStyles.fieldBlock}>
+                <Text style={profileFeatureStyles.label}>National ID number</Text>
+                <TextInput
+                  style={withIosStandaloneTextInputStyle([
+                    profileFeatureStyles.input,
+                    errors.nationalId ? regStyles.inputError : undefined,
+                  ])}
+                  placeholder="Enter your 11-digit National ID"
+                  placeholderTextColor={AUTH_COLORS.placeholder}
+                  value={formData.nationalId}
+                  onChangeText={(val) => {
+                    const numericOnly = val.replace(/[^0-9]/g, "");
+                    if (numericOnly.length <= 11) {
+                      handleInputChange("nationalId", numericOnly);
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={11}
+                />
+                {errors.nationalId ? (
+                  <Text style={regStyles.errorText}>{errors.nationalId}</Text>
+                ) : null}
+              </View>
+
+              <View
+                style={[
+                  profileFeatureStyles.fieldBlock,
+                  profileFeatureStyles.fieldBlockLast,
+                ]}
+              >
+                <Text style={profileFeatureStyles.label}>
+                  National ID documents
                 </Text>
-              )}
-              {errors.idDocumentBack && (
-                <Text className="text-red-500 text-sm mb-1">
-                  {errors.idDocumentBack}
+                <View className="flex-row" style={{ gap: 16 }}>
+                  <View className="flex-1">
+                    <UploadSquare
+                      label="Upload ID (Front)"
+                      file={formData.idDocumentFront}
+                      onPick={() => pickDocument("idDocumentFront")}
+                      icon="camera"
+                      isImage={true}
+                      hasError={!!errors.idDocumentFront}
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <UploadSquare
+                      label="Upload ID (Back)"
+                      file={formData.idDocumentBack}
+                      onPick={() => pickDocument("idDocumentBack")}
+                      icon="camera"
+                      isImage={true}
+                      hasError={!!errors.idDocumentBack}
+                    />
+                  </View>
+                </View>
+                {errors.idDocumentFront ? (
+                  <Text style={regStyles.errorText}>
+                    {errors.idDocumentFront}
+                  </Text>
+                ) : null}
+                {errors.idDocumentBack ? (
+                  <Text style={regStyles.errorText}>
+                    {errors.idDocumentBack}
+                  </Text>
+                ) : null}
+                <Text style={regStyles.hintText}>
+                  Upload clear photos of the front and back of your ID (JPG or
+                  PNG)
                 </Text>
-              )}
-              <Text className="text-xs text-[#4B5563] mb-4">
-                Upload clear photos of the front and back of your ID (JPG or
-                PNG)
-              </Text>
-            </ScrollView>
+              </View>
+            </View>
           )}
 
           {step === 3 && (
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ paddingBottom: 150 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <Text className="text-[22px] font-bold text-[#14532D] mb-6">
-                Address Information
-              </Text>
+            <View>
+              <ProfileSectionRail title="Where you live" />
 
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                Address
-              </Text>
-              <TextInput
-                style={withIosMultilineTextInputStyle()}
-                className={`bg-white p-4 rounded-xl mb-1 border-2 ${errors.address ? "border-red-400" : "border-[#BBF7D0]"}`}
-                placeholder="Your street address or P.O. Box"
-                value={formData.address}
-                onChangeText={(val) => handleInputChange("address", val)}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
-              {errors.address && (
-                <Text className="text-red-500 text-sm mb-3">
-                  {errors.address}
-                </Text>
-              )}
-              {!errors.address && <View className="mb-3" />}
+              <View style={profileFeatureStyles.fieldBlock}>
+                <Text style={profileFeatureStyles.label}>Address</Text>
+                <TextInput
+                  style={withIosMultilineTextInputStyle([
+                    profileFeatureStyles.input,
+                    errors.address ? regStyles.inputError : undefined,
+                  ])}
+                  placeholder="Your street address or P.O. Box"
+                  placeholderTextColor={AUTH_COLORS.placeholder}
+                  value={formData.address}
+                  onChangeText={(val) => handleInputChange("address", val)}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+                {errors.address ? (
+                  <Text style={regStyles.errorText}>{errors.address}</Text>
+                ) : null}
+              </View>
 
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                Region
-              </Text>
-
-              <View className={errors.region ? "mb-1" : "mb-4"}>
+              <View style={profileFeatureStyles.fieldBlock}>
+                <Text style={profileFeatureStyles.label}>Region</Text>
                 <PickerField
                   value={formData.region}
                   onValueChange={(value) => handleInputChange("region", value)}
                   items={namibianRegions}
                   placeholder="Select a region..."
                   error={!!errors.region}
-                  borderColor="#D1D5DB"
                 />
+                {errors.region ? (
+                  <Text style={regStyles.errorText}>{errors.region}</Text>
+                ) : null}
               </View>
-              {errors.region && (
-                <Text className="text-red-500 text-sm mb-2">
-                  {errors.region}
-                </Text>
-              )}
 
-              <Text className="text-[15px] text-[#14532D] mb-2 font-semibold ml-1">
-                Town
-              </Text>
-
-              <View className={errors.town ? "mb-1" : "mb-4"}>
+              <View
+                style={[
+                  profileFeatureStyles.fieldBlock,
+                  profileFeatureStyles.fieldBlockLast,
+                ]}
+              >
+                <Text style={profileFeatureStyles.label}>Town</Text>
                 <PickerField
                   value={formData.town}
                   onValueChange={(value) => handleInputChange("town", value)}
@@ -853,27 +916,25 @@ export default function RegistrationScreen() {
                   placeholder="Select a town..."
                   disabled={!formData.region}
                   error={!!errors.town}
-                  borderColor="#D1D5DB"
                 />
+                {errors.town ? (
+                  <Text style={regStyles.errorText}>{errors.town}</Text>
+                ) : null}
               </View>
-              {errors.town && (
-                <Text className="text-red-500 text-sm mb-2">{errors.town}</Text>
-              )}
-            </ScrollView>
+            </View>
           )}
 
           {step === 4 && (
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ paddingBottom: 150 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <Text className="text-[22px] font-bold text-[#14532D] mb-6">
-                Profile Picture
-              </Text>
+            <View>
+              <ProfileSectionRail title="Profile picture" />
 
-              <View className="items-center mb-1">
+              <View
+                style={[
+                  profileFeatureStyles.fieldBlock,
+                  profileFeatureStyles.fieldBlockLast,
+                  { alignItems: "center" },
+                ]}
+              >
                 <TouchableOpacity
                   onPress={() => pickImage("profileImage")}
                   className={`w-40 h-40 rounded-full bg-gray-100 border-2 ${errors.profileImage ? "border-red-400" : "border-[#BBF7D0]"} justify-center items-center overflow-hidden`}
@@ -893,36 +954,21 @@ export default function RegistrationScreen() {
                     </View>
                   )}
                 </TouchableOpacity>
+                {errors.profileImage ? (
+                  <Text style={[regStyles.errorText, { textAlign: "center" }]}>
+                    {errors.profileImage}
+                  </Text>
+                ) : null}
               </View>
-              {errors.profileImage && (
-                <Text className="text-red-500 text-sm mb-3 text-center">
-                  {errors.profileImage}
-                </Text>
-              )}
-              {!errors.profileImage && <View className="mb-3" />}
-            </ScrollView>
+            </View>
           )}
+
           {/* --- STEP 5: Review & Submit --- */}
           {step === 5 && (
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ paddingBottom: 150 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <View className="items-center mb-6">
-                <View className="w-20 h-20 rounded-full bg-blue-100 items-center justify-center mb-4">
-                  <Feather name="check" size={36} color="#2563EB" />
-                </View>
-                <Text className="text-[22px] font-bold text-[#14532D] mb-2">
-                  Review & Submit
-                </Text>
-                <Text className="text-base text-[#4B5563] text-center px-4">
-                  Review your information before submitting
-                </Text>
-              </View>
+            <View>
+              <ProfileSectionRail title="Review & submit" />
 
-              <View className="w-full bg-white p-5 rounded-xl border-2 border-[#BBF7D0] mb-6">
+              <View className="w-full bg-white p-5 rounded-xl border-2 border-[#BBF7D0] mb-2">
                 {/* Account Info Review */}
                 <View>
                   <Text className="text-lg font-bold text-[#14532D] mb-3">
@@ -1033,147 +1079,152 @@ export default function RegistrationScreen() {
                   </View>
                 </View>
               </View>
-            </ScrollView>
+            </View>
           )}
-        </AuthScreenLayout>
+      </RegistrationFeatureShell>
 
-        <AuthTopBackButton
-          onPress={() => (step > 1 ? handleBack() : router.back())}
-        />
-      </View>
-
-      {/* Terms and Conditions Modal */}
-      <Modal
+      <TermsConditionsModal
         visible={showTermsModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowTermsModal(false)}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: AUTH_COLORS.bg }}>
-          <View style={{ flex: 1, backgroundColor: AUTH_COLORS.bg }}>
-            {/* Header */}
-            <View
-              className="flex-row items-center justify-between p-6 border-b-2"
-              style={{ borderBottomColor: AUTH_COLORS.inputBorder }}
-            >
-              <Text className="text-2xl font-bold text-[#14532D] flex-1">
-                Terms & Conditions
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowTermsModal(false)}
-                className="p-2"
-              >
-                <Feather name="x" size={24} color="#374151" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Content */}
-            <ScrollView className="flex-1 p-6">
-              <Text className="text-lg font-bold text-red-600 mb-4">
-                Absolute Patient Waiver and Release of Liability
-              </Text>
-              <Text className="text-sm text-[#14532D] mb-4 leading-6">
-                By clicking &quot;Accept&quot; and using the Health_Connect
-                platform, you (the &quot;User&quot;) confirm and irrevocably
-                agree to the following legally binding terms. Your acceptance
-                constitutes a complete and absolute waiver of your right to sue
-                the platform.
-              </Text>
-
-              <Text className="text-base font-bold text-[#14532D] mb-3">
-                Technology Platform Status (Not a Healthcare Provider)
-              </Text>
-              <Text className="text-sm text-[#14532D] mb-4 leading-6">
-                You acknowledge and agree that Kopano-Vertex Trading cc (trading
-                as Health_Connect) is exclusively a technology service provider.
-                The platform provides a logistical connection between you and
-                independent healthcare practitioners. Under no circumstances is
-                Health_Connect, its owners, directors, or employees a provider
-                of medical care, diagnosis, advice, or treatment.
-              </Text>
-
-              <Text className="text-base font-bold text-[#14532D] mb-3">
-                Absolute Assumption of Risk and Release of Claims
-              </Text>
-              <Text className="text-sm text-[#14532D] mb-4 leading-6">
-                You understand and agree that the entire responsibility and
-                liability for the clinical services, advice, and outcomes rests
-                solely and exclusively with the independent healthcare provider
-                you select.
-              </Text>
-
-              <Text className="text-base font-bold text-[#14532D] mb-3">
-                Irrevocable Waiver
-              </Text>
-              <Text className="text-sm text-[#14532D] mb-4 leading-6">
-                You hereby irrevocably and absolutely release, waive, and
-                forever discharge Kopano-Vertex Trading cc, its affiliates,
-                directors, owners, and employees from any and all claims,
-                demands, liabilities, suits, actions, and causes of action
-                whatsoever, whether in law or equity, which may arise from or
-                relate to the medical care, advice, diagnosis, treatment, or
-                judgment provided by any independent healthcare professional
-                connected through the platform.
-              </Text>
-
-              <Text className="text-base font-bold text-[#14532D] mb-3">
-                No Recourse Against Platform
-              </Text>
-              <Text className="text-sm text-[#14532D] mb-4 leading-6">
-                You acknowledge that your sole and exclusive recourse for any
-                claim of malpractice, negligence, misdiagnosis, or professional
-                error is directly against the independent healthcare provider
-                and not against Health_Connect.
-              </Text>
-
-              <Text className="text-base font-bold text-[#14532D] mb-3">
-                Independent Contractor Status of Providers
-              </Text>
-              <Text className="text-sm text-[#14532D] mb-4 leading-6">
-                You acknowledge and agree that the healthcare practitioners on
-                this platform are independent contractors and are not employees,
-                agents, partners, or representatives of Health_Connect.
-              </Text>
-
-              <Text className="text-base font-bold text-[#14532D] mb-3">
-                Emergency Services Exclusion
-              </Text>
-              <Text className="text-sm text-[#14532D] mb-6 leading-6">
-                You understand that this platform is NOT a substitute for
-                emergency medical care. You warrant that you will not use this
-                platform for any medical emergency, and you accept full
-                liability for any harm resulting from attempting to use this
-                service in an emergency.
-              </Text>
-            </ScrollView>
-
-            {/* Footer with Accept Button */}
-            <View
-              className="p-6 border-t-2 border-[#BBF7D0]"
-              style={{ backgroundColor: AUTH_COLORS.bg }}
-            >
-              <TouchableOpacity
-                onPress={() => {
-                  setAcceptedTerms(true);
-                  setShowTermsModal(false);
-                }}
-                style={{ backgroundColor: AUTH_COLORS.green }}
-                className="p-4 rounded-xl"
-              >
-                <Text className="text-white text-center text-lg font-bold">
-                  I Accept
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </SafeAreaView>
-      </Modal>
+        audience="patient"
+        onClose={() => setShowTermsModal(false)}
+        onAccept={() => {
+          setAcceptedTerms(true);
+          setShowTermsModal(false);
+        }}
+      />
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
+const regStyles = StyleSheet.create({
+  inputError: {
+    borderColor: "#EF4444",
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    marginTop: 4,
+  },
+  hintText: {
+    fontSize: 12,
+    color: AUTH_COLORS.textMuted,
+    marginTop: 10,
+  },
+  readOnlyValue: {
+    fontSize: 16,
+    color: AUTH_COLORS.textDark,
+    paddingVertical: 8,
+  },
+  dateText: {
+    fontSize: 16,
+    color: AUTH_COLORS.textDark,
+  },
+  termsBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 14,
+    marginTop: 4,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: AUTH_COLORS.inputBorder,
+    backgroundColor: AUTH_COLORS.greenSoft,
+  },
+  termsBoxError: {
+    borderColor: "#EF4444",
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    backgroundColor: AUTH_COLORS.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxChecked: {
+    backgroundColor: AUTH_COLORS.green,
+    borderColor: AUTH_COLORS.green,
+  },
+  termsText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: AUTH_COLORS.textDark,
+  },
+  segment: {
+    flexDirection: "row",
+    backgroundColor: AUTH_COLORS.greenSoft,
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  segmentItem: {
     flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  segmentItemActive: {
+    backgroundColor: AUTH_COLORS.white,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: AUTH_COLORS.textMuted,
+  },
+  segmentTextActive: {
+    color: AUTH_COLORS.textDark,
+    fontWeight: "700",
+  },
+  iosPickerOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  iosPickerBackdrop: {
+    flex: 1,
+  },
+  iosPickerSheet: {
+    backgroundColor: AUTH_COLORS.bg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 24,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    borderBottomWidth: 0,
+  },
+  iosPickerToolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: AUTH_COLORS.inputBorder,
+  },
+  iosPickerTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+  },
+  iosPickerCancel: {
+    fontSize: 16,
+    color: AUTH_COLORS.textMuted,
+    fontWeight: "600",
+  },
+  iosPickerDone: {
+    fontSize: 16,
+    color: AUTH_COLORS.green,
+    fontWeight: "700",
+  },
+  iosPicker: {
+    height: 216,
+    alignSelf: "stretch",
   },
 });

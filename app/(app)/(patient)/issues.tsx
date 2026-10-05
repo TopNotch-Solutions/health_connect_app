@@ -4,7 +4,7 @@ import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
-import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { PickerField } from "../../../components/PickerField";
 import {
   AppHeroCard,
@@ -13,6 +13,7 @@ import {
 } from "../../../components/app/AppScreenUI";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
+import { buildBackendAssetUrl } from "../../../lib/backend";
 
 // --- Type Definitions ---
 type Tab = "report" | "tickets" | "faq" | "safety-tips";
@@ -23,6 +24,7 @@ interface Issue {
   description: string;
   date: string;
   status: IssueStatus;
+  issueImage?: string | null;
 }
 interface Faq {
   _id: string;
@@ -127,6 +129,7 @@ export default function IssuesScreen() {
   const [issueDescription, setIssueDescription] = useState("");
   const [issueImage, setIssueImage] =
     useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [enlargedImageUri, setEnlargedImageUri] = useState<string | null>(null);
   const [myTickets, setMyTickets] = useState<Issue[]>([]);
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [expandedFaqId, setExpandedFaqId] = useState<string | null>(null);
@@ -440,7 +443,10 @@ export default function IssuesScreen() {
 
             <TouchableOpacity
               onPress={pickImage}
-              style={styles.imageButton}
+              style={[
+                styles.imageButton,
+                issueImage && styles.imageButtonAttached,
+              ]}
               activeOpacity={0.7}
             >
               <Feather
@@ -454,9 +460,27 @@ export default function IssuesScreen() {
                   issueImage && styles.imageButtonTextSuccess,
                 ]}
               >
-                {issueImage ? "Image Attached" : "Attach Screenshot (Optional)"}
+                {issueImage ? "Change Screenshot" : "Attach Screenshot (Optional)"}
               </Text>
             </TouchableOpacity>
+
+            {issueImage ? (
+              <View style={styles.imagePreviewWrap}>
+                <Image
+                  source={{ uri: issueImage.uri }}
+                  style={styles.imagePreview}
+                  resizeMode="cover"
+                />
+                <TouchableOpacity
+                  style={styles.imagePreviewRemove}
+                  onPress={() => setIssueImage(null)}
+                  activeOpacity={0.85}
+                  hitSlop={8}
+                >
+                  <Feather name="x" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             <TouchableOpacity
               onPress={handleSubmitIssue}
@@ -482,6 +506,7 @@ export default function IssuesScreen() {
   // --------------------------------------------------------------------------
 
   return (
+    <>
     <AppScreenShell keyboard>
       <AppHeroCard
         eyebrow="Support"
@@ -527,6 +552,7 @@ export default function IssuesScreen() {
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}
           renderItem={({ item }) => {
             const statusConfig = getStatusConfig(item.status || "Open");
+            const imageUri = buildBackendAssetUrl("issues", item.issueImage);
             return (
               <View
                 style={[
@@ -570,6 +596,18 @@ export default function IssuesScreen() {
                 <Text style={styles.ticketDescription} numberOfLines={2}>
                   {item.description}
                 </Text>
+                {imageUri ? (
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => setEnlargedImageUri(imageUri)}
+                  >
+                    <Image
+                      source={{ uri: imageUri }}
+                      style={styles.ticketImage}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                ) : null}
                 <View style={styles.ticketFooter}>
                   <View style={styles.dateContainer}>
                     <Feather name="calendar" size={12} color="#9CA3AF" />
@@ -805,6 +843,32 @@ export default function IssuesScreen() {
       )}
       {/* ------------------------------------------- */}
     </AppScreenShell>
+
+    <Modal
+      visible={!!enlargedImageUri}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setEnlargedImageUri(null)}
+    >
+      <View style={styles.enlargedOverlay}>
+        <TouchableOpacity
+          style={styles.enlargedClose}
+          onPress={() => setEnlargedImageUri(null)}
+          activeOpacity={0.85}
+          hitSlop={12}
+        >
+          <Feather name="x" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+        {enlargedImageUri ? (
+          <Image
+            source={{ uri: enlargedImageUri }}
+            style={styles.enlargedImage}
+            resizeMode="contain"
+          />
+        ) : null}
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -894,6 +958,11 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
   },
+  imageButtonAttached: {
+    marginBottom: 12,
+    borderColor: AUTH_COLORS.inputBorder,
+    backgroundColor: "rgba(187, 247, 208, 0.25)",
+  },
   imageButtonText: {
     fontSize: 14,
     fontWeight: "600",
@@ -902,6 +971,30 @@ const styles = StyleSheet.create({
   },
   imageButtonTextSuccess: {
     color: AUTH_COLORS.green,
+  },
+  imagePreviewWrap: {
+    position: "relative",
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    marginBottom: 24,
+    backgroundColor: "#F3F4F6",
+  },
+  imagePreview: {
+    width: "100%",
+    height: 180,
+  },
+  imagePreviewRemove: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   submitButton: {
     backgroundColor: AUTH_COLORS.green,
@@ -971,6 +1064,36 @@ const styles = StyleSheet.create({
     color: AUTH_COLORS.textMuted,
     lineHeight: 20,
     marginBottom: 12,
+  },
+  ticketImage: {
+    width: "100%",
+    height: 160,
+    borderRadius: 12,
+    marginBottom: 12,
+    backgroundColor: "#F3F4F6",
+  },
+  enlargedOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.92)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  enlargedClose: {
+    position: "absolute",
+    top: 54,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  },
+  enlargedImage: {
+    width: "100%",
+    height: "80%",
   },
   ticketFooter: {
     flexDirection: "row",

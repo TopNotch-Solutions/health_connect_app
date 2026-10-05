@@ -7,16 +7,13 @@ import {
   KeyboardAvoidingView,
   Linking,
   Platform,
+  ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import ScreenLayout, {
-  KEYBOARD_AWARE_EXTRA_SCROLL,
-  KEYBOARD_VERTICAL_OFFSET,
-} from "./ScreenLayout";
+import ScreenLayout from "./ScreenLayout";
 import { AUTH_COLORS, authScreenStyles } from "../lib/authScreenTheme";
 
 type AuthScreenLayoutProps = {
@@ -122,10 +119,10 @@ export default function AuthScreenLayout({
         <View style={authScreenStyles.content}>
           <KeyboardAvoidingView
             style={authScreenStyles.flex}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={0}
           >
-            <KeyboardAwareScrollView
+            <ScrollView
               style={authScreenStyles.flex}
               contentContainerStyle={[
                 authScreenStyles.scrollContent,
@@ -135,10 +132,8 @@ export default function AuthScreenLayout({
                 },
               ]}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
-              enableOnAndroid
-              enableAutomaticScroll
-              extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
             >
               {!hideBrandHeader ? <AuthBrandHeader /> : null}
               {greeting ? (
@@ -148,7 +143,7 @@ export default function AuthScreenLayout({
                 <Text style={authScreenStyles.greetingSub}>{greetingSub}</Text>
               ) : null}
               {children}
-            </KeyboardAwareScrollView>
+            </ScrollView>
 
             {stickyFooter ? (
               <View

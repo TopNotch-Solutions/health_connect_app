@@ -158,7 +158,12 @@ export function AppQuickActionsRow({ actions }: { actions: QuickAction[] }) {
   );
 }
 
-type FilterChip = { key: string; label: string };
+type FilterChip = {
+  key: string;
+  label: string;
+  /** Optional active chip color (defaults to brand green) */
+  color?: string;
+};
 
 export function AppFilterChips({
   filters,
@@ -177,11 +182,18 @@ export function AppFilterChips({
     >
       {filters.map((f) => {
         const isActive = active === f.key;
+        const activeColor = f.color || AUTH_COLORS.green;
         return (
           <TouchableOpacity
             key={f.key}
             onPress={() => onChange(f.key)}
-            style={[appScreenStyles.filterChip, isActive && appScreenStyles.filterChipActive]}
+            style={[
+              appScreenStyles.filterChip,
+              isActive && {
+                backgroundColor: activeColor,
+                borderColor: activeColor,
+              },
+            ]}
             activeOpacity={0.85}
           >
             <Text
@@ -767,16 +779,19 @@ export const appScreenStyles = StyleSheet.create({
     marginHorizontal: 16,
   },
   profileHero: {
-    marginHorizontal: 20,
-    marginTop: 8,
+    marginHorizontal: 0,
+    marginTop: 0,
     marginBottom: 24,
     backgroundColor: AUTH_COLORS.white,
-    borderRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     borderWidth: 2,
     borderColor: AUTH_COLORS.inputBorder,
-    padding: 24,
-    alignItems: "center",
+    height: 180,
     overflow: "hidden",
+    position: "relative",
     shadowColor: AUTH_COLORS.green,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
@@ -784,41 +799,56 @@ export const appScreenStyles = StyleSheet.create({
     elevation: 5,
   },
   profileAvatar: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
-    marginBottom: 14,
-    borderWidth: 4,
-    borderColor: AUTH_COLORS.inputBorder,
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    zIndex: 0,
   },
   profileAvatarPlaceholder: {
-    width: 112,
-    height: 112,
-    borderRadius: 56,
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
     backgroundColor: AUTH_COLORS.greenSoft,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
-    borderWidth: 4,
-    borderColor: AUTH_COLORS.inputBorder,
+    zIndex: 0,
+  },
+  profileHeroContent: {
+    flex: 1,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    zIndex: 2,
+    elevation: 3,
   },
   profileName: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "800",
-    color: AUTH_COLORS.textDark,
+    color: "#FFFFFF",
     textAlign: "center",
   },
   profileEmail: {
-    fontSize: 14,
-    color: AUTH_COLORS.textMuted,
-    marginTop: 4,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.92)",
+    marginTop: 2,
     textAlign: "center",
   },
   roleBadge: {
-    marginTop: 12,
-    backgroundColor: AUTH_COLORS.greenSoft,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    marginTop: 8,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: AUTH_COLORS.inputBorder,
@@ -826,14 +856,14 @@ export const appScreenStyles = StyleSheet.create({
   roleBadgeText: {
     color: AUTH_COLORS.green,
     fontWeight: "700",
-    fontSize: 13,
+    fontSize: 12,
     textTransform: "capitalize",
   },
   uploadPhotoBtn: {
-    marginTop: 14,
-    backgroundColor: AUTH_COLORS.greenSoft,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    marginTop: 8,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: AUTH_COLORS.inputBorder,
@@ -841,7 +871,7 @@ export const appScreenStyles = StyleSheet.create({
   uploadPhotoText: {
     color: AUTH_COLORS.green,
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 13,
   },
   onlineToggle: {
     flexDirection: "row",
