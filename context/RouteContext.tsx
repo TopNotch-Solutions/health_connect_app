@@ -12,10 +12,13 @@ interface Request {
     profileImage?: string;
   };
   address?: {
-    coordinates?: { latitude: number; longitude: number };
+    coordinates?: unknown;
     route?: string;
     locality?: string;
     administrative_area_level_1?: string;
+  };
+  locationTracking?: {
+    patientLocation?: { latitude?: number; longitude?: number };
   };
   ailmentCategoryId?:
     | {

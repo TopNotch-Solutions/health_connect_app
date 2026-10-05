@@ -11,6 +11,7 @@ import {
     Linking,
     Modal,
     Platform,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -20,7 +21,13 @@ import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { GOOGLE_MAPS_API_KEY } from "../lib/googleMaps";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AUTH_COLORS } from "../lib/authScreenTheme";
 import { buildBackendAssetUrl } from "../lib/backend";
+import {
+  isValidCoordinate,
+  normalizeCoordinate,
+  type NormalizedCoordinate,
+} from "../lib/coordinate";
 import { ensureForegroundLocationPermission } from "../lib/locationPermission";
 import socketService from "../lib/socket";
 import { logViewMountDebug } from "../lib/viewErrorLogger";
@@ -49,57 +56,6 @@ const ASPECT_RATIO = width / height;
 const LATITUDE_DELTA = 0.05;
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 
-// ✅ Helper to normalize coordinates (handles both formats)
-const normalizeCoordinate = (
-  coord: any,
-): { latitude: number; longitude: number } | null => {
-  // Already in correct format
-  if (coord?.latitude !== undefined && coord?.longitude !== undefined) {
-    return {
-      latitude: Number(coord.latitude),
-      longitude: Number(coord.longitude),
-    };
-  }
-
-  // GeoJSON format from MongoDB: { type: "Point", coordinates: [lng, lat] }
-  if (
-    coord?.type === "Point" &&
-    Array.isArray(coord?.coordinates) &&
-    coord.coordinates.length === 2
-  ) {
-    return {
-      latitude: Number(coord.coordinates[1]), // GeoJSON is [lng, lat]
-      longitude: Number(coord.coordinates[0]),
-    };
-  }
-
-  // Plain array format [lng, lat]
-  if (Array.isArray(coord) && coord.length === 2) {
-    return {
-      latitude: Number(coord[1]),
-      longitude: Number(coord[0]),
-    };
-  }
-
-  return null;
-};
-
-// ✅ Helper to validate coordinates
-const isValidCoordinate = (
-  coord: any,
-): coord is { latitude: number; longitude: number } => {
-  const normalized = normalizeCoordinate(coord);
-  return (
-    normalized !== null &&
-    typeof normalized.latitude === "number" &&
-    typeof normalized.longitude === "number" &&
-    !isNaN(normalized.latitude) &&
-    !isNaN(normalized.longitude) &&
-    Math.abs(normalized.latitude) <= 90 &&
-    Math.abs(normalized.longitude) <= 180
-  );
-};
-
 export default function ProviderRouteModal({
   visible,
   onClose,
@@ -124,22 +80,12 @@ export default function ProviderRouteModal({
   const hasFittedRouteRef = useRef(false);
   const lastSpeechTimeRef = useRef(0);
 
-  // ✅ Normalize patient location on mount
   const patientLocation = useMemo(
     () => normalizeCoordinate(rawPatientLocation),
-    [
-      rawPatientLocation?.latitude,
-      rawPatientLocation?.longitude,
-      (rawPatientLocation as any)?.type,
-      Array.isArray((rawPatientLocation as any)?.coordinates)
-        ? (rawPatientLocation as any).coordinates.join(",")
-        : undefined,
-    ],
+    [rawPatientLocation],
   );
-  const [providerLocation, setProviderLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  const [providerLocation, setProviderLocation] =
+    useState<NormalizedCoordinate | null>(null);
   const [distance, setDistance] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
@@ -166,15 +112,6 @@ export default function ProviderRouteModal({
     patientProfileImage,
     providerProfileImage,
   ]);
-
-  // ✅ Validate patient location on mount
-  useEffect(() => {
-    if (visible && !isValidCoordinate(patientLocation)) {
-      console.error("❌ Invalid patient location:", patientLocation);
-      Alert.alert("Error", "Invalid patient location coordinates");
-      onClose();
-    }
-  }, [visible, patientLocation, onClose]);
 
   // Stop speech when modal closes
   useEffect(() => {
@@ -272,7 +209,12 @@ export default function ProviderRouteModal({
         setTimeout(() => {
           const points = [providerCoords, patientLocation];
           mapRef.current?.fitToCoordinates(points, {
-            edgePadding: { top: 100, right: 50, bottom: 100, left: 50 },
+            edgePadding: {
+              top: 120,
+              right: 50,
+              bottom: Math.round(height * 0.34),
+              left: 50,
+            },
             animated: true,
           });
         }, 500);
@@ -531,19 +473,24 @@ export default function ProviderRouteModal({
     };
   }, [stopTracking]);
 
-  // ✅ Don't render map until we have valid coordinates
   if (!isValidCoordinate(patientLocation)) {
     return (
       <Modal visible={visible} animationType="slide" transparent={false}>
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
           <View style={styles.errorContainer}>
-            <Feather name="alert-circle" size={48} color="#ef4444" />
-            <Text style={styles.errorText}>Invalid patient location</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeErrorButton}>
-              <Text style={styles.closeErrorButtonText}>Close</Text>
+            <View style={styles.errorIconWrap}>
+              <Feather name="map-pin" size={32} color={AUTH_COLORS.green} />
+            </View>
+            <Text style={styles.errorTitle}>Location unavailable</Text>
+            <Text style={styles.errorText}>
+              We couldn&apos;t load the patient&apos;s location for navigation.
+              Please close and try again from your requests list.
+            </Text>
+            <TouchableOpacity onPress={onClose} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
     );
   }
@@ -568,10 +515,7 @@ export default function ProviderRouteModal({
       transparent={false}
       onRequestClose={onClose}
     >
-      <SafeAreaView
-        style={styles.container}
-        edges={["top", "bottom", "left", "right"]}
-      >
+      <View style={styles.container}>
         <MapView
           onLayout={(event) => {
             logViewMountDebug("ProviderRouteModal", "MapView layout", {
@@ -588,9 +532,9 @@ export default function ProviderRouteModal({
           ref={mapRef}
           style={styles.map}
           provider={PROVIDER_GOOGLE}
-          showsUserLocation={true}
+          showsUserLocation
           followsUserLocation={false}
-          showsMyLocationButton={true}
+          showsMyLocationButton
           initialRegion={initialRegion}
         >
           {/* ✅ Only render marker if coordinate is valid */}
@@ -609,7 +553,7 @@ export default function ProviderRouteModal({
                   borderRadius: 25,
                   borderWidth: 4,
                   borderColor: "#FFFFFF",
-                  backgroundColor: "#3B82F6",
+                  backgroundColor: AUTH_COLORS.green,
                   overflow: "hidden",
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 2 },
@@ -658,7 +602,7 @@ export default function ProviderRouteModal({
                 }}
                 apikey={GOOGLE_MAPS_API_KEY}
                 strokeWidth={5}
-                strokeColor="#3B82F6"
+                strokeColor={AUTH_COLORS.green}
                 mode="DRIVING"
                 optimizeWaypoints={true}
                 onReady={(result) => {
@@ -686,9 +630,9 @@ export default function ProviderRouteModal({
                       ],
                       {
                         edgePadding: {
-                          top: 100,
+                          top: 120,
                           right: 50,
-                          bottom: 100,
+                          bottom: Math.round(height * 0.34),
                           left: 50,
                         },
                         animated: true,
@@ -751,18 +695,18 @@ export default function ProviderRouteModal({
           </Marker>
         </MapView>
 
-        <View style={styles.topBar}>
+        <SafeAreaView style={styles.topBar} edges={["top"]} pointerEvents="box-none">
           <TouchableOpacity
             onPress={onClose}
             style={styles.closeButton}
             disabled={isLoading || isCancelling}
           >
-            <Feather name="x" size={24} color="#666" />
+            <Feather name="x" size={22} color={AUTH_COLORS.textDark} />
           </TouchableOpacity>
 
           <View style={styles.infoSection}>
             {isLoading ? (
-              <ActivityIndicator size="small" color="#4F46E5" />
+              <ActivityIndicator size="small" color={AUTH_COLORS.green} />
             ) : (
               <>
                 <Text style={styles.distanceText}>
@@ -778,168 +722,155 @@ export default function ProviderRouteModal({
                     : duration}{" "}
                   min ETA
                 </Text>
-                {routeDistance !== null && routeDuration !== null && (
-                  <Text style={styles.routeInfoText}>
-                    Road route • {routeDistance.toFixed(1)} km •{" "}
-                    {Math.round(routeDuration)} min
-                  </Text>
-                )}
               </>
             )}
           </View>
-        </View>
+        </SafeAreaView>
 
-        <View style={styles.bottomBar}>
-          <View style={styles.statusInfo}>
-            <Text style={styles.statusLabel}>
-              Heading to {patientName} via road route
-            </Text>
-            {routeDistance !== null && routeDuration !== null && (
-              <View style={styles.routeInfoContainer}>
-                <View style={styles.routeInfoRow}>
-                  <Feather name="map" size={14} color="#4F46E5" />
-                  <Text style={styles.routeInfoLabel}>Route Distance: </Text>
-                  <Text style={styles.routeInfoValue}>
-                    {routeDistance.toFixed(1)} km
-                  </Text>
-                </View>
-                <View style={styles.routeInfoRow}>
-                  <Feather name="clock" size={14} color="#4F46E5" />
-                  <Text style={styles.routeInfoLabel}>Route Duration: </Text>
-                  <Text style={styles.routeInfoValue}>
-                    {Math.round(routeDuration)} min
-                  </Text>
-                </View>
-              </View>
-            )}
-            {isTracking && (
-              <View style={styles.trackingIndicator}>
-                <View style={styles.trackingDot} />
-                <Text style={styles.trackingText}>Live tracking active</Text>
-              </View>
-            )}
-          </View>
+        <SafeAreaView style={styles.bottomSheetWrap} edges={["bottom"]} pointerEvents="box-none">
+          <View style={styles.bottomBar}>
+            <View style={styles.sheetHandle} />
 
-          {/* Request Details Card */}
-          <View style={styles.requestDetailsCard}>
-            <Text style={styles.requestTitle}>
-              {ailmentTitle || "Healthcare Request"}
-            </Text>
-
-            {/* Consultation mode chip */}
-            {consultationMode && (
-              <View
-                style={{
-                  backgroundColor:
-                    consultationMode === "video_consultation"
-                      ? "#EFF6FF"
-                      : "#ECFDF3",
-                  borderColor:
-                    consultationMode === "video_consultation"
-                      ? "#BFDBFE"
-                      : "#BBF7D0",
-                  borderWidth: 1,
-                  borderRadius: 999,
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  alignSelf: "flex-start",
-                  marginBottom: 10,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <Feather
-                  name={
-                    consultationMode === "video_consultation"
-                      ? "video"
-                      : "home"
-                  }
-                  size={13}
-                  color={
-                    consultationMode === "video_consultation"
-                      ? "#1D4ED8"
-                      : "#166534"
-                  }
-                />
-                <Text
-                  style={{
-                    color:
-                      consultationMode === "video_consultation"
-                        ? "#1D4ED8"
-                        : "#166534",
-                    fontSize: 12,
-                    fontWeight: "700",
-                    marginLeft: 6,
-                  }}
-                >
-                  {consultationMode === "video_consultation"
-                    ? "Video Consultation"
-                    : "House Visit"}
+            <ScrollView
+              style={styles.bottomScroll}
+              contentContainerStyle={styles.bottomScrollContent}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              <View style={styles.statusInfo}>
+                <Text style={styles.statusLabel}>
+                  Navigating to {patientName}
                 </Text>
+                {routeDistance !== null && routeDuration !== null ? (
+                  <View style={styles.routeInfoContainer}>
+                    <View style={styles.routeInfoRow}>
+                      <Feather name="map" size={14} color={AUTH_COLORS.green} />
+                      <Text style={styles.routeInfoLabel}>Distance</Text>
+                      <Text style={styles.routeInfoValue}>
+                        {routeDistance.toFixed(1)} km
+                      </Text>
+                    </View>
+                    <View style={styles.routeInfoRow}>
+                      <Feather name="clock" size={14} color={AUTH_COLORS.green} />
+                      <Text style={styles.routeInfoLabel}>Duration</Text>
+                      <Text style={styles.routeInfoValue}>
+                        {Math.round(routeDuration)} min
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+                {isTracking ? (
+                  <View style={styles.trackingIndicator}>
+                    <View style={styles.trackingDot} />
+                    <Text style={styles.trackingText}>Live tracking active</Text>
+                  </View>
+                ) : null}
               </View>
-            )}
 
-            {/* Request details */}
-            <View style={styles.metaCard}>
-              {patientAddress && (
-                <View style={styles.metaRow}>
-                  <Feather name="map-pin" size={14} color="#6b7280" />
-                  <Text style={styles.metaText} numberOfLines={2}>
-                    {patientAddress}
-                  </Text>
+              <View style={styles.requestDetailsCard}>
+                <Text style={styles.requestTitle}>
+                  {ailmentTitle || "Healthcare Request"}
+                </Text>
+
+                {consultationMode ? (
+                  <View
+                    style={[
+                      styles.modeChip,
+                      consultationMode === "video_consultation"
+                        ? styles.modeChipVideo
+                        : styles.modeChipHouse,
+                    ]}
+                  >
+                    <Feather
+                      name={
+                        consultationMode === "video_consultation"
+                          ? "video"
+                          : "home"
+                      }
+                      size={13}
+                      color={
+                        consultationMode === "video_consultation"
+                          ? "#1D4ED8"
+                          : AUTH_COLORS.greenDark
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.modeChipText,
+                        consultationMode === "video_consultation"
+                          ? styles.modeChipTextVideo
+                          : styles.modeChipTextHouse,
+                      ]}
+                    >
+                      {consultationMode === "video_consultation"
+                        ? "Video Consultation"
+                        : "House Visit"}
+                    </Text>
+                  </View>
+                ) : null}
+
+                <View style={styles.metaCard}>
+                  {patientAddress ? (
+                    <View style={styles.metaRow}>
+                      <Feather name="map-pin" size={14} color={AUTH_COLORS.green} />
+                      <Text style={styles.metaText} numberOfLines={2}>
+                        {patientAddress}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {createdAt ? (
+                    <View style={styles.metaRow}>
+                      <Feather name="calendar" size={14} color={AUTH_COLORS.green} />
+                      <Text style={styles.metaText}>
+                        Requested: {new Date(createdAt).toLocaleString()}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-              )}
-              {createdAt && (
-                <View style={styles.metaRow}>
-                  <Feather name="calendar" size={14} color="#6b7280" />
-                  <Text style={styles.metaText}>
-                    Requested: {new Date(createdAt).toLocaleString()}
-                  </Text>
-                </View>
-              )}
-            </View>
+              </View>
+
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.cancelButton,
+                    isCancelling && styles.disabledButton,
+                  ]}
+                  onPress={handleCancel}
+                  disabled={isLoading || isCancelling}
+                >
+                  <Feather name="x-circle" size={18} color={AUTH_COLORS.error} />
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.primaryButton, isLoading && styles.disabledButton]}
+                  onPress={handleArrived}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Feather name="check-circle" size={18} color="#fff" />
+                      <Text style={styles.primaryButtonText}>Mark as Arrived</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={styles.externalMapButton}
+                onPress={openExternalMaps}
+              >
+                <Feather name="external-link" size={18} color={AUTH_COLORS.green} />
+                <Text style={styles.externalMapButtonText}>
+                  Open in Google Maps
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
-
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[
-                styles.cancelButton,
-                isCancelling && styles.disabledButton,
-              ]}
-              onPress={handleCancel}
-              disabled={isLoading || isCancelling}
-            >
-              <Feather name="x-circle" size={20} color="#ef4444" />
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.arrivedButton, isLoading && styles.disabledButton]}
-              onPress={handleArrived}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Feather name="check-circle" size={20} color="#fff" />
-                  <Text style={styles.arrivedButtonText}>Mark as Arrived</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={styles.externalMapButton}
-            onPress={openExternalMaps}
-          >
-            <Feather name="map" size={20} color="#4F46E5" />
-            <Text style={styles.externalMapButtonText}>
-              Open in Google Maps
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -947,10 +878,10 @@ export default function ProviderRouteModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: AUTH_COLORS.bg,
   },
   map: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   topBar: {
     position: "absolute",
@@ -959,48 +890,95 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 15,
-    paddingTop: 15,
-    paddingBottom: 15,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     zIndex: 10,
-    gap: 15,
+    gap: 12,
   },
   closeButton: {
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 8,
-    backgroundColor: "#f5f5f5",
+    borderRadius: 21,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
   },
   infoSection: {
     flex: 1,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
   distanceText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
   },
   durationText: {
     fontSize: 13,
-    color: "#6b7280",
-    marginTop: 4,
-  },
-  routeInfoText: {
-    fontSize: 11,
-    color: "#4F46E5",
+    color: AUTH_COLORS.textMuted,
     marginTop: 2,
-    fontWeight: "500",
+  },
+  bottomSheetWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+  },
+  bottomBar: {
+    backgroundColor: AUTH_COLORS.bg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    borderBottomWidth: 0,
+    maxHeight: height * 0.48,
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 48,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: AUTH_COLORS.green,
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  bottomScroll: {
+    flexGrow: 0,
+  },
+  bottomScrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   routeInfoContainer: {
     marginTop: 8,
-    padding: 8,
-    backgroundColor: "#EEF2FF",
-    borderRadius: 6,
-    gap: 4,
+    padding: 10,
+    backgroundColor: AUTH_COLORS.greenSoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+    gap: 6,
   },
   routeInfoRow: {
     flexDirection: "row",
@@ -1009,113 +987,94 @@ const styles = StyleSheet.create({
   },
   routeInfoLabel: {
     fontSize: 12,
-    color: "#6b7280",
+    color: AUTH_COLORS.textMuted,
+    flex: 1,
   },
   routeInfoValue: {
     fontSize: 12,
-    color: "#4F46E5",
-    fontWeight: "600",
-  },
-  bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 15,
-    paddingVertical: 20,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    zIndex: 10,
+    color: AUTH_COLORS.greenDark,
+    fontWeight: "700",
   },
   statusInfo: {
-    marginBottom: 15,
+    marginBottom: 12,
   },
   statusLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 8,
+    fontSize: 15,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    marginBottom: 4,
   },
   trackingIndicator: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    marginTop: 8,
   },
   trackingDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#4F46E5",
+    backgroundColor: AUTH_COLORS.green,
   },
   trackingText: {
     fontSize: 12,
-    color: "#4F46E5",
-    fontWeight: "500",
+    color: AUTH_COLORS.greenDark,
+    fontWeight: "600",
   },
   actionButtons: {
     flexDirection: "row",
     gap: 10,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   cancelButton: {
     flexDirection: "row",
-    backgroundColor: "#fee2e2",
+    backgroundColor: "#FEF2F2",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    flex: 0.38,
+    borderWidth: 2,
+    borderColor: "#FECACA",
+  },
+  cancelButtonText: {
+    color: AUTH_COLORS.error,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  primaryButton: {
+    flexDirection: "row",
+    backgroundColor: AUTH_COLORS.green,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    flex: 0.4,
-    borderWidth: 1,
-    borderColor: "#fecaca",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    flex: 0.62,
   },
-  cancelButtonText: {
-    color: "#ef4444",
+  primaryButtonText: {
+    color: AUTH_COLORS.white,
     fontSize: 14,
-    fontWeight: "600",
-  },
-  arrivedButton: {
-    flexDirection: "row",
-    backgroundColor: "#10b981",
-    paddingVertical: 14,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 10,
-    flex: 0.6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  arrivedButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   externalMapButton: {
     flexDirection: "row",
-    backgroundColor: "#EEF2FF",
-    paddingVertical: 12,
-    borderRadius: 10,
+    backgroundColor: AUTH_COLORS.white,
+    paddingVertical: 13,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    borderWidth: 1,
-    borderColor: "#C7D2FE",
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   externalMapButtonText: {
-    color: "#4F46E5",
+    color: AUTH_COLORS.greenDark,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   disabledButton: {
     opacity: 0.5,
@@ -1124,39 +1083,75 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 28,
+  },
+  errorIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: AUTH_COLORS.greenSoft,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: AUTH_COLORS.textDark,
+    marginBottom: 8,
+    textAlign: "center",
   },
   errorText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginTop: 16,
+    fontSize: 15,
+    color: AUTH_COLORS.textMuted,
+    textAlign: "center",
+    lineHeight: 22,
     marginBottom: 24,
   },
-  closeErrorButton: {
-    backgroundColor: "#3b82f6",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  closeErrorButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
   requestDetailsCard: {
-    backgroundColor: "#f9fafb",
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   requestTitle: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#1f2937",
+    fontWeight: "800",
+    color: AUTH_COLORS.textDark,
     marginBottom: 10,
+  },
+  modeChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: "flex-start",
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  modeChipHouse: {
+    backgroundColor: AUTH_COLORS.greenSoft,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  modeChipVideo: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  modeChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  modeChipTextHouse: {
+    color: AUTH_COLORS.greenDark,
+  },
+  modeChipTextVideo: {
+    color: "#1D4ED8",
   },
   metaCard: {
     gap: 8,
@@ -1168,7 +1163,8 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 13,
-    color: "#6b7280",
+    color: AUTH_COLORS.textMuted,
     flex: 1,
+    lineHeight: 18,
   },
 });

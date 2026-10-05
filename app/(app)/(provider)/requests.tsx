@@ -7,6 +7,10 @@ import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInput
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
 import { ActivityIndicator, Alert, Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import {
+  getPatientLocationFromRequest,
+  getRequestProviderId,
+} from "../../../lib/coordinate";
+import {
   AppEmptyState,
   AppFilterChips,
   AppHeroCard,
@@ -631,8 +635,23 @@ export default function ProviderRequests() {
         return;
       }
 
-      // 2) Open global route modal immediately for fast UX
-      startRoute(request);
+      // 2) Open route map immediately for house visits
+      const patientCoords = getPatientLocationFromRequest(request);
+      startRoute({
+        ...request,
+        status: "en_route" as Request["status"],
+        address: {
+          ...request.address,
+          locality: request.address?.locality || "",
+          administrative_area_level_1:
+            request.address?.administrative_area_level_1 || "",
+          ...(patientCoords
+            ? { coordinates: patientCoords }
+            : request.address?.coordinates
+              ? { coordinates: request.address.coordinates }
+              : {}),
+        },
+      } as Request);
 
       // 3) In background, request location and send en_route with coords (backend requires location)
       (async () => {
@@ -677,8 +696,14 @@ export default function ProviderRequests() {
         }
       })();
 
-      // 4) Remove request locally from requests list
-      setRequests((prev) => prev.filter((req) => req._id !== request._id));
+      // 4) Keep request visible as en_route while navigation is active
+      setRequests((prev) =>
+        prev.map((req) =>
+          req._id === request._id
+            ? ({ ...req, status: "en_route" } as Request)
+            : req,
+        ),
+      );
     } catch (error: any) {
       console.error("Error accepting request:", error);
       Alert.alert("Error", error.message || "Failed to accept request");
@@ -691,14 +716,18 @@ export default function ProviderRequests() {
 
   // Handle mark route - open route tracking modal
   const handleMarkRoute = async (request: Request) => {
-    // 1. Double-check assignment to current user to avoid backend 'not assigned' errors
-    const providerIdStr = request.providerId?._id
-      ? String(request.providerId._id)
-      : String(request.providerId || "");
-    if (providerIdStr !== String(user?.userId)) {
-      console.error("State mismatch detected!");
-      console.error("Request providerId:", request.providerId);
-      console.error("Current userId:", user?.userId);
+    if (!user?.userId) {
+      Alert.alert("Error", "User session not available. Please try again.");
+      return;
+    }
+
+    const assignedProviderId = getRequestProviderId(request);
+    if (assignedProviderId && assignedProviderId !== String(user.userId)) {
+      console.error("State mismatch detected!", {
+        assignedProviderId,
+        userId: user.userId,
+        providerId: request.providerId,
+      });
       Alert.alert(
         "Sync Error",
         "This request is no longer assigned to you. Refreshing the list.",
@@ -707,8 +736,12 @@ export default function ProviderRequests() {
       return;
     }
 
-    if (!user?.userId || !request.address?.coordinates) {
-      Alert.alert("Error", "Patient location not available");
+    const patientCoords = getPatientLocationFromRequest(request);
+    if (!patientCoords) {
+      Alert.alert(
+        "Location Unavailable",
+        "Patient location is missing for this request. Ask the patient to update their location, then refresh.",
+      );
       return;
     }
 
@@ -716,14 +749,28 @@ export default function ProviderRequests() {
     try {
       console.log("🚗 Opening route modal for request:", request._id);
 
+      // Open the map first so navigation never depends on the status update succeeding
+      startRoute({
+        ...request,
+        status: "en_route" as Request["status"],
+        address: {
+          ...request.address,
+          locality: request.address?.locality || "",
+          administrative_area_level_1:
+            request.address?.administrative_area_level_1 || "",
+          coordinates: patientCoords,
+        },
+      } as Request);
+
       const { granted } = await ensureForegroundLocationPermission({
         requestIfNeeded: true,
       });
       if (!granted) {
-        return Alert.alert(
+        Alert.alert(
           "Permission Denied",
-          "Location permission is required.",
+          "Location permission is required for live tracking, but you can still view the route.",
         );
+        return;
       }
 
       const providerLocation = await Location.getCurrentPositionAsync({
@@ -742,21 +789,22 @@ export default function ProviderRequests() {
           "en_route",
           providerCoords,
         );
-        // Optimistically update the local state for immediate UI feedback
         setRequests((prev) =>
           prev.map((req) =>
             req._id === request._id
-              ? { ...req, status: "en_route" as Request["status"] } as Request
+              ? ({ ...req, status: "en_route" } as Request)
               : req,
           ),
         );
       }
-
-      // Start global route modal via context with updated request status
-      startRoute({ ...request, status: "en_route" as Request["status"] } as Request);
     } catch (error: any) {
       console.error("Error marking route:", error);
-      Alert.alert("Error", error.message || "Failed to mark route");
+      // Map already open — only warn if status update failed
+      Alert.alert(
+        "Navigation Warning",
+        error.message ||
+          "Route map opened, but status update failed. You can continue navigating.",
+      );
     } finally {
       setActionLoading((prev) =>
         prev?.requestId === request._id ? null : prev,
@@ -1006,8 +1054,13 @@ export default function ProviderRequests() {
           ) : (
             filteredRequests.map((request) => {
               const statusStyle = getStatusStyle(request.status);
+              const isCompleted = request.status === "completed";
               const patientName =
                 request.patientId?.fullname || "Unknown Patient";
+              const displayPatientName = isCompleted ? "Patient" : patientName;
+              const displayInitials = isCompleted
+                ? "P"
+                : getPatientInitials(patientName);
               const ailmentName = getAilmentName(request.ailmentCategoryId);
               const fee = `N$ ${request.consultationCost ?? request.estimatedCost ?? 0}`;
               const consultationMode: "house_visit" | "video_consultation" =
@@ -1058,14 +1111,18 @@ export default function ProviderRequests() {
               const awaitingPrescription =
                 isPharmacist && ailmentRequiresPrescription && !linkedPrescription;
 
-              const addressLine = request.address
-                ? [
-                    request.address.route,
-                    request.address.locality,
-                    request.address.administrative_area_level_1,
-                  ]
-                    .filter(Boolean)
-                    .join(", ")
+              const addressLine =
+                !isCompleted && request.address
+                  ? [
+                      request.address.route,
+                      request.address.locality,
+                      request.address.administrative_area_level_1,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")
+                  : null;
+              const patientPhone = !isCompleted
+                ? request.patientId?.cellphoneNumber?.trim() || null
                 : null;
 
               return (
@@ -1101,14 +1158,27 @@ export default function ProviderRequests() {
                           { color: statusStyle.text },
                         ]}
                       >
-                        {getPatientInitials(patientName)}
+                        {displayInitials}
                       </Text>
                     </View>
 
                     <View style={requestCardStyles.headerMain}>
                       <Text style={requestCardStyles.patientName} numberOfLines={1}>
-                        {patientName}
+                        {displayPatientName}
                       </Text>
+                      {patientPhone ? (
+                        <TouchableOpacity
+                          onPress={() => Linking.openURL(`tel:${patientPhone}`)}
+                          style={requestCardStyles.phoneRow}
+                          hitSlop={8}
+                          activeOpacity={0.7}
+                        >
+                          <Feather name="phone" size={12} color={AUTH_COLORS.green} />
+                          <Text style={requestCardStyles.phoneText} numberOfLines={1}>
+                            {patientPhone}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
                       <Text style={requestCardStyles.ailmentLine} numberOfLines={1}>
                         {ailmentName}
                       </Text>
@@ -1500,10 +1570,23 @@ export default function ProviderRequests() {
                       })()}
 
                       {request.status === "en_route" && (
-                        <View className="bg-purple-50 rounded-lg p-3 border border-purple-200 flex-row items-center justify-center" style={{ gap: 8 }}>
-                          <Feather name="truck" size={14} color="#7C3AED" />
-                          <Text className="text-xs text-purple-700 font-semibold">Delivery in progress — navigating to patient</Text>
-                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleMarkRoute(request)}
+                          disabled={isBusy}
+                          className="bg-indigo-600 rounded-xl py-3 px-4 items-center flex-row justify-center"
+                          style={{ gap: 8, opacity: isBusy ? 0.5 : 1 }}
+                        >
+                          {isLoadingAction("route") ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <>
+                              <Feather name="navigation" size={16} color="#FFFFFF" />
+                              <Text className="text-white font-bold text-sm">
+                                Continue Navigation
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
                       )}
 
                       {request.status === "arrived" && (
@@ -1590,10 +1673,23 @@ export default function ProviderRequests() {
                       )}
 
                       {request.status === "en_route" && (
-                        <View className="bg-purple-50 rounded-lg p-3 border border-purple-200 flex-row items-center justify-center" style={{ gap: 8 }}>
-                          <Feather name="navigation" size={14} color="#7C3AED" />
-                          <Text className="text-xs text-purple-700 font-semibold">En Route — Navigation active</Text>
-                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleMarkRoute(request)}
+                          disabled={isBusy}
+                          className="bg-indigo-600 rounded-xl py-3 px-4 items-center flex-row justify-center"
+                          style={{ gap: 8, opacity: isBusy ? 0.5 : 1 }}
+                        >
+                          {isLoadingAction("route") ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <>
+                              <Feather name="navigation" size={16} color="#FFFFFF" />
+                              <Text className="text-white font-bold text-sm">
+                                Continue Navigation
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
                       )}
 
                       {request.status === "arrived" && (
@@ -1825,6 +1921,18 @@ const requestCardStyles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: AUTH_COLORS.textDark,
+  },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 3,
+    alignSelf: "flex-start",
+  },
+  phoneText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: AUTH_COLORS.greenDark,
   },
   ailmentLine: {
     fontSize: 13,

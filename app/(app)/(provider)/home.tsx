@@ -1,6 +1,6 @@
 // app/(provider)/home.tsx
 
-import { normalizeCoordinateOrUndefined } from "@/lib/coordinate";
+import { normalizeCoordinateOrUndefined, getPatientLocationFromRequest } from "@/lib/coordinate";
 import { calculateDistance } from "@/lib/distance";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -874,11 +874,20 @@ export default function ProviderHome() {
       );
       console.log("✅ Status updated to en_route with provider coordinates");
 
-      // 4) Open global route modal immediately for fast UX
-      startRoute(request);
+      // Close detail modal first, then open route map (avoids RN modal stacking issues)
       setSelectedRequest(null);
+      const patientCoords = getPatientLocationFromRequest(request);
+      setTimeout(() => {
+        startRoute({
+          ...request,
+          address: {
+            ...request.address,
+            ...(patientCoords ? { coordinates: patientCoords } : {}),
+          },
+        });
+      }, 350);
 
-      // 4) Remove request locally from home list (real-time update)
+      // Remove request locally from home list (real-time update)
       setRequests((prev) => prev.filter((req) => req._id !== request._id));
 
       // Optionally refresh to get latest state
@@ -1123,8 +1132,13 @@ export default function ProviderHome() {
             </View>
           ) : (
             requests.map((request) => {
+              const isCompleted = request.status === "completed";
               const patientName =
                 request.patientId?.fullname || "Unknown Patient";
+              const displayPatientName = isCompleted ? "Patient" : patientName;
+              const patientPhone = !isCompleted
+                ? request.patientId?.cellphoneNumber?.trim() || null
+                : null;
               const ailment = request.ailmentCategory || "Consultation";
               const fee = `N$ ${request.consultationCost ?? request.estimatedCost ?? 0}`;
               const consultationMode: "house_visit" | "video_consultation" =
@@ -1172,8 +1186,19 @@ export default function ProviderHome() {
                   <View className="flex-row items-start justify-between mb-2">
                     <View className="flex-1">
                       <Text className="text-base font-bold text-gray-900">
-                        {patientName}
+                        {displayPatientName}
                       </Text>
+                      {patientPhone ? (
+                        <View className="flex-row items-center mt-1">
+                          <Feather name="phone" size={12} color={AUTH_COLORS.green} />
+                          <Text
+                            className="text-sm font-semibold ml-1.5"
+                            style={{ color: AUTH_COLORS.greenDark }}
+                          >
+                            {patientPhone}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                     <View
                       className="px-2.5 py-1 rounded-md"
@@ -1292,8 +1317,30 @@ export default function ProviderHome() {
               {/* Patient Info */}
               <View className="bg-gray-50 rounded-xl p-4 mb-4">
                 <Text className="text-lg font-bold text-gray-900 mb-2">
-                  {selectedRequest.patientId?.fullname || "Unknown Patient"}
+                  {selectedRequest.status === "completed"
+                    ? "Patient"
+                    : selectedRequest.patientId?.fullname || "Unknown Patient"}
                 </Text>
+                {selectedRequest.status !== "completed" &&
+                selectedRequest.patientId?.cellphoneNumber ? (
+                  <TouchableOpacity
+                    onPress={() =>
+                      Linking.openURL(
+                        `tel:${selectedRequest.patientId.cellphoneNumber}`,
+                      )
+                    }
+                    className="flex-row items-center mb-2"
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="phone" size={14} color={AUTH_COLORS.green} />
+                    <Text
+                      className="text-sm font-semibold ml-2"
+                      style={{ color: AUTH_COLORS.greenDark }}
+                    >
+                      {selectedRequest.patientId.cellphoneNumber}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
                 <View className="flex-row items-center mb-2">
                   <Feather name="alert-circle" size={14} color="#6B7280" />
                   <Text className="text-sm text-gray-600 ml-2">
@@ -1342,12 +1389,14 @@ export default function ProviderHome() {
                     </Text>
                   </View>
                 )}
-                <View className="flex-row items-center mt-2">
-                  <Feather name="map-pin" size={14} color="#6B7280" />
-                  <Text className="text-sm text-gray-600 ml-2">
-                    {selectedRequest.address?.locality || "Unknown location"}
-                  </Text>
-                </View>
+                {selectedRequest.status !== "completed" ? (
+                  <View className="flex-row items-center mt-2">
+                    <Feather name="map-pin" size={14} color="#6B7280" />
+                    <Text className="text-sm text-gray-600 ml-2">
+                      {selectedRequest.address?.locality || "Unknown location"}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
               {/* Fee Breakdown */}
@@ -1364,6 +1413,8 @@ export default function ProviderHome() {
 
               {/* Map */}
               {(() => {
+                if (selectedRequest.status === "completed") return null;
+
                 const coords = normalizeCoordinateOrUndefined(
                   selectedRequest.address?.coordinates,
                 );

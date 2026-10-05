@@ -1,8 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,7 +14,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AUTH_COLORS } from "../lib/authScreenTheme";
-import { KEYBOARD_VERTICAL_OFFSET } from "./ScreenLayout";
 import {
   ProfileSectionRail,
   profileFeatureStyles,
@@ -44,6 +44,27 @@ export default function RegistrationFeatureShell({
   children,
   footer,
 }: RegistrationFeatureShellProps) {
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
@@ -80,14 +101,26 @@ export default function RegistrationFeatureShell({
       <KeyboardAvoidingView
         style={styles.body}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+        enabled={Platform.OS === "ios"}
       >
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom:
+                24 +
+                (keyboardHeight > 0
+                  ? Math.max(keyboardHeight * 0.35, 100)
+                  : 0),
+            },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
+          contentInsetAdjustmentBehavior="automatic"
         >
           {children}
         </ScrollView>
@@ -256,6 +289,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 28,
     paddingBottom: 24,
+    flexGrow: 1,
   },
   footerSafe: {
     backgroundColor: AUTH_COLORS.bg,

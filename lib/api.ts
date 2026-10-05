@@ -3,6 +3,7 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { API_BASE_URL } from "./backend";
+import { isNetworkError } from "./networkDetector";
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -67,6 +68,14 @@ apiClient.interceptors.response.use(
       // Drop the in-memory session too, so the protected layout redirects
       // to sign-in instead of leaving the user on a screen that cannot load.
       onUnauthorized?.();
+    } else if (isNetworkError(error)) {
+      return Promise.reject({
+        ...error,
+        message:
+          error.message ||
+          "No internet connection. Please check your network and try again.",
+        isOffline: true,
+      });
     }
     return Promise.reject(error);
   },
