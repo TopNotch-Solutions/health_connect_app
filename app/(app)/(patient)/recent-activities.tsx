@@ -1,16 +1,20 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  StyleSheet,
   Text,
   View,
 } from "react-native";
+import HistoryCard, {
+  HistoryItem,
+} from "../../../components/(patient)/HistoryCard";
 import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import { useAuth } from "../../../context/AuthContext";
+import { AUTH_COLORS } from "../../../lib/authScreenTheme";
 import socketService from "../../../lib/socket";
 
 interface RequestStatus {
@@ -33,6 +37,11 @@ interface RequestStatus {
     | "rejected";
   urgency: "low" | "medium" | "high" | "emergency";
   createdAt: string;
+  consultationMode?: "house_visit" | "video_consultation";
+  paymentMethod?: "wallet" | "cash";
+  symptoms?: string;
+  consultationCost?: number;
+  estimatedCost?: number;
   ailmentCategoryId?: {
     _id: string;
     title: string;
@@ -69,206 +78,44 @@ interface StoredRequest {
   acceptedAt: number;
 }
 
-const StatusBadge = ({ status }: { status: string }) => {
-  const getStatusColor = () => {
-    switch (status) {
-      case "searching":
-        return { bg: "bg-yellow-100", text: "text-yellow-800", icon: "search" };
-      case "pending":
-        return { bg: "bg-blue-100", text: "text-blue-800", icon: "clock" };
-      case "accepted":
-        return {
-          bg: "bg-green-100",
-          text: "text-green-800",
-          icon: "check-circle",
-        };
-      case "payment_pending":
-        return {
-          bg: "bg-amber-100",
-          text: "text-amber-800",
-          icon: "credit-card",
-        };
-      case "paid":
-      case "provider_confirmation_pending":
-      case "ready_for_call":
-      case "in_call":
-        return {
-          bg: "bg-sky-100",
-          text: "text-sky-800",
-          icon: "video",
-        };
-      case "en_route":
-        return {
-          bg: "bg-purple-100",
-          text: "text-purple-800",
-          icon: "navigation",
-        };
-      case "arrived":
-        return {
-          bg: "bg-indigo-100",
-          text: "text-indigo-800",
-          icon: "map-pin",
-        };
-      case "in_progress":
-        return {
-          bg: "bg-orange-100",
-          text: "text-orange-800",
-          icon: "activity",
-        };
-      case "completed":
-        return {
-          bg: "bg-emerald-100",
-          text: "text-emerald-800",
-          icon: "check",
-        };
-      case "cancelled":
-        return { bg: "bg-red-100", text: "text-red-800", icon: "x-circle" };
-      case "expired":
-      case "rejected":
-        return {
-          bg: "bg-gray-100",
-          text: "text-gray-800",
-          icon: "alert-circle",
-        };
-      default:
-        return {
-          bg: "bg-gray-100",
-          text: "text-gray-800",
-          icon: "help-circle",
-        };
-    }
+const toHistoryItem = (stored: StoredRequest): HistoryItem => {
+  const request = stored.request;
+  return {
+    _id: request._id,
+    ailment: request.ailmentCategoryId?.title || "Healthcare Request",
+    status: request.status,
+    date: new Date(request.createdAt).toLocaleDateString("en-ZA", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }),
+    createdAt: request.createdAt,
+    consultationMode: request.consultationMode,
+    paymentMethod: request.paymentMethod,
+    urgency: request.urgency,
+    symptoms: request.symptoms,
+    consultationCost:
+      typeof request.consultationCost === "number"
+        ? request.consultationCost
+        : typeof request.estimatedCost === "number"
+          ? request.estimatedCost
+          : undefined,
+    providerName: request.providerId?.fullname,
+    providerRole: request.providerId?.role,
+    providerPhone: request.providerId?.cellphoneNumber,
+    estimatedArrival: request.providerResponse?.estimatedArrival,
+    address: request.address
+      ? {
+          route: request.address.route,
+          locality: request.address.locality,
+          region: request.address.administrative_area_level_1,
+        }
+      : undefined,
   };
-
-  const colors = getStatusColor();
-  return (
-    <View
-      className={`${colors.bg} px-3 py-1 rounded-full flex-row items-center gap-1`}
-    >
-      <Feather
-        name={colors.icon as any}
-        size={12}
-        color={colors.text.replace("text-", "")}
-      />
-      <Text className={`${colors.text} text-xs font-semibold capitalize`}>
-        {status.replace("_", " ")}
-      </Text>
-    </View>
-  );
-};
-
-const ActivityCard = ({ item }: { item: StoredRequest }) => {
-  const request = item.request;
-
-  const getStatusDescription = (status: string) => {
-    switch (status) {
-      case "searching":
-        return "Searching for available providers...";
-      case "pending":
-        return "Request sent to provider, waiting for response...";
-      case "accepted":
-        return `Provider ${request.providerId?.fullname || "has"} accepted your request`;
-      case "payment_pending":
-        return `Provider ${request.providerId?.fullname || "has"} accepted your teleconsultation. Complete payment to continue.`;
-      case "paid":
-        return "Payment received. Waiting for provider confirmation.";
-      case "provider_confirmation_pending":
-        return "Waiting for your provider to confirm readiness.";
-      case "ready_for_call":
-        return "Your teleconsultation is ready to begin.";
-      case "in_call":
-        return "Video consultation is in progress.";
-      case "en_route":
-        return `Provider is on the way (${request.providerResponse?.estimatedArrival || "ETA pending"})`;
-      case "arrived":
-        return "Provider has arrived at your location";
-      case "in_progress":
-        return "Consultation is in progress...";
-      case "completed":
-        return "Consultation has been completed";
-      case "cancelled":
-        return "Request was cancelled";
-      case "expired":
-        return "Request expired - no providers available";
-      case "rejected":
-        return "Request was rejected";
-      default:
-        return status;
-    }
-  };
-
-  return (
-    <View className="bg-white rounded-xl p-4 mb-3 border border-gray-200 shadow-sm">
-      {/* Header with status */}
-      <View className="flex-row justify-between items-start mb-3">
-        <View className="flex-1">
-          <Text className="text-lg font-bold text-gray-800 mb-2">
-            {request.ailmentCategoryId?.title || "Healthcare Request"}
-          </Text>
-          <StatusBadge status={request.status} />
-        </View>
-      </View>
-
-      {/* Status description */}
-      <Text className="text-sm text-gray-600 mb-3">
-        {getStatusDescription(request.status)}
-      </Text>
-
-      {/* Provider info - only show if accepted */}
-      {[
-        "accepted",
-        "payment_pending",
-        "paid",
-        "provider_confirmation_pending",
-        "ready_for_call",
-        "in_call",
-      ].includes(request.status) &&
-        request.providerId && (
-        <View className="bg-blue-50 rounded-lg p-3 mb-3 border border-blue-200">
-          <Text className="text-xs font-semibold text-blue-900 mb-1">
-            Provider Details
-          </Text>
-          <View className="flex-row items-center mb-2">
-            <Feather name="user" size={14} color="#1e40af" />
-            <Text className="text-sm font-semibold text-gray-800 ml-2">
-              {request.providerId.fullname}
-            </Text>
-            <View className="ml-auto bg-blue-100 px-2 py-1 rounded">
-              <Text className="text-xs font-semibold text-blue-800 capitalize">
-                {request.providerId.role}
-              </Text>
-            </View>
-          </View>
-          <View className="flex-row items-center">
-            <Feather name="phone" size={14} color="#1e40af" />
-            <Text className="text-sm text-gray-700 ml-2">
-              {request.providerId.cellphoneNumber}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Request details */}
-      <View className="bg-gray-50 rounded-lg p-3">
-        <View className="flex-row items-center mb-2">
-          <Feather name="map-pin" size={14} color="#6b7280" />
-          <Text className="text-xs text-gray-600 ml-2 flex-1">
-            {request.address?.route}, {request.address?.locality}
-          </Text>
-        </View>
-        <View className="flex-row items-center">
-          <Feather name="calendar" size={14} color="#6b7280" />
-          <Text className="text-xs text-gray-600 ml-2">
-            Requested: {new Date(request.createdAt).toLocaleString()}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
 };
 
 export default function RecentActivities() {
   const { user } = useAuth();
-  const router = useRouter();
   const [requests, setRequests] = useState<StoredRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -345,53 +192,120 @@ export default function RecentActivities() {
     loadRequests();
   }, [loadRequests]);
 
-  // Sort all requests by creation date (newest first)
-  const sortedRequests = [...requests].sort(
-    (a, b) =>
-      new Date(b.request.createdAt).getTime() -
-      new Date(a.request.createdAt).getTime(),
+  const historyItems = useMemo(
+    () =>
+      [...requests]
+        .sort(
+          (a, b) =>
+            new Date(b.request.createdAt).getTime() -
+            new Date(a.request.createdAt).getTime(),
+        )
+        .map(toHistoryItem),
+    [requests],
   );
 
   if (isLoading) {
     return (
-      <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text className="text-gray-600 mt-4">Loading your activities...</Text>
+      <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor={AUTH_COLORS.bg}>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={AUTH_COLORS.green} />
+          <Text style={styles.loadingText}>Loading your activities...</Text>
+        </View>
       </ScreenLayout>
     );
   }
 
   return (
-    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor="#F9FAFB">
-      {/* Top Bar with Back Arrow */}
+    <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor={AUTH_COLORS.bg}>
       <FlatList
-        data={sortedRequests}
-        keyExtractor={(item) => item.request._id}
-        renderItem={({ item }) => <ActivityCard item={item} />}
-        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+        data={historyItems}
+        keyExtractor={(item) => item._id}
+        numColumns={2}
+        columnWrapperStyle={styles.gridRow}
+        renderItem={({ item }) => <HistoryCard item={item} />}
+        contentContainerStyle={styles.listContent}
         ListHeaderComponent={
-          <View className="mb-4">
-            <Text className="text-xl font-bold text-gray-600">
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Recent activity</Text>
+            <Text style={styles.headerSubtitle}>
               All your healthcare requests and their status
             </Text>
           </View>
         }
         ListEmptyComponent={
-          <View className="bg-white rounded-xl p-6 items-center border border-gray-200">
-            <Feather name="inbox" size={48} color="#9CA3AF" />
-            <Text className="text-lg font-semibold text-gray-800 mt-4">
-              No Activities Yet
-            </Text>
-            <Text className="text-sm text-gray-600 text-center mt-2">
+          <View style={styles.emptyCard}>
+            <Feather name="inbox" size={48} color={AUTH_COLORS.textMuted} />
+            <Text style={styles.emptyTitle}>No activities yet</Text>
+            <Text style={styles.emptyBody}>
               When you submit healthcare requests, they will appear here with
               their status.
             </Text>
           </View>
         }
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={AUTH_COLORS.green}
+          />
         }
       />
     </ScreenLayout>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: AUTH_COLORS.textMuted,
+  },
+  listContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  header: {
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    marginBottom: 6,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: AUTH_COLORS.textMuted,
+  },
+  gridRow: {
+    justifyContent: "space-between",
+  },
+  emptyCard: {
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    padding: 28,
+    alignItems: "center",
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    marginTop: 16,
+  },
+  emptyBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: AUTH_COLORS.textMuted,
+    textAlign: "center",
+    marginTop: 8,
+  },
+});

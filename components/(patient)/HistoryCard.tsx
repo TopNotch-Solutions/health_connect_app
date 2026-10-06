@@ -1,196 +1,236 @@
 import { Feather } from "@expo/vector-icons";
-import { View, Text } from "react-native";
+import React, { useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { AUTH_COLORS } from "../../lib/authScreenTheme";
+import ConsultationDetailModal, {
+  HistoryItem,
+} from "./ConsultationDetailModal";
 
-
-export interface HistoryItem {
-    _id: string;
-    ailment: string;
-    status: string;
-    date: string;
-}
+export type { HistoryItem };
 
 const HistoryCard = ({ item }: { item: HistoryItem }) => {
-    const getStatusConfig = (status: string) => {
+  const [detailVisible, setDetailVisible] = useState(false);
+
+  const getStatusConfig = (status: string) => {
     switch (status) {
-        case 'completed':
-            return { 
-                color: '#10B981', 
-                bgColor: '#D1FAE5', 
-                gradientStart: '#10B981', 
-                gradientEnd: '#059669',
-                icon: 'check-circle' 
-            };
-        case 'cancelled':
-            return { 
-                color: '#EF4444', 
-                bgColor: '#FEE2E2', 
-                gradientStart: '#EF4444', 
-                gradientEnd: '#DC2626',
-                icon: 'x-circle' 
-            };
-        case 'pending':
-        case 'searching':
-            return { 
-                color: '#F59E0B', 
-                bgColor: '#FEF3C7', 
-                gradientStart: '#F59E0B', 
-                gradientEnd: '#D97706',
-                icon: 'clock' 
-            };
-        case 'accepted':
-        case 'en_route':
-        case 'arrived':
-            return { 
-                color: '#3B82F6', 
-                bgColor: '#DBEAFE', 
-                gradientStart: '#3B82F6', 
-                gradientEnd: '#2563EB',
-                icon: 'navigation' 
-            };
-        default:
-            return { 
-                color: '#6B7280', 
-                bgColor: '#F3F4F6', 
-                gradientStart: '#6B7280', 
-                gradientEnd: '#4B5563',
-                icon: 'info' 
-            };
-        }
-    };
+      case "completed":
+        return {
+          color: "#059669",
+          bgColor: "#D1FAE5",
+          icon: "check-circle",
+        };
+      case "cancelled":
+        return {
+          color: "#DC2626",
+          bgColor: "#FEE2E2",
+          icon: "x-circle",
+        };
+      case "pending":
+      case "searching":
+        return {
+          color: "#D97706",
+          bgColor: "#FEF3C7",
+          icon: "clock",
+        };
+      case "accepted":
+      case "en_route":
+      case "arrived":
+        return {
+          color: "#2563EB",
+          bgColor: "#DBEAFE",
+          icon: "navigation",
+        };
+      default:
+        return {
+          color: "#4B5563",
+          bgColor: "#F3F4F6",
+          icon: "info",
+        };
+    }
+  };
 
-    const statusConfig = getStatusConfig(item.status);
-    const statusText = item.status.charAt(0).toUpperCase() + item.status.slice(1).replace('_', ' ');
+  const statusConfig = getStatusConfig(item.status);
+  const statusText =
+    item.status.charAt(0).toUpperCase() +
+    item.status.slice(1).replace("_", " ");
 
-    return (
-        <View 
-            className="w-[48%] mb-4 rounded-2xl overflow-hidden"
-            style={{
-                height: 150,
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.15,
-                shadowRadius: 8,
-                elevation: 4,
-            }}
-        >
-            {/* Background with gradient-like effect */}
-            <View 
-                style={{
-                    position: 'absolute',
-                    width: '100%',
-                    height: '100%',
-                    backgroundColor: statusConfig.gradientStart,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                }}
-            >
-                {/* Decorative pattern overlay */}
-                <View 
-                    style={{
-                        position: 'absolute',
-                        top: -20,
-                        right: -20,
-                        width: 80,
-                        height: 80,
-                        borderRadius: 40,
-                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    }}
-                />
-                <View 
-                    style={{
-                        position: 'absolute',
-                        bottom: -30,
-                        left: -30,
-                        width: 100,
-                        height: 100,
-                        borderRadius: 50,
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                    }}
-                />
-                
-                {/* Large icon in center */}
-                <View 
-                    style={{
-                        width: 60,
-                        height: 60,
-                        borderRadius: 30,
-                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                    }}
-                >
-                    <Feather 
-                        name={statusConfig.icon as any} 
-                        size={32} 
-                        color="#FFFFFF" 
-                    />
-                </View>
-            </View>
-            
-            {/* Blurred overlay at the bottom with content */}
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => setDetailVisible(true)}
+        activeOpacity={0.88}
+      >
+        <View
+          style={[styles.accentBar, { backgroundColor: statusConfig.color }]}
+        />
+
+        <View style={styles.orbLarge} pointerEvents="none" />
+        <View style={styles.orbSmall} pointerEvents="none" />
+
+        <View style={styles.body}>
+          <View style={styles.topRow}>
             <View
-                style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                    paddingVertical: 12,
-                    paddingHorizontal: 12,
-                }}
+              style={[
+                styles.iconWrap,
+                { backgroundColor: statusConfig.bgColor },
+              ]}
             >
-                <Text 
-                    style={{
-                        fontSize: 14,
-                        fontWeight: '700',
-                        color: '#FFFFFF',
-                        textShadowColor: 'rgba(0, 0, 0, 0.75)',
-                        textShadowOffset: { width: 0, height: 1 },
-                        textShadowRadius: 3,
-                        marginBottom: 6,
-                    }}
-                    numberOfLines={1}
-                >
-                    {item.ailment}
-                </Text>
-                
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                    <Feather name={statusConfig.icon as any} size={12} color="#FFFFFF" />
-                    <Text
-                        style={{
-                            fontSize: 11,
-                            fontWeight: '600',
-                            color: '#FFFFFF',
-                            marginLeft: 4,
-                            textShadowColor: 'rgba(0, 0, 0, 0.75)',
-                            textShadowOffset: { width: 0, height: 1 },
-                            textShadowRadius: 3,
-                        }}
-                    >
-                        {statusText}
-                    </Text>
-                </View>
-                
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Feather name="calendar" size={11} color="#E5E7EB" />
-                    <Text 
-                        style={{ 
-                            fontSize: 10, 
-                            color: '#E5E7EB', 
-                            marginLeft: 4,
-                            textShadowColor: 'rgba(0, 0, 0, 0.75)',
-                            textShadowOffset: { width: 0, height: 1 },
-                            textShadowRadius: 3,
-                        }}
-                    >
-                        {item.date}
-                    </Text>
-                </View>
+              <Feather
+                name={statusConfig.icon as any}
+                size={20}
+                color={statusConfig.color}
+              />
             </View>
+            <View
+              style={[
+                styles.statusPill,
+                { backgroundColor: statusConfig.bgColor },
+              ]}
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  { backgroundColor: statusConfig.color },
+                ]}
+              />
+              <Text
+                style={[styles.statusText, { color: statusConfig.color }]}
+                numberOfLines={1}
+              >
+                {statusText}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.ailment} numberOfLines={2}>
+            {item.ailment}
+          </Text>
+
+          <View style={styles.footer}>
+            <Feather name="calendar" size={12} color={AUTH_COLORS.textMuted} />
+            <Text style={styles.date} numberOfLines={1}>
+              {item.date}
+            </Text>
+            <Feather
+              name="chevron-right"
+              size={14}
+              color={AUTH_COLORS.textMuted}
+            />
+          </View>
         </View>
-    );
+      </TouchableOpacity>
+
+      <ConsultationDetailModal
+        visible={detailVisible}
+        item={item}
+        onClose={() => setDetailVisible(false)}
+      />
+    </>
+  );
 };
+
+const styles = StyleSheet.create({
+  card: {
+    width: "48%",
+    marginBottom: 14,
+    height: 156,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 2,
+    borderColor: AUTH_COLORS.inputBorder,
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  accentBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+  },
+  orbLarge: {
+    position: "absolute",
+    top: -24,
+    right: -20,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: AUTH_COLORS.greenSoft,
+  },
+  orbSmall: {
+    position: "absolute",
+    bottom: -16,
+    left: -12,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(134, 239, 172, 0.28)",
+  },
+  body: {
+    flex: 1,
+    paddingTop: 16,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    justifyContent: "space-between",
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
+  },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusPill: {
+    flexShrink: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.1,
+  },
+  ailment: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    letterSpacing: -0.2,
+    lineHeight: 19,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: "auto",
+  },
+  date: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: "500",
+    color: AUTH_COLORS.textMuted,
+  },
+});
 
 export default HistoryCard;

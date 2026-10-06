@@ -3,85 +3,42 @@ import {
   HeaderBackButton,
   iosStackHeaderBackOptions,
 } from "@/components/HeaderBackButton";
-import apiClient from "@/lib/api";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   Tabs,
-  useFocusEffect,
-  usePathname,
   useRouter,
-  useSegments,
 } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getModernTabBarOptions } from "@/lib/modernTabBar";
+import { useUnreadNotificationCount } from "@/lib/useUnreadNotificationCount";
 
 export default function PatientTabLayout() {
   const { logout, user } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCount = useUnreadNotificationCount(!!user?.userId);
   const router = useRouter();
-  const pathname = usePathname();
-  const segments = useSegments();
   const insets = useSafeAreaInsets();
 
-  // Fetch unread notification count
-  const fetchUnreadCount = useCallback(async () => {
-    if (!user?.userId) return;
-    try {
-      console.log("Fetching unread count...");
-      const response = await apiClient.get("/app/notification/unread-count/");
-      console.log("Unread count response:", response.data);
-
-      // API response structure: { status: true, data: { unReadCount: number } }
-      const count = response.data?.data?.unReadCount || 0;
-      console.log("Parsed unread count:", count);
-      setUnreadCount(count); // Store actual count
-    } catch (error: any) {
-      console.error("Error fetching unread count:", error.message);
-      console.error("Error details:", error.response?.data);
-      setUnreadCount(0);
-    }
-  }, [user?.userId]);
-
-  // Fetch count when screen is focused
-  useFocusEffect(
-    useCallback(() => {
-      fetchUnreadCount();
-    }, [fetchUnreadCount]),
-  );
-
-  // Fetch count when route changes (user navigates between tabs/pages)
-  useEffect(() => {
-    fetchUnreadCount();
-  }, [pathname, fetchUnreadCount]);
-
-  // Fetch count when segments change (tab navigation)
-  useEffect(() => {
-    fetchUnreadCount();
-  }, [segments, fetchUnreadCount]);
-
-  // Refresh count when returning from notifications screen
-  useEffect(() => {
-    // If we're not on notifications page, refresh count
-    // This handles the case when user returns from notifications
-    if (!pathname.includes("notifications")) {
-      const timer = setTimeout(() => {
-        fetchUnreadCount();
-      }, 300); // Small delay to ensure navigation is complete
-      return () => clearTimeout(timer);
-    }
-  }, [pathname, fetchUnreadCount]);
-
-  const handleLogout = async () => {
-    try {
-      setIsLoggingOut(true);
-      await logout();
-      router.replace("/sign-in"); // back to the sign-in screen
-    } finally {
-      setIsLoggingOut(false);
-    }
+  const handleLogout = () => {
+    if (isLoggingOut) return;
+    Alert.alert("Log Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log Out",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setIsLoggingOut(true);
+            await logout();
+            router.replace("/sign-in");
+          } finally {
+            setIsLoggingOut(false);
+          }
+        },
+      },
+    ]);
   };
 
   // Memoize headerRight to ensure it re-renders when unreadCount changes

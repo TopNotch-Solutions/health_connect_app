@@ -8,6 +8,11 @@ import React, {
 } from "react";
 import apiClient, { setUnauthorizedHandler } from "../lib/api";
 import {
+  checkIsOnline,
+  isNetworkError,
+  subscribeToNetworkStatus,
+} from "../lib/networkDetector";
+import {
   registerForPushNotifications,
   removePushTokenFromBackend,
   savePushTokenToBackend,
@@ -158,29 +163,85 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loadUser();
   }, []);
 
+  // Re-register the device push token whenever a session is restored/refreshed,
+  // not only on fresh login — otherwise pushes stop after token rotation.
   useEffect(() => {
-    const fetchAppToken = async () => {
+    if (!user?.userId) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const online = await checkIsOnline();
+        if (!online || cancelled) return;
+
+        const pushToken = await registerForPushNotifications();
+        if (!pushToken || cancelled) return;
+
+        await SecureStore.setItemAsync("pushToken", pushToken);
+        await savePushTokenToBackend(pushToken);
+      } catch (e) {
+        console.warn("⚠️ Push token refresh failed:", e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchAppTokenIfNeeded = async () => {
+      if (cancelled) return;
+
+      const online = await checkIsOnline();
+      if (!online) {
+        console.log("📴 Offline — deferring app token fetch until connected");
+        return;
+      }
+
       try {
         const existingToken = await SecureStore.getItemAsync("appToken");
-        if (!existingToken) {
-          console.log("🔑 Fetching app token...");
-          const response = await apiClient.get("/app/auth/retrieve-jwt-token");
-          const data = response.data;
-
-          if (data && data.token) {
-            await SecureStore.setItemAsync("appToken", data.token);
-            console.log("✅ App token saved successfully");
-          } else {
-            console.error("❌ No app token in response");
-          }
-        } else {
+        if (existingToken) {
           console.log("✅ App token already exists");
+          return;
+        }
+
+        console.log("🔑 Fetching app token...");
+        const response = await apiClient.get("/app/auth/retrieve-jwt-token");
+        const data = response.data;
+
+        if (data?.token) {
+          await SecureStore.setItemAsync("appToken", data.token);
+          console.log("✅ App token saved successfully");
+        } else {
+          console.error("❌ No app token in response");
         }
       } catch (error) {
-        console.error("❌ Failed to fetch app token:", error);
+        if (isNetworkError(error)) {
+          console.warn(
+            "📴 Network error fetching app token — will retry when online",
+          );
+        } else {
+          console.error("❌ Failed to fetch app token:", error);
+        }
       }
     };
-    fetchAppToken();
+
+    void fetchAppTokenIfNeeded();
+
+    const unsubscribe = subscribeToNetworkStatus((status) => {
+      if (status.isOnline) {
+        void fetchAppTokenIfNeeded();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<User> => {
@@ -188,8 +249,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.log("🔐 Starting login process...");
 
       const fetchFreshAppToken = async () => {
+        const online = await checkIsOnline();
+        if (!online) {
+          throw new Error(
+            "Cannot connect to server. Please check your internet connection.",
+          );
+        }
+
         const response = await apiClient.get("/app/auth/retrieve-jwt-token");
-        if (response.data && response.data.token) {
+        if (response.data?.token) {
           await SecureStore.setItemAsync("appToken", response.data.token);
           console.log("✅ App token fetched and saved");
           return response.data.token;
@@ -220,12 +288,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           password,
         });
       } catch (loginError: any) {
+        if (isNetworkError(loginError)) {
+          throw new Error(
+            "Cannot connect to server. Please check your internet connection.",
+          );
+        }
+
         const isInvalidAppToken =
           loginError?.response?.status === 400 &&
           loginError?.response?.data?.message === "Invalid token.";
 
         if (!isInvalidAppToken) {
           throw loginError;
+        }
+
+        const online = await checkIsOnline();
+        if (!online) {
+          throw new Error(
+            "Cannot connect to server. Please check your internet connection.",
+          );
         }
 
         console.warn(

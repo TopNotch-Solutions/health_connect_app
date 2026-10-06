@@ -20,7 +20,8 @@ import { isExpoGoRuntime } from "./isExpoGoRuntime";
 type NotificationsModule = typeof import("expo-notifications");
 
 // ─── Android channel ────────────────────────────────────────────────────────
-export const NOTIFICATION_CHANNEL_ID = "healthconnect-default";
+// Bump channel id when sound/importance changes — Android ignores updates to existing channels.
+export const NOTIFICATION_CHANNEL_ID = "healthconnect-alerts-v2";
 
 let notificationsModulePromise: Promise<NotificationsModule | null> | null =
   null;

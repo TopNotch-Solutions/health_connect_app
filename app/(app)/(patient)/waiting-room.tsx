@@ -552,14 +552,16 @@ const RequestCard = ({
           <>
             <TouchableOpacity
               onPress={() => setTrackingModalVisible(true)}
-              style={styles.trackButton}
+              style={styles.actionSecondary}
+              activeOpacity={0.85}
             >
-              <View style={styles.trackButtonRow}>
-                <Feather name="map" size={16} color="#15803d" />
-                <Text style={styles.trackButtonText}>
-                  Track Provider on Map
-                </Text>
+              <View style={styles.actionIconSoft}>
+                <Feather name="map" size={16} color={AUTH_COLORS.greenDark} />
               </View>
+              <Text style={styles.actionSecondaryText}>
+                Track Provider on Map
+              </Text>
+              <Feather name="chevron-right" size={18} color={AUTH_COLORS.green} />
             </TouchableOpacity>
 
             <PatientProviderTracking
@@ -581,17 +583,22 @@ const RequestCard = ({
             onPress={handleConfirmPayment}
             disabled={isPaying}
             style={[
-              styles.payButton,
-              isPaying ? { opacity: 0.7 } : null,
+              styles.actionPrimary,
+              isPaying ? styles.actionDisabled : null,
             ]}
+            activeOpacity={0.88}
           >
             {isPaying ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <View style={styles.payButtonRow}>
-                <Feather name="credit-card" size={16} color="#FFFFFF" />
-                <Text style={styles.payButtonText}>Payment Confirmed</Text>
-              </View>
+              <>
+                <View style={styles.actionIconOnPrimary}>
+                  <Feather name="credit-card" size={16} color="#FFFFFF" />
+                </View>
+                <Text style={styles.actionPrimaryText}>
+                  I&apos;ve Confirmed Payment
+                </Text>
+              </>
             )}
           </TouchableOpacity>
         )}
@@ -604,12 +611,15 @@ const RequestCard = ({
                 `/(app)/(patient)/teleconsultation-call?requestId=${encodeURIComponent(request._id)}` as Href,
               )
             }
-            style={styles.joinCallButton}
+            style={styles.actionPrimary}
+            activeOpacity={0.88}
           >
-            <View style={styles.joinCallButtonRow}>
+            <View style={styles.actionIconOnPrimary}>
               <Feather name="video" size={16} color="#FFFFFF" />
-              <Text style={styles.joinCallButtonText}>Join Call</Text>
             </View>
+            <Text style={styles.actionPrimaryText}>
+              {request.status === "in_call" ? "Return to Call" : "Join Video Call"}
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -669,15 +679,18 @@ const RequestCard = ({
           {/* Upload / Edit button — hidden once accepted */}
           {prescription?.status !== "accepted" && (
             <TouchableOpacity
-              style={styles.prescriptionBtn}
+              style={styles.actionPrimary}
               onPress={() => setPrescriptionModalVisible(true)}
+              activeOpacity={0.88}
             >
-              <Feather
-                name={prescription?.prescriptionImage ? "edit-2" : "upload"}
-                size={15}
-                color="#FFFFFF"
-              />
-              <Text style={styles.prescriptionBtnText}>
+              <View style={styles.actionIconOnPrimary}>
+                <Feather
+                  name={prescription?.prescriptionImage ? "edit-2" : "upload"}
+                  size={15}
+                  color="#FFFFFF"
+                />
+              </View>
+              <Text style={styles.actionPrimaryText}>
                 {prescription?.prescriptionImage
                   ? "Edit Prescription"
                   : "Upload Prescription"}
@@ -716,15 +729,21 @@ const RequestCard = ({
         <TouchableOpacity
           onPress={handleCancel}
           disabled={isCancelling}
-          style={styles.cancelButton}
+          style={[
+            styles.actionDanger,
+            isCancelling ? styles.actionDisabled : null,
+          ]}
+          activeOpacity={0.85}
         >
           {isCancelling ? (
-            <ActivityIndicator size="small" color="#dc2626" />
+            <ActivityIndicator size="small" color="#DC2626" />
           ) : (
-            <View style={styles.cancelButtonRow}>
-              <Feather name="x-circle" size={16} color="#dc2626" />
-              <Text style={styles.cancelButtonText}>Cancel Request</Text>
-            </View>
+            <>
+              <View style={styles.actionIconDanger}>
+                <Feather name="x" size={16} color="#DC2626" />
+              </View>
+              <Text style={styles.actionDangerText}>Cancel Request</Text>
+            </>
           )}
         </TouchableOpacity>
       )}
@@ -1589,89 +1608,108 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#92400E",
   },
-  trackButton: {
-    backgroundColor: "#ECFDF3",
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-    marginBottom: 8,
-  },
-  trackButtonRow: {
+  actionPrimary: {
+    minHeight: 52,
+    backgroundColor: "#0F3D24",
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 10,
+    shadowColor: "#0F3D24",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  trackButtonText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#15803D",
-    marginLeft: 6,
+  actionSecondary: {
+    minHeight: 52,
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1.5,
+    borderColor: AUTH_COLORS.inputBorder,
+    shadowColor: AUTH_COLORS.green,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  payButton: {
-    backgroundColor: AUTH_COLORS.green,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
-  payButtonRow: {
+  actionDanger: {
+    minHeight: 50,
+    backgroundColor: "#FFF5F5",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-  },
-  payButtonText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginLeft: 6,
-  },
-  joinCallButton: {
-    backgroundColor: AUTH_COLORS.greenDark,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
-  joinCallButtonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  joinCallButtonText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginLeft: 6,
-  },
-  cancelButton: {
-    backgroundColor: "#FEF2F2",
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
+    gap: 10,
+    borderWidth: 1.5,
     borderColor: "#FECACA",
   },
-  cancelButtonRow: {
-    flexDirection: "row",
+  actionDisabled: {
+    opacity: 0.65,
+  },
+  actionIconOnPrimary: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.16)",
     alignItems: "center",
     justifyContent: "center",
   },
-  cancelButtonText: {
-    fontSize: 13,
-    fontWeight: "600",
+  actionIconSoft: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: AUTH_COLORS.greenSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  actionIconDanger: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionPrimaryText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
+  },
+  actionSecondaryText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+  },
+  actionDangerText: {
+    fontSize: 14,
+    fontWeight: "700",
     color: "#DC2626",
-    marginLeft: 6,
   },
   prescriptionSection: {
     backgroundColor: "#F0FDF4",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 8,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: "#BBF7D0",
-    gap: 8,
+    gap: 10,
   },
   prescriptionStatusRow: {
     flexDirection: "row",
@@ -1682,20 +1720,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     flex: 1,
-  },
-  prescriptionBtn: {
-    backgroundColor: "#10B981",
-    borderRadius: 8,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  prescriptionBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#FFFFFF",
   },
 });

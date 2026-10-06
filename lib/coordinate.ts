@@ -19,29 +19,32 @@ export interface NormalizedCoordinate {
 export const normalizeCoordinate = (coord: any): NormalizedCoordinate | null => {
   if (!coord) return null;
 
-  // Already in correct format
-  if (coord.latitude !== undefined && coord.longitude !== undefined) {
-    return {
-      latitude: Number(coord.latitude),
-      longitude: Number(coord.longitude),
-    };
-  }
-  
   // GeoJSON format from MongoDB: { type: "Point", coordinates: [lng, lat] }
-  // NOTE: GeoJSON uses [longitude, latitude] order!
-  if (coord.type === 'Point' && Array.isArray(coord.coordinates) && coord.coordinates.length === 2) {
-    return {
-      latitude: Number(coord.coordinates[1]),  // lat is second
-      longitude: Number(coord.coordinates[0]), // lng is first
-    };
+  // Prefer this before lat/lng fields — some payloads include null lat/lng alongside GeoJSON.
+  if (Array.isArray(coord.coordinates) && coord.coordinates.length >= 2) {
+    const longitude = Number(coord.coordinates[0]);
+    const latitude = Number(coord.coordinates[1]);
+    if (!isNaN(latitude) && !isNaN(longitude)) {
+      return { latitude, longitude };
+    }
+  }
+
+  // Already in correct format
+  if (coord.latitude != null && coord.longitude != null) {
+    const latitude = Number(coord.latitude);
+    const longitude = Number(coord.longitude);
+    if (!isNaN(latitude) && !isNaN(longitude)) {
+      return { latitude, longitude };
+    }
   }
   
   // Plain array format [lng, lat]
-  if (Array.isArray(coord) && coord.length === 2) {
-    return {
-      latitude: Number(coord[1]),
-      longitude: Number(coord[0]),
-    };
+  if (Array.isArray(coord) && coord.length >= 2) {
+    const longitude = Number(coord[0]);
+    const latitude = Number(coord[1]);
+    if (!isNaN(latitude) && !isNaN(longitude)) {
+      return { latitude, longitude };
+    }
   }
   
   console.warn('⚠️ Unknown coordinate format:', coord);
@@ -92,4 +95,44 @@ export const getCoordinateOrDefault = (
  */
 export const normalizeCoordinateOrUndefined = (coord: any): NormalizedCoordinate | undefined => {
   return normalizeCoordinate(coord) || undefined;
+};
+
+/** Resolve patient coordinates from a consultation request object. */
+export const getPatientLocationFromRequest = (request: {
+  address?: { coordinates?: unknown };
+  locationTracking?: {
+    patientLocation?: { latitude?: number; longitude?: number };
+  };
+} | null | undefined): NormalizedCoordinate | null => {
+  if (!request) return null;
+
+  const candidates = [
+    request.address?.coordinates,
+    request.locationTracking?.patientLocation,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeCoordinate(candidate);
+    if (!normalized || !isValidCoordinate(normalized)) continue;
+    // Schema default [0, 0] means "unset" — treat as missing
+    if (normalized.latitude === 0 && normalized.longitude === 0) continue;
+    return normalized;
+  }
+
+  return null;
+};
+
+/** Extract provider id whether populated or stored as a plain id. */
+export const getRequestProviderId = (request: {
+  providerId?: unknown;
+} | null | undefined): string | null => {
+  if (!request?.providerId) return null;
+  const provider = request.providerId as any;
+  if (typeof provider === "string" || typeof provider === "number") {
+    return String(provider);
+  }
+  if (provider?._id) return String(provider._id);
+  if (provider?.id) return String(provider.id);
+  if (provider?.userId) return String(provider.userId);
+  return null;
 };

@@ -397,6 +397,28 @@ export default function PatientHomeScreen() {
                 month: "short",
                 day: "numeric",
               }),
+              createdAt: item.createdAt,
+              consultationMode: item.consultationMode,
+              paymentMethod: item.paymentMethod,
+              urgency: item.urgency,
+              symptoms: item.symptoms,
+              consultationCost:
+                typeof item.consultationCost === "number"
+                  ? item.consultationCost
+                  : typeof item.estimatedCost === "number"
+                    ? item.estimatedCost
+                    : undefined,
+              providerName: item.providerId?.fullname,
+              providerRole: item.providerId?.role,
+              providerPhone: item.providerId?.cellphoneNumber,
+              estimatedArrival: item.providerResponse?.estimatedArrival,
+              address: item.address
+                ? {
+                    route: item.address.route,
+                    locality: item.address.locality,
+                    region: item.address.administrative_area_level_1,
+                  }
+                : undefined,
             };
           });
         console.log("📋 Final recent requests:", recent);
@@ -940,14 +962,11 @@ export default function PatientHomeScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <FlatList
-                  data={recentRequests}
-                  keyExtractor={(item) => item._id}
-                  numColumns={2}
-                  scrollEnabled={false}
-                  columnWrapperStyle={styles.ailmentRow}
-                  renderItem={({ item }) => <HistoryCard item={item} />}
-                />
+                <View style={styles.recentRow}>
+                  {recentRequests.map((item) => (
+                    <HistoryCard key={item._id} item={item} />
+                  ))}
+                </View>
               )}
             </View>
           </ScrollView>
@@ -1344,6 +1363,11 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   ailmentRow: {
+    justifyContent: "space-between",
+  },
+  recentRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
   },
   loadingCard: {

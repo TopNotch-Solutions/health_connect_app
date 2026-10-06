@@ -1,20 +1,25 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../lib/iosInputStyles";
-import { AppTextInput as TextInput } from "./AppTextInput";
-import { ActivityIndicator, Alert, Dimensions, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import {
-  AppBottomSheetCloseHeader,
-  appBottomSheetAppearance,
-  appBottomSheetStyles,
-  appModalBottomSheetStyles,
-} from "./app/AppBottomSheetUI";
+  withIosInputContainerStyle,
+  withIosTextInputStyle,
+} from "../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "./AppTextInput";
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { AUTH_COLORS } from "../lib/authScreenTheme";
-import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const MAX_HEIGHT = SCREEN_HEIGHT * 0.8;
+import {
+  ProfileFeatureShell,
+  ProfileSectionRail,
+  profileFeatureStyles,
+} from "./ProfileFeatureShell";
 
 interface ChangePasswordModalProps {
   visible: boolean;
@@ -25,7 +30,6 @@ export default function ChangePasswordModal({
   visible,
   onClose,
 }: ChangePasswordModalProps) {
-  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswords, setShowPasswords] = useState({
     currentPassword: false,
@@ -43,8 +47,21 @@ export default function ChangePasswordModal({
     confirmPassword: "",
   });
 
+  const resetAndClose = () => {
+    setErrors({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+    setPasswords({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+    onClose();
+  };
+
   const handleChangePassword = async () => {
-    // Clear previous errors
     setErrors({
       currentPassword: "",
       newPassword: "",
@@ -58,7 +75,6 @@ export default function ChangePasswordModal({
       confirmPassword: "",
     };
 
-    // Validate fields
     if (!passwords.currentPassword.trim()) {
       newErrors.currentPassword = "Current password is required";
       hasError = true;
@@ -124,351 +140,178 @@ export default function ChangePasswordModal({
     }
   };
 
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => {
-        setErrors({
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        });
-        setPasswords({
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        });
-        onClose();
-      }}
+  const renderPasswordField = (
+    key: "currentPassword" | "newPassword" | "confirmPassword",
+    label: string,
+    placeholder: string,
+    last?: boolean,
+  ) => (
+    <View
+      style={[
+        profileFeatureStyles.fieldBlock,
+        last && profileFeatureStyles.fieldBlockLast,
+      ]}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
+      <Text style={profileFeatureStyles.label}>{label}</Text>
+      <View
+        style={withIosInputContainerStyle([
+          styles.inputWrapper,
+          errors[key] ? styles.inputWrapperError : undefined,
+        ])}
       >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => {
-            setErrors({
-              currentPassword: "",
-              newPassword: "",
-              confirmPassword: "",
-            });
-            setPasswords({
-              currentPassword: "",
-              newPassword: "",
-              confirmPassword: "",
-            });
-            onClose();
+        <TextInput
+          style={withIosTextInputStyle(styles.input)}
+          placeholder={placeholder}
+          placeholderTextColor={AUTH_COLORS.placeholder}
+          secureTextEntry={!showPasswords[key]}
+          value={passwords[key]}
+          onChangeText={(text) => {
+            setPasswords({ ...passwords, [key]: text });
+            if (errors[key]) {
+              setErrors({ ...errors, [key]: "" });
+            }
           }}
-          style={styles.overlay}
+          editable={!isLoading}
+        />
+        <TouchableOpacity
+          onPress={() =>
+            setShowPasswords({
+              ...showPasswords,
+              [key]: !showPasswords[key],
+            })
+          }
+          style={styles.eyeButton}
+          activeOpacity={0.7}
         >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={[styles.bottomSheet, { height: MAX_HEIGHT }]}>
-              <View style={appModalBottomSheetStyles.handle} />
-
-              <View style={styles.header}>
-                <AppBottomSheetCloseHeader
-                  title="Change Password"
-                  onClose={() => {
-                    setErrors({
-                      currentPassword: "",
-                      newPassword: "",
-                      confirmPassword: "",
-                    });
-                    setPasswords({
-                      currentPassword: "",
-                      newPassword: "",
-                      confirmPassword: "",
-                    });
-                    onClose();
-                  }}
-                />
-              </View>
-
-              <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-              >
-                {/* Current Password */}
-                <View style={styles.inputContainer}>
-                  <Text style={styles.label}>Current Password</Text>
-                  <View
-                    style={withIosInputContainerStyle([
-                      styles.inputWrapper,
-                      errors.currentPassword && styles.inputWrapperError,
-                    ])}
-                  >
-                    <TextInput
-                      style={withIosTextInputStyle(styles.input)}
-                      placeholder="Enter current password"
-                      placeholderTextColor="#9CA3AF"
-                      secureTextEntry={!showPasswords.currentPassword}
-                      value={passwords.currentPassword}
-                      onChangeText={(text) => {
-                        setPasswords({ ...passwords, currentPassword: text });
-                        if (errors.currentPassword) {
-                          setErrors({ ...errors, currentPassword: "" });
-                        }
-                      }}
-                      editable={!isLoading}
-                    />
-                    <TouchableOpacity
-                      onPress={() =>
-                        setShowPasswords({
-                          ...showPasswords,
-                          currentPassword: !showPasswords.currentPassword,
-                        })
-                      }
-                      style={styles.eyeButton}
-                      activeOpacity={0.7}
-                    >
-                      <Feather
-                        name={showPasswords.currentPassword ? "eye" : "eye-off"}
-                        size={20}
-                        color={errors.currentPassword ? "#EF4444" : "#6B7280"}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  {errors.currentPassword ? (
-                    <Text style={styles.errorText}>
-                      {errors.currentPassword}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {/* New Password */}
-                <View style={styles.inputContainer}>
-                  <Text style={styles.label}>New Password</Text>
-                  <View
-                    style={withIosInputContainerStyle([
-                      styles.inputWrapper,
-                      errors.newPassword && styles.inputWrapperError,
-                    ])}
-                  >
-                    <TextInput
-                      style={withIosTextInputStyle(styles.input)}
-                      placeholder="Enter new password"
-                      placeholderTextColor="#9CA3AF"
-                      secureTextEntry={!showPasswords.newPassword}
-                      value={passwords.newPassword}
-                      onChangeText={(text) => {
-                        setPasswords({ ...passwords, newPassword: text });
-                        if (errors.newPassword) {
-                          setErrors({ ...errors, newPassword: "" });
-                        }
-                      }}
-                      editable={!isLoading}
-                    />
-                    <TouchableOpacity
-                      onPress={() =>
-                        setShowPasswords({
-                          ...showPasswords,
-                          newPassword: !showPasswords.newPassword,
-                        })
-                      }
-                      style={styles.eyeButton}
-                      activeOpacity={0.7}
-                    >
-                      <Feather
-                        name={showPasswords.newPassword ? "eye" : "eye-off"}
-                        size={20}
-                        color={errors.newPassword ? "#EF4444" : "#6B7280"}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  {errors.newPassword ? (
-                    <Text style={styles.errorText}>{errors.newPassword}</Text>
-                  ) : null}
-                </View>
-
-                {/* Confirm Password */}
-                <View style={styles.inputContainer}>
-                  <Text style={styles.label}>Confirm Password</Text>
-                  <View
-                    style={withIosInputContainerStyle([
-                      styles.inputWrapper,
-                      errors.confirmPassword && styles.inputWrapperError,
-                    ])}
-                  >
-                    <TextInput
-                      style={withIosTextInputStyle(styles.input)}
-                      placeholder="Confirm new password"
-                      placeholderTextColor="#9CA3AF"
-                      secureTextEntry={!showPasswords.confirmPassword}
-                      value={passwords.confirmPassword}
-                      onChangeText={(text) => {
-                        setPasswords({ ...passwords, confirmPassword: text });
-                        if (errors.confirmPassword) {
-                          setErrors({ ...errors, confirmPassword: "" });
-                        }
-                      }}
-                      editable={!isLoading}
-                    />
-                    <TouchableOpacity
-                      onPress={() =>
-                        setShowPasswords({
-                          ...showPasswords,
-                          confirmPassword: !showPasswords.confirmPassword,
-                        })
-                      }
-                      style={styles.eyeButton}
-                      activeOpacity={0.7}
-                    >
-                      <Feather
-                        name={showPasswords.confirmPassword ? "eye" : "eye-off"}
-                        size={20}
-                        color={errors.confirmPassword ? "#EF4444" : "#6B7280"}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  {errors.confirmPassword ? (
-                    <Text style={styles.errorText}>
-                      {errors.confirmPassword}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {/* Password Requirements */}
-                <View style={[appBottomSheetStyles.noticeBanner, { marginBottom: 24 }]}>
-                  <Text style={appBottomSheetStyles.noticeBannerTitle}>
-                    Password Requirements:
-                  </Text>
-                  <Text style={styles.requirementsText}>
-                    • At least 8 characters long
-                  </Text>
-                  <Text style={styles.requirementsText}>
-                    • Must be different from current password
-                  </Text>
-                </View>
-
-                {/* Change Password Button */}
-                <TouchableOpacity
-                  onPress={handleChangePassword}
-                  disabled={isLoading}
-                  style={[
-                    appBottomSheetStyles.primaryCta,
-                    styles.primaryButtonRow,
-                    isLoading && styles.primaryButtonDisabled,
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Feather name="lock" size={20} color="#FFFFFF" />
-                      <Text style={appBottomSheetStyles.primaryCtaText}>
-                        Change Password
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                {/* Cancel Button */}
-                <TouchableOpacity
-                  onPress={() => {
-                    setErrors({
-                      currentPassword: "",
-                      newPassword: "",
-                      confirmPassword: "",
-                    });
-                    setPasswords({
-                      currentPassword: "",
-                      newPassword: "",
-                      confirmPassword: "",
-                    });
-                    onClose();
-                  }}
-                  disabled={isLoading}
-                  style={styles.cancelButton}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </TouchableOpacity>
+          <Feather
+            name={showPasswords[key] ? "eye" : "eye-off"}
+            size={20}
+            color={errors[key] ? "#EF4444" : AUTH_COLORS.textMuted}
+          />
         </TouchableOpacity>
-      </KeyboardAvoidingView>
-    </Modal>
+      </View>
+      {errors[key] ? <Text style={styles.errorText}>{errors[key]}</Text> : null}
+    </View>
+  );
+
+  return (
+    <ProfileFeatureShell
+      visible={visible}
+      onClose={resetAndClose}
+      kicker="Account security"
+      title="Change password"
+      subtitle="Choose a strong password you haven’t used here before."
+      keyboard
+      footer={
+        <>
+          <TouchableOpacity
+            onPress={handleChangePassword}
+            disabled={isLoading}
+            style={[
+              profileFeatureStyles.primaryButton,
+              isLoading && styles.disabled,
+            ]}
+            activeOpacity={0.85}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Feather name="lock" size={18} color="#FFFFFF" />
+                <Text style={profileFeatureStyles.primaryButtonText}>
+                  Change password
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={resetAndClose}
+            disabled={isLoading}
+            style={profileFeatureStyles.secondaryButton}
+            activeOpacity={0.7}
+          >
+            <Text style={profileFeatureStyles.secondaryButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </>
+      }
+    >
+      <ProfileSectionRail title="Password" />
+      {renderPasswordField(
+        "currentPassword",
+        "Current password",
+        "Enter current password",
+      )}
+      {renderPasswordField(
+        "newPassword",
+        "New password",
+        "Enter new password",
+      )}
+      {renderPasswordField(
+        "confirmPassword",
+        "Confirm password",
+        "Confirm new password",
+        true,
+      )}
+
+      <View style={styles.notice}>
+        <Text style={styles.noticeTitle}>Password requirements</Text>
+        <Text style={styles.noticeText}>• At least 8 characters long</Text>
+        <Text style={styles.noticeText}>
+          • Must be different from current password
+        </Text>
+      </View>
+    </ProfileFeatureShell>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardView: {
-    flex: 1,
-  },
-  overlay: appModalBottomSheetStyles.overlay,
-  bottomSheet: {
-    ...appBottomSheetAppearance.backgroundStyle,
-    paddingBottom: 0,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 4,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 32,
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: appBottomSheetStyles.inputLabel,
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: AUTH_COLORS.white,
-    borderWidth: 2,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    borderBottomWidth: 2,
     borderColor: AUTH_COLORS.inputBorder,
-    borderRadius: 14,
-    paddingHorizontal: 16,
+    borderRadius: 0,
+    paddingHorizontal: 0,
   },
-  inputWrapperError: appBottomSheetStyles.inputError,
-  errorText: appBottomSheetStyles.fieldError,
+  inputWrapperError: {
+    borderColor: "#EF4444",
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    marginTop: 6,
+  },
   input: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     fontSize: 16,
-    color: "#111827",
+    color: AUTH_COLORS.textDark,
   },
   eyeButton: {
     padding: 8,
   },
-  requirementsText: {
-    fontSize: 12,
-    color: "#1D4ED8",
-    marginBottom: 4,
-  },
-  primaryButtonRow: {
-    flexDirection: "row",
-    marginBottom: 12,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.6,
-  },
-  cancelButton: {
+  notice: {
+    marginTop: 8,
     backgroundColor: AUTH_COLORS.greenSoft,
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
     borderColor: AUTH_COLORS.inputBorder,
   },
-  cancelButtonText: {
+  noticeTitle: {
+    fontSize: 13,
+    fontWeight: "700",
     color: AUTH_COLORS.textDark,
-    fontSize: 16,
-    fontWeight: "600",
+    marginBottom: 6,
+  },
+  noticeText: {
+    fontSize: 12,
+    color: AUTH_COLORS.textMuted,
+    marginBottom: 2,
+  },
+  disabled: {
+    opacity: 0.6,
   },
 });

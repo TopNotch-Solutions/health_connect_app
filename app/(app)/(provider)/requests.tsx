@@ -5,7 +5,11 @@ import * as WebBrowser from "expo-web-browser";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
-import { ActivityIndicator, Alert, Image, Linking, Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  getPatientLocationFromRequest,
+  getRequestProviderId,
+} from "../../../lib/coordinate";
 import {
   AppEmptyState,
   AppFilterChips,
@@ -489,40 +493,73 @@ export default function ProviderRequests() {
     switch (status) {
       case "searching":
       case "pending":
-        return { bg: "bg-yellow-50", text: "text-yellow-700", icon: "clock" };
-      case "accepted":
+        // Pending — amber
         return {
-          bg: "bg-blue-50",
-          text: "text-blue-700",
-          icon: "check-circle",
+          bg: "#FEF3C7",
+          text: "#B45309",
+          icon: "clock" as const,
+          accent: "#F59E0B",
+          cardBg: "#FFFBEB",
+          cardBorder: "#FCD34D",
         };
+      case "accepted":
       case "payment_pending":
       case "paid":
       case "provider_confirmation_pending":
       case "ready_for_call":
       case "in_call":
-        return {
-          bg: "bg-sky-50",
-          text: "text-sky-700",
-          icon: "video",
-        };
       case "in_progress":
       case "arrived":
       case "en_route":
+        // Accepted / in progress — blue
         return {
-          bg: "bg-purple-50",
-          text: "text-purple-700",
-          icon: "activity",
+          bg: "#DBEAFE",
+          text: "#1D4ED8",
+          icon:
+            status === "en_route" || status === "arrived"
+              ? ("navigation" as const)
+              : status === "in_call" || status === "ready_for_call"
+                ? ("video" as const)
+                : status === "in_progress"
+                  ? ("activity" as const)
+                  : ("check-circle" as const),
+          accent: "#2563EB",
+          cardBg: "#EFF6FF",
+          cardBorder: "#93C5FD",
         };
       case "completed":
+        // Completed — green
         return {
-          bg: "bg-green-50",
-          text: "text-green-700",
-          icon: "check-square",
+          bg: "#DCFCE7",
+          text: "#15803D",
+          icon: "check-square" as const,
+          accent: AUTH_COLORS.green,
+          cardBg: "#F0FDF4",
+          cardBorder: "#86EFAC",
         };
       default:
-        return { bg: "bg-gray-50", text: "text-gray-700", icon: "circle" };
+        return {
+          bg: "#F3F4F6",
+          text: "#4B5563",
+          icon: "circle" as const,
+          accent: "#9CA3AF",
+          cardBg: AUTH_COLORS.white,
+          cardBorder: AUTH_COLORS.inputBorder,
+        };
     }
+  };
+
+  const formatStatusLabel = (status: string) =>
+    status
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+
+  const getPatientInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   };
 
   const getAilmentName = (ailment: any) => {
@@ -598,8 +635,23 @@ export default function ProviderRequests() {
         return;
       }
 
-      // 2) Open global route modal immediately for fast UX
-      startRoute(request);
+      // 2) Open route map immediately for house visits
+      const patientCoords = getPatientLocationFromRequest(request);
+      startRoute({
+        ...request,
+        status: "en_route" as Request["status"],
+        address: {
+          ...request.address,
+          locality: request.address?.locality || "",
+          administrative_area_level_1:
+            request.address?.administrative_area_level_1 || "",
+          ...(patientCoords
+            ? { coordinates: patientCoords }
+            : request.address?.coordinates
+              ? { coordinates: request.address.coordinates }
+              : {}),
+        },
+      } as Request);
 
       // 3) In background, request location and send en_route with coords (backend requires location)
       (async () => {
@@ -644,8 +696,14 @@ export default function ProviderRequests() {
         }
       })();
 
-      // 4) Remove request locally from requests list
-      setRequests((prev) => prev.filter((req) => req._id !== request._id));
+      // 4) Keep request visible as en_route while navigation is active
+      setRequests((prev) =>
+        prev.map((req) =>
+          req._id === request._id
+            ? ({ ...req, status: "en_route" } as Request)
+            : req,
+        ),
+      );
     } catch (error: any) {
       console.error("Error accepting request:", error);
       Alert.alert("Error", error.message || "Failed to accept request");
@@ -658,14 +716,18 @@ export default function ProviderRequests() {
 
   // Handle mark route - open route tracking modal
   const handleMarkRoute = async (request: Request) => {
-    // 1. Double-check assignment to current user to avoid backend 'not assigned' errors
-    const providerIdStr = request.providerId?._id
-      ? String(request.providerId._id)
-      : String(request.providerId || "");
-    if (providerIdStr !== String(user?.userId)) {
-      console.error("State mismatch detected!");
-      console.error("Request providerId:", request.providerId);
-      console.error("Current userId:", user?.userId);
+    if (!user?.userId) {
+      Alert.alert("Error", "User session not available. Please try again.");
+      return;
+    }
+
+    const assignedProviderId = getRequestProviderId(request);
+    if (assignedProviderId && assignedProviderId !== String(user.userId)) {
+      console.error("State mismatch detected!", {
+        assignedProviderId,
+        userId: user.userId,
+        providerId: request.providerId,
+      });
       Alert.alert(
         "Sync Error",
         "This request is no longer assigned to you. Refreshing the list.",
@@ -674,8 +736,12 @@ export default function ProviderRequests() {
       return;
     }
 
-    if (!user?.userId || !request.address?.coordinates) {
-      Alert.alert("Error", "Patient location not available");
+    const patientCoords = getPatientLocationFromRequest(request);
+    if (!patientCoords) {
+      Alert.alert(
+        "Location Unavailable",
+        "Patient location is missing for this request. Ask the patient to update their location, then refresh.",
+      );
       return;
     }
 
@@ -683,14 +749,28 @@ export default function ProviderRequests() {
     try {
       console.log("🚗 Opening route modal for request:", request._id);
 
+      // Open the map first so navigation never depends on the status update succeeding
+      startRoute({
+        ...request,
+        status: "en_route" as Request["status"],
+        address: {
+          ...request.address,
+          locality: request.address?.locality || "",
+          administrative_area_level_1:
+            request.address?.administrative_area_level_1 || "",
+          coordinates: patientCoords,
+        },
+      } as Request);
+
       const { granted } = await ensureForegroundLocationPermission({
         requestIfNeeded: true,
       });
       if (!granted) {
-        return Alert.alert(
+        Alert.alert(
           "Permission Denied",
-          "Location permission is required.",
+          "Location permission is required for live tracking, but you can still view the route.",
         );
+        return;
       }
 
       const providerLocation = await Location.getCurrentPositionAsync({
@@ -709,21 +789,22 @@ export default function ProviderRequests() {
           "en_route",
           providerCoords,
         );
-        // Optimistically update the local state for immediate UI feedback
         setRequests((prev) =>
           prev.map((req) =>
             req._id === request._id
-              ? { ...req, status: "en_route" as Request["status"] } as Request
+              ? ({ ...req, status: "en_route" } as Request)
               : req,
           ),
         );
       }
-
-      // Start global route modal via context with updated request status
-      startRoute({ ...request, status: "en_route" as Request["status"] } as Request);
     } catch (error: any) {
       console.error("Error marking route:", error);
-      Alert.alert("Error", error.message || "Failed to mark route");
+      // Map already open — only warn if status update failed
+      Alert.alert(
+        "Navigation Warning",
+        error.message ||
+          "Route map opened, but status update failed. You can continue navigating.",
+      );
     } finally {
       setActionLoading((prev) =>
         prev?.requestId === request._id ? null : prev,
@@ -952,9 +1033,9 @@ export default function ProviderRequests() {
         <AppFilterChips
           filters={[
             { key: "all", label: "All" },
-            { key: "pending", label: "Pending" },
-            { key: "accepted", label: "Accepted" },
-            { key: "completed", label: "Completed" },
+            { key: "pending", label: "Pending", color: "#F59E0B" },
+            { key: "accepted", label: "Accepted", color: "#2563EB" },
+            { key: "completed", label: "Completed", color: AUTH_COLORS.green },
           ]}
           active={filter}
           onChange={(key) => setFilter(key as typeof filter)}
@@ -973,8 +1054,13 @@ export default function ProviderRequests() {
           ) : (
             filteredRequests.map((request) => {
               const statusStyle = getStatusStyle(request.status);
+              const isCompleted = request.status === "completed";
               const patientName =
                 request.patientId?.fullname || "Unknown Patient";
+              const displayPatientName = isCompleted ? "Patient" : patientName;
+              const displayInitials = isCompleted
+                ? "P"
+                : getPatientInitials(patientName);
               const ailmentName = getAilmentName(request.ailmentCategoryId);
               const fee = `N$ ${request.consultationCost ?? request.estimatedCost ?? 0}`;
               const consultationMode: "house_visit" | "video_consultation" =
@@ -985,17 +1071,15 @@ export default function ProviderRequests() {
                 consultationMode === "video_consultation"
                   ? {
                       label: "Video Consultation",
-                      icon: "video",
-                      bg: "bg-blue-50",
-                      border: "border-blue-200",
-                      text: "text-blue-700",
+                      icon: "video" as const,
+                      color: "#0369A1",
+                      soft: "#E0F2FE",
                     }
                   : {
                       label: "House Visit",
-                      icon: "home",
-                      bg: "bg-emerald-50",
-                      border: "border-emerald-200",
-                      text: "text-emerald-700",
+                      icon: "home" as const,
+                      color: AUTH_COLORS.greenDark,
+                      soft: AUTH_COLORS.greenSoft,
                     };
               const isBusy = actionLoading?.requestId === request._id;
               const isLoadingAction = (
@@ -1027,82 +1111,174 @@ export default function ProviderRequests() {
               const awaitingPrescription =
                 isPharmacist && ailmentRequiresPrescription && !linkedPrescription;
 
+              const addressLine =
+                !isCompleted && request.address
+                  ? [
+                      request.address.route,
+                      request.address.locality,
+                      request.address.administrative_area_level_1,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")
+                  : null;
+              const patientPhone = !isCompleted
+                ? request.patientId?.cellphoneNumber?.trim() || null
+                : null;
+
               return (
                 <View
                   key={request._id}
-                  style={appScreenStyles.requestCard}
+                  style={[
+                    appScreenStyles.requestCard,
+                    requestCardStyles.card,
+                    {
+                      backgroundColor: statusStyle.cardBg,
+                      borderColor: statusStyle.cardBorder,
+                    },
+                  ]}
                 >
-                  <View className="flex-row items-start justify-between mb-3">
-                    <View className="flex-1">
-                      <Text className="text-lg font-bold text-gray-900 mb-1">
-                        {patientName}
+                  <View
+                    style={[
+                      requestCardStyles.accentBar,
+                      { backgroundColor: statusStyle.accent },
+                    ]}
+                  />
+
+                  {/* Header */}
+                  <View style={requestCardStyles.header}>
+                    <View
+                      style={[
+                        requestCardStyles.avatar,
+                        { backgroundColor: statusStyle.bg },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          requestCardStyles.avatarText,
+                          { color: statusStyle.text },
+                        ]}
+                      >
+                        {displayInitials}
                       </Text>
-                      <View className="flex-row items-center mb-1">
-                        <Feather
-                          name="alert-circle"
-                          size={14}
-                          color="#6B7280"
-                        />
-                        <Text className="text-sm text-gray-600 ml-1.5">
-                          {ailmentName}
-                        </Text>
+                    </View>
+
+                    <View style={requestCardStyles.headerMain}>
+                      <Text style={requestCardStyles.patientName} numberOfLines={1}>
+                        {displayPatientName}
+                      </Text>
+                      {patientPhone ? (
+                        <TouchableOpacity
+                          onPress={() => Linking.openURL(`tel:${patientPhone}`)}
+                          style={requestCardStyles.phoneRow}
+                          hitSlop={8}
+                          activeOpacity={0.7}
+                        >
+                          <Feather name="phone" size={12} color={AUTH_COLORS.green} />
+                          <Text style={requestCardStyles.phoneText} numberOfLines={1}>
+                            {patientPhone}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      <Text style={requestCardStyles.ailmentLine} numberOfLines={1}>
+                        {ailmentName}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={[
+                        requestCardStyles.statusPill,
+                        { backgroundColor: statusStyle.bg },
+                      ]}
+                    >
+                      <Feather
+                        name={statusStyle.icon}
+                        size={11}
+                        color={statusStyle.text}
+                      />
+                      <Text
+                        style={[
+                          requestCardStyles.statusText,
+                          { color: statusStyle.text },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {formatStatusLabel(request.status)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Details panel */}
+                  <View style={requestCardStyles.detailsPanel}>
+                    <View style={requestCardStyles.detailsRow}>
+                      <View style={requestCardStyles.detailItem}>
+                        <Text style={requestCardStyles.detailLabel}>Fee</Text>
+                        <Text style={requestCardStyles.detailValue}>{fee}</Text>
                       </View>
-                      <View className="flex-row items-center">
-                        <Feather name="calendar" size={14} color="#6B7280" />
-                        <Text className="text-sm text-gray-500 ml-1.5">
+                      <View style={requestCardStyles.detailDivider} />
+                      <View style={requestCardStyles.detailItem}>
+                        <Text style={requestCardStyles.detailLabel}>Date</Text>
+                        <Text style={requestCardStyles.detailValue}>
                           {formatDate(request.createdAt)}
                         </Text>
                       </View>
                     </View>
-                    <View
-                      className={`${statusStyle.bg} px-3 py-1.5 rounded-full`}
-                    >
-                      <Text
-                        className={`${statusStyle.text} text-xs font-bold capitalize`}
+
+                    <View style={requestCardStyles.detailsSeparator} />
+
+                    <View style={requestCardStyles.modeRow}>
+                      <View
+                        style={[
+                          requestCardStyles.modeIconWrap,
+                          { backgroundColor: consultationModeMeta.soft },
+                        ]}
                       >
-                        {request.status}
+                        <Feather
+                          name={consultationModeMeta.icon}
+                          size={14}
+                          color={consultationModeMeta.color}
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          requestCardStyles.modeLabel,
+                          { color: consultationModeMeta.color },
+                        ]}
+                      >
+                        {consultationModeMeta.label}
                       </Text>
                     </View>
-                  </View>
 
-                  <View className="bg-gray-50 rounded-lg p-3 flex-row items-center justify-between mb-3">
-                    <Text className="text-xs text-gray-500">
-                      Consultation Fee
-                    </Text>
-                    <Text className="text-base font-bold text-gray-900">
-                      {fee}
-                    </Text>
-                  </View>
+                    {addressLine ? (
+                      <>
+                        <View style={requestCardStyles.detailsSeparator} />
+                        <View style={requestCardStyles.locationRow}>
+                          <Feather
+                            name="map-pin"
+                            size={14}
+                            color={AUTH_COLORS.green}
+                            style={{ marginTop: 2 }}
+                          />
+                          <Text style={requestCardStyles.locationText}>
+                            {addressLine}
+                          </Text>
+                        </View>
+                      </>
+                    ) : null}
 
-                  <View
-                    className={`${consultationModeMeta.bg} ${consultationModeMeta.border} border rounded-lg p-2.5 mb-3 flex-row items-center self-start`}
-                  >
-                    <Feather name={consultationModeMeta.icon as any} size={14} color={consultationMode === "video_consultation" ? "#1D4ED8" : "#047857"} />
-                    <Text
-                      className={`${consultationModeMeta.text} text-xs font-bold ml-2`}
-                    >
-                      {consultationModeMeta.label}
-                    </Text>
+                    {request.symptoms ? (
+                      <>
+                        <View style={requestCardStyles.detailsSeparator} />
+                        <View style={requestCardStyles.symptomsBlock}>
+                          <Text style={requestCardStyles.detailLabel}>
+                            Symptoms
+                          </Text>
+                          <Text style={requestCardStyles.symptomsText}>
+                            {request.symptoms}
+                          </Text>
+                        </View>
+                      </>
+                    ) : null}
                   </View>
-
-                  {/* Location Information */}
-                  {request.address && (
-                    <View className="bg-blue-50 rounded-lg p-3 mb-3 flex-row items-start">
-                      <Feather
-                        name="map-pin"
-                        size={16}
-                        color="#3B82F6"
-                        style={{ marginTop: 2, marginRight: 8 }}
-                      />
-                      <View className="flex-1">
-                        <Text className="text-xs text-blue-700 font-semibold">
-                          {request.address.locality},{" "}
-                          {request.address.administrative_area_level_1}
-                                        {request.address.route}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
 
                   {/* Awaiting prescription upload banner */}
                   {awaitingPrescription && (
@@ -1394,10 +1570,23 @@ export default function ProviderRequests() {
                       })()}
 
                       {request.status === "en_route" && (
-                        <View className="bg-purple-50 rounded-lg p-3 border border-purple-200 flex-row items-center justify-center" style={{ gap: 8 }}>
-                          <Feather name="truck" size={14} color="#7C3AED" />
-                          <Text className="text-xs text-purple-700 font-semibold">Delivery in progress — navigating to patient</Text>
-                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleMarkRoute(request)}
+                          disabled={isBusy}
+                          className="bg-indigo-600 rounded-xl py-3 px-4 items-center flex-row justify-center"
+                          style={{ gap: 8, opacity: isBusy ? 0.5 : 1 }}
+                        >
+                          {isLoadingAction("route") ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <>
+                              <Feather name="navigation" size={16} color="#FFFFFF" />
+                              <Text className="text-white font-bold text-sm">
+                                Continue Navigation
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
                       )}
 
                       {request.status === "arrived" && (
@@ -1484,10 +1673,23 @@ export default function ProviderRequests() {
                       )}
 
                       {request.status === "en_route" && (
-                        <View className="bg-purple-50 rounded-lg p-3 border border-purple-200 flex-row items-center justify-center" style={{ gap: 8 }}>
-                          <Feather name="navigation" size={14} color="#7C3AED" />
-                          <Text className="text-xs text-purple-700 font-semibold">En Route — Navigation active</Text>
-                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleMarkRoute(request)}
+                          disabled={isBusy}
+                          className="bg-indigo-600 rounded-xl py-3 px-4 items-center flex-row justify-center"
+                          style={{ gap: 8, opacity: isBusy ? 0.5 : 1 }}
+                        >
+                          {isLoadingAction("route") ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <>
+                              <Feather name="navigation" size={16} color="#FFFFFF" />
+                              <Text className="text-white font-bold text-sm">
+                                Continue Navigation
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
                       )}
 
                       {request.status === "arrived" && (
@@ -1680,3 +1882,150 @@ export default function ProviderRequests() {
     </AppScreenShell>
   );
 }
+
+const requestCardStyles = StyleSheet.create({
+  card: {
+    overflow: "hidden",
+    position: "relative",
+    paddingLeft: 18,
+  },
+  accentBar: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+    gap: 10,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  headerMain: {
+    flex: 1,
+    minWidth: 0,
+  },
+  patientName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: AUTH_COLORS.textDark,
+  },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 3,
+    alignSelf: "flex-start",
+  },
+  phoneText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: AUTH_COLORS.greenDark,
+  },
+  ailmentLine: {
+    fontSize: 13,
+    color: AUTH_COLORS.textMuted,
+    marginTop: 2,
+  },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    maxWidth: 120,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  detailsPanel: {
+    backgroundColor: AUTH_COLORS.bg,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: AUTH_COLORS.inputBorder,
+    padding: 14,
+    marginBottom: 14,
+  },
+  detailsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  detailItem: {
+    flex: 1,
+  },
+  detailDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: AUTH_COLORS.inputBorder,
+    marginHorizontal: 12,
+  },
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: AUTH_COLORS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: AUTH_COLORS.textDark,
+  },
+  detailsSeparator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: AUTH_COLORS.inputBorder,
+    marginVertical: 12,
+  },
+  modeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  modeIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modeLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  locationText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: AUTH_COLORS.textMuted,
+    fontWeight: "500",
+  },
+  symptomsBlock: {
+    gap: 4,
+  },
+  symptomsText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: AUTH_COLORS.textDark,
+  },
+});
+

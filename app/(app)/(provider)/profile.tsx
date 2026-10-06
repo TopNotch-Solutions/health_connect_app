@@ -1,10 +1,9 @@
 import { Feather } from "@expo/vector-icons";
-import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
 import { useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -14,12 +13,11 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { appBottomSheetStyles } from "../../../components/app/AppBottomSheetUI";
 import {
-  AppBottomSheetHeader,
-  appBottomSheetAppearance,
-  appBottomSheetScrollPadding,
-  appBottomSheetStyles,
-} from "../../../components/app/AppBottomSheetUI";
+  ProfileFeatureShell,
+  ProfileSectionRail,
+} from "../../../components/ProfileFeatureShell";
 import {
   AppMenuDivider,
   AppMenuItem,
@@ -41,15 +39,12 @@ export default function ProfileScreen() {
   const [editProfileVisible, setEditProfileVisible] = React.useState(false);
   const [changePasswordVisible, setChangePasswordVisible] =
     React.useState(false);
+  const [helpSupportVisible, setHelpSupportVisible] = React.useState(false);
+  const [aboutVisible, setAboutVisible] = React.useState(false);
+  const [editDocumentsVisible, setEditDocumentsVisible] =
+    React.useState(false);
   const [selectedImage, setSelectedImage] =
     React.useState<ImagePicker.ImagePickerAsset | null>(null);
-
-  const helpSupportSheetRef = useRef<BottomSheet>(null);
-  const helpSupportSnapPoints = useMemo(() => ["85%"], []);
-  const aboutHealthConnectSheetRef = useRef<BottomSheet>(null);
-  const aboutHealthConnectSnapPoints = useMemo(() => ["90%"], []);
-  const editDocumentsSheetRef = useRef<BottomSheet>(null);
-  const editDocumentsSnapPoints = useMemo(() => ["85%"], []);
   const [uploadingDocument, setUploadingDocument] = React.useState<
     string | null
   >(null);
@@ -262,15 +257,9 @@ export default function ProfileScreen() {
     Linking.openURL("mailto:support@healthconnect.com?subject=Support Request");
   const handlePhonePress = () => Linking.openURL("tel:+264818111703");
   const handleAmbulancePress = () => Linking.openURL("tel:956");
-  const handleHelpSupportPress = () => {
-    helpSupportSheetRef.current?.expand();
-  };
-  const handleAboutHealthConnectPress = () => {
-    aboutHealthConnectSheetRef.current?.expand();
-  };
-  const handleEditDocumentsPress = () => {
-    editDocumentsSheetRef.current?.expand();
-  };
+  const handleHelpSupportPress = () => setHelpSupportVisible(true);
+  const handleAboutHealthConnectPress = () => setAboutVisible(true);
+  const handleEditDocumentsPress = () => setEditDocumentsVisible(true);
 
   const pickDocument = async (documentType: string) => {
     try {
@@ -411,11 +400,11 @@ export default function ProfileScreen() {
         contentContainerStyle={appScreenStyles.scrollContent}
       >
         <View style={appScreenStyles.profileHero}>
-          <View style={appScreenStyles.heroOrbLarge} pointerEvents="none" />
           {selectedImage ? (
             <Image
               source={{ uri: selectedImage.uri }}
               style={appScreenStyles.profileAvatar}
+              resizeMode="cover"
             />
           ) : user?.profileImage ? (
             <Image
@@ -425,41 +414,44 @@ export default function ProfileScreen() {
                   undefined,
               }}
               style={appScreenStyles.profileAvatar}
+              resizeMode="cover"
             />
           ) : (
             <View style={appScreenStyles.profileAvatarPlaceholder}>
               <Feather name="user" size={48} color={AUTH_COLORS.green} />
             </View>
           )}
-          <Text style={appScreenStyles.profileName}>
-            {user?.fullname || "Provider Name"}
-          </Text>
-          <Text style={appScreenStyles.profileEmail}>
-            {user?.email || "provider@email.com"}
-          </Text>
-          {user?.role ? (
-            <View style={appScreenStyles.roleBadge}>
-              <Text style={appScreenStyles.roleBadgeText}>{user.role}</Text>
-            </View>
-          ) : null}
-          <TouchableOpacity
-            onPress={handlePickImage}
-            disabled={isLoading || isUploading}
-            style={[appScreenStyles.uploadPhotoBtn, { opacity: isLoading || isUploading ? 0.6 : 1 }]}
-          >
-            {isUploading ? (
-              <View className="flex-row items-center">
-                <ActivityIndicator
-                  size="small"
-                  color={AUTH_COLORS.green}
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={appScreenStyles.uploadPhotoText}>Uploading…</Text>
+          <View style={appScreenStyles.profileHeroContent}>
+            <Text style={appScreenStyles.profileName}>
+              {user?.fullname || "Provider Name"}
+            </Text>
+            <Text style={appScreenStyles.profileEmail}>
+              {user?.email || "provider@email.com"}
+            </Text>
+            {user?.role ? (
+              <View style={appScreenStyles.roleBadge}>
+                <Text style={appScreenStyles.roleBadgeText}>{user.role}</Text>
               </View>
-            ) : (
-              <Text style={appScreenStyles.uploadPhotoText}>Upload photo</Text>
-            )}
-          </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              onPress={handlePickImage}
+              disabled={isLoading || isUploading}
+              style={[appScreenStyles.uploadPhotoBtn, { opacity: isLoading || isUploading ? 0.6 : 1 }]}
+            >
+              {isUploading ? (
+                <View className="flex-row items-center">
+                  <ActivityIndicator
+                    size="small"
+                    color={AUTH_COLORS.green}
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={appScreenStyles.uploadPhotoText}>Uploading…</Text>
+                </View>
+              ) : (
+                <Text style={appScreenStyles.uploadPhotoText}>Upload photo</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         <AppMenuSection title="Account">
@@ -546,99 +538,73 @@ export default function ProfileScreen() {
         onClose={() => setChangePasswordVisible(false)}
       />
 
-      {/* Help & Support Bottom Sheet */}
-      <BottomSheet
-        ref={helpSupportSheetRef}
-        index={-1}
-        snapPoints={helpSupportSnapPoints}
-        enablePanDownToClose
-        {...appBottomSheetAppearance}
+      <ProfileFeatureShell
+        visible={helpSupportVisible}
+        onClose={() => setHelpSupportVisible(false)}
+        kicker="Get assistance"
+        title="Help & support"
+        subtitle="Get in touch with us"
       >
-        <BottomSheetScrollView
-          style={appBottomSheetScrollPadding}
-          contentContainerStyle={{ paddingBottom: 32 }}
+        <TouchableOpacity
+          onPress={handleEmailPress}
+          style={appBottomSheetStyles.contactCard}
+          activeOpacity={0.7}
         >
-          <AppBottomSheetHeader
-            title="Help & Support"
-            subtitle="Get in touch with us"
-          />
-
-          <TouchableOpacity
-            onPress={handleEmailPress}
-            style={appBottomSheetStyles.contactCard}
-            activeOpacity={0.7}
-          >
-            <View style={appBottomSheetStyles.contactIconContainer}>
-              <Feather name="mail" size={32} color={AUTH_COLORS.green} />
-            </View>
-            <Text style={appBottomSheetStyles.contactTitle}>Contact Support</Text>
-            <Text style={appBottomSheetStyles.contactText}>support@healthconnect.com</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handlePhonePress}
-            style={appBottomSheetStyles.contactCard}
-            activeOpacity={0.7}
-          >
-            <View style={appBottomSheetStyles.contactIconContainer}>
-              <Feather name="phone" size={32} color={AUTH_COLORS.green} />
-            </View>
-            <Text style={appBottomSheetStyles.contactTitle}>Call Us</Text>
-            <Text style={appBottomSheetStyles.contactText}>+264 81 811 1703</Text>
-          </TouchableOpacity>
-
-          {/* Ambulance Emergency Section */}
-          <View style={appBottomSheetStyles.ambulanceCard}>
-            <Image
-              source={require("../../../assets/images/eme.png")}
-              style={appBottomSheetStyles.ambulanceImage}
-              resizeMode="contain"
-            />
-            <Text style={appBottomSheetStyles.ambulanceTitle}>
-              Do you require an ambulance?
-            </Text>
-            <Text style={appBottomSheetStyles.ambulanceDescription}>
-              For immediate medical emergencies, please contact our partner MR
-              24/7 directly. They are available 24 hours a day to provide rapid
-              emergency response.
-            </Text>
-            <TouchableOpacity
-              onPress={handleAmbulancePress}
-              style={appBottomSheetStyles.ambulanceButton}
-              activeOpacity={0.7}
-            >
-              <Feather name="phone" size={20} color="#FFFFFF" />
-              <Text style={appBottomSheetStyles.ambulanceButtonText}>
-                Dial 956 immediately
-              </Text>
-            </TouchableOpacity>
+          <View style={appBottomSheetStyles.contactIconContainer}>
+            <Feather name="mail" size={32} color={AUTH_COLORS.green} />
           </View>
-        </BottomSheetScrollView>
-      </BottomSheet>
+          <Text style={appBottomSheetStyles.contactTitle}>Contact Support</Text>
+          <Text style={appBottomSheetStyles.contactText}>support@healthconnect.com</Text>
+        </TouchableOpacity>
 
-      {/* About HealthConnect Bottom Sheet */}
-      <BottomSheet
-        ref={aboutHealthConnectSheetRef}
-        index={-1}
-        snapPoints={aboutHealthConnectSnapPoints}
-        enablePanDownToClose
-        {...appBottomSheetAppearance}
-      >
-        <BottomSheetScrollView
-          style={appBottomSheetScrollPadding}
-          contentContainerStyle={{ paddingBottom: 32 }}
+        <TouchableOpacity
+          onPress={handlePhonePress}
+          style={appBottomSheetStyles.contactCard}
+          activeOpacity={0.7}
         >
-          <AppBottomSheetHeader
-            title="About HealthConnect"
-            subtitle="Your trusted healthcare platform"
-          />
+          <View style={appBottomSheetStyles.contactIconContainer}>
+            <Feather name="phone" size={32} color={AUTH_COLORS.green} />
+          </View>
+          <Text style={appBottomSheetStyles.contactTitle}>Call Us</Text>
+          <Text style={appBottomSheetStyles.contactText}>+264 81 811 1703</Text>
+        </TouchableOpacity>
 
-          {/* Functionality Section */}
-          <View style={appBottomSheetStyles.sectionContainer}>
-            <View style={appBottomSheetStyles.sectionHeader}>
-              <Feather name="activity" size={24} color={AUTH_COLORS.green} />
-              <Text style={appBottomSheetStyles.sectionTitle}>Functionality</Text>
-            </View>
+        <View style={appBottomSheetStyles.ambulanceCard}>
+          <Image
+            source={require("../../../assets/images/eme.png")}
+            style={appBottomSheetStyles.ambulanceImage}
+            resizeMode="contain"
+          />
+          <Text style={appBottomSheetStyles.ambulanceTitle}>
+            Do you require an ambulance?
+          </Text>
+          <Text style={appBottomSheetStyles.ambulanceDescription}>
+            For immediate medical emergencies, please contact our partner MR
+            24/7 directly. They are available 24 hours a day to provide rapid
+            emergency response.
+          </Text>
+          <TouchableOpacity
+            onPress={handleAmbulancePress}
+            style={appBottomSheetStyles.ambulanceButton}
+            activeOpacity={0.7}
+          >
+            <Feather name="phone" size={20} color="#FFFFFF" />
+            <Text style={appBottomSheetStyles.ambulanceButtonText}>
+              Dial 956 immediately
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ProfileFeatureShell>
+
+      <ProfileFeatureShell
+        visible={aboutVisible}
+        onClose={() => setAboutVisible(false)}
+        kicker="Our platform"
+        title="About HealthConnect"
+        subtitle="Your trusted healthcare platform"
+      >
+        <View style={appBottomSheetStyles.sectionContainer}>
+          <ProfileSectionRail title="Functionality" />
             <Text style={appBottomSheetStyles.sectionText}>
               HealthConnect is a comprehensive healthcare platform designed to
               connect healthcare providers with patients seamlessly. Our
@@ -666,12 +632,8 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Privacy Policy Section */}
-          <View style={appBottomSheetStyles.sectionContainer}>
-            <View style={appBottomSheetStyles.sectionHeader}>
-              <Feather name="shield" size={24} color={AUTH_COLORS.green} />
-              <Text style={appBottomSheetStyles.sectionTitle}>Privacy Policy</Text>
-            </View>
+        <View style={appBottomSheetStyles.sectionContainer}>
+          <ProfileSectionRail title="Privacy" />
             <Text style={appBottomSheetStyles.sectionText}>
               Your privacy and data security are our top priorities. We are
               committed to protecting patient and provider information:
@@ -715,14 +677,8 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* User Rights Section */}
-          <View style={appBottomSheetStyles.sectionContainer}>
-            <View style={appBottomSheetStyles.sectionHeader}>
-              <Feather name="user-check" size={24} color={AUTH_COLORS.green} />
-              <Text style={appBottomSheetStyles.sectionTitle}>
-                Provider Rights & Responsibilities
-              </Text>
-            </View>
+        <View style={appBottomSheetStyles.sectionContainer}>
+          <ProfileSectionRail title="Rights" />
             <Text style={appBottomSheetStyles.sectionText}>
               As a HealthConnect healthcare provider, you have the following
               rights and responsibilities:
@@ -783,33 +739,21 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <View style={appBottomSheetStyles.footerContainer}>
-            <Text style={appBottomSheetStyles.footerText}>
-              For more information, contact our support team or visit our
-              website.
-            </Text>
-          </View>
-        </BottomSheetScrollView>
-      </BottomSheet>
+        <View style={appBottomSheetStyles.footerContainer}>
+          <Text style={appBottomSheetStyles.footerText}>
+            For more information, contact our support team or visit our
+            website.
+          </Text>
+        </View>
+      </ProfileFeatureShell>
 
-      {/* Edit Documents Bottom Sheet */}
-      <BottomSheet
-        ref={editDocumentsSheetRef}
-        index={-1}
-        snapPoints={editDocumentsSnapPoints}
-        enablePanDownToClose
-        {...appBottomSheetAppearance}
+      <ProfileFeatureShell
+        visible={editDocumentsVisible}
+        onClose={() => setEditDocumentsVisible(false)}
+        kicker="Compliance"
+        title="Edit documents"
+        subtitle="Update your professional documents"
       >
-        <BottomSheetScrollView
-          style={appBottomSheetScrollPadding}
-          contentContainerStyle={{ paddingBottom: 32 }}
-        >
-          <AppBottomSheetHeader
-            title="Edit Documents"
-            subtitle="Update your professional documents"
-          />
-
-          {/* ID Front */}
           <TouchableOpacity
             onPress={() => pickDocument("idDocumentFront")}
             disabled={uploadingDocument !== null}
@@ -959,8 +903,7 @@ export default function ProfileScreen() {
               </View>
             </TouchableOpacity>
           )}
-        </BottomSheetScrollView>
-      </BottomSheet>
+      </ProfileFeatureShell>
     </AppScreenShell>
   );
 }
