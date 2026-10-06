@@ -163,6 +163,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loadUser();
   }, []);
 
+  // Re-register the device push token whenever a session is restored/refreshed,
+  // not only on fresh login — otherwise pushes stop after token rotation.
+  useEffect(() => {
+    if (!user?.userId) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const online = await checkIsOnline();
+        if (!online || cancelled) return;
+
+        const pushToken = await registerForPushNotifications();
+        if (!pushToken || cancelled) return;
+
+        await SecureStore.setItemAsync("pushToken", pushToken);
+        await savePushTokenToBackend(pushToken);
+      } catch (e) {
+        console.warn("⚠️ Push token refresh failed:", e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
+
   useEffect(() => {
     let cancelled = false;
 
