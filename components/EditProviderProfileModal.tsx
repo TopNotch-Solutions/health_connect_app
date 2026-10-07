@@ -200,6 +200,17 @@ export default function EditProviderProfileModal({
         governingCouncil:
           user.governingCouncil || "Health Professionals Council of Namibia",
         bio: user.bio || "",
+        registeredTradingName: (user as any)?.registeredTradingName || "",
+        companyRegistrationNo: (user as any)?.companyRegistrationNo || "",
+        businessEmail: (user as any)?.businessEmail || "",
+        pharmacyCouncilNo: (user as any)?.pharmacyCouncilNo || "",
+        practiceNumber: (user as any)?.practiceNumber || "",
+        gpsLongitude:
+          (user as any)?.gpsCoordinates?.longitude?.toString() || "",
+        gpsLatitude: (user as any)?.gpsCoordinates?.latitude?.toString() || "",
+        settlementCellNumber: (user as any)?.settlementCellNumber || "",
+        hpcnaLicenseExpiryAcknowledged:
+          (user as any)?.hpcnaLicenseExpiryAcknowledged || false,
       });
       isFormDataInitialized.current = true;
     } else if (!visible) {
