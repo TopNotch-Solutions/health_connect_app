@@ -17,7 +17,6 @@ import {
 } from "react-native";
 import { AUTH_COLORS } from "../../lib/authScreenTheme";
 import { buildBackendAssetUrl } from "../../lib/backend";
-import { downloadPrescriptionFile } from "../../lib/downloadPrescription";
 import {
   getPrescriptionByRequest,
   PrescriptionRecord,
@@ -76,7 +75,6 @@ export default function ProviderPrescriptionPanel({
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
-  const [downloading, setDownloading] = useState(false);
 
   const editable = canEditInWindow(
     requestStatus,
@@ -127,28 +125,6 @@ export default function ProviderPrescriptionPanel({
       return;
     }
     setViewerVisible(true);
-  };
-
-  const handleDownload = async () => {
-    if (!viewerUrl || !prescription) {
-      Alert.alert("Unavailable", "Prescription file URL could not be built.");
-      return;
-    }
-    try {
-      setDownloading(true);
-      await downloadPrescriptionFile({
-        url: viewerUrl,
-        fileType: prescription.fileType,
-        filenameHint: prescription.prescriptionImage,
-      });
-    } catch (error: any) {
-      Alert.alert(
-        "Download failed",
-        error?.message || "Could not download the prescription.",
-      );
-    } finally {
-      setDownloading(false);
-    }
   };
 
   const uploadFile = async (file: {
@@ -269,21 +245,6 @@ export default function ProviderPrescriptionPanel({
               >
                 <Feather name="eye" size={15} color={AUTH_COLORS.greenDark} />
                 <Text style={styles.secondaryBtnText}>View</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.downloadBtn}
-                onPress={() => void handleDownload()}
-                disabled={downloading}
-                activeOpacity={0.85}
-              >
-                {downloading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Feather name="download" size={15} color="#fff" />
-                    <Text style={styles.downloadBtnText}>Download</Text>
-                  </>
-                )}
               </TouchableOpacity>
               {editable ? (
                 <TouchableOpacity
@@ -406,21 +367,6 @@ const styles = StyleSheet.create({
   },
   secondaryBtnText: {
     color: AUTH_COLORS.greenDark,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  downloadBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: AUTH_COLORS.error,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  downloadBtnText: {
-    color: "#fff",
     fontSize: 13,
     fontWeight: "700",
   },
