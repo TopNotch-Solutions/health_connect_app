@@ -23,16 +23,14 @@ import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
 import { AUTH_COLORS } from "../lib/authScreenTheme";
 
+import {
+  normalizeNamibianPhone,
+  validateNamibianPhone,
+} from "../lib/phone";
+
 // ── Validation helpers ────────────────────────────────────────────────────────
 function validatePhone(raw: string): string | null {
-  const cleaned = raw.replace(/[\s\-().+]/g, "");
-  if (!cleaned) return "Cellphone number is required";
-  const local = cleaned.startsWith("264") && cleaned.length === 12
-    ? "0" + cleaned.slice(3)
-    : cleaned;
-  if (!/^081\d{7}$/.test(local))
-    return "Enter a valid Namibian mobile number (e.g. 0811234567 — 10 digits starting with 081)";
-  return null;
+  return validateNamibianPhone(raw);
 }
 
 function validateEmail(v: string): string | null {
@@ -42,12 +40,9 @@ function validateEmail(v: string): string | null {
   return null;
 }
 
-/** Backend expects 12 digits, no +, starting with 26481 (e.g. 264817001001) */
+/** Backend expects 12 digits, no +, starting with 26481 or 26485 */
 function toBackendPhone(raw: string): string {
-  const cleaned = raw.replace(/[\s\-().+]/g, "");
-  if (cleaned.startsWith("264")) return cleaned;
-  if (cleaned.startsWith("0")) return "264" + cleaned.slice(1);
-  return cleaned;
+  return normalizeNamibianPhone(raw);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -373,7 +368,7 @@ export default function EditPatientProfileModal({
                       styles.input,
                       fieldErrors.cellphoneNumber ? styles.inputError : undefined,
                     ])}
-                    placeholder="e.g. 0811234567"
+                    placeholder="e.g. 0811234567 or 0851234567"
                     placeholderTextColor={AUTH_COLORS.placeholder}
                     value={formData.cellphoneNumber}
                     onChangeText={(text) => {
