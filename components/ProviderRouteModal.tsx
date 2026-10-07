@@ -76,6 +76,7 @@ export default function ProviderRouteModal({
   const routeInitializedRef = useRef(false);
   const locationSubscriptionRef = useRef<any>(null);
   const arrivedRef = useRef(false);
+  const markingArrivedRef = useRef(false);
   const lastEmitRef = useRef(0);
   const hasFittedRouteRef = useRef(false);
   const lastSpeechTimeRef = useRef(0);
@@ -345,6 +346,11 @@ export default function ProviderRouteModal({
   }, []);
 
   const handleArrived = useCallback(async () => {
+    if (markingArrivedRef.current) {
+      return;
+    }
+    markingArrivedRef.current = true;
+
     try {
       stopTracking();
 
@@ -371,6 +377,8 @@ export default function ProviderRouteModal({
         providerLocation,
       );
 
+      arrivedRef.current = true;
+
       Alert.alert(
         "Success",
         "You've arrived at the patient's location!",
@@ -392,9 +400,30 @@ export default function ProviderRouteModal({
       onClose();
     } catch (error: any) {
       console.error("Error marking as arrived:", error);
+      const message = String(error?.message || "");
+      // Already arrived (retry / double-tap) — treat as success
+      if (/arrived to arrived/i.test(message)) {
+        arrivedRef.current = true;
+        if (onCompleteRoute) {
+          onCompleteRoute();
+        }
+        onClose();
+        router.push("/(app)/(provider)/requests");
+        return;
+      }
       Alert.alert("Error", error.message || "Failed to mark as arrived");
+    } finally {
+      markingArrivedRef.current = false;
     }
-  }, [requestId, providerLocation, onClose, onCompleteRoute, stopTracking, router]);
+  }, [
+    requestId,
+    providerId,
+    providerLocation,
+    onClose,
+    onCompleteRoute,
+    stopTracking,
+    router,
+  ]);
 
   const handleCancel = useCallback(async () => {
     setIsCancelling(true);
@@ -845,7 +874,7 @@ export default function ProviderRouteModal({
                 <TouchableOpacity
                   style={[styles.primaryButton, isLoading && styles.disabledButton]}
                   onPress={handleArrived}
-                  disabled={isLoading}
+                  disabled={isLoading || markingArrivedRef.current}
                 >
                   {isLoading ? (
                     <ActivityIndicator size="small" color="#fff" />

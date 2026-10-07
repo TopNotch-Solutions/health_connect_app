@@ -27,6 +27,7 @@ import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 import socketService from "../../../lib/socket";
+import ProviderPrescriptionPanel from "../../../components/(provider)/ProviderPrescriptionPanel";
 
 interface PrescriptionData {
   _id: string;
@@ -111,6 +112,9 @@ export default function ProviderRequests() {
 
   // Pharmacist prescription state
   const isPharmacist = user?.role === "pharmacist";
+  const canIssueClinicalPrescription =
+    user?.role === "doctor" ||
+    (user?.role === "nurse" && !!user?.dispensingCertificateLicence);
   const [prescriptions, setPrescriptions] = useState<PrescriptionData[]>([]);
   const [prescriptionLoading, setPrescriptionLoading] = useState<string | null>(null);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
@@ -1770,6 +1774,16 @@ export default function ProviderRequests() {
                           <Text className="text-xs text-green-700 font-semibold">Consultation Completed</Text>
                         </View>
                       )}
+
+                      <ProviderPrescriptionPanel
+                        requestId={request._id}
+                        requestStatus={request.status}
+                        consultationCompletedAt={
+                          request.timeline?.consultationCompleted || null
+                        }
+                        requestUpdatedAt={request.updatedAt || request.createdAt}
+                        canIssue={canIssueClinicalPrescription}
+                      />
                     </>
                   )}
                 </View>

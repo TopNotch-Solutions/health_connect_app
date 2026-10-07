@@ -1,4 +1,5 @@
 import { useAuth } from "@/context/AuthContext";
+import { useAllowScreenCaptureDuringCall } from "@/lib/screenCapture";
 import socketService from "@/lib/socket";
 import {
   getTeleconsultationCallAccess,
@@ -10,12 +11,14 @@ import {
   StreamCall,
   StreamVideo,
   StreamVideoClient,
+  useCall,
   useCallStateHooks,
 } from "@stream-io/video-react-native-sdk";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -41,6 +44,69 @@ type CallStateWatcherProps = {
   role: "patient" | "provider";
   onJoined: () => void;
 };
+
+/**
+ * Joins the call only after StreamVideo/StreamCall have mounted.
+ * Joining before the video views exist often leaves iOS RTCView black (0×0 layout).
+ */
+function CallJoinController() {
+  const call = useCall();
+  const { useCallCallingState } = useCallStateHooks();
+  const callingState = useCallCallingState();
+  const joinStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (!call || joinStartedRef.current) {
+      return;
+    }
+    if (
+      callingState === CallingState.JOINED ||
+      callingState === CallingState.JOINING
+    ) {
+      return;
+    }
+
+    joinStartedRef.current = true;
+
+    const join = async () => {
+      try {
+        await call.join({ create: true });
+        // Explicitly publish A/V — iOS can stay muted/unpublished after permission prompts
+        await Promise.allSettled([
+          call.camera.enable(),
+          call.microphone.enable(),
+        ]);
+      } catch (error) {
+        console.error("Failed to join Stream call:", error);
+        joinStartedRef.current = false;
+      }
+    };
+
+    void join();
+  }, [call, callingState]);
+
+  // If iOS briefly backgrounds during permission sheets, re-enable camera when active again
+  useEffect(() => {
+    if (Platform.OS !== "ios" || !call) {
+      return;
+    }
+    if (callingState !== CallingState.JOINED) {
+      return;
+    }
+
+    const reenable = async () => {
+      try {
+        await call.camera.enable();
+      } catch (error) {
+        console.warn("Unable to re-enable camera after join:", error);
+      }
+    };
+
+    void reenable();
+  }, [call, callingState]);
+
+  return null;
+}
 
 function CallStateWatcher({
   requestId,
@@ -91,6 +157,9 @@ export default function TeleconsultationCallScreen({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const joinedRef = useRef(false);
 
+  // iOS: preventScreenCapture blanks WebRTC video; lift it for the duration of the call
+  useAllowScreenCaptureDuringCall();
+
   useEffect(() => {
     if (!requestId) {
       setErrorMessage("Missing teleconsultation request id.");
@@ -134,8 +203,8 @@ export default function TeleconsultationCallScreen({
         });
 
         currentCall = currentClient.call(access.callType, access.callId);
+        // Prepare the call room, but join only after StreamCall/CallContent mount
         await currentCall.getOrCreate();
-        await currentCall.join();
 
         if (!isActive || !currentClient || !currentCall) {
           return;
@@ -184,6 +253,10 @@ export default function TeleconsultationCallScreen({
       void teardown();
     };
   }, [requestId, role, user?.fullname, user?.profileImage, user?.userId]);
+
+  const handleJoined = useCallback(() => {
+    joinedRef.current = true;
+  }, []);
 
   const handleHangup = async () => {
     if (!resources || !user?.userId) {
@@ -270,14 +343,13 @@ export default function TeleconsultationCallScreen({
       <View style={styles.callShell}>
         <StreamVideo client={resources.client}>
           <StreamCall call={resources.call}>
+            <CallJoinController />
             <CallStateWatcher
               requestId={requestId}
               requestStatus={resources.access.requestStatus}
               userId={currentUserId}
               role={role}
-              onJoined={() => {
-                joinedRef.current = true;
-              }}
+              onJoined={handleJoined}
             />
             <CallContent onHangupCallHandler={handleHangup} />
           </StreamCall>
@@ -313,6 +385,7 @@ const styles = StyleSheet.create({
   callShell: {
     flex: 1,
     backgroundColor: "#020617",
+    overflow: "hidden",
   },
   stateScreen: {
     flex: 1,

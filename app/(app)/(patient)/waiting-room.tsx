@@ -28,6 +28,7 @@ import PatientProviderTracking from "../../../components/(patient)/PatientProvid
 import PrescriptionUploadModal, {
   PrescriptionData,
 } from "../../../components/(patient)/PrescriptionUploadModal";
+import PatientProviderPrescriptionView from "../../../components/(patient)/PatientProviderPrescriptionView";
 import ProviderMap from "../../../components/(patient)/ProviderMap";
 import { useAuth } from "../../../context/AuthContext";
 import {
@@ -712,6 +713,13 @@ const RequestCard = ({
           }}
         />
       )}
+
+      {/* Provider-issued clinical prescription (doctor / prescribing nurse) */}
+      <PatientProviderPrescriptionView
+        requestId={request._id}
+        requestStatus={request.status}
+        enabled={!isPharmacyRequest}
+      />
 
       {/* Cancel button for active requests */}
       {[
