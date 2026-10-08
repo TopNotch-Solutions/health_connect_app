@@ -61,6 +61,7 @@ export interface User {
   finalQualification?: string;
   idDocumentFront?: string;
   idDocumentBack?: string;
+  dispensingCertificateLicence?: string | null;
 }
 
 interface AuthContextType {
@@ -389,6 +390,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         finalQualification: userDataFromBackend.finalQualification,
         idDocumentFront: userDataFromBackend.idDocumentFront,
         idDocumentBack: userDataFromBackend.idDocumentBack,
+        dispensingCertificateLicence:
+          userDataFromBackend.dispensingCertificateLicence ?? null,
       };
 
       // Save token FIRST

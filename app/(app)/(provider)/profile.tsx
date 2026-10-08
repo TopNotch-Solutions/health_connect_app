@@ -379,6 +379,16 @@ export default function ProfileScreen() {
         },
       });
 
+      if (
+        documentType === "dispensingCertificateLicence" &&
+        response.data?.dispensingCertificateLicence
+      ) {
+        await updateUser({
+          dispensingCertificateLicence:
+            response.data.dispensingCertificateLicence,
+        });
+      }
+
       Alert.alert("Success", "Document updated successfully!");
     } catch (error: any) {
       Alert.alert(

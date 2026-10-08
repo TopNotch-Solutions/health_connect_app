@@ -30,7 +30,8 @@ import { PrescriptionFile, uploadPrescription } from "../../lib/prescription";
 
 export interface PrescriptionData {
   _id: string;
-  status: "pending_review" | "accepted" | "rejected" | "cancelled";
+  status: "pending_review" | "accepted" | "rejected" | "cancelled" | "issued";
+  source?: "patient_pharmacy" | "provider_issued";
   prescriptionImage: string | null;
   fileType: "image" | "pdf" | null;
   rejectionReason?: string | null;

@@ -1073,7 +1073,7 @@ export default function ProviderRegistrationScreen() {
     if (digits.startsWith("264") && digits.length === 12) return digits;
     if (digits.startsWith("0") && digits.length === 10)
       return "264" + digits.slice(1);
-    if (digits.startsWith("81") && digits.length === 9) return "264" + digits;
+    if (/^8[15]\d{7}$/.test(digits)) return "264" + digits;
     return digits;
   };
 

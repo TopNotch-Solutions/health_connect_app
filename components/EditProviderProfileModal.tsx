@@ -22,6 +22,10 @@ import { namibianRegions } from "../constants/locations";
 import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
 import { AUTH_COLORS } from "../lib/authScreenTheme";
+import {
+  normalizeNamibianPhone,
+  validateNamibianPhone,
+} from "../lib/phone";
 
 interface EditProviderProfileModalProps {
   visible: boolean;
@@ -37,30 +41,13 @@ interface Specialization {
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 
-/** Strip spaces, dashes, and parentheses then validate Namibian mobile format.
- *  Accepts: 0XXXXXXXX (10 digits), +264XXXXXXXX (12 chars) or 264XXXXXXXX */
-/** Strip formatting and validate. Returns null if valid. */
 function validatePhone(raw: string): string | null {
-  const cleaned = raw.replace(/[\s\-().+]/g, "");
-  if (!cleaned) return "Cellphone number is required";
-  // Normalise to local 0XXXXXXXXX for validation check
-  const local = cleaned.startsWith("264") && cleaned.length === 12
-    ? "0" + cleaned.slice(3)
-    : cleaned;
-  if (!/^081\d{7}$/.test(local))
-    return "Enter a valid Namibian mobile number (e.g. 0811234567 — 10 digits starting with 081)";
-  return null;
+  return validateNamibianPhone(raw);
 }
 
-/**
- * Backend expects exactly 12 digits starting with 26481 — no +, no leading 0.
- * e.g. 0817001001 → 264817001001
- */
+/** Backend expects 12 digits starting with 26481 or 26485 */
 function toBackendPhone(raw: string): string {
-  const cleaned = raw.replace(/[\s\-().+]/g, "");
-  if (cleaned.startsWith("264")) return cleaned;   // already 264XXXXXXXXX
-  if (cleaned.startsWith("0")) return "264" + cleaned.slice(1); // 0XXXXXXXXX → 264XXXXXXXXX
-  return cleaned;
+  return normalizeNamibianPhone(raw);
 }
 
 function validateEmail(v: string): string | null {
@@ -213,6 +200,17 @@ export default function EditProviderProfileModal({
         governingCouncil:
           user.governingCouncil || "Health Professionals Council of Namibia",
         bio: user.bio || "",
+        registeredTradingName: (user as any)?.registeredTradingName || "",
+        companyRegistrationNo: (user as any)?.companyRegistrationNo || "",
+        businessEmail: (user as any)?.businessEmail || "",
+        pharmacyCouncilNo: (user as any)?.pharmacyCouncilNo || "",
+        practiceNumber: (user as any)?.practiceNumber || "",
+        gpsLongitude:
+          (user as any)?.gpsCoordinates?.longitude?.toString() || "",
+        gpsLatitude: (user as any)?.gpsCoordinates?.latitude?.toString() || "",
+        settlementCellNumber: (user as any)?.settlementCellNumber || "",
+        hpcnaLicenseExpiryAcknowledged:
+          (user as any)?.hpcnaLicenseExpiryAcknowledged || false,
       });
       isFormDataInitialized.current = true;
     } else if (!visible) {
@@ -602,7 +600,7 @@ export default function EditProviderProfileModal({
               <TextInput
                 className="bg-white rounded-lg px-4 py-3 text-gray-900"
                 style={withIosStandaloneTextInputStyle({ borderWidth: 2, borderColor: fieldErrors.cellphoneNumber ? "#EF4444" : AUTH_COLORS.inputBorder, borderRadius: 12 })}
-                placeholder="e.g. 0811234567"
+                placeholder="e.g. 0811234567 or 0851234567"
                 placeholderTextColor={AUTH_COLORS.placeholder}
                 value={formData.cellphoneNumber}
                 onChangeText={(text) => {

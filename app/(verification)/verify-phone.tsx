@@ -31,11 +31,13 @@ const VerifyPhoneScreen = () => {
     let sanitizedNumber = phoneNumber.replace(/\D/g, "");
     if (sanitizedNumber.startsWith("264"))
       sanitizedNumber = sanitizedNumber.slice(3);
+    if (sanitizedNumber.startsWith("0"))
+      sanitizedNumber = sanitizedNumber.slice(1);
 
-    if (sanitizedNumber.length !== 9) {
+    if (!/^8[15]\d{7}$/.test(sanitizedNumber)) {
       return Alert.alert(
         "Invalid Number",
-        "Please enter a valid 9-digit Namibian number (e.g., 81 234 5678).",
+        "Please enter a valid Namibian number starting with 81 or 85 (e.g., 81 234 5678 or 85 234 5678).",
       );
     }
 
@@ -129,7 +131,7 @@ const VerifyPhoneScreen = () => {
         <Feather name="phone" size={iosInputIconSize} color={AUTH_COLORS.green} />
         <TextInput
           style={[styles.phoneInput, withIosTextInputStyle()]}
-          placeholder="81 234 5678"
+          placeholder="81 or 85 234 5678"
           placeholderTextColor={AUTH_COLORS.placeholder}
           keyboardType="phone-pad"
           value={phoneNumber}
@@ -137,7 +139,9 @@ const VerifyPhoneScreen = () => {
           maxLength={12}
         />
       </View>
-      <Text style={styles.hint}>Enter your 9-digit Namibian phone number</Text>
+      <Text style={styles.hint}>
+        Enter your 9-digit Namibian phone number (81 or 85)
+      </Text>
       </AuthScreenLayout>
 
       <AuthTopBackButton accessibilityLabel="Go back" />
