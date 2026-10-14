@@ -2,22 +2,50 @@ import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
-import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../lib/iosInputStyles";
-import { AppTextInput as TextInput } from "../AppTextInput";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import MapView, { Marker } from "react-native-maps";
+import apiClient from "../../lib/api";
+import { AUTH_COLORS } from "../../lib/authScreenTheme";
+import { buildBackendAssetUrl } from "../../lib/backend";
+import {
+  getCurrentLocationWithAddress,
+  reverseGeocode,
+} from "../../lib/geocoding";
+import {
+  withIosMultilineTextInputStyle,
+  withIosStandaloneTextInputStyle,
+} from "../../lib/iosInputStyles";
+import { PrescriptionFile } from "../../lib/prescription";
+import { PickerField } from "../PickerField";
+import { logViewMountDebug } from "../../lib/viewErrorLogger";
 import {
   AppBottomSheetCloseHeader,
   appBottomSheetStyles,
   appModalBottomSheetStyles,
 } from "../app/AppBottomSheetUI";
-import { AUTH_COLORS } from "../../lib/authScreenTheme";
-import MapView, { Marker } from "react-native-maps";
-import {
-  getCurrentLocationWithAddress,
-  reverseGeocode,
-} from "../../lib/geocoding";
-import { PrescriptionFile } from "../../lib/prescription";
-import { logViewMountDebug } from "../../lib/viewErrorLogger";
+import { AppTextInput as TextInput } from "../AppTextInput";
+
+export type PaymentMethod = "wallet" | "cash" | "medical_aid";
+
+export type MedicalAidDetailsPayload = {
+  medicalAidId: string;
+  medicalAidTitle?: string;
+  membershipNumber: string;
+  mainMemberName: string;
+  residentialAddress: string;
+};
 
 interface CreateRequestModalProps {
   visible: boolean;
@@ -27,7 +55,7 @@ interface CreateRequestModalProps {
     ailmentCategoryId?: string;
     consultationMode: "house_visit" | "video_consultation";
     symptoms: string;
-    paymentMethod: "wallet" | "cash";
+    paymentMethod: PaymentMethod;
     consultationCost: number;
     street: string;
     locality: string;
@@ -35,6 +63,7 @@ interface CreateRequestModalProps {
     preferredTime?: string;
     coordinates?: { latitude: number; longitude: number };
     prescriptionFile?: PrescriptionFile;
+    medicalAidDetails?: MedicalAidDetailsPayload;
   }) => Promise<void>;
   selectedAilment?: any;
 }
@@ -50,8 +79,10 @@ export default function CreateRequestModal({
   const supportsTeleconsultation = Boolean(
     selectedAilment?.supportsTeleconsultation,
   );
-    const normalizeProviderLabel = (value?: string | null) =>
-    String(value || "").trim().toLowerCase();
+  const normalizeProviderLabel = (value?: string | null) =>
+    String(value || "")
+      .trim()
+      .toLowerCase();
   const isPharmacyRequest =
     normalizeProviderLabel(selectedAilment?.provider) === "pharmacist";
 
@@ -59,13 +90,27 @@ export default function CreateRequestModal({
   const [consultationMode, setConsultationMode] = useState<
     "house_visit" | "video_consultation"
   >("house_visit");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "wallet">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [street, setStreet] = useState("");
   const [locality, setLocality] = useState("");
   const [region, setRegion] = useState("");
+  const [medicalAids, setMedicalAids] = useState<
+    { id: string; title: string; image?: string | null }[]
+  >([]);
+  const [selectedMedicalAidId, setSelectedMedicalAidId] = useState("");
+  const [membershipNumber, setMembershipNumber] = useState("");
+  const [mainMemberName, setMainMemberName] = useState("");
+  const [residentialAddress, setResidentialAddress] = useState("");
+  const [isLoadingMedicalAids, setIsLoadingMedicalAids] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  const hasIcd10 = Boolean(
+    selectedAilment?.hasIcd10 ||
+    (Array.isArray(selectedAilment?.icd10Codes) &&
+      selectedAilment.icd10Codes.length > 0),
+  );
   const [mapRegion, setMapRegion] = useState<{
     latitude: number;
     longitude: number;
@@ -80,11 +125,20 @@ export default function CreateRequestModal({
 
   const [prescriptionFile, setPrescriptionFile] =
     useState<PrescriptionFile | null>(null);
-  
-  const selectedCost =
+
+  const linkedIcd10 =
+    Array.isArray(selectedAilment?.icd10Codes) &&
+    selectedAilment.icd10Codes.length > 0
+      ? selectedAilment.icd10Codes[0]
+      : null;
+  const ailmentCost =
     consultationMode === "video_consultation"
       ? Number(selectedAilment?.teleconsultationCost ?? NaN)
       : Number(selectedAilment?.physicalconsultationCost ?? NaN);
+  const icd10Price = Number(linkedIcd10?.price ?? NaN);
+  // Medical aid uses the ICD-10 price; cash/other methods use the ailment cost.
+  const selectedCost =
+    paymentMethod === "medical_aid" ? icd10Price : ailmentCost;
 
   // Load location when modal opens
   useEffect(() => {
@@ -107,16 +161,77 @@ export default function CreateRequestModal({
   }, [selectedAilment]);
 
   useEffect(() => {
-    if (!supportsTeleconsultation && consultationMode === "video_consultation") {
+    if (
+      !supportsTeleconsultation &&
+      consultationMode === "video_consultation"
+    ) {
       setConsultationMode("house_visit");
     }
   }, [consultationMode, supportsTeleconsultation]);
-    useEffect(() => {
+  useEffect(() => {
     if (visible) {
       setPrescriptionFile(null);
       setLocationError(null);
+      setPaymentMethod("cash");
+      setSelectedMedicalAidId("");
+      setMembershipNumber("");
+      setMainMemberName("");
+      setResidentialAddress("");
     }
   }, [visible, selectedAilment]);
+
+  useEffect(() => {
+    if (!hasIcd10 && paymentMethod === "medical_aid") {
+      setPaymentMethod("cash");
+    }
+  }, [hasIcd10, paymentMethod]);
+
+  useEffect(() => {
+    if (!visible || !hasIcd10) return;
+
+    let cancelled = false;
+    const loadMedicalAids = async () => {
+      setIsLoadingMedicalAids(true);
+      try {
+        const response = await apiClient.get("/app/medical-aid/all");
+        const raw = Array.isArray(response.data)
+          ? response.data
+          : (response.data?.data ?? []);
+        if (cancelled) return;
+        setMedicalAids(
+          raw.map((item: any) => ({
+            id: String(item._id || item.id),
+            title: item.title || "",
+            image: item.image || null,
+          })),
+        );
+      } catch (error) {
+        console.error("Failed to load medical aids:", error);
+        if (!cancelled) {
+          setMedicalAids([]);
+        }
+      } finally {
+        if (!cancelled) setIsLoadingMedicalAids(false);
+      }
+    };
+
+    loadMedicalAids();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, hasIcd10]);
+
+  useEffect(() => {
+    if (paymentMethod !== "medical_aid") return;
+    if (residentialAddress.trim()) return;
+    const composed = [street, locality, region]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(", ");
+    if (composed) {
+      setResidentialAddress(composed);
+    }
+  }, [paymentMethod, street, locality, region, residentialAddress]);
 
   const loadLocationAndAddress = async () => {
     setIsLoadingLocation(true);
@@ -190,7 +305,15 @@ export default function CreateRequestModal({
       return;
     }
 
-    if (isNaN(selectedCost) || selectedCost <= 0) {
+    if (paymentMethod === "medical_aid") {
+      if (isNaN(selectedCost) || selectedCost < 0) {
+        Alert.alert(
+          "Invalid Cost",
+          "This ailment does not have a valid ICD-10 consultation price configured.",
+        );
+        return;
+      }
+    } else if (isNaN(selectedCost) || selectedCost <= 0) {
       Alert.alert(
         "Invalid Cost",
         "This ailment does not have a valid consultation cost configured.",
@@ -213,6 +336,40 @@ export default function CreateRequestModal({
         "Please upload a prescription image or PDF before submitting a pharmacy request.",
       );
       return;
+    }
+
+    let medicalAidDetails: MedicalAidDetailsPayload | undefined;
+    if (paymentMethod === "medical_aid") {
+      if (!selectedMedicalAidId) {
+        Alert.alert("Required", "Please select a medical aid.");
+        return;
+      }
+      if (!membershipNumber.trim()) {
+        Alert.alert("Required", "Please enter your MAF / Membership number.");
+        return;
+      }
+      if (!mainMemberName.trim()) {
+        Alert.alert("Required", "Please enter the main member name.");
+        return;
+      }
+      if (!residentialAddress.trim()) {
+        Alert.alert(
+          "Required",
+          "Please enter the patient residential address.",
+        );
+        return;
+      }
+
+      const selectedAid = medicalAids.find(
+        (aid) => aid.id === selectedMedicalAidId,
+      );
+      medicalAidDetails = {
+        medicalAidId: selectedMedicalAidId,
+        medicalAidTitle: selectedAid?.title,
+        membershipNumber: membershipNumber.trim(),
+        mainMemberName: mainMemberName.trim(),
+        residentialAddress: residentialAddress.trim(),
+      };
     }
 
     Alert.alert(
@@ -238,6 +395,7 @@ export default function CreateRequestModal({
                 preferredTime: undefined,
                 coordinates: markerCoord,
                 prescriptionFile: prescriptionFile || undefined,
+                medicalAidDetails,
               });
 
               // Don't reset form or close modal - let the parent handle navigation
@@ -281,7 +439,7 @@ export default function CreateRequestModal({
       quality: 0.85,
     });
 
-    const asset = result.canceled ? null : result.assets?.[0] ?? null;
+    const asset = result.canceled ? null : (result.assets?.[0] ?? null);
     if (!asset) return;
 
     setPrescriptionFile({
@@ -297,7 +455,7 @@ export default function CreateRequestModal({
       copyToCacheDirectory: true,
     });
 
-    const asset = result.canceled ? null : result.assets?.[0] ?? null;
+    const asset = result.canceled ? null : (result.assets?.[0] ?? null);
     if (!asset) return;
 
     const documentAsset = asset as DocumentPicker.DocumentPickerAsset & {
@@ -314,10 +472,17 @@ export default function CreateRequestModal({
   const paymentOptions = [
     { value: "cash", label: "Cash", icon: "dollar-sign" },
     { value: "wallet", label: "Wallet", icon: "credit-card" },
+    {
+      value: "medical_aid",
+      label: "Medical Aid",
+      icon: "shield",
+    },
   ];
-  const visiblePaymentOptions = paymentOptions.filter(
-    (option) => option.value === "cash",
-  );
+  const visiblePaymentOptions = paymentOptions.filter((option) => {
+    if (option.value === "cash") return true;
+    if (option.value === "medical_aid") return hasIcd10;
+    return false;
+  });
 
   return (
     <Modal
@@ -502,17 +667,25 @@ export default function CreateRequestModal({
                       region={mapRegion}
                       style={{ flex: 1 }}
                       onLayout={(event) => {
-                        logViewMountDebug("CreateRequestModal", "MapView layout", {
-                          layout: event.nativeEvent.layout,
-                          mapRegion,
-                          markerCoord,
-                        });
+                        logViewMountDebug(
+                          "CreateRequestModal",
+                          "MapView layout",
+                          {
+                            layout: event.nativeEvent.layout,
+                            mapRegion,
+                            markerCoord,
+                          },
+                        );
                       }}
                       onMapReady={() => {
-                        logViewMountDebug("CreateRequestModal", "MapView ready", {
-                          mapRegion,
-                          markerCoord,
-                        });
+                        logViewMountDebug(
+                          "CreateRequestModal",
+                          "MapView ready",
+                          {
+                            mapRegion,
+                            markerCoord,
+                          },
+                        );
                       }}
                       scrollEnabled={false}
                       zoomEnabled={false}
@@ -614,12 +787,13 @@ export default function CreateRequestModal({
                 <View className="bg-blue-50 border border-blue-300 rounded-lg p-4">
                   <View className="flex-row items-center justify-between">
                     <View className="flex-row items-center flex-1">
-                        <Feather name="dollar-sign" size={20} color="#3B82F6" />
-                        <Text className="text-2xl font-bold text-blue-900 ml-2">
-                          N${isNaN(selectedCost) ? "0.00" : selectedCost.toFixed(2)}
-                        </Text>
-                      </View>
+                      <Feather name="dollar-sign" size={20} color="#3B82F6" />
+                      <Text className="text-2xl font-bold text-blue-900 ml-2">
+                        N$
+                        {isNaN(selectedCost) ? "0.00" : selectedCost.toFixed(2)}
+                      </Text>
                     </View>
+                  </View>
                 </View>
               </View>
 
@@ -636,7 +810,11 @@ export default function CreateRequestModal({
                   {prescriptionFile && (
                     <View className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex-row items-center mb-3">
                       <Feather
-                        name={prescriptionFile.mimeType === "application/pdf" ? "file-text" : "image"}
+                        name={
+                          prescriptionFile.mimeType === "application/pdf"
+                            ? "file-text"
+                            : "image"
+                        }
                         size={16}
                         color="#2563EB"
                       />
@@ -676,19 +854,21 @@ export default function CreateRequestModal({
                   </View>
                 </View>
               )}
-              
+
               {/* Payment Method */}
               <View className="mb-6">
                 <Text className="text-base font-semibold text-gray-900 mb-2">
                   Payment Method *
                 </Text>
-                <View className="flex-row gap-3">
+                <View className="flex-row gap-3 flex-wrap">
                   {visiblePaymentOptions.map((option) => (
                     <TouchableOpacity
                       key={option.value}
-                      onPress={() => setPaymentMethod(option.value as any)}
+                      onPress={() =>
+                        setPaymentMethod(option.value as PaymentMethod)
+                      }
                       disabled={isLoading}
-                      className={`flex-1 flex-row items-center justify-center p-4 rounded-lg border-2 ${
+                      className={`flex-1 min-w-[45%] flex-row items-center justify-center p-4 rounded-lg border-2 ${
                         paymentMethod === option.value
                           ? "border-[#BBF7D0]"
                           : "bg-white border-gray-300"
@@ -720,14 +900,133 @@ export default function CreateRequestModal({
                     </TouchableOpacity>
                   ))}
                 </View>
-                {consultationMode === "video_consultation" && (
-                  <Text className="text-xs text-gray-600 mt-2">
-                    Video consultations are created as cash payments. After a
-                    provider accepts, you&apos;ll see their number and payment
-                    instructions before the call is unlocked.
-                  </Text>
-                )}
+
+                {consultationMode === "video_consultation" &&
+                  paymentMethod === "cash" && (
+                    <Text className="text-xs text-gray-600 mt-2">
+                      After a provider accepts a video consultation, you&apos;ll
+                      see their number and payment instructions before the call
+                      is unlocked.
+                    </Text>
+                  )}
               </View>
+
+              {paymentMethod === "medical_aid" && (
+                <View className="mb-6">
+                  <Text className="text-base font-semibold text-gray-900 mb-2">
+                    Medical Aid Details *
+                  </Text>
+
+                  <Text className="text-sm text-gray-700 mb-1">
+                    Medical Aid
+                  </Text>
+                  {isLoadingMedicalAids ? (
+                    <View className="py-3 items-center">
+                      <ActivityIndicator color={AUTH_COLORS.green} />
+                    </View>
+                  ) : medicalAids.length === 0 ? (
+                    <Text className="text-sm text-gray-500 py-2">
+                      No medical aids available.
+                    </Text>
+                  ) : (
+                    <View>
+                      <View className="flex-row items-center" style={{ gap: 10 }}>
+                        {(() => {
+                          const selectedAid = medicalAids.find(
+                            (aid) => aid.id === selectedMedicalAidId,
+                          );
+                          const imageUri = selectedAid?.image
+                            ? buildBackendAssetUrl("images", selectedAid.image)
+                            : null;
+                          return imageUri ? (
+                            <Image
+                              source={{ uri: imageUri }}
+                              style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 8,
+                                backgroundColor: "#F3F4F6",
+                              }}
+                              resizeMode="contain"
+                            />
+                          ) : (
+                            <View
+                              style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 8,
+                                backgroundColor: "#F3F4F6",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Feather
+                                name="shield"
+                                size={20}
+                                color="#6B7280"
+                              />
+                            </View>
+                          );
+                        })()}
+                        <View style={{ flex: 1 }}>
+                          <PickerField
+                            value={selectedMedicalAidId || null}
+                            onValueChange={(value) =>
+                              setSelectedMedicalAidId(value || "")
+                            }
+                            placeholder="Select medical aid"
+                            items={medicalAids.map((aid) => ({
+                              label: aid.title,
+                              value: aid.id,
+                            }))}
+                            disabled={isLoading}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  )}
+
+                  <Text className="text-sm text-gray-700 mb-1 mt-4">
+                    MAF / Membership Number
+                  </Text>
+                  <TextInput
+                    style={withIosStandaloneTextInputStyle()}
+                    className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base"
+                    placeholder="Enter membership number"
+                    value={membershipNumber}
+                    onChangeText={setMembershipNumber}
+                    editable={!isLoading}
+                    autoCapitalize="characters"
+                  />
+
+                  <Text className="text-sm text-gray-700 mb-1 mt-4">
+                    Main Member Name
+                  </Text>
+                  <TextInput
+                    style={withIosStandaloneTextInputStyle()}
+                    className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base"
+                    placeholder="Enter main member name"
+                    value={mainMemberName}
+                    onChangeText={setMainMemberName}
+                    editable={!isLoading}
+                  />
+
+                  <Text className="text-sm text-gray-700 mb-1 mt-4">
+                    Patient Residential Address
+                  </Text>
+                  <TextInput
+                    style={withIosMultilineTextInputStyle()}
+                    className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base"
+                    placeholder="Enter residential address"
+                    value={residentialAddress}
+                    onChangeText={setResidentialAddress}
+                    editable={!isLoading}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                </View>
+              )}
 
               {/* Info Box */}
               <View style={appBottomSheetStyles.warningBanner}>
@@ -751,8 +1050,8 @@ export default function CreateRequestModal({
             <View style={appModalBottomSheetStyles.footer}>
               {isLoadingLocation && (
                 <Text className="text-sm text-gray-600 text-center mb-3">
-                  Detecting your location — submit is disabled until we have your
-                  address.
+                  Detecting your location — submit is disabled until we have
+                  your address.
                 </Text>
               )}
               {locationError && !isLoadingLocation && (
@@ -770,7 +1069,10 @@ export default function CreateRequestModal({
                 disabled={!canSubmit}
                 style={[
                   appBottomSheetStyles.primaryCta,
-                  !canSubmit && { backgroundColor: "#D1D5DB", borderColor: "#D1D5DB" },
+                  !canSubmit && {
+                    backgroundColor: "#D1D5DB",
+                    borderColor: "#D1D5DB",
+                  },
                 ]}
                 activeOpacity={0.88}
               >

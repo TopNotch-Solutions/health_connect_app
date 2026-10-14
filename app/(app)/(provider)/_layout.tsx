@@ -170,6 +170,17 @@ export default function ProviderTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="medical-aid"
+        options={{
+          title: "Medical Aid",
+          href: null,
+          headerLeft: () => <HeaderBackButton size={30} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Feather name="shield" color={color} size={focused ? size + 2 : size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="teleconsultation-call"
         options={{
           href: null,

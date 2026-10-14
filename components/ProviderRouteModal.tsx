@@ -43,6 +43,7 @@ interface ProviderRouteModalProps {
   };
   patientAddress?: string;
   patientName?: string;
+  patientPhone?: string;
   providerProfileImage?: string;
   patientProfileImage?: string;
   onCompleteRoute?: () => void;
@@ -64,6 +65,7 @@ export default function ProviderRouteModal({
   patientLocation: rawPatientLocation,
   patientAddress,
   patientName = "Patient",
+  patientPhone,
   providerProfileImage,
   patientProfileImage,
   onCompleteRoute,
@@ -71,6 +73,7 @@ export default function ProviderRouteModal({
   consultationMode,
   createdAt,
 }: ProviderRouteModalProps) {
+  const normalizedPatientPhone = patientPhone?.trim() || "";
   const router = useRouter();
   const mapRef = useRef<MapView>(null);
   const routeInitializedRef = useRef(false);
@@ -770,6 +773,19 @@ export default function ProviderRouteModal({
                 <Text style={styles.statusLabel}>
                   Navigating to {patientName}
                 </Text>
+                {normalizedPatientPhone ? (
+                  <TouchableOpacity
+                    onPress={() =>
+                      Linking.openURL(`tel:${normalizedPatientPhone}`)
+                    }
+                    style={styles.phoneRow}
+                    activeOpacity={0.7}
+                    hitSlop={8}
+                  >
+                    <Feather name="phone" size={16} color={AUTH_COLORS.green} />
+                    <Text style={styles.phoneText}>{normalizedPatientPhone}</Text>
+                  </TouchableOpacity>
+                ) : null}
                 {routeDistance !== null && routeDuration !== null ? (
                   <View style={styles.routeInfoContainer}>
                     <View style={styles.routeInfoRow}>
@@ -1032,6 +1048,20 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: AUTH_COLORS.textDark,
     marginBottom: 4,
+  },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 4,
+    alignSelf: "flex-start",
+  },
+  phoneText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: AUTH_COLORS.greenDark,
+    textDecorationLine: "underline",
   },
   trackingIndicator: {
     flexDirection: "row",

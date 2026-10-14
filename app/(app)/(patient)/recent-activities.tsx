@@ -38,10 +38,18 @@ interface RequestStatus {
   urgency: "low" | "medium" | "high" | "emergency";
   createdAt: string;
   consultationMode?: "house_visit" | "video_consultation";
-  paymentMethod?: "wallet" | "cash";
+  paymentMethod?: "wallet" | "cash" | "medical_aid";
   symptoms?: string;
   consultationCost?: number;
   estimatedCost?: number;
+  medicalAidDetails?: {
+    medicalAidTitle?: string;
+    medicalAidImage?: string;
+    membershipNumber?: string;
+    mainMemberName?: string;
+    residentialAddress?: string;
+    icd10Code?: string;
+  };
   ailmentCategoryId?: {
     _id: string;
     title: string;
@@ -109,6 +117,16 @@ const toHistoryItem = (stored: StoredRequest): HistoryItem => {
           route: request.address.route,
           locality: request.address.locality,
           region: request.address.administrative_area_level_1,
+        }
+      : undefined,
+    medicalAidDetails: request.medicalAidDetails
+      ? {
+          medicalAidTitle: request.medicalAidDetails.medicalAidTitle,
+          medicalAidImage: request.medicalAidDetails.medicalAidImage,
+          membershipNumber: request.medicalAidDetails.membershipNumber,
+          mainMemberName: request.medicalAidDetails.mainMemberName,
+          residentialAddress: request.medicalAidDetails.residentialAddress,
+          icd10Code: request.medicalAidDetails.icd10Code,
         }
       : undefined,
   };

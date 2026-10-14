@@ -44,12 +44,14 @@ import { ensureForegroundLocationPermission } from "../../../lib/locationPermiss
 import socketService from "../../../lib/socket";
 import { logViewMountDebug } from "../../../lib/viewErrorLogger";
 import { AUTH_COLORS } from "../../../lib/authScreenTheme";
+import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
 
 export default function ProviderHome() {
   const [requests, setRequests] = useState<any[]>([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [monthlyEarnings, setMonthlyEarnings] = useState(0);
+  const [medicalAidEligible, setMedicalAidEligible] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [currentOnboardingStep, setCurrentOnboardingStep] = useState(0);
   const { user, updateUser } = useAuth();
@@ -229,6 +231,18 @@ export default function ProviderHome() {
     } catch (error) {
       console.error("Error loading monthly earnings:", error);
       // Fail silently; keep last known value or 0
+    }
+  }, []);
+
+  // Medical aid eligibility — show home quick action when specializations match ICD-10
+  const loadMedicalAidEligibility = useCallback(async () => {
+    try {
+      const response = await apiClient.get("/app/medical-aid/provider-stats");
+      const data = response.data;
+      setMedicalAidEligible(Boolean(data?.eligible));
+    } catch (error) {
+      console.error("Error loading medical aid eligibility:", error);
+      setMedicalAidEligible(false);
     }
   }, []);
 
@@ -526,6 +540,7 @@ export default function ProviderHome() {
       // Fetch user details and earnings
       fetchAndUpdateUserDetails();
       loadMonthlyEarnings();
+      loadMedicalAidEligibility();
 
       // If online, refresh requests to get latest state (only if not already loading)
       if (isOnline && user?.userId && !isLoadingRequestsRef.current) {
@@ -547,6 +562,7 @@ export default function ProviderHome() {
     }, [
       fetchAndUpdateUserDetails,
       loadMonthlyEarnings,
+      loadMedicalAidEligibility,
       isOnline,
       user?.userId,
     ]),
@@ -560,6 +576,7 @@ export default function ProviderHome() {
       await fetchAndUpdateUserDetails();
       // Then refresh earnings
       await loadMonthlyEarnings();
+      await loadMedicalAidEligibility();
       // Then refresh requests if online (only if not already loading)
       if (isOnline && !isLoadingRequestsRef.current) {
         await loadAvailableRequests();
@@ -569,7 +586,12 @@ export default function ProviderHome() {
     } finally {
       setRefreshing(false);
     }
-  }, [fetchAndUpdateUserDetails, loadMonthlyEarnings, isOnline]);
+  }, [
+    fetchAndUpdateUserDetails,
+    loadMonthlyEarnings,
+    loadMedicalAidEligibility,
+    isOnline,
+  ]);
 
   // Auto-refresh available requests every 10 seconds while the provider is online.
   useEffect(() => {
@@ -1032,6 +1054,16 @@ export default function ProviderHome() {
               label: "Profile",
               onPress: () => router.push("/(app)/(provider)/profile"),
             },
+            ...(medicalAidEligible
+              ? [
+                  {
+                    icon: "shield" as const,
+                    label: "Medical Aid",
+                    onPress: () =>
+                      router.push("/(app)/(provider)/medical-aid"),
+                  },
+                ]
+              : []),
           ]}
         />
 
@@ -1136,7 +1168,7 @@ export default function ProviderHome() {
               const patientName =
                 request.patientId?.fullname || "Unknown Patient";
               const displayPatientName = isCompleted ? "Patient" : patientName;
-              const patientPhone = !isCompleted
+              const patientPhone = canShowPatientPhone(request.status)
                 ? request.patientId?.cellphoneNumber?.trim() || null
                 : null;
               const ailment = request.ailmentCategory || "Consultation";
@@ -1321,7 +1353,7 @@ export default function ProviderHome() {
                     ? "Patient"
                     : selectedRequest.patientId?.fullname || "Unknown Patient"}
                 </Text>
-                {selectedRequest.status !== "completed" &&
+                {canShowPatientPhone(selectedRequest.status) &&
                 selectedRequest.patientId?.cellphoneNumber ? (
                   <TouchableOpacity
                     onPress={() =>

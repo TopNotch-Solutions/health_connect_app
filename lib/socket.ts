@@ -215,7 +215,7 @@ class SocketService {
     ailmentCategory: string;
     ailmentCategoryId?: string;
     consultationMode?: "house_visit" | "video_consultation";
-    paymentMethod: "wallet" | "cash";
+    paymentMethod: "wallet" | "cash" | "medical_aid";
     symptoms?: string;
     consultationCost: number;
     address?: {
@@ -228,6 +228,13 @@ class SocketService {
       };
     };
     preferredTime?: string;
+    medicalAidDetails?: {
+      medicalAidId: string;
+      medicalAidTitle?: string;
+      membershipNumber: string;
+      mainMemberName: string;
+      residentialAddress: string;
+    };
   }) {
     return new Promise((resolve, reject) => {
       if (!this.socket?.connected) {
@@ -257,6 +264,9 @@ class SocketService {
         consultationCost: requestData.consultationCost,
         estimatedCost: requestData.consultationCost,
         preferredTime: requestData.preferredTime,
+        ...(requestData.medicalAidDetails
+          ? { medicalAidDetails: requestData.medicalAidDetails }
+          : {}),
         address: {
           route: requestData.address?.route || "Patient Location",
           locality: requestData.address?.locality || "Current City",

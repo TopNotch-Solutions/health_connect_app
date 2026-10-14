@@ -27,6 +27,7 @@ import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 import socketService from "../../../lib/socket";
+import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
 import ProviderPrescriptionPanel from "../../../components/(provider)/ProviderPrescriptionPanel";
 
 interface PrescriptionData {
@@ -1125,7 +1126,7 @@ export default function ProviderRequests() {
                       .filter(Boolean)
                       .join(", ")
                   : null;
-              const patientPhone = !isCompleted
+              const patientPhone = canShowPatientPhone(request.status)
                 ? request.patientId?.cellphoneNumber?.trim() || null
                 : null;
 

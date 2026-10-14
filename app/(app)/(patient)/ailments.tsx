@@ -156,7 +156,7 @@ export default function AilmentsScreen() {
     ailmentCategoryId?: string;
     consultationMode: "house_visit" | "video_consultation";
     symptoms: string;
-    paymentMethod: "wallet" | "cash";
+    paymentMethod: "wallet" | "cash" | "medical_aid";
     consultationCost: number;
     street: string;
     locality: string;
@@ -164,6 +164,13 @@ export default function AilmentsScreen() {
     preferredTime?: string;
     coordinates?: { latitude: number; longitude: number };
     prescriptionFile?: PrescriptionFile;
+    medicalAidDetails?: {
+      medicalAidId: string;
+      medicalAidTitle?: string;
+      membershipNumber: string;
+      mainMemberName: string;
+      residentialAddress: string;
+    };
   }) => {
     let currentLocation = requestData.coordinates || location;
 
@@ -197,6 +204,7 @@ export default function AilmentsScreen() {
       paymentMethod: requestData.paymentMethod,
       symptoms: requestData.symptoms,
       consultationCost: requestData.consultationCost,
+      medicalAidDetails: requestData.medicalAidDetails,
       address: {
         route: requestData.street,
         locality: requestData.locality,

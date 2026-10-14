@@ -185,38 +185,38 @@ export default function EditProviderProfileModal({
     });
 
     if (visible && user && !isFormDataInitialized.current) {
-      console.log("📋 Setting form data for the first time");
-      setFormData({
-        fullname: user.fullname || "",
-        email: user.email || "",
-        cellphoneNumber: user.cellphoneNumber || "",
-        gender: user.gender || "Male",
-        address: user.address || "",
-        hpcnaNumber: user.hpcnaNumber || "",
-        hpcnaExpiryDate: user.hpcnaExpiryDate || "",
-        specializations: user.specializations || [],
-        yearsOfExperience: user.yearsOfExperience?.toString() || "",
-        operationalZone: user.operationalZone || "",
-        governingCouncil:
-          user.governingCouncil || "Health Professionals Council of Namibia",
-        bio: user.bio || "",
-        registeredTradingName: (user as any)?.registeredTradingName || "",
-        companyRegistrationNo: (user as any)?.companyRegistrationNo || "",
-        businessEmail: (user as any)?.businessEmail || "",
-        pharmacyCouncilNo: (user as any)?.pharmacyCouncilNo || "",
-        practiceNumber: (user as any)?.practiceNumber || "",
-        gpsLongitude:
-          (user as any)?.gpsCoordinates?.longitude?.toString() || "",
-        gpsLatitude: (user as any)?.gpsCoordinates?.latitude?.toString() || "",
-        settlementCellNumber: (user as any)?.settlementCellNumber || "",
-        hpcnaLicenseExpiryAcknowledged:
-          (user as any)?.hpcnaLicenseExpiryAcknowledged || false,
-      });
-      isFormDataInitialized.current = true;
-    } else if (!visible) {
-      console.log("📋 Resetting form data initialization flag");
-      isFormDataInitialized.current = false;
-    }
+        console.log("📋 Setting form data for the first time");
+        setFormData({
+          fullname: user.fullname || "",
+          email: user.email || "",
+          cellphoneNumber: user.cellphoneNumber || "",
+          gender: user.gender || "Male",
+          address: user.address || "",
+          hpcnaNumber: user.hpcnaNumber || "",
+          hpcnaExpiryDate: user.hpcnaExpiryDate || "",
+          specializations: user.specializations || [],
+          yearsOfExperience: user.yearsOfExperience?.toString() || "",
+          operationalZone: user.operationalZone || "",
+          governingCouncil:
+            user.governingCouncil || "Health Professionals Council of Namibia",
+          bio: user.bio || "",
+          registeredTradingName: (user as any)?.registeredTradingName || "",
+          companyRegistrationNo: (user as any)?.companyRegistrationNo || "",
+          businessEmail: (user as any)?.businessEmail || "",
+          pharmacyCouncilNo: (user as any)?.pharmacyCouncilNo || "",
+          practiceNumber: (user as any)?.practiceNumber || "",
+          gpsLongitude:
+            (user as any)?.gpsCoordinates?.longitude?.toString() || "",
+          gpsLatitude: (user as any)?.gpsCoordinates?.latitude?.toString() || "",
+          settlementCellNumber: (user as any)?.settlementCellNumber || "",
+          hpcnaLicenseExpiryAcknowledged:
+            (user as any)?.hpcnaLicenseExpiryAcknowledged || false,
+        });
+        isFormDataInitialized.current = true;
+      } else if (!visible) {
+        console.log("📋 Resetting form data initialization flag");
+        isFormDataInitialized.current = false;
+      }
   }, [visible]);
 
   // Initialize expiration date only when modal first opens
@@ -442,20 +442,33 @@ export default function EditProviderProfileModal({
 
     setIsLoading(true);
     try {
-      await apiClient.put("/app/auth/update-health-provider-details/", {
-        fullname: formData.fullname,
-        email: formData.email,
-        cellphoneNumber: cleanedPhone,
-        gender: formData.gender,
-        address: formData.address,
-        hpcnaNumber: formData.hpcnaNumber,
-        hpcnaExpiryDate: expirationDate.toISOString(),
-        specializations: formData.specializations,
-        yearsOfExperience: parseInt(formData.yearsOfExperience),
-        operationalZone: formData.operationalZone,
-        governingCouncil: formData.governingCouncil,
-        bio: formData.bio,
-      });
+      const userSpecializations = user?.specializations || [];
+      const specializationsChanged =
+        userSpecializations.length !== formData.specializations.length ||
+        !userSpecializations.every((spec) =>
+          formData.specializations.includes(spec),
+        ) ||
+        !formData.specializations.every((spec) =>
+          userSpecializations.includes(spec),
+        );
+
+      const response = await apiClient.put(
+        "/app/auth/update-health-provider-details/",
+        {
+          fullname: formData.fullname,
+          email: formData.email,
+          cellphoneNumber: cleanedPhone,
+          gender: formData.gender,
+          address: formData.address,
+          hpcnaNumber: formData.hpcnaNumber,
+          hpcnaExpiryDate: expirationDate.toISOString(),
+          specializations: formData.specializations,
+          yearsOfExperience: parseInt(formData.yearsOfExperience),
+          operationalZone: formData.operationalZone,
+          governingCouncil: formData.governingCouncil,
+          bio: formData.bio,
+        },
+      );
 
       // Also save pharmacist-specific fields if the user is a pharmacist
       if (user?.role === "pharmacist") {
@@ -472,6 +485,13 @@ export default function EditProviderProfileModal({
         });
       }
 
+      const verifiedFromResponse =
+        typeof response?.data?.user?.isDocumentVerified === "boolean"
+          ? response.data.user.isDocumentVerified
+          : specializationsChanged
+            ? false
+            : user?.isDocumentVerified;
+
       await updateUser({
         fullname: formData.fullname,
         email: formData.email,
@@ -485,10 +505,16 @@ export default function EditProviderProfileModal({
         operationalZone: formData.operationalZone,
         governingCouncil: formData.governingCouncil,
         bio: formData.bio,
+        isDocumentVerified: verifiedFromResponse,
       });
 
       setFieldErrors({});
-      Alert.alert("Success", "Profile updated successfully");
+      Alert.alert(
+        "Success",
+        specializationsChanged
+          ? "Profile updated. Your specializations changed, so your documents need re-approval before you can go online."
+          : "Profile updated successfully",
+      );
       onClose();
     } catch (error: any) {
       console.log("❌ [EditProfile] API error:", JSON.stringify({

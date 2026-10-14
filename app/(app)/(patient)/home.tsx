@@ -419,6 +419,17 @@ export default function PatientHomeScreen() {
                     region: item.address.administrative_area_level_1,
                   }
                 : undefined,
+              medicalAidDetails: item.medicalAidDetails
+                ? {
+                    medicalAidTitle: item.medicalAidDetails.medicalAidTitle,
+                    medicalAidImage: item.medicalAidDetails.medicalAidImage,
+                    membershipNumber: item.medicalAidDetails.membershipNumber,
+                    mainMemberName: item.medicalAidDetails.mainMemberName,
+                    residentialAddress:
+                      item.medicalAidDetails.residentialAddress,
+                    icd10Code: item.medicalAidDetails.icd10Code,
+                  }
+                : undefined,
             };
           });
         console.log("📋 Final recent requests:", recent);
@@ -556,7 +567,7 @@ export default function PatientHomeScreen() {
     ailmentCategoryId?: string;
     consultationMode: "house_visit" | "video_consultation";
     symptoms: string;
-    paymentMethod: "wallet" | "cash";
+    paymentMethod: "wallet" | "cash" | "medical_aid";
     consultationCost: number;
     street: string;
     locality: string;
@@ -564,6 +575,13 @@ export default function PatientHomeScreen() {
     preferredTime?: string;
     coordinates?: { latitude: number; longitude: number };
     prescriptionFile?: PrescriptionFile;
+    medicalAidDetails?: {
+      medicalAidId: string;
+      medicalAidTitle?: string;
+      membershipNumber: string;
+      mainMemberName: string;
+      residentialAddress: string;
+    };
   }) => {
     // Use coordinates from the modal if provided, otherwise try to get current location
     let currentLocation = requestData.coordinates || location;
@@ -603,6 +621,7 @@ export default function PatientHomeScreen() {
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms,
         consultationCost: requestData.consultationCost,
+        medicalAidDetails: requestData.medicalAidDetails,
         address: {
           route: requestData.street,
           locality: requestData.locality,

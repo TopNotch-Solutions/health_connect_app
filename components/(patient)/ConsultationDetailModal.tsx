@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -29,7 +30,7 @@ export interface HistoryItem {
   status: string;
   date: string;
   consultationMode?: "house_visit" | "video_consultation";
-  paymentMethod?: "wallet" | "cash";
+  paymentMethod?: "wallet" | "cash" | "medical_aid";
   urgency?: string;
   symptoms?: string;
   consultationCost?: number;
@@ -41,6 +42,14 @@ export interface HistoryItem {
     route?: string;
     locality?: string;
     region?: string;
+  };
+  medicalAidDetails?: {
+    medicalAidTitle?: string;
+    medicalAidImage?: string;
+    membershipNumber?: string;
+    mainMemberName?: string;
+    residentialAddress?: string;
+    icd10Code?: string;
   };
   createdAt?: string;
 }
@@ -218,7 +227,9 @@ export default function ConsultationDetailModal({
       ? "Wallet"
       : item.paymentMethod === "cash"
         ? "Cash"
-        : null;
+        : item.paymentMethod === "medical_aid"
+          ? "Medical Aid"
+          : null;
 
   const showProvider =
     !!item.providerName &&
@@ -400,6 +411,61 @@ export default function ConsultationDetailModal({
                     icon="credit-card"
                     label="Payment method"
                     value={paymentLabel}
+                  />
+                ) : null}
+                {item.medicalAidDetails?.medicalAidTitle ? (
+                  <View style={styles.medicalAidRow}>
+                    {item.medicalAidDetails.medicalAidImage ? (
+                      <Image
+                        source={{
+                          uri:
+                            buildBackendAssetUrl(
+                              "images",
+                              item.medicalAidDetails.medicalAidImage,
+                            ) || undefined,
+                        }}
+                        style={styles.medicalAidImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <View style={styles.medicalAidImagePlaceholder}>
+                        <Feather name="shield" size={18} color="#6B7280" />
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.detailLabel}>Medical aid</Text>
+                      <Text style={styles.detailValue}>
+                        {item.medicalAidDetails.medicalAidTitle}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+                {item.medicalAidDetails?.membershipNumber ? (
+                  <DetailRow
+                    icon="hash"
+                    label="MAF / Membership no."
+                    value={item.medicalAidDetails.membershipNumber}
+                  />
+                ) : null}
+                {item.medicalAidDetails?.mainMemberName ? (
+                  <DetailRow
+                    icon="user"
+                    label="Main member name"
+                    value={item.medicalAidDetails.mainMemberName}
+                  />
+                ) : null}
+                {item.medicalAidDetails?.icd10Code ? (
+                  <DetailRow
+                    icon="clipboard"
+                    label="ICD-10 code"
+                    value={item.medicalAidDetails.icd10Code}
+                  />
+                ) : null}
+                {item.medicalAidDetails?.residentialAddress ? (
+                  <DetailRow
+                    icon="home"
+                    label="Residential address"
+                    value={item.medicalAidDetails.residentialAddress}
                   />
                 ) : null}
                 {typeof item.consultationCost === "number" ? (
@@ -622,6 +688,26 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: AUTH_COLORS.textDark,
     lineHeight: 20,
+  },
+  medicalAidRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 6,
+  },
+  medicalAidImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+  },
+  medicalAidImagePlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
   providerCard: {
     backgroundColor: AUTH_COLORS.greenSoft,

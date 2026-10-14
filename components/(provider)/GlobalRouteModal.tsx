@@ -44,6 +44,7 @@ export default function GlobalRouteModal() {
       providerId={user.userId}
       patientLocation={patientLocation ?? undefined}
       patientName={activeRoute.patientId?.fullname}
+      patientPhone={activeRoute.patientId?.cellphoneNumber}
       patientAddress={patientAddress || undefined}
       providerProfileImage={user.profileImage}
       patientProfileImage={activeRoute.patientId?.profileImage}

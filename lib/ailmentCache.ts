@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { buildBackendAssetUrl } from "./backend";
 
-const AILMENT_CATEGORIES_CACHE_KEY = "health_connect_ailment_categories_v1";
+const AILMENT_CATEGORIES_CACHE_KEY = "health_connect_ailment_categories_v2";
 
 const formatProviderRole = (role: string) =>
   role
