@@ -26,6 +26,7 @@ import {
 import { AUTH_COLORS } from "../../../lib/authScreenTheme";
 import ChangePasswordModal from "../../../components/ChangePasswordModal";
 import EditPatientProfileModal from "../../../components/EditPatientProfileModal";
+import EditPostalAddressModal from "../../../components/(patient)/EditPostalAddressModal";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
@@ -35,6 +36,8 @@ export default function ProfileScreen() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isUploading, setIsUploading] = React.useState(false);
   const [editProfileVisible, setEditProfileVisible] = React.useState(false);
+  const [editPostalAddressVisible, setEditPostalAddressVisible] =
+    React.useState(false);
   const [changePasswordVisible, setChangePasswordVisible] =
     React.useState(false);
   const [helpSupportVisible, setHelpSupportVisible] = React.useState(false);
@@ -306,6 +309,12 @@ export default function ProfileScreen() {
           />
           <AppMenuDivider />
           <AppMenuItem
+            icon="mail"
+            label="Postal Address"
+            onPress={() => setEditPostalAddressVisible(true)}
+          />
+          <AppMenuDivider />
+          <AppMenuItem
             icon="lock"
             label="Change Password"
             onPress={() => setChangePasswordVisible(true)}
@@ -368,6 +377,11 @@ export default function ProfileScreen() {
       <EditPatientProfileModal
         visible={editProfileVisible}
         onClose={() => setEditProfileVisible(false)}
+      />
+
+      <EditPostalAddressModal
+        visible={editPostalAddressVisible}
+        onClose={() => setEditPostalAddressVisible(false)}
       />
 
       {/* Change Password Modal */}

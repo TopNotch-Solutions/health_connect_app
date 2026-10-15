@@ -17,13 +17,12 @@ async function getAuthToken() {
   return token;
 }
 
-function buildLocalFilename(filenameHint?: string | null, index?: number) {
+function buildLocalFilename(filenameHint?: string | null) {
   const safeHint = (filenameHint || "claim")
     .replace(/[^a-z0-9]+/gi, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 40);
-  const suffix = typeof index === "number" ? `_${index + 1}` : "";
-  return `medical_aid_${safeHint || "claim"}${suffix}_${Date.now()}.pdf`;
+  return `medical_aid_${safeHint || "claim"}_${Date.now()}.pdf`;
 }
 
 /**
@@ -32,14 +31,13 @@ function buildLocalFilename(filenameHint?: string | null, index?: number) {
 export async function fetchMedicalAidClaimFile({
   consultationId,
   filenameHint,
-  index,
-}: ClaimDownloadInput & { index?: number }): Promise<string> {
+}: ClaimDownloadInput): Promise<string> {
   if (!consultationId) {
     throw new Error("Consultation id is missing.");
   }
 
   const token = await getAuthToken();
-  const localName = buildLocalFilename(filenameHint, index);
+  const localName = buildLocalFilename(filenameHint);
   const targetUri = `${FileSystem.cacheDirectory}${localName}`;
   const url = `${API_BASE_URL}/app/medical-aid/consultations/${consultationId}/claim-pdf`;
 
@@ -54,6 +52,76 @@ export async function fetchMedicalAidClaimFile({
   }
 
   return result.uri;
+}
+
+/**
+ * Download multiple consultations as one combined claim PDF.
+ * Returns local file URI and the consultation ids included in the PDF.
+ */
+export async function fetchMedicalAidClaimsBatchFile(
+  items: ClaimDownloadInput[],
+): Promise<{ uri: string; downloadedIds: string[] }> {
+  if (!items.length) {
+    throw new Error("Select at least one claim to download.");
+  }
+
+  const token = await getAuthToken();
+  const ids = items.map((item) => item.consultationId).filter(Boolean);
+  if (!ids.length) {
+    throw new Error("Select at least one claim to download.");
+  }
+
+  const filenameHint =
+    items.length === 1
+      ? items[0].filenameHint
+      : `combined_${items.length}_claims`;
+  const localName = buildLocalFilename(filenameHint);
+  const targetUri = `${FileSystem.cacheDirectory}${localName}`;
+  const url = `${API_BASE_URL}/app/medical-aid/consultations/claim-pdf`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-access-token": `Bearer ${token}`,
+    },
+    body: JSON.stringify({ ids }),
+  });
+
+  if (!response.ok) {
+    let message = "Could not download the medical aid claim PDF.";
+    try {
+      const body = await response.json();
+      if (body?.message) message = body.message;
+    } catch {
+      // ignore non-JSON error bodies
+    }
+    throw new Error(message);
+  }
+
+  const downloadedIdsHeader = response.headers.get("X-Claim-Downloaded-Ids");
+  const downloadedIds = downloadedIdsHeader
+    ? downloadedIdsHeader
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)
+    : ids;
+
+  const arrayBuffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  // Convert to base64 in chunks to avoid call-stack limits on large PDFs
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  const base64 = globalThis.btoa(binary);
+
+  await FileSystem.writeAsStringAsync(targetUri, base64, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  return { uri: targetUri, downloadedIds };
 }
 
 async function shareClaimUri(uri: string, dialogTitle: string) {
@@ -87,8 +155,8 @@ export async function downloadMedicalAidClaim(
 }
 
 /**
- * Download multiple claim PDFs, then open the share/save sheet for each
- * one in sequence so the provider can collect several claims at once.
+ * Download multiple consultations as a single combined claim PDF,
+ * then open the share/save sheet once.
  */
 export async function downloadMedicalAidClaims(
   items: ClaimDownloadInput[],
@@ -98,35 +166,25 @@ export async function downloadMedicalAidClaims(
     throw new Error("Select at least one claim to download.");
   }
 
-  const downloaded: { id: string; uri: string }[] = [];
-  let failed = 0;
+  onProgress?.(0, 1);
 
-  for (let i = 0; i < items.length; i += 1) {
-    try {
-      const uri = await fetchMedicalAidClaimFile({
-        ...items[i],
-        index: i,
-      });
-      downloaded.push({ id: items[i].consultationId, uri });
-    } catch (err) {
-      console.error("Batch claim download failed for item:", items[i], err);
-      failed += 1;
-    }
-    onProgress?.(i + 1, items.length);
-  }
-
-  for (let i = 0; i < downloaded.length; i += 1) {
+  try {
+    const { uri, downloadedIds } = await fetchMedicalAidClaimsBatchFile(items);
+    onProgress?.(1, 1);
     await shareClaimUri(
-      downloaded[i].uri,
-      downloaded.length > 1
-        ? `Save claim ${i + 1} of ${downloaded.length}`
+      uri,
+      items.length > 1
+        ? "Save combined medical aid claim"
         : "Save medical aid claim",
     );
-  }
 
-  return {
-    downloaded: downloaded.length,
-    failed,
-    downloadedIds: downloaded.map((item) => item.id),
-  };
+    return {
+      downloaded: downloadedIds.length,
+      failed: Math.max(0, items.length - downloadedIds.length),
+      downloadedIds,
+    };
+  } catch (err) {
+    onProgress?.(1, 1);
+    throw err;
+  }
 }

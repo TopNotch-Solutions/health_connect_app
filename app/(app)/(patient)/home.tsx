@@ -427,6 +427,16 @@ export default function PatientHomeScreen() {
                     mainMemberName: item.medicalAidDetails.mainMemberName,
                     residentialAddress:
                       item.medicalAidDetails.residentialAddress,
+                    postalAddress: item.medicalAidDetails.postalAddress
+                      ? {
+                          formatted:
+                            item.medicalAidDetails.postalAddress.formatted,
+                          postOffice:
+                            item.medicalAidDetails.postalAddress.postOffice,
+                          postcode:
+                            item.medicalAidDetails.postalAddress.postcode,
+                        }
+                      : undefined,
                     icd10Code: item.medicalAidDetails.icd10Code,
                   }
                 : undefined,

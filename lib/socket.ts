@@ -234,6 +234,19 @@ class SocketService {
       membershipNumber: string;
       mainMemberName: string;
       residentialAddress: string;
+      postalAddress?: {
+        addressee: string;
+        addressType: "po_box" | "private_bag" | "street";
+        boxNumber?: string;
+        bagNumber?: string;
+        unitOrAdditional?: string;
+        premises?: string;
+        subLocality?: string;
+        locality?: string;
+        postOffice: string;
+        postcode: string;
+        country?: string;
+      };
     };
   }) {
     return new Promise((resolve, reject) => {
@@ -458,15 +471,29 @@ class SocketService {
     }
   }
 
-  // Provider methods
+  // Provider methods — returns { requests, pagination }
   getAvailableRequests(
     providerId: string,
     providerLocation?: { latitude: number; longitude: number } | null,
-  ) {
+    options?: { page?: number; limit?: number },
+  ): Promise<{
+    requests: any[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasMore: boolean;
+    };
+  }> {
     return new Promise((resolve, reject) => {
+      const page = Math.max(1, options?.page ?? 1);
+      const limit = Math.min(100, Math.max(1, options?.limit ?? 20));
+
       console.log(
         "🔍 getAvailableRequests called with providerId:",
         providerId,
+        { page, limit },
       );
       console.log("🔍 Socket state:", {
         exists: !!this.socket,
@@ -484,24 +511,47 @@ class SocketService {
         return;
       }
 
+      const normalizePayload = (payload: any) => {
+        if (Array.isArray(payload)) {
+          return {
+            requests: payload,
+            pagination: {
+              page: 1,
+              limit: payload.length || limit,
+              total: payload.length,
+              totalPages: payload.length > 0 ? 1 : 0,
+              hasMore: false,
+            },
+          };
+        }
+        const requests = Array.isArray(payload?.requests)
+          ? payload.requests
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : [];
+        const pagination = payload?.pagination || {};
+        return {
+          requests,
+          pagination: {
+            page: Number(pagination.page) || page,
+            limit: Number(pagination.limit) || limit,
+            total: Number(pagination.total) || requests.length,
+            totalPages: Number(pagination.totalPages) || 0,
+            hasMore: Boolean(pagination.hasMore),
+          },
+        };
+      };
+
       // Set up listener for the response event
-      const handleAvailableRequests = (requests: any) => {
+      const handleAvailableRequests = (payload: any) => {
         // Clean up the listener
         this.socket?.off("availableRequests", handleAvailableRequests);
         clearTimeout(timeout);
+        const normalized = normalizePayload(payload);
         console.log("✅ Received availableRequests event");
-        console.log("📊 Requests data:", JSON.stringify(requests, null, 2));
-        console.log(
-          "📊 Requests count:",
-          Array.isArray(requests) ? requests.length : "not an array",
-        );
-        if (Array.isArray(requests) && requests.length > 0) {
-          console.log(
-            "📊 First request:",
-            JSON.stringify(requests[0], null, 2),
-          );
-        }
-        resolve(requests);
+        console.log("📊 Requests count:", normalized.requests.length);
+        console.log("📊 Pagination:", normalized.pagination);
+        resolve(normalized);
       };
 
       const handleError = (error: any) => {
@@ -533,6 +583,8 @@ class SocketService {
 
       const payload = {
         providerId,
+        page,
+        limit,
         ...(providerLocation ? { providerLocation } : {}),
       };
       console.log("📤 Emitting getAvailableRequests with payload:", payload);

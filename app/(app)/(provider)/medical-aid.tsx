@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -25,10 +25,12 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
+import { downloadMedicalAidClaim } from "../../../lib/downloadMedicalAidClaim";
 import {
-  downloadMedicalAidClaim,
-  downloadMedicalAidClaims,
-} from "../../../lib/downloadMedicalAidClaim";
+  BankDetailsRecord,
+  isBankDetailsComplete,
+} from "../../../lib/bankDetails";
+import EditBankDetailsModal from "../../../components/(provider)/EditBankDetailsModal";
 
 type MedicalAidStats = {
   eligible: boolean;
@@ -157,14 +159,9 @@ export default function ProviderMedicalAidScreen() {
   );
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>("all");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
-  const [isBatchDownloading, setIsBatchDownloading] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<{
-    done: number;
-    total: number;
-  } | null>(null);
+  const [editBankDetailsVisible, setEditBankDetailsVisible] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
@@ -247,11 +244,6 @@ export default function ProviderMedicalAidScreen() {
         setPage(pageToLoad);
         setHasMore(nextHasMore);
         setTotalItems(nextTotal);
-        if (!append) {
-          setSelectedIds((prev) =>
-            prev.filter((id) => pageItems.some((item) => item._id === id)),
-          );
-        }
         return { ok: true as const };
       } catch (err: any) {
         console.error(
@@ -286,11 +278,6 @@ export default function ProviderMedicalAidScreen() {
           setPage(pageToLoad);
           setHasMore(start + PAGE_SIZE < all.length);
           setTotalItems(all.length);
-          if (!append) {
-            setSelectedIds((prev) =>
-              prev.filter((id) => pageItems.some((item) => item._id === id)),
-            );
-          }
           return { ok: true as const };
         } catch (historyErr: any) {
           console.error("History fallback failed:", historyErr);
@@ -373,7 +360,6 @@ export default function ProviderMedicalAidScreen() {
     setIsLoading(true);
     setError(null);
     setConsultations([]);
-    setSelectedIds([]);
     setPage(1);
     setHasMore(false);
   }, []);
@@ -419,74 +405,6 @@ export default function ProviderMedicalAidScreen() {
 
   const filteredConsultations = consultations;
 
-  const downloadableVisible = useMemo(
-    () =>
-      filteredConsultations.filter(
-        (item) => item.status === "completed" && !isClaimClaimed(item),
-      ),
-    [filteredConsultations],
-  );
-
-  const selectedVisibleIds = useMemo(
-    () =>
-      selectedIds.filter((id) =>
-        downloadableVisible.some((item) => item._id === id),
-      ),
-    [selectedIds, downloadableVisible],
-  );
-
-  const allVisibleSelected =
-    downloadableVisible.length > 0 &&
-    selectedVisibleIds.length === downloadableVisible.length;
-
-  const toggleSelect = useCallback(
-    (item: MedicalAidConsultation) => {
-      if (item.status !== "completed") {
-        Alert.alert(
-          "Not available yet",
-          "You can only download claims for completed consultations.",
-        );
-        return;
-      }
-      if (isClaimClaimed(item)) {
-        Alert.alert(
-          "Already claimed",
-          "This consultation has been marked as claimed and can no longer be downloaded.",
-        );
-        return;
-      }
-      setSelectedIds((prev) =>
-        prev.includes(item._id)
-          ? prev.filter((id) => id !== item._id)
-          : [...prev, item._id],
-      );
-    },
-    [],
-  );
-
-  const toggleSelectAllVisible = useCallback(() => {
-    if (downloadableVisible.length === 0) {
-      Alert.alert(
-        "No available claims",
-        "Only unclaimed completed consultations can be selected for download.",
-      );
-      return;
-    }
-    if (allVisibleSelected) {
-      setSelectedIds((prev) =>
-        prev.filter(
-          (id) => !downloadableVisible.some((item) => item._id === id),
-        ),
-      );
-      return;
-    }
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      downloadableVisible.forEach((item) => next.add(item._id));
-      return Array.from(next);
-    });
-  }, [allVisibleSelected, downloadableVisible]);
-
   const markClaimsDownloaded = useCallback((ids: string[]) => {
     if (!ids.length) return;
     const idSet = new Set(ids);
@@ -527,11 +445,33 @@ export default function ProviderMedicalAidScreen() {
     };
     setConsultations((prev) => sortNotDownloadedFirst(prev.map(patchItem)));
     setFallbackAll((prev) => sortNotDownloadedFirst(prev.map(patchItem)));
-    setSelectedIds((prev) => prev.filter((id) => !idSet.has(id)));
+  }, []);
+
+  const ensureBankDetailsComplete = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await apiClient.get("/app/bank-details");
+      const data = (response.data?.data ?? null) as BankDetailsRecord | null;
+      if (isBankDetailsComplete(data)) return true;
+    } catch (error) {
+      console.error("Failed to check bank details:", error);
+    }
+
+    Alert.alert(
+      "Bank details required",
+      "Complete your practice bank details before downloading a medical aid claim.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Add bank details",
+          onPress: () => setEditBankDetailsVisible(true),
+        },
+      ],
+    );
+    return false;
   }, []);
 
   const handleDownload = useCallback(async (item: MedicalAidConsultation) => {
-    if (isBatchDownloading || claimingId) return;
+    if (claimingId) return;
     if (item.status !== "completed") {
       Alert.alert(
         "Not available yet",
@@ -546,6 +486,9 @@ export default function ProviderMedicalAidScreen() {
       );
       return;
     }
+    const ready = await ensureBankDetailsComplete();
+    if (!ready) return;
+
     try {
       setDownloadingId(item._id);
       await downloadMedicalAidClaim({
@@ -558,20 +501,36 @@ export default function ProviderMedicalAidScreen() {
       markClaimsDownloaded([item._id]);
     } catch (err: any) {
       console.error("Claim download failed:", err);
-      Alert.alert(
-        "Download failed",
+      const message =
         err?.response?.data?.message ||
-          err?.message ||
-          "Could not download this consultation claim.",
-      );
+        err?.message ||
+        "Could not download this consultation claim.";
+      if (
+        err?.response?.data?.code === "BANK_DETAILS_REQUIRED" ||
+        /bank details/i.test(message)
+      ) {
+        Alert.alert("Bank details required", message, [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Add bank details",
+            onPress: () => setEditBankDetailsVisible(true),
+          },
+        ]);
+        return;
+      }
+      Alert.alert("Download failed", message);
     } finally {
       setDownloadingId(null);
     }
-  }, [claimingId, isBatchDownloading, markClaimsDownloaded]);
+  }, [
+    claimingId,
+    ensureBankDetailsComplete,
+    markClaimsDownloaded,
+  ]);
 
   const handleMarkClaimed = useCallback(
     async (item: MedicalAidConsultation) => {
-      if (isBatchDownloading || downloadingId || claimingId) return;
+      if (downloadingId || claimingId) return;
       if (item.status !== "completed") {
         Alert.alert(
           "Not available yet",
@@ -612,70 +571,8 @@ export default function ProviderMedicalAidScreen() {
         ],
       );
     },
-    [claimingId, downloadingId, isBatchDownloading, markClaimsClaimed],
+    [claimingId, downloadingId, markClaimsClaimed],
   );
-
-  const handleDownloadSelected = useCallback(async () => {
-    if (isBatchDownloading || downloadingId) return;
-
-    const selectedItems = downloadableVisible.filter((item) =>
-      selectedVisibleIds.includes(item._id),
-    );
-    if (selectedItems.length === 0) {
-      Alert.alert(
-        "No claims selected",
-        "Select one or more completed consultations to download.",
-      );
-      return;
-    }
-
-    try {
-      setIsBatchDownloading(true);
-      setBatchProgress({ done: 0, total: selectedItems.length });
-      const result = await downloadMedicalAidClaims(
-        selectedItems.map((item) => ({
-          consultationId: item._id,
-          filenameHint:
-            item.patientId?.fullname ||
-            item.medicalAidDetails?.mainMemberName ||
-            "claim",
-        })),
-        (done, total) => setBatchProgress({ done, total }),
-      );
-
-      if (result.downloadedIds.length > 0) {
-        markClaimsDownloaded(result.downloadedIds);
-      }
-
-      if (result.failed > 0) {
-        Alert.alert(
-          "Partial download",
-          `Saved ${result.downloaded} claim${result.downloaded === 1 ? "" : "s"}. ${result.failed} failed.`,
-        );
-      } else if (result.downloaded > 1) {
-        Alert.alert(
-          "Claims ready",
-          `${result.downloaded} claim PDFs were prepared for saving.`,
-        );
-      }
-      setSelectedIds([]);
-    } catch (err: any) {
-      console.error("Batch claim download failed:", err);
-      Alert.alert(
-        "Download failed",
-        err?.message || "Could not download the selected claims.",
-      );
-    } finally {
-      setIsBatchDownloading(false);
-      setBatchProgress(null);
-    }
-  }, [
-    downloadableVisible,
-    downloadingId,
-    isBatchDownloading,
-    markClaimsDownloaded,
-    selectedVisibleIds,
-  ]);
 
   const firstName = user?.fullname?.split(" ")[0] || "Provider";
   const canShowWorkspace =
@@ -768,7 +665,7 @@ export default function ProviderMedicalAidScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.listTitle}>Consultations</Text>
                     <Text style={styles.listSubtitle}>
-                      Select one or more claims to download at once
+                      Download a claim statement for each completed consultation
                     </Text>
                   </View>
                   <View style={styles.countBadge}>
@@ -784,67 +681,6 @@ export default function ProviderMedicalAidScreen() {
                   onChange={handleFilterChange}
                 />
 
-                {filteredConsultations.length > 0 ? (
-                  <View style={styles.selectionBar}>
-                    <Pressable
-                      style={styles.selectAllBtn}
-                      onPress={toggleSelectAllVisible}
-                      disabled={isBatchDownloading}
-                    >
-                      <View
-                        style={[
-                          styles.checkbox,
-                          allVisibleSelected && styles.checkboxSelected,
-                        ]}
-                      >
-                        {allVisibleSelected ? (
-                          <Feather
-                            name="check"
-                            size={12}
-                            color={AUTH_COLORS.white}
-                          />
-                        ) : null}
-                      </View>
-                      <Text style={styles.selectAllText}>
-                        {allVisibleSelected ? "Clear all" : "Select all"}
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      style={[
-                        styles.batchDownloadBtn,
-                        (selectedVisibleIds.length === 0 ||
-                          isBatchDownloading) &&
-                          styles.batchDownloadBtnDisabled,
-                      ]}
-                      onPress={handleDownloadSelected}
-                      disabled={
-                        selectedVisibleIds.length === 0 || isBatchDownloading
-                      }
-                    >
-                      {isBatchDownloading ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={AUTH_COLORS.white}
-                        />
-                      ) : (
-                        <Feather
-                          name="download"
-                          size={14}
-                          color={AUTH_COLORS.white}
-                        />
-                      )}
-                      <Text style={styles.batchDownloadText}>
-                        {isBatchDownloading && batchProgress
-                          ? `${batchProgress.done}/${batchProgress.total}`
-                          : selectedVisibleIds.length > 0
-                            ? `Download ${selectedVisibleIds.length}`
-                            : "Download"}
-                      </Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-
                 {filteredConsultations.length === 0 ? (
                   <View style={{ paddingHorizontal: 20 }}>
                     <AppEmptyState
@@ -859,16 +695,10 @@ export default function ProviderMedicalAidScreen() {
                       <ConsultationClaimCard
                         key={item._id}
                         item={item}
-                        selected={selectedIds.includes(item._id)}
-                        onToggleSelect={() => toggleSelect(item)}
-                        downloading={
-                          downloadingId === item._id ||
-                          (isBatchDownloading &&
-                            selectedVisibleIds.includes(item._id))
-                        }
+                        downloading={downloadingId === item._id}
                         claiming={claimingId === item._id}
-                        selectionDisabled={
-                          isBatchDownloading || Boolean(claimingId)
+                        actionsDisabled={
+                          Boolean(downloadingId) || Boolean(claimingId)
                         }
                         onDownload={() => handleDownload(item)}
                         onMarkClaimed={() => handleMarkClaimed(item)}
@@ -923,6 +753,11 @@ export default function ProviderMedicalAidScreen() {
           </>
         )}
       </ScrollView>
+
+      <EditBankDetailsModal
+        visible={editBankDetailsVisible}
+        onClose={() => setEditBankDetailsVisible(false)}
+      />
     </AppScreenShell>
   );
 }
@@ -947,20 +782,16 @@ function SummaryPill({
 
 function ConsultationClaimCard({
   item,
-  selected,
-  onToggleSelect,
   downloading,
   claiming,
-  selectionDisabled,
+  actionsDisabled,
   onDownload,
   onMarkClaimed,
 }: {
   item: MedicalAidConsultation;
-  selected: boolean;
-  onToggleSelect: () => void;
   downloading: boolean;
   claiming?: boolean;
-  selectionDisabled?: boolean;
+  actionsDisabled?: boolean;
   onDownload: () => void;
   onMarkClaimed: () => void;
 }) {
@@ -985,31 +816,12 @@ function ConsultationClaimCard({
     <View
       style={[
         styles.card,
-        selected && styles.cardSelected,
         (!canDownload || claimed) && styles.cardDisabled,
         alreadyDownloaded && !claimed && styles.cardDownloaded,
         claimed && styles.cardClaimed,
       ]}
     >
       <View style={styles.cardTop}>
-        <Pressable
-          style={[styles.selectHit, !canDownload && styles.selectHitDisabled]}
-          onPress={onToggleSelect}
-          disabled={selectionDisabled || !canDownload}
-          hitSlop={8}
-        >
-          <View
-            style={[
-              styles.checkbox,
-              selected && styles.checkboxSelected,
-              !canDownload && styles.checkboxDisabled,
-            ]}
-          >
-            {selected ? (
-              <Feather name="check" size={12} color={AUTH_COLORS.white} />
-            ) : null}
-          </View>
-        </Pressable>
         <View style={styles.aidLogoWrap}>
           {aidImage ? (
             <Image source={{ uri: aidImage }} style={styles.aidLogo} />
@@ -1017,11 +829,7 @@ function ConsultationClaimCard({
             <Feather name="shield" size={18} color={AUTH_COLORS.green} />
           )}
         </View>
-        <Pressable
-          style={{ flex: 1 }}
-          onPress={onToggleSelect}
-          disabled={selectionDisabled || !canDownload}
-        >
+        <View style={{ flex: 1 }}>
           <Text
             style={[styles.patientName, claimed && styles.claimedText]}
             numberOfLines={1}
@@ -1037,7 +845,7 @@ function ConsultationClaimCard({
               ? ` · MAF ${item.medicalAidDetails.membershipNumber}`
               : ""}
           </Text>
-        </Pressable>
+        </View>
         <View style={styles.chipColumn}>
           <View style={[styles.statusChip, { backgroundColor: status.bg }]}>
             <Text style={[styles.statusChipText, { color: status.color }]}>
@@ -1120,7 +928,7 @@ function ConsultationClaimCard({
               downloading && styles.downloadBtnDisabled,
             ]}
             onPress={onDownload}
-            disabled={downloading || selectionDisabled || claiming}
+            disabled={downloading || actionsDisabled || claiming}
           >
             {downloading ? (
               <ActivityIndicator
@@ -1155,11 +963,11 @@ function ConsultationClaimCard({
           <Pressable
             style={[
               styles.claimBtn,
-              (claiming || downloading || selectionDisabled) &&
+              (claiming || downloading || actionsDisabled) &&
                 styles.downloadBtnDisabled,
             ]}
             onPress={onMarkClaimed}
-            disabled={claiming || downloading || selectionDisabled}
+            disabled={claiming || downloading || actionsDisabled}
           >
             {claiming ? (
               <ActivityIndicator size="small" color="#4B5563" />
@@ -1291,57 +1099,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: AUTH_COLORS.greenDark,
   },
-  selectionBar: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  selectAllBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 8,
-    paddingRight: 8,
-  },
-  selectAllText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: AUTH_COLORS.textDark,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    borderWidth: 2,
-    borderColor: AUTH_COLORS.inputBorder,
-    backgroundColor: AUTH_COLORS.white,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxSelected: {
-    backgroundColor: AUTH_COLORS.green,
-    borderColor: AUTH_COLORS.green,
-  },
-  batchDownloadBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: AUTH_COLORS.green,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  batchDownloadBtnDisabled: {
-    opacity: 0.45,
-  },
-  batchDownloadText: {
-    color: AUTH_COLORS.white,
-    fontSize: 13,
-    fontWeight: "800",
-  },
   list: {
     paddingHorizontal: 20,
     gap: 12,
@@ -1397,10 +1154,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: AUTH_COLORS.inputBorder,
     padding: 14,
-  },
-  cardSelected: {
-    borderColor: AUTH_COLORS.green,
-    backgroundColor: "rgba(187, 247, 208, 0.18)",
   },
   cardDownloaded: {
     borderColor: "rgba(34, 197, 94, 0.55)",
@@ -1517,16 +1270,6 @@ const styles = StyleSheet.create({
   },
   downloadBtnTextSecondary: {
     color: AUTH_COLORS.greenDark,
-  },
-  selectHit: {
-    paddingVertical: 2,
-  },
-  selectHitDisabled: {
-    opacity: 0.45,
-  },
-  checkboxDisabled: {
-    backgroundColor: "#F3F4F6",
-    borderColor: "#D1D5DB",
   },
   lockedBanner: {
     flexDirection: "row",

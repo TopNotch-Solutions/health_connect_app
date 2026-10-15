@@ -27,7 +27,6 @@ import {
   normalizeNamibianPhone,
   validateNamibianPhone,
 } from "../lib/phone";
-
 // ── Validation helpers ────────────────────────────────────────────────────────
 function validatePhone(raw: string): string | null {
   return validateNamibianPhone(raw);
@@ -99,7 +98,6 @@ export default function EditPatientProfileModal({
     region: user?.region || "",
     nationalId: user?.nationalId || "",
   });
-
   useEffect(() => {
     if (visible && user) {
       setFormData({
@@ -242,10 +240,7 @@ export default function EditPatientProfileModal({
 
     setIsLoading(true);
     try {
-      const response = await apiClient.put(
-        "/app/auth/update-patient-details",
-        payload,
-      );
+      await apiClient.put("/app/auth/update-patient-details", payload);
       await updateUser(payload);
       setFieldErrors({});
       Alert.alert("Success", "Profile updated successfully");

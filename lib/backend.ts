@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 
 // TEMP for local testing — hardcode so EXPO_PUBLIC_* / Metro cache cannot
 // override. Restore env-based resolveBackendUrl before shipping.
-export const BACKEND_URL = "http://172.20.10.2:4000";
+export const BACKEND_URL = "http://172.16.68.129:4000";
 
 export const API_BASE_URL = `${BACKEND_URL}/api`;
 

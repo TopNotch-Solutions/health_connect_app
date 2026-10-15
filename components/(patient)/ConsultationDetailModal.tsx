@@ -24,6 +24,14 @@ import {
 } from "../../lib/prescription";
 import PrescriptionViewerModal from "../PrescriptionViewerModal";
 
+/** First 2 + last 2 characters visible; middle replaced with *. */
+function maskMembershipNumber(value: string | null | undefined): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.length <= 4) return "*".repeat(raw.length);
+  return `${raw.slice(0, 2)}${"*".repeat(raw.length - 4)}${raw.slice(-2)}`;
+}
+
 export interface HistoryItem {
   _id: string;
   ailment: string;
@@ -49,6 +57,11 @@ export interface HistoryItem {
     membershipNumber?: string;
     mainMemberName?: string;
     residentialAddress?: string;
+    postalAddress?: {
+      formatted?: string;
+      postOffice?: string;
+      postcode?: string;
+    };
     icd10Code?: string;
   };
   createdAt?: string;
@@ -444,7 +457,9 @@ export default function ConsultationDetailModal({
                   <DetailRow
                     icon="hash"
                     label="MAF / Membership no."
-                    value={item.medicalAidDetails.membershipNumber}
+                    value={maskMembershipNumber(
+                      item.medicalAidDetails.membershipNumber,
+                    )}
                   />
                 ) : null}
                 {item.medicalAidDetails?.mainMemberName ? (
@@ -454,18 +469,18 @@ export default function ConsultationDetailModal({
                     value={item.medicalAidDetails.mainMemberName}
                   />
                 ) : null}
-                {item.medicalAidDetails?.icd10Code ? (
-                  <DetailRow
-                    icon="clipboard"
-                    label="ICD-10 code"
-                    value={item.medicalAidDetails.icd10Code}
-                  />
-                ) : null}
                 {item.medicalAidDetails?.residentialAddress ? (
                   <DetailRow
                     icon="home"
                     label="Residential address"
                     value={item.medicalAidDetails.residentialAddress}
+                  />
+                ) : null}
+                {item.medicalAidDetails?.postalAddress?.formatted ? (
+                  <DetailRow
+                    icon="mail"
+                    label="Postal address"
+                    value={item.medicalAidDetails.postalAddress.formatted}
                   />
                 ) : null}
                 {typeof item.consultationCost === "number" ? (

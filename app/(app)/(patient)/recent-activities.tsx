@@ -48,6 +48,11 @@ interface RequestStatus {
     membershipNumber?: string;
     mainMemberName?: string;
     residentialAddress?: string;
+    postalAddress?: {
+      formatted?: string;
+      postOffice?: string;
+      postcode?: string;
+    };
     icd10Code?: string;
   };
   ailmentCategoryId?: {
@@ -126,6 +131,13 @@ const toHistoryItem = (stored: StoredRequest): HistoryItem => {
           membershipNumber: request.medicalAidDetails.membershipNumber,
           mainMemberName: request.medicalAidDetails.mainMemberName,
           residentialAddress: request.medicalAidDetails.residentialAddress,
+          postalAddress: request.medicalAidDetails.postalAddress
+            ? {
+                formatted: request.medicalAidDetails.postalAddress.formatted,
+                postOffice: request.medicalAidDetails.postalAddress.postOffice,
+                postcode: request.medicalAidDetails.postalAddress.postcode,
+              }
+            : undefined,
           icd10Code: request.medicalAidDetails.icd10Code,
         }
       : undefined,

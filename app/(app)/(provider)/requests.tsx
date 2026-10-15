@@ -29,6 +29,7 @@ import { ensureForegroundLocationPermission } from "../../../lib/locationPermiss
 import socketService from "../../../lib/socket";
 import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
 import ProviderPrescriptionPanel from "../../../components/(provider)/ProviderPrescriptionPanel";
+import PostalAddressConfirmModal from "../../../components/(patient)/PostalAddressConfirmModal";
 
 interface PrescriptionData {
   _id: string;
@@ -110,6 +111,9 @@ export default function ProviderRequests() {
   const { startRoute } = useRoute();
   const { user } = useAuth();
   const router = useRouter();
+  const [showPostalAddressModal, setShowPostalAddressModal] = useState(false);
+  const [pendingAcceptRequest, setPendingAcceptRequest] =
+    useState<Request | null>(null);
 
   // Pharmacist prescription state
   const isPharmacist = user?.role === "pharmacist";
@@ -212,27 +216,32 @@ export default function ProviderRequests() {
         );
       }
 
-      const [socketRequests, availableRequests] = await Promise.all([
+      const [socketRequests, availableResult] = await Promise.all([
         socketService.getProviderRequests(user.userId).catch((err) => {
           console.warn("⚠️ getProviderRequests failed:", err);
           return [];
         }),
         providerLocation
           ? socketService
-              .getAvailableRequests(user.userId, providerLocation)
+              .getAvailableRequests(user.userId, providerLocation, {
+                page: 1,
+                limit: 20,
+              })
               .catch((err) => {
                 console.warn("⚠️ getAvailableRequests failed:", err);
-                return [];
+                return { requests: [], pagination: { hasMore: false } };
               })
-          : Promise.resolve([]),
+          : Promise.resolve({ requests: [], pagination: { hasMore: false } }),
       ]);
 
       const liveRequests: Request[] = Array.isArray(socketRequests)
         ? socketRequests
         : [];
-      const available: Request[] = Array.isArray(availableRequests)
-        ? availableRequests
-        : [];
+      const available: Request[] = Array.isArray(availableResult)
+        ? availableResult
+        : Array.isArray((availableResult as any)?.requests)
+          ? (availableResult as any).requests
+          : [];
 
       // Also fetch full history via REST so completed requests are always visible
       let historyRequests: Request[] = [];
@@ -584,6 +593,23 @@ export default function ProviderRequests() {
     } catch {
       return "Today";
     }
+  };
+
+  const confirmAccept = (request: Request) => {
+    if (request?.paymentMethod === "medical_aid") {
+      setPendingAcceptRequest(request);
+      setTimeout(() => setShowPostalAddressModal(true), 280);
+      return;
+    }
+    handleAccept(request);
+  };
+
+  const handleProviderPostalConfirmed = () => {
+    const request = pendingAcceptRequest;
+    setShowPostalAddressModal(false);
+    setPendingAcceptRequest(null);
+    if (!request) return;
+    handleAccept(request);
   };
 
   // Handle accept request - same as home.tsx
@@ -1431,7 +1457,7 @@ export default function ProviderRequests() {
                             )}
                           </TouchableOpacity>
                           <TouchableOpacity
-                            onPress={() => handleAccept(request)}
+                            onPress={() => confirmAccept(request)}
                             disabled={isBusy}
                             className="flex-1 bg-blue-600 rounded-xl py-3 px-4 items-center"
                           >
@@ -1646,7 +1672,7 @@ export default function ProviderRequests() {
                             )}
                           </TouchableOpacity>
                           <TouchableOpacity
-                            onPress={() => handleAccept(request)}
+                            onPress={() => confirmAccept(request)}
                             disabled={isBusy}
                             className="flex-1 bg-blue-600 rounded-xl py-3 px-4 items-center"
                           >
@@ -1893,6 +1919,20 @@ export default function ProviderRequests() {
           </View>
         </View>
       </Modal>
+
+      <PostalAddressConfirmModal
+        visible={showPostalAddressModal}
+        onClose={() => {
+          setShowPostalAddressModal(false);
+          setPendingAcceptRequest(null);
+        }}
+        defaultAddressee={user?.fullname || ""}
+        onConfirmed={handleProviderPostalConfirmed}
+        title="Confirm Postal Address"
+        bannerTitle="Confirm your postal address"
+        bannerBody="Before accepting a medical aid consultation, confirm or update your Namibian postal address for the claim."
+        confirmLabel="Confirm & Continue"
+      />
 
     </AppScreenShell>
   );

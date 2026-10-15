@@ -36,6 +36,9 @@ import {
   appModalBottomSheetStyles,
 } from "../app/AppBottomSheetUI";
 import { AppTextInput as TextInput } from "../AppTextInput";
+import PostalAddressConfirmModal from "./PostalAddressConfirmModal";
+import { PostalAddressPayload } from "../../lib/postalAddress";
+import { useAuth } from "../../context/AuthContext";
 
 export type PaymentMethod = "wallet" | "cash" | "medical_aid";
 
@@ -45,6 +48,7 @@ export type MedicalAidDetailsPayload = {
   membershipNumber: string;
   mainMemberName: string;
   residentialAddress: string;
+  postalAddress?: PostalAddressPayload;
 };
 
 interface CreateRequestModalProps {
@@ -74,6 +78,7 @@ export default function CreateRequestModal({
   onSubmit,
   selectedAilment = null,
 }: CreateRequestModalProps) {
+  const { user } = useAuth();
   const ailmentTitle = selectedAilment?.title || selectedAilment || "";
   const ailmentCategoryId = selectedAilment?._id;
   const supportsTeleconsultation = Boolean(
@@ -125,6 +130,11 @@ export default function CreateRequestModal({
 
   const [prescriptionFile, setPrescriptionFile] =
     useState<PrescriptionFile | null>(null);
+  const [showPostalAddressModal, setShowPostalAddressModal] = useState(false);
+  /** Keeps request sheet closed after postal confirm while the confirm Alert is up */
+  const [keepRequestSheetClosed, setKeepRequestSheetClosed] = useState(false);
+  const [pendingMedicalAidDetails, setPendingMedicalAidDetails] =
+    useState<MedicalAidDetailsPayload | null>(null);
 
   const linkedIcd10 =
     Array.isArray(selectedAilment?.icd10Codes) &&
@@ -177,6 +187,9 @@ export default function CreateRequestModal({
       setMembershipNumber("");
       setMainMemberName("");
       setResidentialAddress("");
+      setShowPostalAddressModal(false);
+      setKeepRequestSheetClosed(false);
+      setPendingMedicalAidDetails(null);
     }
   }, [visible, selectedAilment]);
 
@@ -370,13 +383,37 @@ export default function CreateRequestModal({
         mainMemberName: mainMemberName.trim(),
         residentialAddress: residentialAddress.trim(),
       };
+
+      // Close request modal first, then open postal address modal
+      // (Android needs a beat between Modal dismiss + present).
+      setPendingMedicalAidDetails(medicalAidDetails);
+      setKeepRequestSheetClosed(true);
+      setTimeout(() => setShowPostalAddressModal(true), 280);
+      return;
     }
 
+    confirmAndSubmit(undefined);
+  };
+
+  const reopenRequestSheet = () => {
+    setShowPostalAddressModal(false);
+    setKeepRequestSheetClosed(false);
+    setPendingMedicalAidDetails(null);
+  };
+
+  const confirmAndSubmit = (medicalAidDetails?: MedicalAidDetailsPayload) => {
     Alert.alert(
       "Confirm Request",
       `Submit a ${consultationMode === "video_consultation" ? "video consultation" : "house visit"} request for N$${selectedCost.toFixed(2)}?`,
       [
-        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => {
+            // Bring the request form back if they backed out of final confirm
+            setKeepRequestSheetClosed(false);
+          },
+        },
         {
           text: "Submit",
           onPress: async () => {
@@ -393,7 +430,7 @@ export default function CreateRequestModal({
                 locality: locality.trim(),
                 region: region.trim(),
                 preferredTime: undefined,
-                coordinates: markerCoord,
+                coordinates: markerCoord || undefined,
                 prescriptionFile: prescriptionFile || undefined,
                 medicalAidDetails,
               });
@@ -402,6 +439,7 @@ export default function CreateRequestModal({
               // The parent will navigate to waiting room, so we just need to close the modal
               onClose();
             } catch (error: any) {
+              setKeepRequestSheetClosed(false);
               Alert.alert("Error", error.message || "Failed to create request");
             } finally {
               setIsLoading(false);
@@ -410,6 +448,19 @@ export default function CreateRequestModal({
         },
       ],
     );
+  };
+
+  const handlePostalAddressConfirmed = (postalAddress: PostalAddressPayload) => {
+    if (!pendingMedicalAidDetails) return;
+    const details: MedicalAidDetailsPayload = {
+      ...pendingMedicalAidDetails,
+      postalAddress,
+    };
+    setPendingMedicalAidDetails(null);
+    // Close postal modal and keep request sheet closed during final confirm Alert
+    setShowPostalAddressModal(false);
+    setKeepRequestSheetClosed(true);
+    confirmAndSubmit(details);
   };
 
   const handleMapPress = async (e: any) => {
@@ -484,9 +535,13 @@ export default function CreateRequestModal({
     return false;
   });
 
+  const showRequestModal =
+    visible && !showPostalAddressModal && !keepRequestSheetClosed;
+
   return (
+    <>
     <Modal
-      visible={visible}
+      visible={showRequestModal}
       animationType="slide"
       transparent
       onRequestClose={onClose}
@@ -1025,6 +1080,15 @@ export default function CreateRequestModal({
                     numberOfLines={3}
                     textAlignVertical="top"
                   />
+
+                  <View className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4 flex-row items-start">
+                    <Feather name="mail" size={16} color="#2563EB" />
+                    <Text className="text-xs text-blue-800 ml-2 flex-1 leading-5">
+                      On submit you will confirm your Namibian postal address
+                      (PO Box, Private Bag, or street) with post office and
+                      5-digit postcode.
+                    </Text>
+                  </View>
                 </View>
               )}
 
@@ -1105,6 +1169,14 @@ export default function CreateRequestModal({
         </View>
       </KeyboardAvoidingView>
     </Modal>
+
+    <PostalAddressConfirmModal
+      visible={visible && showPostalAddressModal}
+      onClose={reopenRequestSheet}
+      defaultAddressee={mainMemberName.trim() || user?.fullname || ""}
+      onConfirmed={handlePostalAddressConfirmed}
+    />
+    </>
   );
 }
 

@@ -28,6 +28,8 @@ import {
 } from "../../../components/app/AppScreenUI";
 import ChangePasswordModal from "../../../components/ChangePasswordModal";
 import EditProviderProfileModal from "../../../components/EditProviderProfileModal";
+import EditPostalAddressModal from "../../../components/(patient)/EditPostalAddressModal";
+import EditBankDetailsModal from "../../../components/(provider)/EditBankDetailsModal";
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
@@ -37,6 +39,10 @@ export default function ProfileScreen() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isUploading, setIsUploading] = React.useState(false);
   const [editProfileVisible, setEditProfileVisible] = React.useState(false);
+  const [editPostalAddressVisible, setEditPostalAddressVisible] =
+    React.useState(false);
+  const [editBankDetailsVisible, setEditBankDetailsVisible] =
+    React.useState(false);
   const [changePasswordVisible, setChangePasswordVisible] =
     React.useState(false);
   const [helpSupportVisible, setHelpSupportVisible] = React.useState(false);
@@ -472,6 +478,18 @@ export default function ProfileScreen() {
           />
           <AppMenuDivider />
           <AppMenuItem
+            icon="mail"
+            label="Postal Address"
+            onPress={() => setEditPostalAddressVisible(true)}
+          />
+          <AppMenuDivider />
+          <AppMenuItem
+            icon="credit-card"
+            label="Bank Details"
+            onPress={() => setEditBankDetailsVisible(true)}
+          />
+          <AppMenuDivider />
+          <AppMenuItem
             icon="file-text"
             label="Edit Documents"
             onPress={handleEditDocumentsPress}
@@ -540,6 +558,16 @@ export default function ProfileScreen() {
       <EditProviderProfileModal
         visible={editProfileVisible}
         onClose={() => setEditProfileVisible(false)}
+      />
+
+      <EditPostalAddressModal
+        visible={editPostalAddressVisible}
+        onClose={() => setEditPostalAddressVisible(false)}
+      />
+
+      <EditBankDetailsModal
+        visible={editBankDetailsVisible}
+        onClose={() => setEditBankDetailsVisible(false)}
       />
 
       {/* Change Password Modal */}
