@@ -12,6 +12,7 @@ import React, { useCallback, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getModernTabBarOptions } from "@/lib/modernTabBar";
+import { useConsultationStatusAlerts } from "@/lib/useConsultationStatusAlerts";
 import { useUnreadNotificationCount } from "@/lib/useUnreadNotificationCount";
 
 // Separate component for header right to ensure proper re-rendering
@@ -65,6 +66,9 @@ export default function ProviderTabsLayout() {
   const unreadCount = useUnreadNotificationCount(!!user?.userId);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // Ring + vibrate on consultation status changes / new requests (app-wide)
+  useConsultationStatusAlerts();
 
   const handleLogout = () => {
     if (isLoggingOut) return;

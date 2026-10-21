@@ -1,5 +1,15 @@
+import { Platform } from "react-native";
+import { PROVIDER_DEFAULT, PROVIDER_GOOGLE } from "react-native-maps";
 import { MarkerData, Provider } from '../types';
 import { GOOGLE_MAPS_API_KEY as directionsAPI } from './googleMaps';
+
+/**
+ * Use Apple Maps on iOS (always available). Google Maps on Android.
+ * Forcing PROVIDER_GOOGLE on iOS blanks the map when the Google Maps iOS
+ * SDK / GMSApiKey are not wired through the react-native-maps config plugin.
+ */
+export const MAP_PROVIDER =
+  Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
 
 export const generateMarkersFromProviders = ({
   data,

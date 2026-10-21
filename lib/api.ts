@@ -4,6 +4,10 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { API_BASE_URL } from "./backend";
 import { isNetworkError } from "./networkDetector";
+import {
+  OFFLINE_MESSAGE,
+  SERVER_SLOW_MESSAGE,
+} from "./userFacingError";
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -41,20 +45,24 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// FIX #7: Add response interceptor to handle timeout errors gracefully
+// Normalize network/timeout errors so screens never show raw axios text
+// like "timeout of 120000ms exceeded" or "Request timeout".
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.code === "ECONNABORTED") {
-      console.error(
-        "[TIMEOUT] Request took too long. Please check your internet connection.",
-      );
-      return Promise.reject({
-        ...error,
-        message:
-          "Connection timeout. The upload took too long. Please try again with a better connection.",
-        isTimeout: true,
-      });
+    if (error.code === "ECONNABORTED" || /timeout/i.test(error.message || "")) {
+      console.error("[TIMEOUT] Request took too long.");
+      const timeoutError = new Error(SERVER_SLOW_MESSAGE) as Error & {
+        isTimeout: boolean;
+        code?: string;
+        response?: unknown;
+        request?: unknown;
+      };
+      timeoutError.isTimeout = true;
+      timeoutError.code = error.code;
+      timeoutError.response = error.response;
+      timeoutError.request = error.request;
+      return Promise.reject(timeoutError);
     }
 
     if (error.response?.status === 401) {
@@ -69,13 +77,17 @@ apiClient.interceptors.response.use(
       // to sign-in instead of leaving the user on a screen that cannot load.
       onUnauthorized?.();
     } else if (isNetworkError(error)) {
-      return Promise.reject({
-        ...error,
-        message:
-          error.message ||
-          "No internet connection. Please check your network and try again.",
-        isOffline: true,
-      });
+      const offlineError = new Error(OFFLINE_MESSAGE) as Error & {
+        isOffline: boolean;
+        code?: string;
+        response?: unknown;
+        request?: unknown;
+      };
+      offlineError.isOffline = true;
+      offlineError.code = error.code;
+      offlineError.response = error.response;
+      offlineError.request = error.request;
+      return Promise.reject(offlineError);
     }
     return Promise.reject(error);
   },

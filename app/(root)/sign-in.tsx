@@ -152,18 +152,13 @@ const SignInScreen = () => {
         !error?.response ||
         code === "ECONNABORTED" ||
         code === "ERR_NETWORK" ||
-        code === "ECONNREFUSED"
-      ) {
-        errorType = "network";
-        errorMessage =
-          "Cannot connect to server. Please check your internet connection and try again.";
-      } else if (
+        code === "ECONNREFUSED" ||
         code === "ETIMEDOUT" ||
         message?.toLowerCase().includes("timeout")
       ) {
         errorType = "network";
         errorMessage =
-          "Connection timeout. Please check your internet and try again.";
+          "The server is taking longer than usual. Please check your connection and try again.";
       } else if (
         status === 401 ||
         message?.toLowerCase().includes("invalid") ||

@@ -1,6 +1,7 @@
 // Socket.IO client for real-time communication with backend
 import { io, Socket } from "socket.io-client";
 import { BACKEND_URL } from "./backend";
+import { SERVER_SLOW_MESSAGE } from "./userFacingError";
 
 class SocketService {
   private socket: Socket | null = null;
@@ -194,7 +195,7 @@ class SocketService {
     }
 
     if (!this.socket?.connected) {
-      throw new Error(`Socket connection timeout after ${maxWaitTime}ms`);
+      throw new Error(SERVER_SLOW_MESSAGE);
     }
 
     console.log("✅ Socket is connected");
@@ -347,7 +348,7 @@ class SocketService {
         );
         reject(
           new Error(
-            "Request timeout - backend did not respond within 10 seconds",
+            SERVER_SLOW_MESSAGE,
           ),
         );
       }, 10000); // 10 second timeout
@@ -386,7 +387,7 @@ class SocketService {
         this.socket?.off("requestError", handleError);
         reject(
           new Error(
-            "Request timeout - backend did not respond within 10 seconds",
+            SERVER_SLOW_MESSAGE,
           ),
         );
       }, 10000);
@@ -573,7 +574,7 @@ class SocketService {
         console.error("❌ Request timeout - backend did not respond");
         reject(
           new Error(
-            "Request timeout - backend did not respond within 10 seconds",
+            SERVER_SLOW_MESSAGE,
           ),
         );
       }, 10000);
@@ -638,7 +639,7 @@ class SocketService {
         );
         reject(
           new Error(
-            "Request timeout - backend did not respond within 10 seconds",
+            SERVER_SLOW_MESSAGE,
           ),
         );
       }, 10000);
@@ -722,7 +723,7 @@ class SocketService {
         console.error("❌ Request timeout - backend did not respond");
         reject(
           new Error(
-            "Request timeout - backend did not respond within 10 seconds",
+            SERVER_SLOW_MESSAGE,
           ),
         );
       }, 10000);
@@ -768,7 +769,7 @@ class SocketService {
         this.socket?.off("requestError", handleError);
         reject(
           new Error(
-            "Request timeout - backend did not respond within 10 seconds",
+            SERVER_SLOW_MESSAGE,
           ),
         );
       }, 10000);
@@ -807,7 +808,7 @@ class SocketService {
           this.socket?.off("requestError", handleError);
           resolved = true;
           reject(
-            new Error("updateRequestStatus timeout - no response from server"),
+            new Error(SERVER_SLOW_MESSAGE),
           );
         }
       }, 10000);
@@ -901,7 +902,7 @@ class SocketService {
           resolved = true;
           this.socket?.off("requestUpdated", handleRequestUpdated);
           this.socket?.off("requestError", handleError);
-          reject(new Error("Request timeout - backend did not respond"));
+          reject(new Error(SERVER_SLOW_MESSAGE));
         }
       }, 10000);
 
@@ -950,7 +951,7 @@ class SocketService {
         this.socket?.off("requestError", handleError);
         reject(
           new Error(
-            "Request timeout - backend did not respond within 10 seconds",
+            SERVER_SLOW_MESSAGE,
           ),
         );
       }, 10000);

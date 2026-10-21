@@ -20,7 +20,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker } from "react-native-maps";
+import { MAP_PROVIDER } from "@/lib/map";
 import {
   AppHeroCard,
   AppQuickActionsRow,
@@ -36,11 +37,13 @@ import { useAuth } from "../../../context/AuthContext";
 import { useRoute } from "../../../context/RouteContext";
 import apiClient from "../../../lib/api";
 import {
-  hapticActionConfirm,
-  hapticNewRequest,
-} from "../../../lib/haptics";
+  alertConsultationStatusChange,
+  alertNewRequestAvailable,
+} from "../../../lib/consultationAlert";
+import { hapticActionConfirm } from "../../../lib/haptics";
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 import socketService from "../../../lib/socket";
+import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
 import { logViewMountDebug } from "../../../lib/viewErrorLogger";
 import { AUTH_COLORS } from "../../../lib/authScreenTheme";
 import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
@@ -743,8 +746,8 @@ export default function ProviderHome() {
             console.log("⚠️ Request already exists, skipping duplicate");
             return prev;
           }
-          // Vibrate to alert the provider of a new incoming request
-          hapticNewRequest();
+          // Ring + vibrate for a new incoming request
+          void alertNewRequestAvailable();
           return [request, ...prev];
         });
       };
@@ -753,11 +756,19 @@ export default function ProviderHome() {
       const handleRequestStatusChanged = (data: any) => {
         if (!isOnline) return; // Ignore if went offline
         console.log("🔄 Request status changed:", data);
-        if (data.requestId) {
-          setRequests((prev) =>
-            prev.filter((req) => req._id !== data.requestId),
-          );
-        }
+        if (!data.requestId) return;
+        setRequests((prev) => {
+          // Only ring if this request was in our incoming queue
+          const wasInQueue = prev.some((req) => req._id === data.requestId);
+          if (wasInQueue && data.status) {
+            void alertConsultationStatusChange(
+              data.status,
+              data.requestId,
+              "provider",
+            );
+          }
+          return prev.filter((req) => req._id !== data.requestId);
+        });
       };
 
       // Handle request updates (when request is accepted/rejected/cancelled)
@@ -765,6 +776,13 @@ export default function ProviderHome() {
         if (!isOnline) return; // Ignore if went offline
         console.log("📝 Request updated:", data);
         if (data._id) {
+          if (data.status) {
+            void alertConsultationStatusChange(
+              data.status,
+              data._id,
+              "provider",
+            );
+          }
           // Remove the request from available list if it's been accepted or cancelled
           if (
             data.status === "accepted" ||
@@ -887,7 +905,10 @@ export default function ProviderHome() {
       router.push("/(app)/(provider)/requests" as any);
     } catch (err: any) {
       console.error("Pharmacist accept error:", err);
-      Alert.alert("Error", err?.message || "Failed to accept request.");
+      Alert.alert(
+        "Error",
+        getUserFacingErrorMessage(err, "Failed to accept request."),
+      );
     }
   };
 
@@ -982,7 +1003,10 @@ export default function ProviderHome() {
       }, 350);
     } catch (error: any) {
       console.error("Error accepting request:", error);
-      Alert.alert("Error", error.message || "Failed to accept request");
+      Alert.alert(
+        "Error",
+        getUserFacingErrorMessage(error, "Failed to accept request"),
+      );
     }
   };
 
@@ -1000,7 +1024,10 @@ export default function ProviderHome() {
       );
     } catch (error: any) {
       console.error("Error declining request:", error);
-      Alert.alert("Error", error.message || "Failed to decline request");
+      Alert.alert(
+        "Error",
+        getUserFacingErrorMessage(error, "Failed to decline request"),
+      );
     }
   };
 
@@ -1760,7 +1787,7 @@ export default function ProviderHome() {
                             },
                           );
                         }}
-                        provider={PROVIDER_GOOGLE}
+                        provider={MAP_PROVIDER}
                       >
                         <Marker
                           coordinate={coords}

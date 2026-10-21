@@ -3,17 +3,15 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { KEYBOARD_VERTICAL_OFFSET } from "./ScreenLayout";
+import { KEYBOARD_AWARE_EXTRA_SCROLL } from "./ScreenLayout";
 import PostalAddressFormFields from "./(patient)/PostalAddressFormFields";
 import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
@@ -136,16 +134,17 @@ export default function EditPostalAddressModal({
           </View>
         </SafeAreaView>
 
-        <KeyboardAvoidingView
-          style={styles.body}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
-        >
-          <ScrollView
+        <View style={styles.body}>
+          <KeyboardAwareScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            enableOnAndroid
+            enableAutomaticScroll
+            extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+            extraHeight={120}
           >
             {isLoading ? (
               <View style={styles.loadingWrap}>
@@ -166,7 +165,7 @@ export default function EditPostalAddressModal({
                 />
               </View>
             )}
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           <SafeAreaView edges={["bottom"]} style={styles.footerSafe}>
             <View style={styles.footer}>
@@ -190,7 +189,7 @@ export default function EditPostalAddressModal({
               </TouchableOpacity>
             </View>
           </SafeAreaView>
-        </KeyboardAvoidingView>
+        </View>
       </View>
     </Modal>
   );

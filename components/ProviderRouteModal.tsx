@@ -17,9 +17,10 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { GOOGLE_MAPS_API_KEY } from "../lib/googleMaps";
+import { MAP_PROVIDER } from "../lib/map";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AUTH_COLORS } from "../lib/authScreenTheme";
 import { buildBackendAssetUrl } from "../lib/backend";
@@ -30,6 +31,7 @@ import {
 } from "../lib/coordinate";
 import { ensureForegroundLocationPermission } from "../lib/locationPermission";
 import socketService from "../lib/socket";
+import { getUserFacingErrorMessage } from "../lib/userFacingError";
 import { logViewMountDebug } from "../lib/viewErrorLogger";
 
 interface ProviderRouteModalProps {
@@ -414,7 +416,10 @@ export default function ProviderRouteModal({
         router.push("/(app)/(provider)/requests");
         return;
       }
-      Alert.alert("Error", error.message || "Failed to mark as arrived");
+      Alert.alert(
+        "Error",
+        getUserFacingErrorMessage(error, "Failed to mark as arrived"),
+      );
     } finally {
       markingArrivedRef.current = false;
     }
@@ -563,7 +568,7 @@ export default function ProviderRouteModal({
           }}
           ref={mapRef}
           style={styles.map}
-          provider={PROVIDER_GOOGLE}
+          provider={MAP_PROVIDER}
           showsUserLocation
           followsUserLocation={false}
           showsMyLocationButton

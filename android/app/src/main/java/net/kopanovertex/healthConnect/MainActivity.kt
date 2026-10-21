@@ -7,7 +7,6 @@ import com.streamvideo.reactnative.StreamVideoReactNative
 
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -26,8 +25,9 @@ class MainActivity : ReactActivity() {
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
 
-    // Prevent screenshots and screen recording for security
-    window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+    // Screenshot blocking is handled by expo-screen-capture (can be paused
+    // during teleconsultation). Do not set FLAG_SECURE here — it blanks
+    // WebRTC video and cannot be reliably cleared from JS mid-call.
 
     super.onCreate(null)
   }

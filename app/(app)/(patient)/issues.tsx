@@ -14,6 +14,7 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
+import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
 
 // --- Type Definitions ---
 type Tab = "report" | "tickets" | "faq" | "safety-tips";
@@ -212,7 +213,7 @@ export default function IssuesScreen() {
     } catch (error: any) {
       Alert.alert(
         "Submission Failed",
-        error.response?.data?.message || "An error occurred.",
+        getUserFacingErrorMessage(error, "Could not submit your issue. Please try again."),
       );
     } finally {
       setIsSubmitting(false);

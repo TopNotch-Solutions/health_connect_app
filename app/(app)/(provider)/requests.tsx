@@ -26,8 +26,13 @@ import { useRoute } from "../../../context/RouteContext";
 import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
+import {
+  alertConsultationStatusChange,
+  alertNewRequestAvailable,
+} from "../../../lib/consultationAlert";
 import socketService from "../../../lib/socket";
 import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
+import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
 import ProviderPrescriptionPanel from "../../../components/(provider)/ProviderPrescriptionPanel";
 import PostalAddressConfirmModal from "../../../components/(patient)/PostalAddressConfirmModal";
 
@@ -387,6 +392,7 @@ export default function ProviderRequests() {
   useEffect(() => {
     const handleNewRequest = (request: Request) => {
       console.log("📨 New request available:", request);
+      void alertNewRequestAvailable();
       setRequests((prev) => [
         request,
         ...prev.filter((r) => r._id !== request._id),
@@ -414,14 +420,23 @@ export default function ProviderRequests() {
         correctStatus = "accepted";
       }
 
-      // If truly cancelled (patient cancelled, no provider acceptance), remove from list
-      if (correctStatus === "cancelled" || correctStatus === "expired") {
-        setRequests((prev) => prev.filter((r) => r._id !== data.requestId));
-        return;
-      }
-
-      // Optimistically update local state immediately for snappy UI
+      // Ring only for consultations this provider already has in their list
       setRequests((prev) => {
+        const existing = prev.find((r) => r._id === data.requestId);
+        if (existing && existing.status !== correctStatus) {
+          void alertConsultationStatusChange(
+            correctStatus,
+            data.requestId,
+            "provider",
+          );
+        }
+
+        // If truly cancelled (patient cancelled, no provider acceptance), remove from list
+        if (correctStatus === "cancelled" || correctStatus === "expired") {
+          return prev.filter((r) => r._id !== data.requestId);
+        }
+
+        // Optimistically update local state immediately for snappy UI
         const updated = prev.map((req) =>
           req._id === data.requestId
             ? { ...req, ...(data.request || {}), status: correctStatus } as Request
@@ -652,16 +667,20 @@ export default function ProviderRequests() {
       );
 
       if (request.consultationMode === "video_consultation") {
+        const isCash = request.paymentMethod === "cash";
+        const nextStatus = isCash ? "payment_pending" : "ready_for_call";
         setRequests((prev) =>
           prev.map((req) =>
             req._id === request._id
-              ? ({ ...req, status: "payment_pending" } as Request)
+              ? ({ ...req, status: nextStatus } as Request)
               : req,
           ),
         );
         Alert.alert(
           "Teleconsultation Accepted",
-          "The patient now needs to complete payment before the consultation can continue.",
+          isCash
+            ? "The patient now needs to complete eWallet payment before the consultation can continue."
+            : "Medical aid consultation accepted. You can start the video call when ready — no eWallet payment is required.",
         );
         return;
       }
@@ -737,7 +756,10 @@ export default function ProviderRequests() {
       );
     } catch (error: any) {
       console.error("Error accepting request:", error);
-      Alert.alert("Error", error.message || "Failed to accept request");
+      Alert.alert(
+        "Error",
+        getUserFacingErrorMessage(error, "Failed to accept request"),
+      );
     } finally {
       setActionLoading((prev) =>
         prev?.requestId === request._id ? null : prev,
@@ -874,11 +896,20 @@ export default function ProviderRequests() {
         undefined,
       );
 
-      // Update local state immediately
+      const startedAt = new Date().toISOString();
+      // Update local state immediately (incl. captured start time)
       setRequests((prev) =>
         prev.map((req) =>
           req._id === requestId
-            ? ({ ...req, status: "in_progress" } as Request)
+            ? ({
+                ...req,
+                status: "in_progress",
+                timeline: {
+                  ...(req.timeline || {}),
+                  consultationStarted:
+                    req.timeline?.consultationStarted || startedAt,
+                },
+              } as Request)
             : req,
         ),
       );
@@ -886,7 +917,10 @@ export default function ProviderRequests() {
       Alert.alert("Consultation Started", `Consultation started for ${patientName}.`);
     } catch (error: any) {
       console.error("Error starting consultation:", error);
-      Alert.alert("Error", error.message || "Failed to start consultation");
+      Alert.alert(
+        "Error",
+        getUserFacingErrorMessage(error, "Failed to start consultation"),
+      );
     } finally {
       setActionLoading((prev) =>
         prev?.requestId === requestId ? null : prev,
@@ -908,17 +942,33 @@ export default function ProviderRequests() {
         undefined,
       );
 
-      // Update local state
+      const completedAt = new Date().toISOString();
+      // Update local state (incl. captured start/complete times)
       setRequests((prev) =>
         prev.map((req) =>
-          req._id === requestId ? { ...req, status: "completed" as Request["status"] } as Request : req,
+          req._id === requestId
+            ? ({
+                ...req,
+                status: "completed" as Request["status"],
+                timeline: {
+                  ...(req.timeline || {}),
+                  consultationStarted:
+                    req.timeline?.consultationStarted || completedAt,
+                  consultationCompleted:
+                    req.timeline?.consultationCompleted || completedAt,
+                },
+              } as Request)
+            : req,
         ),
       );
 
       Alert.alert("Success", `Consultation completed for ${patientName}!`);
     } catch (error: any) {
       console.error("Error completing request:", error);
-      Alert.alert("Error", error.message || "Failed to complete request");
+      Alert.alert(
+        "Error",
+        getUserFacingErrorMessage(error, "Failed to complete request"),
+      );
     } finally {
       setActionLoading((prev) =>
         prev?.requestId === requestId ? null : prev,
@@ -978,7 +1028,10 @@ export default function ProviderRequests() {
       );
     } catch (error: any) {
       console.error("Error declining request:", error);
-      Alert.alert("Error", error.message || "Failed to decline request");
+      Alert.alert(
+        "Error",
+        getUserFacingErrorMessage(error, "Failed to decline request"),
+      );
     } finally {
       setActionLoading((prev) =>
         prev?.requestId === requestId ? null : prev,
@@ -1309,6 +1362,34 @@ export default function ProviderRequests() {
                         </View>
                       </>
                     ) : null}
+
+                    {(request.timeline?.consultationStarted ||
+                      request.timeline?.consultationCompleted) && (
+                      <>
+                        <View style={requestCardStyles.detailsSeparator} />
+                        <View style={requestCardStyles.symptomsBlock}>
+                          <Text style={requestCardStyles.detailLabel}>
+                            Consultation times
+                          </Text>
+                          {request.timeline?.consultationStarted ? (
+                            <Text style={requestCardStyles.symptomsText}>
+                              Started:{" "}
+                              {new Date(
+                                request.timeline.consultationStarted,
+                              ).toLocaleString()}
+                            </Text>
+                          ) : null}
+                          {request.timeline?.consultationCompleted ? (
+                            <Text style={requestCardStyles.symptomsText}>
+                              Completed:{" "}
+                              {new Date(
+                                request.timeline.consultationCompleted,
+                              ).toLocaleString()}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </>
+                    )}
                   </View>
 
                   {/* Awaiting prescription upload banner */}
@@ -1472,9 +1553,10 @@ export default function ProviderRequests() {
                         </View>
                       )}
 
-                      {["accepted", "payment_pending"].includes(
-                        request.status,
-                      ) && (
+                      {request.paymentMethod === "cash" &&
+                        ["accepted", "payment_pending"].includes(
+                          request.status,
+                        ) && (
                         <View
                           className="bg-sky-50 rounded-lg p-3 border border-sky-200 flex-row items-center justify-center"
                           style={{ gap: 8 }}
@@ -1486,7 +1568,8 @@ export default function ProviderRequests() {
                         </View>
                       )}
 
-                      {request.status === "provider_confirmation_pending" && (
+                      {request.paymentMethod === "cash" &&
+                        request.status === "provider_confirmation_pending" && (
                         <TouchableOpacity
                           onPress={() =>
                             handlePaymentReceived(request._id, patientName)
@@ -1751,16 +1834,18 @@ export default function ProviderRequests() {
                         </TouchableOpacity>
                       )}
 
-                      {/* payment_pending = waiting for patient to pay */}
-                      {request.status === "payment_pending" && (
+                      {/* Cash only: waiting for patient eWallet payment */}
+                      {request.paymentMethod === "cash" &&
+                        request.status === "payment_pending" && (
                         <View className="bg-sky-50 rounded-lg p-3 border border-sky-200 flex-row items-center justify-center" style={{ gap: 8 }}>
                           <ActivityIndicator size="small" color="#0369A1" />
                           <Text className="text-xs text-sky-700 font-semibold">Waiting for patient to confirm payment…</Text>
                         </View>
                       )}
 
-                      {/* provider_confirmation_pending = patient paid, provider must confirm receipt */}
-                      {request.status === "provider_confirmation_pending" && (
+                      {/* Cash only: patient marked paid — provider confirms EFT receipt */}
+                      {request.paymentMethod === "cash" &&
+                        request.status === "provider_confirmation_pending" && (
                         <TouchableOpacity
                           onPress={() => handlePaymentReceived(request._id, patientName)}
                           disabled={isBusy}

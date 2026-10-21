@@ -6,15 +6,13 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import MapView, { Marker } from "react-native-maps";
 import apiClient from "../../lib/api";
 import { AUTH_COLORS } from "../../lib/authScreenTheme";
@@ -36,9 +34,11 @@ import {
   appModalBottomSheetStyles,
 } from "../app/AppBottomSheetUI";
 import { AppTextInput as TextInput } from "../AppTextInput";
+import { KEYBOARD_AWARE_EXTRA_SCROLL } from "../ScreenLayout";
 import PostalAddressConfirmModal from "./PostalAddressConfirmModal";
 import { PostalAddressPayload } from "../../lib/postalAddress";
 import { useAuth } from "../../context/AuthContext";
+import { getUserFacingErrorMessage } from "../../lib/userFacingError";
 
 export type PaymentMethod = "wallet" | "cash" | "medical_aid";
 
@@ -440,7 +440,10 @@ export default function CreateRequestModal({
               onClose();
             } catch (error: any) {
               setKeepRequestSheetClosed(false);
-              Alert.alert("Error", error.message || "Failed to create request");
+              Alert.alert(
+                "Error",
+                getUserFacingErrorMessage(error, "Failed to create request"),
+              );
             } finally {
               setIsLoading(false);
             }
@@ -546,11 +549,7 @@ export default function CreateRequestModal({
       transparent
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
-        <View style={appModalBottomSheetStyles.overlay}>
+      <View style={appModalBottomSheetStyles.overlay}>
           <View
             style={[
               appModalBottomSheetStyles.sheet,
@@ -566,10 +565,16 @@ export default function CreateRequestModal({
               />
             </View>
 
-            <ScrollView
+            <KeyboardAwareScrollView
               style={localStyles.scrollBody}
               contentContainerStyle={localStyles.scrollContent}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              enableOnAndroid
+              enableAutomaticScroll
+              extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+              extraHeight={120}
             >
               {/* Ailment Category */}
               <View className="mb-6">
@@ -1108,7 +1113,7 @@ export default function CreateRequestModal({
                   </View>
                 </View>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             {/* Footer Actions */}
             <View style={appModalBottomSheetStyles.footer}>
@@ -1167,7 +1172,6 @@ export default function CreateRequestModal({
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
     </Modal>
 
     <PostalAddressConfirmModal
@@ -1190,6 +1194,6 @@ const localStyles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingBottom: 48,
   },
 });

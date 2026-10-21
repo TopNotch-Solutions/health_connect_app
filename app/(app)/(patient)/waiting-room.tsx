@@ -31,16 +31,15 @@ import PrescriptionUploadModal, {
 import PatientProviderPrescriptionView from "../../../components/(patient)/PatientProviderPrescriptionView";
 import ProviderMap from "../../../components/(patient)/ProviderMap";
 import { useAuth } from "../../../context/AuthContext";
-import {
-  hapticRequestAccepted,
-  hapticStatusChange,
-} from "../../../lib/haptics";
+import { alertConsultationStatusChange } from "../../../lib/consultationAlert";
 import socketService from "../../../lib/socket";
 import apiClient from "../../../lib/api";
+import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
 
 interface RequestStatus {
   _id: string;
   consultationMode?: "house_visit" | "video_consultation";
+  paymentMethod?: "wallet" | "cash" | "medical_aid";
   // Provider type (e.g. "Pharmacist") — from populated ailmentCategoryId
   providerType?: string;
   status:
@@ -314,7 +313,10 @@ const RequestCard = ({
               onCancel?.(request._id);
               Alert.alert("Cancelled", "Your request has been cancelled");
             } catch (error: any) {
-              Alert.alert("Error", error.message || "Failed to cancel request");
+              Alert.alert(
+                "Error",
+                getUserFacingErrorMessage(error, "Failed to cancel request"),
+              );
               setIsCancelling(false);
             }
           },
@@ -345,7 +347,7 @@ const RequestCard = ({
             } catch (error: any) {
               Alert.alert(
                 "Payment Error",
-                error.message || "Failed to confirm payment.",
+                getUserFacingErrorMessage(error, "Failed to confirm payment."),
               );
             } finally {
               setIsPaying(false);
@@ -365,13 +367,17 @@ const RequestCard = ({
       case "accepted":
         return `Provider ${request.providerId?.fullname || "has"} accepted your request`;
       case "payment_pending":
-        return `Provider ${request.providerId?.fullname || "has"} accepted your teleconsultation. Pay through eWallet, then tap Payment Confirmed.`;
+        return request.paymentMethod === "cash"
+          ? `Provider ${request.providerId?.fullname || "has"} accepted your teleconsultation. Pay through eWallet, then tap Payment Confirmed.`
+          : `Provider ${request.providerId?.fullname || "has"} accepted your teleconsultation.`;
       case "paid":
         return "Payment has been marked as received.";
       case "provider_confirmation_pending":
         return "Waiting for your provider to confirm they received your payment.";
       case "ready_for_call":
-        return "Your teleconsultation is ready to begin.";
+        return request.paymentMethod === "medical_aid"
+          ? "Your medical aid teleconsultation is ready to begin."
+          : "Your teleconsultation is ready to begin.";
       case "in_call":
         return "Video consultation is in progress.";
       case "en_route":
@@ -482,6 +488,7 @@ const RequestCard = ({
       )}
 
       {request.consultationMode === "video_consultation" &&
+        request.paymentMethod === "cash" &&
         ["payment_pending", "provider_confirmation_pending"].includes(
           request.status,
         ) &&
@@ -532,6 +539,26 @@ const RequestCard = ({
             Requested: {new Date(request.createdAt).toLocaleString()}
           </Text>
         </View>
+        {request.timeline?.consultationStarted ? (
+          <View style={styles.metaRow}>
+            <Feather name="play-circle" size={14} color="#6b7280" />
+            <Text style={styles.metaText}>
+              Started:{" "}
+              {new Date(request.timeline.consultationStarted).toLocaleString()}
+            </Text>
+          </View>
+        ) : null}
+        {request.timeline?.consultationCompleted ? (
+          <View style={styles.metaRow}>
+            <Feather name="check-circle" size={14} color="#6b7280" />
+            <Text style={styles.metaText}>
+              Completed:{" "}
+              {new Date(
+                request.timeline.consultationCompleted,
+              ).toLocaleString()}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Expiration notice for accepted requests */}
@@ -579,6 +606,7 @@ const RequestCard = ({
         )}
 
       {request.consultationMode === "video_consultation" &&
+        request.paymentMethod === "cash" &&
         request.status === "payment_pending" && (
           <TouchableOpacity
             onPress={handleConfirmPayment}
@@ -1090,26 +1118,17 @@ export default function WaitingRoom() {
   useEffect(() => {
     if (!user?.userId) return;
 
-    /** Fire the appropriate haptic when a request status changes. */
-    const hapticForStatus = (status: string) => {
-      if (status === "accepted" || status === "ready_for_call") {
-        hapticRequestAccepted();
-      } else if (
-        status === "en_route" ||
-        status === "arrived" ||
-        status === "in_progress"
-      ) {
-        hapticStatusChange();
-      }
-    };
-
     const handleRequestUpdated = async (updatedRequest: RequestStatus) => {
-      // Fire haptic OUTSIDE setState — updater functions can be re-run by React
+      // Ring + vibrate OUTSIDE setState — updater functions can be re-run by React
       const existing = requestsRef.current.find(
         (item) => item.request._id === updatedRequest._id,
       );
       if (existing && existing.request.status !== updatedRequest.status) {
-        hapticForStatus(updatedRequest.status);
+        void alertConsultationStatusChange(
+          updatedRequest.status,
+          updatedRequest._id,
+          "patient",
+        );
       }
 
       setRequests((prev) => {
@@ -1202,12 +1221,16 @@ export default function WaitingRoom() {
     }) => {
       console.log("🔔 Request status changed:", data);
 
-      // Fire haptic OUTSIDE setState — updater functions can be re-run by React
+      // Ring + vibrate OUTSIDE setState — updater functions can be re-run by React
       const existing = requestsRef.current.find(
         (item) => item.request._id === data.requestId,
       );
       if (existing && existing.request.status !== data.status) {
-        hapticForStatus(data.status);
+        void alertConsultationStatusChange(
+          data.status,
+          data.requestId,
+          "patient",
+        );
       }
 
       setRequests((prev) => {

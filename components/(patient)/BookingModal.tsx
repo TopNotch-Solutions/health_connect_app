@@ -8,16 +8,14 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { KEYBOARD_VERTICAL_OFFSET } from "../ScreenLayout";
+import { KEYBOARD_AWARE_EXTRA_SCROLL } from "../ScreenLayout";
 import {
   AppBottomSheetCloseHeader,
   appBottomSheetStyles,
@@ -27,6 +25,7 @@ import { AUTH_COLORS } from '../../lib/authScreenTheme';
 import { PickerField } from '../PickerField';
 import { namibianRegions, townsByRegion } from '../../constants/locations';
 import apiClient from '../../lib/api';
+import { getUserFacingErrorMessage } from '../../lib/userFacingError';
 
 // Define the types needed for this component
 interface AilmentCategory {
@@ -127,7 +126,10 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
         );
       }
     } catch (error: any) {
-      Alert.alert("Booking Failed", error.response?.data?.message || "An unexpected error occurred.");
+      Alert.alert(
+        "Booking Failed",
+        getUserFacingErrorMessage(error, "An unexpected error occurred."),
+      );
     } finally {
       setIsBooking(false);
     }
@@ -145,17 +147,18 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <SafeAreaView style={appModalBottomSheetStyles.overlay} edges={["bottom"]}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
-        >
         <View style={[appModalBottomSheetStyles.sheet, appModalBottomSheetStyles.sheetCompact, { padding: 24 }]}>
           <View style={appModalBottomSheetStyles.handle} />
           <AppBottomSheetCloseHeader title="Book Consultation" onClose={onClose} />
 
-          <ScrollView
+          <KeyboardAwareScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            enableOnAndroid
+            enableAutomaticScroll
+            extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+            extraHeight={40}
           >
             <View style={{ backgroundColor: `${category.color}1A` }} className="p-4 rounded-xl mb-6">
               <View className="flex-row items-center">
@@ -234,9 +237,8 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
                 </Text>
               )}
             </TouchableOpacity>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
-        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );

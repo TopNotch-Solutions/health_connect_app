@@ -1,18 +1,16 @@
 import { Feather } from "@expo/vector-icons";
 import React from "react";
 import {
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AUTH_COLORS } from "../lib/authScreenTheme";
-import { KEYBOARD_VERTICAL_OFFSET } from "./ScreenLayout";
+import { KEYBOARD_AWARE_EXTRA_SCROLL } from "./ScreenLayout";
 
 type ProfileFeatureShellProps = {
   visible: boolean;
@@ -35,26 +33,6 @@ export function ProfileFeatureShell({
   footer,
   keyboard = false,
 }: ProfileFeatureShellProps) {
-  const body = (
-    <>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {children}
-      </ScrollView>
-      {footer ? (
-        <SafeAreaView edges={["bottom"]} style={styles.footerSafe}>
-          <View style={styles.footer}>{footer}</View>
-        </SafeAreaView>
-      ) : (
-        <SafeAreaView edges={["bottom"]} style={styles.footerSafe} />
-      )}
-    </>
-  );
-
   return (
     <Modal
       visible={visible}
@@ -79,17 +57,28 @@ export function ProfileFeatureShell({
           </View>
         </SafeAreaView>
 
-        {keyboard ? (
-          <KeyboardAvoidingView
-            style={styles.body}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
+        <View style={styles.body}>
+          <KeyboardAwareScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            enableOnAndroid={keyboard}
+            enableAutomaticScroll={keyboard}
+            extraScrollHeight={keyboard ? KEYBOARD_AWARE_EXTRA_SCROLL : 0}
+            extraHeight={footer ? 120 : 40}
           >
-            {body}
-          </KeyboardAvoidingView>
-        ) : (
-          <View style={styles.body}>{body}</View>
-        )}
+            {children}
+          </KeyboardAwareScrollView>
+          {footer ? (
+            <SafeAreaView edges={["bottom"]} style={styles.footerSafe}>
+              <View style={styles.footer}>{footer}</View>
+            </SafeAreaView>
+          ) : (
+            <SafeAreaView edges={["bottom"]} style={styles.footerSafe} />
+          )}
+        </View>
       </View>
     </Modal>
   );
@@ -232,7 +221,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 28,
-    paddingBottom: 24,
+    paddingBottom: 40,
   },
   footerSafe: {
     backgroundColor: AUTH_COLORS.bg,

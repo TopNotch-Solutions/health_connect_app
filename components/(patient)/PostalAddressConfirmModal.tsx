@@ -3,20 +3,19 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
   AppBottomSheetCloseHeader,
   appBottomSheetStyles,
   appModalBottomSheetStyles,
 } from "../app/AppBottomSheetUI";
+import { KEYBOARD_AWARE_EXTRA_SCROLL } from "../ScreenLayout";
 import apiClient from "../../lib/api";
 import { AUTH_COLORS } from "../../lib/authScreenTheme";
 import {
@@ -143,11 +142,7 @@ export default function PostalAddressConfirmModal({
       transparent
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
-        <View style={appModalBottomSheetStyles.overlay}>
+      <View style={appModalBottomSheetStyles.overlay}>
           <View
             style={[
               appModalBottomSheetStyles.sheet,
@@ -160,11 +155,16 @@ export default function PostalAddressConfirmModal({
               <AppBottomSheetCloseHeader title={title} onClose={onClose} />
             </View>
 
-            <ScrollView
+            <KeyboardAwareScrollView
               style={styles.scrollBody}
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              enableOnAndroid
+              enableAutomaticScroll
+              extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+              extraHeight={120}
             >
               <View style={appBottomSheetStyles.warningBanner}>
                 <View className="flex-row items-start">
@@ -219,7 +219,7 @@ export default function PostalAddressConfirmModal({
                   />
                 </>
               )}
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             <View style={appModalBottomSheetStyles.footer}>
               <TouchableOpacity
@@ -253,7 +253,6 @@ export default function PostalAddressConfirmModal({
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -268,7 +267,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingBottom: 48,
   },
   cancelBtn: {
     backgroundColor: "#DC2626",

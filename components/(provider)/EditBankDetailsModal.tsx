@@ -3,18 +3,16 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppTextInput as TextInput } from "../AppTextInput";
-import { KEYBOARD_VERTICAL_OFFSET } from "../ScreenLayout";
+import { KEYBOARD_AWARE_EXTRA_SCROLL } from "../ScreenLayout";
 import { useAuth } from "../../context/AuthContext";
 import apiClient from "../../lib/api";
 import { AUTH_COLORS } from "../../lib/authScreenTheme";
@@ -156,16 +154,17 @@ export default function EditBankDetailsModal({
           </View>
         </SafeAreaView>
 
-        <KeyboardAvoidingView
-          style={styles.body}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
-        >
-          <ScrollView
+        <View style={styles.body}>
+          <KeyboardAwareScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            enableOnAndroid
+            enableAutomaticScroll
+            extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+            extraHeight={120}
           >
             {loadError ? (
               <Text style={styles.loadError}>{loadError}</Text>
@@ -293,7 +292,7 @@ export default function EditBankDetailsModal({
                 />
               </>
             )}
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           <SafeAreaView edges={["bottom"]} style={styles.footerSafe}>
             <View style={styles.footer}>
@@ -317,7 +316,7 @@ export default function EditBankDetailsModal({
               </TouchableOpacity>
             </View>
           </SafeAreaView>
-        </KeyboardAvoidingView>
+        </View>
       </View>
     </Modal>
   );

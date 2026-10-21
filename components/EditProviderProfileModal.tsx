@@ -6,17 +6,16 @@ import { AppTextInput as TextInput } from "./AppTextInput";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { KEYBOARD_VERTICAL_OFFSET } from "./ScreenLayout";
+import { KEYBOARD_AWARE_EXTRA_SCROLL } from "./ScreenLayout";
 import { PickerField } from "./PickerField";
 import { namibianRegions } from "../constants/locations";
 import { useAuth } from "../context/AuthContext";
@@ -561,16 +560,17 @@ export default function EditProviderProfileModal({
           </View>
         </SafeAreaView>
 
-        <KeyboardAvoidingView
-          style={styles.body}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={KEYBOARD_VERTICAL_OFFSET}
-        >
-        <ScrollView
+        <View style={styles.body}>
+        <KeyboardAwareScrollView
           style={styles.flex}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
+          enableOnAndroid
+          enableAutomaticScroll
+          extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+          extraHeight={120}
         >
           {/* Basic Information Section */}
           <View style={styles.sectionCard}>
@@ -1119,8 +1119,8 @@ export default function EditProviderProfileModal({
               </>
             )}
           </TouchableOpacity>
-        </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+        </View>
       </View>
     </Modal>
   );
@@ -1194,7 +1194,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 28,
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
   sectionCard: {
     marginBottom: 18,

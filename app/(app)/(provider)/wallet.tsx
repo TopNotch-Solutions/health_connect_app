@@ -1,5 +1,8 @@
 import { Feather } from "@expo/vector-icons";
-import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import BottomSheet, {
+  BottomSheetScrollView,
+  BottomSheetTextInput,
+} from "@gorhom/bottom-sheet";
 import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
 import React, {
@@ -1188,7 +1191,7 @@ export default function TransactionsScreen() {
           <Text style={appBottomSheetStyles.inputLabel}>
             Recipient's Wallet ID
           </Text>
-          <TextInput
+          <BottomSheetTextInput
             style={[
               withIosStandaloneTextInputStyle(),
               appBottomSheetStyles.input,
@@ -1208,7 +1211,7 @@ export default function TransactionsScreen() {
             </Text>
           )}
           <Text style={appBottomSheetStyles.inputLabel}>Amount</Text>
-          <TextInput
+          <BottomSheetTextInput
             style={[
               withIosStandaloneTextInputStyle(),
               appBottomSheetStyles.input,
@@ -1273,7 +1276,7 @@ export default function TransactionsScreen() {
             }}
           />
           <Text style={appBottomSheetStyles.inputLabel}>Amount</Text>
-          <TextInput
+          <BottomSheetTextInput
             style={[
               withIosStandaloneTextInputStyle(),
               appBottomSheetStyles.input,

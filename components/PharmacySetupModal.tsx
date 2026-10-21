@@ -6,7 +6,7 @@ import { AppTextInput as TextInput } from "./AppTextInput";
  * Dedicated setup screen for pharmacists — fields from the Pharmacy Category spec.
  * Fixes:
  *  - useRef guard prevents re-seeding on every render (reset bug)
- *  - KeyboardAvoidingView keeps fields visible above the keyboard
+ *  - KeyboardAwareScrollView keeps fields visible above the keyboard
  *  - GPS replaced with "Detect My Location" button (expo-location)
  */
 
@@ -16,11 +16,13 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, Text, TouchableOpacity, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
 import { ensureForegroundLocationPermission } from "../lib/locationPermission";
+import { KEYBOARD_AWARE_EXTRA_SCROLL } from "./ScreenLayout";
 
 interface Props {
   visible: boolean;
@@ -58,7 +60,7 @@ const EMPTY: FormState = {
 export default function PharmacySetupModal({ visible, onClose }: Props) {
   const { user, updateUser } = useAuth();
   const insets = useSafeAreaInsets();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<KeyboardAwareScrollView | null>(null);
 
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
@@ -165,7 +167,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
   const handleSave = async () => {
     if (!validate()) {
       // Scroll to top so user can see which fields have errors
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      scrollViewRef.current?.scrollToPosition?.(0, 0, true);
       return;
     }
     try {
@@ -310,17 +312,17 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* KeyboardAvoidingView keeps fields above the keyboard */}
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={0}
-        >
-          <ScrollView
+        <KeyboardAwareScrollView
             ref={scrollViewRef}
+            style={{ flex: 1 }}
             contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
+            enableOnAndroid
+            enableAutomaticScroll
+            extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+            extraHeight={40}
           >
             {/* Status banner */}
             <View
@@ -692,8 +694,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
                 {isSaving ? "Saving..." : "Save Pharmacy Setup"}
               </Text>
             </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </Modal>
   );

@@ -17,7 +17,8 @@ async function isScreenCaptureAvailable(): Promise<boolean> {
 
 /**
  * Blocks screenshots and screen recording for the whole app (iOS 13+, Android).
- * Android also uses FLAG_SECURE via plugins/withPreventScreenshots.js on prebuild.
+ * Prefer this over a permanent Activity FLAG_SECURE so video calls can lift
+ * protection without fighting native window flags.
  */
 export function useGlobalScreenCaptureProtection(): void {
   useEffect(() => {
@@ -56,58 +57,72 @@ export function useGlobalScreenCaptureProtection(): void {
   }, []);
 }
 
-/**
- * Temporarily lifts global screenshot / app-switcher protection.
- * Required on iOS during WebRTC video calls — preventScreenCapture blanks
- * RTCView streams (black video) while protection is active.
- */
-export function useAllowScreenCaptureDuringCall(): void {
-  useEffect(() => {
-    if (Platform.OS === "web") {
+/** Lift screenshot / app-switcher protection so WebRTC video can render. */
+export async function pauseScreenCaptureForCall(): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+
+  try {
+    const available = await isScreenCaptureAvailable();
+    if (!available) {
       return;
     }
 
+    await ScreenCapture.allowScreenCaptureAsync(SCREEN_CAPTURE_PROTECTION_KEY);
+    if (Platform.OS === "ios") {
+      await ScreenCapture.disableAppSwitcherProtectionAsync();
+    }
+  } catch (error) {
+    console.warn("Unable to pause screen capture for video call:", error);
+  }
+}
+
+/** Re-apply screenshot / app-switcher protection after a call ends. */
+export async function resumeScreenCaptureAfterCall(): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+
+  try {
+    const available = await isScreenCaptureAvailable();
+    if (!available) {
+      return;
+    }
+
+    await ScreenCapture.preventScreenCaptureAsync(
+      SCREEN_CAPTURE_PROTECTION_KEY,
+    );
+    if (Platform.OS === "ios") {
+      await ScreenCapture.enableAppSwitcherProtectionAsync(0.75);
+    }
+  } catch (error) {
+    console.warn(
+      "Unable to restore screen capture protection after call:",
+      error,
+    );
+  }
+}
+
+/**
+ * Temporarily lifts global screenshot / app-switcher protection.
+ * Required during WebRTC video calls — preventScreenCapture blanks
+ * RTCView streams (black / blocked video) while protection is active.
+ */
+export function useAllowScreenCaptureDuringCall(): void {
+  useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      try {
-        const available = await isScreenCaptureAvailable();
-        if (!available || cancelled) {
-          return;
-        }
-
-        await ScreenCapture.allowScreenCaptureAsync(
-          SCREEN_CAPTURE_PROTECTION_KEY,
-        );
-        if (Platform.OS === "ios") {
-          await ScreenCapture.disableAppSwitcherProtectionAsync();
-        }
-      } catch (error) {
-        console.warn("Unable to pause screen capture for video call:", error);
+      if (cancelled) {
+        return;
       }
+      await pauseScreenCaptureForCall();
     })();
 
     return () => {
       cancelled = true;
-      void (async () => {
-        try {
-          const available = await isScreenCaptureAvailable();
-          if (!available) {
-            return;
-          }
-          await ScreenCapture.preventScreenCaptureAsync(
-            SCREEN_CAPTURE_PROTECTION_KEY,
-          );
-          if (Platform.OS === "ios") {
-            await ScreenCapture.enableAppSwitcherProtectionAsync(0.75);
-          }
-        } catch (error) {
-          console.warn(
-            "Unable to restore screen capture protection after call:",
-            error,
-          );
-        }
-      })();
+      void resumeScreenCaptureAfterCall();
     };
   }, []);
 }

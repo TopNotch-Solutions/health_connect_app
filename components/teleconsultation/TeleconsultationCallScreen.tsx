@@ -1,10 +1,14 @@
 import { useAuth } from "@/context/AuthContext";
-import { useAllowScreenCaptureDuringCall } from "@/lib/screenCapture";
+import {
+  pauseScreenCaptureForCall,
+  useAllowScreenCaptureDuringCall,
+} from "@/lib/screenCapture";
 import socketService from "@/lib/socket";
 import {
   getTeleconsultationCallAccess,
   type TeleconsultationCallAccess,
 } from "@/lib/teleconsultation";
+import { getUserFacingErrorMessage } from "@/lib/userFacingError";
 import {
   CallContent,
   CallingState,
@@ -126,20 +130,24 @@ function CallStateWatcher({
 
     onJoined();
 
+    // Capture consultation start time when the video call actually begins.
     if (
       role !== "provider" ||
-      requestStatus !== "ready_for_call" ||
+      !["ready_for_call", "in_call"].includes(requestStatus) ||
       hasMarkedInCall.current
     ) {
       return;
     }
 
-    hasMarkedInCall.current = true;
-    void socketService
-      .updateRequestStatus(requestId, userId, "in_call")
-      .catch((error) => {
-        console.warn("Unable to mark teleconsultation as in_call:", error);
-      });
+    if (requestStatus === "ready_for_call") {
+      hasMarkedInCall.current = true;
+      void socketService
+        .updateRequestStatus(requestId, userId, "in_call")
+        .catch((error) => {
+          console.warn("Unable to mark teleconsultation as in_call:", error);
+          hasMarkedInCall.current = false;
+        });
+    }
   }, [callingState, onJoined, requestId, requestStatus, role, userId]);
 
   return null;
@@ -157,7 +165,7 @@ export default function TeleconsultationCallScreen({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const joinedRef = useRef(false);
 
-  // iOS: preventScreenCapture blanks WebRTC video; lift it for the duration of the call
+  // Lift screenshot protection for the whole call lifecycle (restore on leave)
   useAllowScreenCaptureDuringCall();
 
   useEffect(() => {
@@ -181,6 +189,13 @@ export default function TeleconsultationCallScreen({
       try {
         setIsLoading(true);
         setErrorMessage(null);
+
+        // Wait until FLAG_SECURE / preventScreenCapture is cleared — otherwise
+        // Stream/WebRTC video tiles stay black ("blocked") on iOS and Android.
+        await pauseScreenCaptureForCall();
+        if (!isActive) {
+          return;
+        }
 
         const access = await getTeleconsultationCallAccess(requestId);
 
@@ -219,9 +234,10 @@ export default function TeleconsultationCallScreen({
         console.error("Failed to prepare teleconsultation call:", error);
         if (isActive) {
           setErrorMessage(
-            error?.response?.data?.message ||
-              error?.message ||
+            getUserFacingErrorMessage(
+              error,
               "We could not open the teleconsultation call right now.",
+            ),
           );
         }
       } finally {

@@ -19,8 +19,14 @@ import { ScreenCaptureProtection } from "../components/ScreenCaptureProtection";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { RouteProvider } from "../context/RouteContext";
 import {
+  flushPendingNotificationNavigation,
+  handleNotificationOpen,
+} from "../lib/notificationNavigation";
+import {
   addNotificationListeners,
   configureForegroundHandler,
+  getLastNotificationResponse,
+  getNotificationData,
 } from "../lib/pushNotifications";
 import { isExpoGoRuntime } from "../lib/isExpoGoRuntime";
 import { installGlobalViewErrorLogger } from "../lib/viewErrorLogger";
@@ -232,6 +238,20 @@ const ProtectedLayout = () => {
   const segments = useSegments();
   const router = useRouter();
   const [showIntroSplash, setShowIntroSplash] = useState(true);
+  const authRef = useRef({
+    isAuthenticated,
+    isLoading,
+    role: user?.role as string | undefined,
+  });
+  const handledColdStartRef = useRef(false);
+
+  useEffect(() => {
+    authRef.current = {
+      isAuthenticated,
+      isLoading,
+      role: user?.role,
+    };
+  }, [isAuthenticated, isLoading, user?.role]);
 
   // Hide the intro splash a short moment after auth state is known
   useEffect(() => {
@@ -243,6 +263,75 @@ const ProtectedLayout = () => {
 
     return () => clearTimeout(timeout);
   }, [isLoading]);
+
+  // Open the correct screen when a push notification is tapped (if logged in).
+  useEffect(() => {
+    if (isExpoGoRuntime()) return;
+
+    let isMounted = true;
+    const subscriptions: {
+      notificationSubscription?: { remove: () => void };
+      responseSubscription?: { remove: () => void };
+    } = {};
+
+    const openFromResponse = (
+      response: import("expo-notifications").NotificationResponse,
+    ) => {
+      const auth = authRef.current;
+      handleNotificationOpen({
+        data: getNotificationData(response),
+        isAuthenticated: auth.isAuthenticated,
+        userRole: auth.role,
+        router,
+      });
+    };
+
+    void (async () => {
+      await configureForegroundHandler();
+
+      const listeners = await addNotificationListeners({
+        onReceive: (notification) => {
+          console.log("📬 Foreground notification received:", notification);
+        },
+        onResponse: (response) => {
+          if (!isMounted) return;
+          openFromResponse(response);
+        },
+      });
+      subscriptions.notificationSubscription =
+        listeners.notificationSubscription;
+      subscriptions.responseSubscription = listeners.responseSubscription;
+
+      // Cold start: app launched by tapping a notification (once per app launch)
+      if (!handledColdStartRef.current) {
+        handledColdStartRef.current = true;
+        const lastResponse = await getLastNotificationResponse();
+        if (isMounted && lastResponse) {
+          openFromResponse(lastResponse);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+      subscriptions.notificationSubscription?.remove();
+      subscriptions.responseSubscription?.remove();
+    };
+  }, [router]);
+
+  // If the user tapped a notification before login finished restoring, navigate now.
+  // Delay slightly so the default role home redirect does not override the deep link.
+  useEffect(() => {
+    if (isLoading || !isAuthenticated) return;
+    const timeout = setTimeout(() => {
+      flushPendingNotificationNavigation({
+        isAuthenticated,
+        userRole: user?.role,
+        router,
+      });
+    }, 450);
+    return () => clearTimeout(timeout);
+  }, [isLoading, isAuthenticated, user?.role, router]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -328,57 +417,8 @@ const ProtectedLayout = () => {
 };
 
 export default function RootLayout() {
-  const notificationListener = useRef<{ remove: () => void } | undefined>(
-    undefined,
-  );
-  const responseListener = useRef<{ remove: () => void } | undefined>(
-    undefined,
-  );
-
   useEffect(() => {
     installGlobalViewErrorLogger();
-    let isMounted = true;
-
-    const setupNotifications = async () => {
-      if (isExpoGoRuntime()) {
-        return;
-      }
-
-      // Configure foreground notification display (banner + sound while app is open)
-      await configureForegroundHandler();
-
-      // Listen for notifications received while app is foregrounded
-      const subscriptions = await addNotificationListeners({
-        onReceive: (notification) => {
-          console.log("📬 Foreground notification received:", notification);
-        },
-        onResponse: (response) => {
-          const data = response.notification.request.content.data as Record<
-            string,
-            unknown
-          >;
-          console.log("👆 Notification tapped, data:", data);
-          // Future: navigate based on data.screen / data.requestId
-        },
-      });
-
-      if (!isMounted) {
-        subscriptions.notificationSubscription?.remove();
-        subscriptions.responseSubscription?.remove();
-        return;
-      }
-
-      notificationListener.current = subscriptions.notificationSubscription;
-      responseListener.current = subscriptions.responseSubscription;
-    };
-
-    void setupNotifications();
-
-    return () => {
-      isMounted = false;
-      notificationListener.current?.remove();
-      responseListener.current?.remove();
-    };
   }, []);
 
   return (

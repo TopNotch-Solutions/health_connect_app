@@ -44,10 +44,10 @@ See dependencies in [health-connect/package.json](../package.json).
     - Stores an active provider route context (e.g., current request being navigated to).
 - Networking:
   - Axios client: [health-connect/lib/api.ts](../lib/api.ts)
-    - Base URL: `https://apihealthconnect.kopanovertex.com/api` with 120s default timeout; 180s for file uploads; timeout error normalization.
+    - Base URL: `http://localhost:4000/api` with 120s default timeout; 180s for file uploads; timeout error normalization.
 - Realtime:
   - Socket service: [health-connect/lib/socket.ts](../lib/socket.ts)
-    - Connects to `https://apihealthconnect.kopanovertex.com`, supports `connect/join/disconnect`, ensures cleanup of event listeners on disconnect.
+    - Connects to `http://localhost:4000`, supports `connect/join/disconnect`, ensures cleanup of event listeners on disconnect.
     - Exposes helpers for creating requests, fetching available/patient requests, and subscribing to updates (e.g., `requestUpdated`, `newRequestAvailable`).
 - Screens (selection):
   - Onboarding Stack: [health-connect/app/(onboarding)/\_layout.tsx](<../app/(onboarding)/_layout.tsx>)
@@ -94,8 +94,8 @@ See dependencies in [health-connect/package.json](../package.json).
 
 ## Environment & Secrets
 
-- API base: [lib/api.ts](../lib/api.ts) currently points to `https://apihealthconnect.kopanovertex.com/api`.
-- Socket base: [lib/socket.ts](../lib/socket.ts) points to `https://apihealthconnect.kopanovertex.com`.
+- API base: [lib/api.ts](../lib/api.ts) currently points to `http://localhost:4000/api`.
+- Socket base: [lib/socket.ts](../lib/socket.ts) points to `http://localhost:4000`.
 - Google Maps API key is embedded in `app.json` for Android.
 
 Recommendations:

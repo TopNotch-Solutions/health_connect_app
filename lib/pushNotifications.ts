@@ -112,6 +112,33 @@ export async function addNotificationListeners(handlers: {
   };
 }
 
+/**
+ * Notification that launched the app from a cold start (app was killed).
+ */
+export async function getLastNotificationResponse(): Promise<
+  import("expo-notifications").NotificationResponse | null
+> {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications?.getLastNotificationResponseAsync) {
+    return null;
+  }
+  try {
+    return await Notifications.getLastNotificationResponseAsync();
+  } catch (error) {
+    console.warn("⚠️ Could not read last notification response:", error);
+    return null;
+  }
+}
+
+/** Extract the `data` object from a notification response. */
+export function getNotificationData(
+  response: import("expo-notifications").NotificationResponse | null | undefined,
+): Record<string, unknown> {
+  const raw = response?.notification?.request?.content?.data;
+  if (!raw || typeof raw !== "object") return {};
+  return raw as Record<string, unknown>;
+}
+
 // ─── Permission + token ──────────────────────────────────────────────────────
 /**
  * Requests notification permission from the OS and returns the Firebase/FCM

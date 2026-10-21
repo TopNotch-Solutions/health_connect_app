@@ -14,6 +14,7 @@ import {
 import { SCREEN_EDGES_TOP } from "../components/ScreenLayout";
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../lib/api';
+import { handleNotificationOpen } from '../lib/notificationNavigation';
 
 // --- Type Definition ---
 type NotificationType =
@@ -394,7 +395,17 @@ export default function NotificationsScreen() {
                         <NotificationCard
                             item={item}
                             onPress={() => {
-                                console.log('Notification tapped:', item._id);
+                                handleNotificationOpen({
+                                    data: {
+                                        type: item.type,
+                                        ...(item.data && typeof item.data === 'object'
+                                            ? item.data
+                                            : {}),
+                                    },
+                                    isAuthenticated: !!user?.userId,
+                                    userRole: user?.role,
+                                    router,
+                                });
                             }}
                             onDelete={() => deleteNotification(item._id)}
                         />
