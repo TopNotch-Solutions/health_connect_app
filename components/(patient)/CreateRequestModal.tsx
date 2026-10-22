@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import MapView, { Marker } from "react-native-maps";
+import { mapProviderProps } from "../../lib/map";
 import apiClient from "../../lib/api";
 import { AUTH_COLORS } from "../../lib/authScreenTheme";
 import { buildBackendAssetUrl } from "../../lib/backend";
@@ -45,7 +46,6 @@ export type PaymentMethod = "wallet" | "cash" | "medical_aid";
 export type MedicalAidDetailsPayload = {
   medicalAidId: string;
   medicalAidTitle?: string;
-  membershipNumber: string;
   mainMemberName: string;
   residentialAddress: string;
   postalAddress?: PostalAddressPayload;
@@ -103,7 +103,6 @@ export default function CreateRequestModal({
     { id: string; title: string; image?: string | null }[]
   >([]);
   const [selectedMedicalAidId, setSelectedMedicalAidId] = useState("");
-  const [membershipNumber, setMembershipNumber] = useState("");
   const [mainMemberName, setMainMemberName] = useState("");
   const [residentialAddress, setResidentialAddress] = useState("");
   const [isLoadingMedicalAids, setIsLoadingMedicalAids] = useState(false);
@@ -184,7 +183,6 @@ export default function CreateRequestModal({
       setLocationError(null);
       setPaymentMethod("cash");
       setSelectedMedicalAidId("");
-      setMembershipNumber("");
       setMainMemberName("");
       setResidentialAddress("");
       setShowPostalAddressModal(false);
@@ -357,10 +355,6 @@ export default function CreateRequestModal({
         Alert.alert("Required", "Please select a medical aid.");
         return;
       }
-      if (!membershipNumber.trim()) {
-        Alert.alert("Required", "Please enter your MAF / Membership number.");
-        return;
-      }
       if (!mainMemberName.trim()) {
         Alert.alert("Required", "Please enter the main member name.");
         return;
@@ -376,10 +370,10 @@ export default function CreateRequestModal({
       const selectedAid = medicalAids.find(
         (aid) => aid.id === selectedMedicalAidId,
       );
+      // MAF / ICD-10 are snapshotted server-side from the portal ICD-10 record.
       medicalAidDetails = {
         medicalAidId: selectedMedicalAidId,
         medicalAidTitle: selectedAid?.title,
-        membershipNumber: membershipNumber.trim(),
         mainMemberName: mainMemberName.trim(),
         residentialAddress: residentialAddress.trim(),
       };
@@ -724,8 +718,9 @@ export default function CreateRequestModal({
                 ) : showMap && mapRegion && markerCoord ? (
                   <View className="bg-gray-50 border border-gray-300 rounded-lg overflow-hidden h-64 mb-3">
                     <MapView
+                      {...mapProviderProps}
                       region={mapRegion}
-                      style={{ flex: 1 }}
+                      style={{ flex: 1, width: "100%", minHeight: 200 }}
                       onLayout={(event) => {
                         logViewMountDebug(
                           "CreateRequestModal",
@@ -1047,19 +1042,6 @@ export default function CreateRequestModal({
                   )}
 
                   <Text className="text-sm text-gray-700 mb-1 mt-4">
-                    MAF / Membership Number
-                  </Text>
-                  <TextInput
-                    style={withIosStandaloneTextInputStyle()}
-                    className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base"
-                    placeholder="Enter membership number"
-                    value={membershipNumber}
-                    onChangeText={setMembershipNumber}
-                    editable={!isLoading}
-                    autoCapitalize="characters"
-                  />
-
-                  <Text className="text-sm text-gray-700 mb-1 mt-4">
                     Main Member Name
                   </Text>
                   <TextInput
@@ -1107,7 +1089,7 @@ export default function CreateRequestModal({
                     </Text>
                     <Text style={appBottomSheetStyles.warningBannerBody}>
                       Your location will be shared with the healthcare provider
-                      who accepts your request. The request expires after 6
+                      who accepts your request. The request expires after 3
                       hours if not accepted.
                     </Text>
                   </View>

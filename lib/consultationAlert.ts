@@ -12,15 +12,14 @@ import {
   hapticRequestAccepted,
   hapticStatusChange,
 } from "./haptics";
+import { isProviderOnline } from "./providerOnline";
 
-// Metro asset module id (see app.d.ts for *.wav)
 const ALERT_SOUND = require("../assets/sounds/healthconnect_alert.wav") as number;
 
 type AlertPlayer = ReturnType<typeof createAudioPlayer>;
 
 export type ConsultationAlertRole = "patient" | "provider";
 
-/** Statuses that should ring + vibrate + speak when they change. */
 const ALERT_STATUSES = new Set([
   "accepted",
   "payment_pending",
@@ -75,62 +74,79 @@ const PROVIDER_VOICE: Record<string, string> = {
 const NEW_REQUEST_VOICE =
   "New healthcare request available. Please check your incoming requests.";
 
+const CONSULTATION_SUBMITTED_VOICE =
+  "Your consultation request has been submitted. Please wait while we find a healthcare provider for you.";
+
 let alertPlayer: AlertPlayer | null = null;
+let alertPlayerReady: Promise<AlertPlayer> | null = null;
 let audioReady = false;
 let lastAlertKey = "";
 let lastAlertAt = 0;
+/** Request IDs we already announced (socket + poll dedupe). */
+const announcedNewRequestIds = new Set<string>();
 
 async function ensureAudioMode(): Promise<void> {
   if (audioReady) return;
   try {
     await setAudioModeAsync({
       playsInSilentMode: true,
-      interruptionMode: "doNotMix",
+      interruptionMode: "mixWithOthers",
       shouldPlayInBackground: false,
+      allowsRecording: false,
     });
     audioReady = true;
   } catch {
-    // Audio mode may fail on web / simulators — still try to play.
+    // ignore
+  }
+}
+
+async function getAlertPlayer(): Promise<AlertPlayer> {
+  await ensureAudioMode();
+  if (alertPlayer) return alertPlayer;
+
+  if (!alertPlayerReady) {
+    alertPlayerReady = (async () => {
+      const player = createAudioPlayer(ALERT_SOUND, { downloadFirst: true });
+      // Give asset a moment without polling isLoaded (that crashed after release)
+      await new Promise((r) => setTimeout(r, 300));
+      alertPlayer = player;
+      return player;
+    })().catch((error) => {
+      alertPlayerReady = null;
+      alertPlayer = null;
+      throw error;
+    });
+  }
+
+  return alertPlayerReady;
+}
+
+export async function preloadConsultationAlertSound(): Promise<void> {
+  try {
+    await getAlertPlayer();
+  } catch (error) {
+    console.warn("⚠️ Consultation alert preload failed:", error);
   }
 }
 
 async function playAlertRing(): Promise<void> {
   try {
-    await ensureAudioMode();
-
-    if (alertPlayer) {
-      try {
-        alertPlayer.pause();
-        alertPlayer.remove();
-      } catch {
-        // ignore cleanup errors
-      }
-      alertPlayer = null;
-    }
-
-    const player = createAudioPlayer(ALERT_SOUND);
-    alertPlayer = player;
+    const player = await getAlertPlayer();
     player.volume = 1;
+    try {
+      await player.seekTo(0);
+    } catch {
+      // ignore
+    }
     player.play();
-
-    // Release after the chime finishes so we don't leak players
-    setTimeout(() => {
-      if (alertPlayer !== player) return;
-      try {
-        player.pause();
-        player.remove();
-      } catch {
-        // ignore
-      }
-      alertPlayer = null;
-    }, 4000);
   } catch (error) {
     console.warn("⚠️ Consultation alert sound failed:", error);
+    alertPlayer = null;
+    alertPlayerReady = null;
   }
 }
 
 function vibrateForStatus(status: string): void {
-  // Native vibration pattern — noticeable even in a pocket
   if (Platform.OS === "android") {
     if (STRONG_STATUSES.has(status)) {
       Vibration.vibrate([0, 400, 120, 400, 120, 400]);
@@ -138,7 +154,6 @@ function vibrateForStatus(status: string): void {
       Vibration.vibrate([0, 280, 100, 280, 100, 280]);
     }
   } else {
-    // iOS only supports a single short vibration via this API
     Vibration.vibrate();
   }
 }
@@ -151,17 +166,23 @@ async function hapticForStatus(status: string): Promise<void> {
   }
 }
 
-function speakAlert(message: string): void {
+/** Speak immediately — do not wait on the chime (expo-audio can block TTS). */
+function speakNow(message: string): void {
   try {
-    Speech.stop();
-    // Brief delay so the ringtone starts first, then the spoken message
-    setTimeout(() => {
-      Speech.speak(message, {
-        language: "en-GB",
-        pitch: 1.0,
-        rate: Platform.OS === "ios" ? 0.95 : 0.9,
-      });
-    }, 450);
+    void Speech.stop().catch(() => undefined);
+    Speech.speak(message, {
+      language: "en-US",
+      pitch: 1.0,
+      rate: Platform.OS === "ios" ? 0.94 : 0.9,
+      volume: 1.0,
+      ...(Platform.OS === "ios"
+        ? { useApplicationAudioSession: false }
+        : null),
+      onStart: () => console.log("🗣️ Voice alert started"),
+      onDone: () => console.log("🗣️ Voice alert finished"),
+      onError: (error) =>
+        console.warn("⚠️ Consultation voice alert failed:", error),
+    });
   } catch (error) {
     console.warn("⚠️ Consultation voice alert failed:", error);
   }
@@ -183,7 +204,6 @@ function shouldAlert(status: string, requestId?: string): boolean {
 
   const key = `${requestId || "unknown"}:${status}`;
   const now = Date.now();
-  // Deduplicate socket double-fires (requestUpdated + requestStatusChanged)
   if (key === lastAlertKey && now - lastAlertAt < 2500) {
     return false;
   }
@@ -192,11 +212,6 @@ function shouldAlert(status: string, requestId?: string): boolean {
   return true;
 }
 
-/**
- * Ring + vibrate + speak for a consultation status transition.
- * Safe to call from multiple listeners — duplicates are ignored briefly.
- * Pass role so patient and provider hear the correct spoken message.
- */
 export async function alertConsultationStatusChange(
   status: string,
   requestId?: string,
@@ -205,27 +220,80 @@ export async function alertConsultationStatusChange(
   if (!shouldAlert(status, requestId)) return;
 
   vibrateForStatus(status);
-  speakAlert(voiceForStatus(status, role));
-  await Promise.all([playAlertRing(), hapticForStatus(status)]);
+  speakNow(voiceForStatus(status, role));
+  void Promise.all([playAlertRing(), hapticForStatus(status)]);
+}
+
+export async function alertConsultationSubmitted(
+  requestId?: string,
+): Promise<void> {
+  const key = `submitted:${requestId || Date.now()}`;
+  const now = Date.now();
+  if (lastAlertKey.startsWith("submitted:") && now - lastAlertAt < 2000) {
+    return;
+  }
+  lastAlertKey = key;
+  lastAlertAt = now;
+
+  if (Platform.OS === "android") {
+    Vibration.vibrate([0, 280, 100, 280]);
+  } else {
+    Vibration.vibrate();
+  }
+  speakNow(CONSULTATION_SUBMITTED_VOICE);
+  void Promise.all([playAlertRing(), hapticStatusChange()]);
 }
 
 /**
  * Ring + vibrate + speak when a brand-new request appears for a provider.
+ * Pass requestId when known so socket + poll don't double-announce.
  */
-export async function alertNewRequestAvailable(): Promise<void> {
-  const key = `new-request:${Date.now()}`;
-  // Soft dedupe only for simultaneous double listeners within 1.5s
-  if (lastAlertKey.startsWith("new-request:") && Date.now() - lastAlertAt < 1500) {
+export async function alertNewRequestAvailable(
+  requestId?: string,
+): Promise<void> {
+  console.log("🔔 alertNewRequestAvailable called", {
+    requestId,
+    online: isProviderOnline(),
+  });
+
+  if (!isProviderOnline()) {
+    console.log("🔇 Skipping new-request alert — provider is offline");
     return;
   }
-  lastAlertKey = key;
-  lastAlertAt = Date.now();
+
+  if (requestId) {
+    const id = String(requestId);
+    if (announcedNewRequestIds.has(id)) {
+      console.log("🔇 Already announced request", id);
+      return;
+    }
+    announcedNewRequestIds.add(id);
+    // Bound memory
+    if (announcedNewRequestIds.size > 200) {
+      const first = announcedNewRequestIds.values().next().value;
+      if (first) announcedNewRequestIds.delete(first);
+    }
+  } else {
+    const now = Date.now();
+    if (
+      lastAlertKey.startsWith("new-request:") &&
+      now - lastAlertAt < 2000
+    ) {
+      return;
+    }
+    lastAlertKey = `new-request:${now}`;
+    lastAlertAt = now;
+  }
+
+  console.log("🗣️ Speaking provider new-request voice");
 
   if (Platform.OS === "android") {
     Vibration.vibrate([0, 400, 120, 400, 120, 400, 120, 400]);
   } else {
     Vibration.vibrate();
   }
-  speakAlert(NEW_REQUEST_VOICE);
-  await Promise.all([playAlertRing(), hapticNewRequest()]);
+
+  // Voice FIRST so it always plays even if the wav fails
+  speakNow(NEW_REQUEST_VOICE);
+  void Promise.all([playAlertRing(), hapticNewRequest()]);
 }

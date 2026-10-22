@@ -403,6 +403,8 @@ const ProtectedLayout = () => {
   // animation does not restart when isLoading flips.
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
+      {/* Protects every page except teleconsultation-call */}
+      <ScreenCaptureProtection />
       {showIntroSplash && <IntroSplash />}
       {!isLoading && (
         <Stack screenOptions={{ headerShown: false }}>
@@ -423,7 +425,6 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ScreenCaptureProtection />
       <Provider store={store}>
         <PersistGate loading={null} persistor={persistor}>
           <AuthProvider>

@@ -1,8 +1,5 @@
 import { useAuth } from "@/context/AuthContext";
-import {
-  pauseScreenCaptureForCall,
-  useAllowScreenCaptureDuringCall,
-} from "@/lib/screenCapture";
+import ProviderPrescriptionPanel from "@/components/(provider)/ProviderPrescriptionPanel";
 import socketService from "@/lib/socket";
 import {
   getTeleconsultationCallAccess,
@@ -18,11 +15,18 @@ import {
   useCall,
   useCallStateHooks,
 } from "@stream-io/video-react-native-sdk";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
+  type AppStateStatus,
+  InteractionManager,
+  Modal,
+  PermissionsAndroid,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -49,6 +53,31 @@ type CallStateWatcherProps = {
   onJoined: () => void;
 };
 
+async function ensureCallMediaPermissions(): Promise<boolean> {
+  if (Platform.OS !== "android") {
+    return true;
+  }
+
+  try {
+    const results = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.CAMERA,
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    ]);
+
+    const cameraGranted =
+      results[PermissionsAndroid.PERMISSIONS.CAMERA] ===
+      PermissionsAndroid.RESULTS.GRANTED;
+    const micGranted =
+      results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] ===
+      PermissionsAndroid.RESULTS.GRANTED;
+
+    return cameraGranted && micGranted;
+  } catch (error) {
+    console.warn("Unable to request call media permissions:", error);
+    return false;
+  }
+}
+
 /**
  * Joins the call only after StreamVideo/StreamCall have mounted.
  * Joining before the video views exist often leaves iOS RTCView black (0×0 layout).
@@ -74,6 +103,18 @@ function CallJoinController() {
 
     const join = async () => {
       try {
+        // Wait for layout to settle so RTCView is not 0×0 on first frame
+        await new Promise<void>((resolve) => {
+          InteractionManager.runAfterInteractions(() => resolve());
+        });
+
+        const permitted = await ensureCallMediaPermissions();
+        if (!permitted) {
+          console.warn("Camera/microphone permission denied for teleconsultation");
+          joinStartedRef.current = false;
+          return;
+        }
+
         await call.join({ create: true });
         // Explicitly publish A/V — iOS can stay muted/unpublished after permission prompts
         await Promise.allSettled([
@@ -89,12 +130,9 @@ function CallJoinController() {
     void join();
   }, [call, callingState]);
 
-  // If iOS briefly backgrounds during permission sheets, re-enable camera when active again
+  // Re-enable camera when returning to foreground (permission sheets / app switch)
   useEffect(() => {
-    if (Platform.OS !== "ios" || !call) {
-      return;
-    }
-    if (callingState !== CallingState.JOINED) {
+    if (!call || callingState !== CallingState.JOINED) {
       return;
     }
 
@@ -107,6 +145,15 @@ function CallJoinController() {
     };
 
     void reenable();
+
+    const onAppState = (next: AppStateStatus) => {
+      if (next === "active") {
+        void reenable();
+      }
+    };
+
+    const sub = AppState.addEventListener("change", onAppState);
+    return () => sub.remove();
   }, [call, callingState]);
 
   return null;
@@ -163,10 +210,15 @@ export default function TeleconsultationCallScreen({
   const [resources, setResources] = useState<StreamResources | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [prescriptionModalVisible, setPrescriptionModalVisible] =
+    useState(false);
+  const [liveRequestStatus, setLiveRequestStatus] = useState<string>("");
   const joinedRef = useRef(false);
 
-  // Lift screenshot protection for the whole call lifecycle (restore on leave)
-  useAllowScreenCaptureDuringCall();
+  const canIssueClinicalPrescription =
+    role === "provider" &&
+    (user?.role === "doctor" ||
+      (user?.role === "nurse" && !!user?.dispensingCertificateLicence));
 
   useEffect(() => {
     if (!requestId) {
@@ -190,13 +242,7 @@ export default function TeleconsultationCallScreen({
         setIsLoading(true);
         setErrorMessage(null);
 
-        // Wait until FLAG_SECURE / preventScreenCapture is cleared — otherwise
-        // Stream/WebRTC video tiles stay black ("blocked") on iOS and Android.
-        await pauseScreenCaptureForCall();
-        if (!isActive) {
-          return;
-        }
-
+        // Screenshot protection is off on this route (see ScreenCaptureProtection).
         const access = await getTeleconsultationCallAccess(requestId);
 
         if (!isActive) {
@@ -230,6 +276,7 @@ export default function TeleconsultationCallScreen({
           call: currentCall,
           access,
         });
+        setLiveRequestStatus(access.requestStatus || "");
       } catch (error: any) {
         console.error("Failed to prepare teleconsultation call:", error);
         if (isActive) {
@@ -268,10 +315,15 @@ export default function TeleconsultationCallScreen({
 
       void teardown();
     };
-  }, [requestId, role, user?.fullname, user?.profileImage, user?.userId]);
+    // Intentionally omit name/image — changing them mid-call would tear down Stream
+  }, [requestId, role, user?.userId]);
 
   const handleJoined = useCallback(() => {
     joinedRef.current = true;
+    // Upload rules allow in_call — treat joined video as consultation started
+    setLiveRequestStatus((prev) =>
+      prev === "ready_for_call" || !prev ? "in_call" : prev,
+    );
   }, []);
 
   const handleHangup = async () => {
@@ -350,10 +402,23 @@ export default function TeleconsultationCallScreen({
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Teleconsultation</Text>
-        <Text style={styles.headerSubtitle}>
-          Connected through secure video consultation
-        </Text>
+        <View style={styles.headerTextCol}>
+          <Text style={styles.headerTitle}>Teleconsultation</Text>
+          <Text style={styles.headerSubtitle}>
+            Connected through secure video consultation
+          </Text>
+        </View>
+        {canIssueClinicalPrescription ? (
+          <TouchableOpacity
+            style={styles.rxHeaderButton}
+            onPress={() => setPrescriptionModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Upload prescription"
+          >
+            <Feather name="file-text" size={18} color="#F8FAFC" />
+            <Text style={styles.rxHeaderButtonText}>Rx</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={styles.callShell}>
@@ -371,6 +436,45 @@ export default function TeleconsultationCallScreen({
           </StreamCall>
         </StreamVideo>
       </View>
+
+      {canIssueClinicalPrescription ? (
+        <Modal
+          visible={prescriptionModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setPrescriptionModalVisible(false)}
+        >
+          <View style={styles.rxModalBackdrop}>
+            <View style={styles.rxModalCard}>
+              <View style={styles.rxModalHeader}>
+                <Text style={styles.rxModalTitle}>Clinical prescription</Text>
+                <TouchableOpacity
+                  onPress={() => setPrescriptionModalVisible(false)}
+                  hitSlop={12}
+                >
+                  <Feather name="x" size={22} color="#0F172A" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.rxModalBody}
+              >
+                <ProviderPrescriptionPanel
+                  requestId={requestId}
+                  requestStatus={
+                    liveRequestStatus ||
+                    resources.access.requestStatus ||
+                    "in_call"
+                  }
+                  consultationCompletedAt={null}
+                  requestUpdatedAt={null}
+                  canIssue={canIssueClinicalPrescription}
+                />
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -387,6 +491,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#111827",
     borderBottomWidth: 1,
     borderBottomColor: "#1F2937",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  headerTextCol: {
+    flex: 1,
   },
   headerTitle: {
     color: "#F8FAFC",
@@ -398,10 +509,53 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
+  rxHeaderButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  rxHeaderButtonText: {
+    color: "#F8FAFC",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  rxModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+    justifyContent: "flex-end",
+  },
+  rxModalCard: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: "70%",
+    paddingBottom: 24,
+  },
+  rxModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  rxModalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  rxModalBody: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
   callShell: {
     flex: 1,
     backgroundColor: "#020617",
-    overflow: "hidden",
+    // Do not use overflow:"hidden" — it blanks Android WebRTC SurfaceViews
   },
   stateScreen: {
     flex: 1,

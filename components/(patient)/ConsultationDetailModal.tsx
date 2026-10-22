@@ -24,14 +24,6 @@ import {
 } from "../../lib/prescription";
 import PrescriptionViewerModal from "../PrescriptionViewerModal";
 
-/** First 2 + last 2 characters visible; middle replaced with *. */
-function maskMembershipNumber(value: string | null | undefined): string {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  if (raw.length <= 4) return "*".repeat(raw.length);
-  return `${raw.slice(0, 2)}${"*".repeat(raw.length - 4)}${raw.slice(-2)}`;
-}
-
 export interface HistoryItem {
   _id: string;
   ailment: string;
@@ -55,6 +47,7 @@ export interface HistoryItem {
     medicalAidTitle?: string;
     medicalAidImage?: string;
     membershipNumber?: string;
+    maf?: string;
     mainMemberName?: string;
     residentialAddress?: string;
     postalAddress?: {
@@ -134,7 +127,7 @@ const getStatusDescription = (item: HistoryItem) => {
     case "cancelled":
       return "Request was cancelled.";
     case "expired":
-      return "Request expired — no providers available.";
+      return "Request expired — please create a new request if you still need care.";
     case "rejected":
       return "Request was rejected.";
     default:
@@ -453,13 +446,23 @@ export default function ConsultationDetailModal({
                     </View>
                   </View>
                 ) : null}
-                {item.medicalAidDetails?.membershipNumber ? (
+                {item.medicalAidDetails?.icd10Code ? (
                   <DetailRow
                     icon="hash"
-                    label="MAF / Membership no."
-                    value={maskMembershipNumber(
-                      item.medicalAidDetails.membershipNumber,
-                    )}
+                    label="ICD-10"
+                    value={item.medicalAidDetails.icd10Code}
+                  />
+                ) : null}
+                {item.medicalAidDetails?.maf ||
+                item.medicalAidDetails?.membershipNumber ? (
+                  <DetailRow
+                    icon="hash"
+                    label="MAF"
+                    value={
+                      item.medicalAidDetails.maf ||
+                      item.medicalAidDetails.membershipNumber ||
+                      ""
+                    }
                   />
                 ) : null}
                 {item.medicalAidDetails?.mainMemberName ? (

@@ -27,6 +27,7 @@ import {
   setCachedAilmentCategories,
 } from "../../../lib/ailmentCache";
 import { iosInputIconSize, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import { alertConsultationSubmitted } from "../../../lib/consultationAlert";
 import { PrescriptionFile, uploadPrescription } from "../../../lib/prescription";
 import socketService from "../../../lib/socket";
 
@@ -167,7 +168,6 @@ export default function AilmentsScreen() {
     medicalAidDetails?: {
       medicalAidId: string;
       medicalAidTitle?: string;
-      membershipNumber: string;
       mainMemberName: string;
       residentialAddress: string;
     };
@@ -221,6 +221,8 @@ export default function AilmentsScreen() {
     if (requestData.prescriptionFile && requestId) {
       await uploadPrescription({ requestId, file: requestData.prescriptionFile });
     }
+
+    void alertConsultationSubmitted(requestId);
 
     setTimeout(() => {
       router.push("/(app)/(patient)/waiting-room");

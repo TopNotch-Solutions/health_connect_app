@@ -1,7 +1,10 @@
-import { useGlobalScreenCaptureProtection } from "../lib/screenCapture";
+import { useScreenCaptureProtectionOnAllPagesExceptCall } from "../lib/screenCapture";
 
-/** Mount once at the app root to block screenshots and screen recording. */
+/**
+ * Applies expo-screen-capture on all routes except teleconsultation-call.
+ * Mount once in the root layout — it follows the current pathname.
+ */
 export function ScreenCaptureProtection() {
-  useGlobalScreenCaptureProtection();
+  useScreenCaptureProtectionOnAllPagesExceptCall();
   return null;
 }

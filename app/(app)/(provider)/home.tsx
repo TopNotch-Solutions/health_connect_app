@@ -42,6 +42,10 @@ import {
 } from "../../../lib/consultationAlert";
 import { hapticActionConfirm } from "../../../lib/haptics";
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
+import {
+  providerOnlineStorageKey as onlineStorageKeyForUser,
+  setProviderOnline,
+} from "../../../lib/providerOnline";
 import socketService from "../../../lib/socket";
 import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
 import { logViewMountDebug } from "../../../lib/viewErrorLogger";
@@ -57,6 +61,7 @@ export default function ProviderHome() {
   const [incomingHasMore, setIncomingHasMore] = useState(false);
   const [incomingTotal, setIncomingTotal] = useState(0);
   const loadedIncomingCountRef = useRef(INCOMING_PAGE_SIZE);
+  const requestsRef = useRef<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [monthlyEarnings, setMonthlyEarnings] = useState(0);
   const [medicalAidEligible, setMedicalAidEligible] = useState(false);
@@ -71,8 +76,9 @@ export default function ProviderHome() {
 
   // Online/Offline toggle - provider can manually toggle, but only if verified
   const [isOnline, setIsOnline] = useState(false);
+  const onlineHydratedRef = useRef(false);
   const providerOnlineStorageKey = user?.userId
-    ? `provider-online-state-${user.userId}`
+    ? onlineStorageKeyForUser(user.userId)
     : null;
 
   const toggleOnline = () => {
@@ -84,11 +90,18 @@ export default function ProviderHome() {
       );
       return;
     }
-    setIsOnline((prev) => !prev);
+    setIsOnline((prev) => {
+      const next = !prev;
+      // Sync alert flag immediately so new-request voice isn't skipped
+      // while React is still flushing the Online UI state.
+      setProviderOnline(next);
+      return next;
+    });
   };
 
   // Load persisted online/offline state for this provider
   useEffect(() => {
+    onlineHydratedRef.current = false;
     const loadPersistedOnlineState = async () => {
       if (!providerOnlineStorageKey) return;
       try {
@@ -98,27 +111,38 @@ export default function ProviderHome() {
         // If verification is missing, always force offline
         if (!user?.isDocumentVerified) {
           setIsOnline(false);
+          setProviderOnline(false);
           await AsyncStorage.setItem(providerOnlineStorageKey, "false");
+          onlineHydratedRef.current = true;
           return;
         }
 
         setIsOnline(parsed);
+        setProviderOnline(parsed);
       } catch (error) {
         console.error("Error loading provider online state:", error);
+      } finally {
+        onlineHydratedRef.current = true;
       }
     };
 
     loadPersistedOnlineState();
   }, [providerOnlineStorageKey, user?.isDocumentVerified]);
 
-  // Persist online/offline state whenever it changes
+  // Persist online/offline state whenever it changes (also sync for voice alerts).
+  // Skip until hydrated so the default false does not wipe a saved Online state.
   useEffect(() => {
+    if (!onlineHydratedRef.current) return;
+
+    const effectiveOnline = isOnline && !!user?.isDocumentVerified;
+    setProviderOnline(effectiveOnline);
+
     const persistOnlineState = async () => {
       if (!providerOnlineStorageKey) return;
       try {
         await AsyncStorage.setItem(
           providerOnlineStorageKey,
-          String(isOnline && !!user?.isDocumentVerified),
+          String(effectiveOnline),
         );
       } catch (error) {
         console.error("Error persisting provider online state:", error);
@@ -128,6 +152,8 @@ export default function ProviderHome() {
   }, [isOnline, providerOnlineStorageKey, user?.isDocumentVerified]);
 
   const [selectedRequest, setSelectedRequest] = useState<null | any>(null);
+  // iOS blanks MapView if mounted in the same frame as the request Modal
+  const [showDetailMap, setShowDetailMap] = useState(false);
   const [providerLocation, setProviderLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -147,11 +173,27 @@ export default function ProviderHome() {
     handleRequestHidden?: (data: any) => void;
   }>({});
   const { startRoute } = useRoute();
-  const REQUESTS_REFRESH_INTERVAL_MS = 10000;
+  // Background sync only — sockets push new requests immediately.
+  const REQUESTS_REFRESH_INTERVAL_MS = 30000;
+  const hasLoadedRequestsOnceRef = useRef(false);
 
   useEffect(() => {
     latestProviderLocationRef.current = providerLocation;
   }, [providerLocation]);
+
+  useEffect(() => {
+    requestsRef.current = requests;
+  }, [requests]);
+
+  useEffect(() => {
+    if (!selectedRequest) {
+      setShowDetailMap(false);
+      return;
+    }
+    setShowDetailMap(false);
+    const timer = setTimeout(() => setShowDetailMap(true), 300);
+    return () => clearTimeout(timer);
+  }, [selectedRequest?._id]);
 
   const onboardingSteps: {
     id: number;
@@ -284,7 +326,7 @@ export default function ProviderHome() {
   // Define loadAvailableRequests before using it in useEffect
   const loadAvailableRequests = useCallback(async (
     locationOverride?: { latitude: number; longitude: number } | null,
-    options?: { append?: boolean },
+    options?: { append?: boolean; silent?: boolean },
   ) => {
     if (!user?.userId) {
       console.log("⚠️ No userId, skipping request load");
@@ -305,6 +347,9 @@ export default function ProviderHome() {
     }
 
     const append = Boolean(options?.append);
+    // Background polls / focus refreshes stay silent so the list doesn't flicker.
+    const silent =
+      Boolean(options?.silent) || hasLoadedRequestsOnceRef.current;
 
     if (append) {
       if (isLoadingMoreRequestsRef.current || isLoadingRequestsRef.current) {
@@ -317,13 +362,15 @@ export default function ProviderHome() {
       return;
     } else {
       isLoadingRequestsRef.current = true;
-      setIsLoadingRequests(true);
+      if (!silent) {
+        setIsLoadingRequests(true);
+      }
     }
 
     console.log(
       "📥 Starting to load available requests for provider:",
       user.userId,
-      append ? "(load more)" : "(refresh)",
+      append ? "(load more)" : silent ? "(background)" : "(refresh)",
     );
 
     try {
@@ -365,13 +412,49 @@ export default function ProviderHome() {
           { page: 1, limit: refreshLimit },
         );
         const items = Array.isArray(result.requests) ? result.requests : [];
-        setRequests(items);
+        const previousIds = new Set(
+          (requestsRef.current || []).map((row) => String(row?._id)),
+        );
+        const newIds = items
+          .map((row) => String(row?._id))
+          .filter((id) => id && !previousIds.has(id));
+        const discoveredNew =
+          silent &&
+          hasLoadedRequestsOnceRef.current &&
+          newIds.length > 0;
+
+        setRequests((prev) => {
+          // Avoid re-render flicker when nothing meaningful changed
+          if (
+            prev.length === items.length &&
+            prev.every((row, index) => {
+              const next = items[index];
+              return (
+                String(row?._id) === String(next?._id) &&
+                row?.status === next?.status
+              );
+            })
+          ) {
+            return prev;
+          }
+          return items;
+        });
+        requestsRef.current = items;
         loadedIncomingCountRef.current = Math.max(
           INCOMING_PAGE_SIZE,
           items.length,
         );
         setIncomingHasMore(Boolean(result.pagination?.hasMore));
         setIncomingTotal(Number(result.pagination?.total) || items.length);
+        hasLoadedRequestsOnceRef.current = true;
+
+        // Keep socket GPS fresh so backend can push newRequestAvailable
+        socketService.syncProviderSocketLocation(currentProviderLocation);
+
+        // Socket push can miss while poll still shows the job — announce new IDs.
+        if (discoveredNew) {
+          void alertNewRequestAvailable(newIds[0]);
+        }
       }
     } catch (error: any) {
       console.error("❌ Error loading requests:", error);
@@ -473,11 +556,14 @@ export default function ProviderHome() {
       // Clean up when going offline
       console.log("📴 Provider went offline, cleaning up socket listeners");
       setRequests([]);
+      requestsRef.current = [];
       setIncomingHasMore(false);
       setIncomingTotal(0);
       loadedIncomingCountRef.current = INCOMING_PAGE_SIZE;
+      hasLoadedRequestsOnceRef.current = false;
       isLoadingRequestsRef.current = false;
       isLoadingMoreRequestsRef.current = false;
+      setIsLoadingRequests(false);
       setIsLoadingMoreRequests(false);
       socketConnectedRef.current = false;
 
@@ -618,15 +704,15 @@ export default function ProviderHome() {
       loadMonthlyEarnings();
       loadMedicalAidEligibility();
 
-      // If online, refresh requests to get latest state (only if not already loading)
+      // If online, silently refresh requests in the background
       if (isOnline && user?.userId && !isLoadingRequestsRef.current) {
-        console.log("🔄 Provider is online, refreshing requests on focus");
+        console.log("🔄 Provider is online, background refresh on focus");
         const socket = socketService.getSocket();
         if (socket?.connected) {
           // Small delay to ensure socket is ready
           setTimeout(() => {
             if (!isLoadingRequestsRef.current) {
-              loadAvailableRequests();
+              loadAvailableRequests(undefined, { silent: true });
             }
           }, 300);
         } else {
@@ -669,14 +755,14 @@ export default function ProviderHome() {
     isOnline,
   ]);
 
-  // Auto-refresh available requests every 10 seconds while the provider is online.
+  // Silent background sync while online — does not show the loading card.
   useEffect(() => {
     if (!isOnline || !user?.userId) return;
 
     const intervalId = setInterval(() => {
       if (!isLoadingRequestsRef.current) {
-        console.log("⏱️ 10-second interval refresh triggered");
-        loadAvailableRequests();
+        console.log("⏱️ Background consultation sync");
+        loadAvailableRequests(undefined, { silent: true });
       }
     }, REQUESTS_REFRESH_INTERVAL_MS);
 
@@ -731,24 +817,26 @@ export default function ProviderHome() {
       }
 
       socketListenersSetupRef.current = true;
+      // Ensure voice alerts are armed whenever realtime listeners are live
+      setProviderOnline(true);
       console.log(
         "🔔 Setting up real-time socket listeners for provider (ONLINE mode)",
       );
 
       // Handle new requests coming in real-time
       const handleNewRequest = (request: any) => {
-        if (!isOnline) return; // Ignore if went offline
         console.log("✅ New request received in real-time:", request);
+
+        // Always ring outside setState — React may re-run updaters and skip side effects
+        void alertNewRequestAvailable(request?._id);
+
         setRequests((prev) => {
-          // Check if request already exists to avoid duplicates
-          const exists = prev.some((req) => req._id === request._id);
-          if (exists) {
-            console.log("⚠️ Request already exists, skipping duplicate");
+          if (prev.some((req) => String(req._id) === String(request._id))) {
             return prev;
           }
-          // Ring + vibrate for a new incoming request
-          void alertNewRequestAvailable();
-          return [request, ...prev];
+          const next = [request, ...prev];
+          requestsRef.current = next;
+          return next;
         });
       };
 
@@ -1753,48 +1841,58 @@ export default function ProviderHome() {
                     </View>
 
                     <View className="rounded-xl overflow-hidden h-48 bg-gray-100 border-2 border-[#BBF7D0]">
-                      <MapView
-                        style={styles.map}
-                        pointerEvents="auto"
-                        scrollEnabled
-                        zoomEnabled
-                        rotateEnabled
-                        pitchEnabled
-                        initialRegion={{
-                          latitude: coords.latitude,
-                          longitude: coords.longitude,
-                          latitudeDelta: 0.01,
-                          longitudeDelta: 0.01,
-                        }}
-                        onLayout={(event) => {
-                          logViewMountDebug(
-                            "ProviderHomeRequestModal",
-                            "MapView layout",
-                            {
-                              layout: event.nativeEvent.layout,
-                              requestId: selectedRequest._id,
-                              coords,
-                            },
-                          );
-                        }}
-                        onMapReady={() => {
-                          logViewMountDebug(
-                            "ProviderHomeRequestModal",
-                            "MapView ready",
-                            {
-                              requestId: selectedRequest._id,
-                              coords,
-                            },
-                          );
-                        }}
-                        provider={MAP_PROVIDER}
-                      >
-                        <Marker
-                          coordinate={coords}
-                          title={selectedRequest.patientId?.fullname}
-                          description={selectedRequest.ailmentCategory}
-                        />
-                      </MapView>
+                      {showDetailMap ? (
+                        <MapView
+                          style={styles.map}
+                          pointerEvents="auto"
+                          scrollEnabled
+                          zoomEnabled
+                          rotateEnabled={false}
+                          pitchEnabled={false}
+                          provider={MAP_PROVIDER}
+                          initialRegion={{
+                            latitude: coords.latitude,
+                            longitude: coords.longitude,
+                            latitudeDelta: 0.01,
+                            longitudeDelta: 0.01,
+                          }}
+                          onLayout={(event) => {
+                            logViewMountDebug(
+                              "ProviderHomeRequestModal",
+                              "MapView layout",
+                              {
+                                layout: event.nativeEvent.layout,
+                                requestId: selectedRequest._id,
+                                coords,
+                              },
+                            );
+                          }}
+                          onMapReady={() => {
+                            logViewMountDebug(
+                              "ProviderHomeRequestModal",
+                              "MapView ready",
+                              {
+                                requestId: selectedRequest._id,
+                                coords,
+                              },
+                            );
+                          }}
+                        >
+                          <Marker
+                            coordinate={coords}
+                            title={selectedRequest.patientId?.fullname}
+                            description={selectedRequest.ailmentCategory}
+                            pinColor={AUTH_COLORS.green}
+                          />
+                        </MapView>
+                      ) : (
+                        <View className="flex-1 items-center justify-center h-48">
+                          <ActivityIndicator
+                            size="small"
+                            color={AUTH_COLORS.green}
+                          />
+                        </View>
+                      )}
                     </View>
                   </View>
                 );
@@ -2137,7 +2235,8 @@ const styles = StyleSheet.create({
     color: AUTH_COLORS.green,
   },
   map: {
-    ...StyleSheet.absoluteFill,
+    width: "100%",
+    height: "100%",
   },
   modalOverlay: {
     flex: 1,

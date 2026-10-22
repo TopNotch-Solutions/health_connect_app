@@ -98,26 +98,32 @@ export default function ProviderRouteModal({
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
+  // iOS often paints a blank MapView if mounted in the same frame as Modal
+  const [showMap, setShowMap] = useState(Platform.OS !== "ios");
   const [isCancelling, setIsCancelling] = useState(false);
   const [, setLastSpeechTime] = useState<number>(0);
   const [mapReady, setMapReady] = useState(false);
 
+  // Mount map once when the modal opens — do NOT remount on GPS updates
+  // (providerLocation changes constantly and was blanking the iOS map).
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      setShowMap(false);
+      setMapReady(false);
+      return;
+    }
 
-    logViewMountDebug("ProviderRouteModal", "rendering route map", {
-      patientLocation,
-      providerLocation,
-      hasPatientProfileImage: Boolean(patientProfileImage),
+    logViewMountDebug("ProviderRouteModal", "opening route map", {
+      hasPatientLocation: Boolean(patientLocation),
       hasProviderProfileImage: Boolean(providerProfileImage),
     });
-  }, [
-    visible,
-    patientLocation,
-    providerLocation,
-    patientProfileImage,
-    providerProfileImage,
-  ]);
+
+    // Defer MapView until the modal layout is ready (especially iOS)
+    setShowMap(false);
+    const timer = setTimeout(() => setShowMap(true), Platform.OS === "ios" ? 350 : 50);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only remount when modal visibility changes
+  }, [visible]);
 
   // Stop speech when modal closes
   useEffect(() => {
@@ -553,6 +559,7 @@ export default function ProviderRouteModal({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
+        {showMap ? (
         <MapView
           onLayout={(event) => {
             logViewMountDebug("ProviderRouteModal", "MapView layout", {
@@ -571,7 +578,7 @@ export default function ProviderRouteModal({
           provider={MAP_PROVIDER}
           showsUserLocation
           followsUserLocation={false}
-          showsMyLocationButton
+          showsMyLocationButton={Platform.OS === "android"}
           initialRegion={initialRegion}
         >
           {/* ✅ Only render marker if coordinate is valid */}
@@ -731,6 +738,12 @@ export default function ProviderRouteModal({
             </View>
           </Marker>
         </MapView>
+        ) : (
+          <View style={[styles.map, styles.mapLoading]}>
+            <ActivityIndicator size="large" color={AUTH_COLORS.green} />
+            <Text style={styles.mapLoadingText}>Loading map…</Text>
+          </View>
+        )}
 
         <SafeAreaView style={styles.topBar} edges={["top"]} pointerEvents="box-none">
           <TouchableOpacity
@@ -930,8 +943,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: AUTH_COLORS.bg,
   },
+  mapLoading: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+    gap: 10,
+  },
+  mapLoadingText: {
+    color: "#6B7280",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
+    width: "100%",
   },
   topBar: {
     position: "absolute",

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 let MapViewDirections: any = null;
 
-import { generateMarkersFromProviders, calculateRegion, calculateProviderTimes } from '../../lib/map';
+import { generateMarkersFromProviders, calculateRegion, calculateProviderTimes, mapProviderProps } from '../../lib/map';
 import { logViewMountDebug, logViewMountWarning } from '../../lib/viewErrorLogger';
 import { MarkerData, Provider } from '../../types';
 import { GOOGLE_MAPS_API_KEY as directionsAPI } from '../../lib/googleMaps';
@@ -55,7 +55,7 @@ const ProviderMap = ({ userLatitude, userLongitude, destinationLatitude, destina
 
   return (
     <MapView
-      provider={PROVIDER_DEFAULT}
+      {...mapProviderProps}
       style={{ width: '100%', height: '100%' }}
       initialRegion={region}
       onLayout={(event) => {

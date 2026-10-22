@@ -139,6 +139,7 @@ class SocketService {
       | "physiotherapist"
       | "social worker"
       | "pharmacist",
+    providerLocation?: { latitude: number; longitude: number } | null,
   ) {
     if (!this.socket?.connected) {
       console.error("Socket not connected when trying to join");
@@ -157,13 +158,47 @@ class SocketService {
     }
 
     this.userRole = normalizedRole;
+    const payload: {
+      userId: string;
+      role: string;
+      providerLocation?: { latitude: number; longitude: number };
+    } = { userId, role: normalizedRole };
+    if (
+      providerLocation &&
+      typeof providerLocation.latitude === "number" &&
+      typeof providerLocation.longitude === "number"
+    ) {
+      payload.providerLocation = providerLocation;
+    }
     console.log(
       "📤 Emitting join event with userId:",
       userId,
       "role:",
       normalizedRole,
+      "hasLocation:",
+      Boolean(payload.providerLocation),
     );
-    this.socket.emit("join", { userId, role: normalizedRole });
+    this.socket.emit("join", payload);
+  }
+
+  /**
+   * Keep server-side socket.providerLocation fresh for newRequestAvailable.
+   * Named separately from updateProviderLocation(requestId, ...) used during routes.
+   */
+  syncProviderSocketLocation(location: {
+    latitude: number;
+    longitude: number;
+  }): void {
+    if (!this.socket?.connected) return;
+    if (
+      typeof location?.latitude !== "number" ||
+      typeof location?.longitude !== "number"
+    ) {
+      return;
+    }
+    this.socket.emit("updateProviderLocation", {
+      providerLocation: location,
+    });
   }
 
   disconnect() {
@@ -232,7 +267,6 @@ class SocketService {
     medicalAidDetails?: {
       medicalAidId: string;
       medicalAidTitle?: string;
-      membershipNumber: string;
       mainMemberName: string;
       residentialAddress: string;
       postalAddress?: {

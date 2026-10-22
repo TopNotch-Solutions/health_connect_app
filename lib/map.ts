@@ -1,15 +1,24 @@
 import { Platform } from "react-native";
-import { PROVIDER_DEFAULT, PROVIDER_GOOGLE } from "react-native-maps";
+import { PROVIDER_GOOGLE, type Provider as MapProvider } from "react-native-maps";
 import { MarkerData, Provider } from '../types';
 import { GOOGLE_MAPS_API_KEY as directionsAPI } from './googleMaps';
 
 /**
- * Use Apple Maps on iOS (always available). Google Maps on Android.
- * Forcing PROVIDER_GOOGLE on iOS blanks the map when the Google Maps iOS
- * SDK / GMSApiKey are not wired through the react-native-maps config plugin.
+ * Use Apple Maps on iOS (always available in Expo Go + native builds).
+ * Google Maps on Android.
+ *
+ * Important: pass `undefined` on iOS — do not force PROVIDER_GOOGLE.
+ * Google on iOS blanks the map unless a correctly restricted Maps SDK for iOS
+ * key is baked in via the react-native-maps config plugin + a new native build.
  */
-export const MAP_PROVIDER =
-  Platform.OS === "android" ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
+export const MAP_PROVIDER: MapProvider | undefined =
+  Platform.OS === "android"
+    ? (PROVIDER_GOOGLE as MapProvider)
+    : undefined;
+
+/** Spread onto MapView so iOS omits provider entirely (Apple Maps). */
+export const mapProviderProps: Partial<{ provider: MapProvider }> =
+  MAP_PROVIDER != null ? { provider: MAP_PROVIDER } : {};
 
 export const generateMarkersFromProviders = ({
   data,

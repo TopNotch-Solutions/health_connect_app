@@ -62,6 +62,7 @@ type MedicalAidConsultation = {
     medicalAidTitle?: string;
     medicalAidImage?: string;
     membershipNumber?: string;
+    maf?: string;
     mainMemberName?: string;
     residentialAddress?: string;
     icd10Code?: string;
@@ -175,10 +176,10 @@ export default function ProviderMedicalAidScreen() {
     const details = item.medicalAidDetails;
     if (!details) return false;
     return Boolean(
-      details.membershipNumber ||
+      details.icd10Code ||
         details.medicalAidId ||
         details.medicalAidTitle ||
-        details.icd10Code,
+        details.membershipNumber,
     );
   }, []);
 
@@ -841,8 +842,14 @@ function ConsultationClaimCard({
             numberOfLines={1}
           >
             {aidTitle}
-            {item.medicalAidDetails?.membershipNumber
-              ? ` · MAF ${item.medicalAidDetails.membershipNumber}`
+            {item.medicalAidDetails?.maf ||
+            item.medicalAidDetails?.membershipNumber ||
+            item.medicalAidDetails?.icd10Code
+              ? ` · MAF ${
+                  item.medicalAidDetails.maf ||
+                  item.medicalAidDetails.membershipNumber ||
+                  item.medicalAidDetails.icd10Code
+                }`
               : ""}
           </Text>
         </View>
@@ -876,6 +883,15 @@ function ConsultationClaimCard({
           icon="hash"
           label="ICD-10"
           value={item.medicalAidDetails?.icd10Code || "—"}
+        />
+        <MetaRow
+          icon="hash"
+          label="MAF"
+          value={
+            item.medicalAidDetails?.maf ||
+            item.medicalAidDetails?.membershipNumber ||
+            "—"
+          }
         />
         <MetaRow icon="calendar" label="Date" value={formatDate(dateValue)} />
         <MetaRow

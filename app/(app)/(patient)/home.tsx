@@ -35,6 +35,7 @@ import { buildBackendAssetUrl } from "../../../lib/backend";
 import { getLocationCoordinates } from "../../../lib/geocoding";
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 import { PrescriptionFile, uploadPrescription } from "../../../lib/prescription";
+import { alertConsultationSubmitted } from "../../../lib/consultationAlert";
 import socketService from "../../../lib/socket";
 import { AUTH_COLORS } from "../../../lib/authScreenTheme";
 import { appBottomSheetStyles, appModalBottomSheetStyles } from "../../../components/app/AppBottomSheetUI";
@@ -588,7 +589,6 @@ export default function PatientHomeScreen() {
     medicalAidDetails?: {
       medicalAidId: string;
       medicalAidTitle?: string;
-      membershipNumber: string;
       mainMemberName: string;
       residentialAddress: string;
     };
@@ -691,6 +691,8 @@ export default function PatientHomeScreen() {
 
       console.log("✅ Request created successfully:", request);
       console.log("🔄 Navigating to waiting room...");
+
+      void alertConsultationSubmitted(requestId);
 
       // Navigate to waiting room immediately after successful request creation
       // Use setTimeout to ensure modal closes first

@@ -6,9 +6,6 @@
  * fallbacks, so builds keep working until the env vars are set everywhere
  * (locally in .env, and as EAS secrets for cloud builds).
  *
- * Once the key has been rotated, clear the literals from app.json and rely on
- * the environment alone.
- *
  * These variables are deliberately NOT prefixed with EXPO_PUBLIC_. They
  * configure the native build only and must never be inlined into the JS
  * bundle. The JS-side Directions key is separate — see lib/googleMaps.ts.
@@ -27,20 +24,46 @@ module.exports = ({ config }) => {
     process.env.GOOGLE_MAPS_ANDROID_KEY ||
     config.android?.config?.googleMaps?.apiKey;
 
-  // Falls back to the Android key so iOS maps render instead of showing blank
-  // tiles. Give iOS its own bundle-restricted key before shipping there.
+  // Falls back to the Android key so iOS Google Maps can render when used.
+  // Apple Maps (default on iOS in JS) does not need this key.
   const iosMapsKey = process.env.GOOGLE_MAPS_IOS_KEY || androidMapsKey;
 
-  // react-native-maps takes its own copy of the Android key.
+  let hasMapsPlugin = false;
   const plugins = (config.plugins || []).map((plugin) => {
     if (Array.isArray(plugin) && plugin[0] === "react-native-maps") {
+      hasMapsPlugin = true;
       return [
         "react-native-maps",
-        { ...plugin[1], androidGoogleMapsApiKey: androidMapsKey },
+        {
+          ...(plugin[1] || {}),
+          androidGoogleMapsApiKey: androidMapsKey,
+          iosGoogleMapsApiKey: iosMapsKey,
+        },
+      ];
+    }
+    if (plugin === "react-native-maps") {
+      hasMapsPlugin = true;
+      return [
+        "react-native-maps",
+        {
+          androidGoogleMapsApiKey: androidMapsKey,
+          iosGoogleMapsApiKey: iosMapsKey,
+        },
       ];
     }
     return plugin;
   });
+
+  // Required on Expo SDK 53+ — without this plugin iOS maps often stay blank.
+  if (!hasMapsPlugin) {
+    plugins.push([
+      "react-native-maps",
+      {
+        androidGoogleMapsApiKey: androidMapsKey,
+        iosGoogleMapsApiKey: iosMapsKey,
+      },
+    ]);
+  }
 
   return {
     ...config,

@@ -13,6 +13,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera for secure teleconsultations.",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone for secure teleconsultations.",
+        "NSLocationWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to use your location to connect you with nearby healthcare providers and show maps.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to use your location to connect you with nearby healthcare providers.",
         "UIBackgroundModes": [
           "audio",
           "remote-notification"
@@ -121,7 +123,14 @@
       "expo-status-bar",
       "expo-web-browser",
       "expo-sharing",
-      "expo-audio"
+      "expo-audio",
+      [
+        "react-native-maps",
+        {
+          "androidGoogleMapsApiKey": "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg",
+          "iosGoogleMapsApiKey": "AIzaSyDB4Yr4oq_ePtBKd8_HZSEd0_xi-UId6Fg"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

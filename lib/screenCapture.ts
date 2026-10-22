@@ -1,8 +1,9 @@
 import * as ScreenCapture from "expo-screen-capture";
+import { usePathname } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 
-export const SCREEN_CAPTURE_PROTECTION_KEY = "health-connect-global";
+export const SCREEN_CAPTURE_PROTECTION_KEY = "health-connect-page";
 
 async function isScreenCaptureAvailable(): Promise<boolean> {
   if (Platform.OS === "web") {
@@ -15,12 +16,46 @@ async function isScreenCaptureAvailable(): Promise<boolean> {
   }
 }
 
+async function enableProtection(): Promise<void> {
+  const available = await isScreenCaptureAvailable();
+  if (!available) {
+    return;
+  }
+
+  await ScreenCapture.preventScreenCaptureAsync(SCREEN_CAPTURE_PROTECTION_KEY);
+  if (Platform.OS === "ios") {
+    await ScreenCapture.enableAppSwitcherProtectionAsync(0.75);
+  }
+}
+
+async function disableProtection(): Promise<void> {
+  const available = await isScreenCaptureAvailable();
+  if (!available) {
+    return;
+  }
+
+  await ScreenCapture.allowScreenCaptureAsync(SCREEN_CAPTURE_PROTECTION_KEY);
+  if (Platform.OS === "ios") {
+    await ScreenCapture.disableAppSwitcherProtectionAsync();
+  }
+}
+
+/** True on the Stream video call screen — no screenshot protection there. */
+export function isTeleconsultationCallRoute(pathname: string | null): boolean {
+  if (!pathname) {
+    return false;
+  }
+  return pathname.includes("teleconsultation-call");
+}
+
 /**
- * Blocks screenshots and screen recording for the whole app (iOS 13+, Android).
- * Prefer this over a permanent Activity FLAG_SECURE so video calls can lift
- * protection without fighting native window flags.
+ * Blocks screenshots / screen recording on every page except the
+ * teleconsultation video call screen (WebRTC must not run under preventScreenCapture).
  */
-export function useGlobalScreenCaptureProtection(): void {
+export function useScreenCaptureProtectionOnAllPagesExceptCall(): void {
+  const pathname = usePathname();
+  const onVideoCall = isTeleconsultationCallRoute(pathname);
+
   useEffect(() => {
     if (Platform.OS === "web") {
       return;
@@ -30,99 +65,24 @@ export function useGlobalScreenCaptureProtection(): void {
 
     (async () => {
       try {
-        const available = await isScreenCaptureAvailable();
-        if (!available || cancelled) {
+        if (cancelled) {
           return;
         }
-
-        await ScreenCapture.preventScreenCaptureAsync(
-          SCREEN_CAPTURE_PROTECTION_KEY,
-        );
-
-        if (Platform.OS === "ios") {
-          await ScreenCapture.enableAppSwitcherProtectionAsync(0.75);
+        if (onVideoCall) {
+          await disableProtection();
+        } else {
+          await enableProtection();
         }
       } catch (error) {
-        console.warn("Screen capture protection unavailable:", error);
+        console.warn("Screen capture protection update failed:", error);
       }
     })();
 
     return () => {
       cancelled = true;
-      void ScreenCapture.allowScreenCaptureAsync(SCREEN_CAPTURE_PROTECTION_KEY);
-      if (Platform.OS === "ios") {
-        void ScreenCapture.disableAppSwitcherProtectionAsync();
-      }
+      // Clear on route change / unmount so the next screen can set the right state
+      // (especially when entering teleconsultation-call).
+      void disableProtection();
     };
-  }, []);
-}
-
-/** Lift screenshot / app-switcher protection so WebRTC video can render. */
-export async function pauseScreenCaptureForCall(): Promise<void> {
-  if (Platform.OS === "web") {
-    return;
-  }
-
-  try {
-    const available = await isScreenCaptureAvailable();
-    if (!available) {
-      return;
-    }
-
-    await ScreenCapture.allowScreenCaptureAsync(SCREEN_CAPTURE_PROTECTION_KEY);
-    if (Platform.OS === "ios") {
-      await ScreenCapture.disableAppSwitcherProtectionAsync();
-    }
-  } catch (error) {
-    console.warn("Unable to pause screen capture for video call:", error);
-  }
-}
-
-/** Re-apply screenshot / app-switcher protection after a call ends. */
-export async function resumeScreenCaptureAfterCall(): Promise<void> {
-  if (Platform.OS === "web") {
-    return;
-  }
-
-  try {
-    const available = await isScreenCaptureAvailable();
-    if (!available) {
-      return;
-    }
-
-    await ScreenCapture.preventScreenCaptureAsync(
-      SCREEN_CAPTURE_PROTECTION_KEY,
-    );
-    if (Platform.OS === "ios") {
-      await ScreenCapture.enableAppSwitcherProtectionAsync(0.75);
-    }
-  } catch (error) {
-    console.warn(
-      "Unable to restore screen capture protection after call:",
-      error,
-    );
-  }
-}
-
-/**
- * Temporarily lifts global screenshot / app-switcher protection.
- * Required during WebRTC video calls — preventScreenCapture blanks
- * RTCView streams (black / blocked video) while protection is active.
- */
-export function useAllowScreenCaptureDuringCall(): void {
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      if (cancelled) {
-        return;
-      }
-      await pauseScreenCaptureForCall();
-    })();
-
-    return () => {
-      cancelled = true;
-      void resumeScreenCaptureAfterCall();
-    };
-  }, []);
+  }, [onVideoCall]);
 }

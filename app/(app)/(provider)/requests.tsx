@@ -102,6 +102,7 @@ export default function ProviderRequests() {
     "all" | "pending" | "accepted" | "completed"
   >("all");
   const [requests, setRequests] = useState<Request[]>([]);
+  const requestsRef = useRef<Request[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<{
     requestId: string;
@@ -175,6 +176,10 @@ export default function ProviderRequests() {
     }
   };
   const hasLoadedOnce = useRef(false);
+
+  useEffect(() => {
+    requestsRef.current = requests;
+  }, [requests]);
 
   const loadRequests = useCallback(async () => {
     if (!user?.userId) {
@@ -266,12 +271,43 @@ export default function ProviderRequests() {
       liveRequests.forEach((r) => merged.set(r._id, r));
       historyRequests.forEach((r) => merged.set(r._id, r));
 
-      console.log("✅ Merged requests:", merged.size, {
+      const nextRequests = Array.from(merged.values());
+      console.log("✅ Merged requests:", nextRequests.length, {
         available: available.length,
         assigned: liveRequests.length,
         history: historyRequests.length,
       });
-      setRequests(Array.from(merged.values()));
+
+      const previous = requestsRef.current;
+      if (hasLoadedOnce.current) {
+        const prevIds = new Set(previous.map((row) => String(row._id)));
+        const discoveredSearching = nextRequests.some(
+          (row) =>
+            row.status === "searching" && !prevIds.has(String(row._id)),
+        );
+        if (discoveredSearching) {
+          const newSearching = nextRequests.find(
+            (row) =>
+              row.status === "searching" && !prevIds.has(String(row._id)),
+          );
+          void alertNewRequestAvailable(newSearching?._id);
+        }
+      }
+
+      setRequests((prev) => {
+        // Keep the existing list mounted when background sync finds no changes
+        if (
+          prev.length === nextRequests.length &&
+          prev.every((row) => {
+            const next = merged.get(row._id);
+            return next && next.status === row.status;
+          })
+        ) {
+          return prev;
+        }
+        return nextRequests;
+      });
+      requestsRef.current = nextRequests;
       hasLoadedOnce.current = true;
     } catch (error: any) {
       console.error("❌ Error loading requests:", error);
@@ -318,7 +354,7 @@ export default function ProviderRequests() {
     }
   }, [user?.userId, user?.role, loadRequests]);
 
-  // Refresh requests when screen comes into focus
+  // Silent background sync while focused — sockets handle realtime; this is a backup.
   useFocusEffect(
     useCallback(() => {
       if (user?.userId) {
@@ -326,14 +362,11 @@ export default function ProviderRequests() {
         loadPrescriptions();
       }
 
-      // Poll every 10 seconds while the screen is focused so payment status
-      // changes (payment_pending → provider_confirmation_pending → ready_for_call)
-      // are picked up immediately without needing a socket event.
       const intervalId = setInterval(() => {
         if (user?.userId) {
           loadRequests();
         }
-      }, 10000);
+      }, 30000);
 
       return () => clearInterval(intervalId);
     }, [user?.userId, loadRequests, loadPrescriptions]),
@@ -392,7 +425,7 @@ export default function ProviderRequests() {
   useEffect(() => {
     const handleNewRequest = (request: Request) => {
       console.log("📨 New request available:", request);
-      void alertNewRequestAvailable();
+      void alertNewRequestAvailable(request?._id);
       setRequests((prev) => [
         request,
         ...prev.filter((r) => r._id !== request._id),
@@ -1625,6 +1658,19 @@ export default function ProviderRequests() {
                           </Text>
                         </View>
                       )}
+
+                      {/* Same rules as house visit: in_call / in_progress, or completed within 24h */}
+                      <ProviderPrescriptionPanel
+                        requestId={request._id}
+                        requestStatus={request.status}
+                        consultationCompletedAt={
+                          request.timeline?.consultationCompleted || null
+                        }
+                        requestUpdatedAt={
+                          request.updatedAt || request.createdAt
+                        }
+                        canIssue={canIssueClinicalPrescription}
+                      />
                     </>
                   ) : isPharmacist ? (
                     /* ── PHARMACIST / PRESCRIPTION DELIVERY FLOW ─────────────── */

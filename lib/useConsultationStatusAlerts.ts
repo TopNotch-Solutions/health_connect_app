@@ -9,8 +9,10 @@ import { useAuth } from "../context/AuthContext";
 import {
   alertConsultationStatusChange,
   alertNewRequestAvailable,
+  preloadConsultationAlertSound,
   type ConsultationAlertRole,
 } from "./consultationAlert";
+import { hydrateProviderOnline, isProviderOnline } from "./providerOnline";
 import socketService from "./socket";
 
 const PROVIDER_ROLES = new Set([
@@ -45,6 +47,14 @@ export function useConsultationStatusAlerts(): void {
 
     socketService.connect(user.userId, socketRole);
 
+    // Warm alert audio so the first ring doesn't lose the race with asset load
+    void preloadConsultationAlertSound();
+
+    // Restore Online toggle so new-request voice works before Home mounts
+    if (!isPatient) {
+      void hydrateProviderOnline(user.userId, user.isDocumentVerified);
+    }
+
     // Prefer requestUpdated — backend sends it only to the involved patient/provider.
     // requestStatusChanged is a global broadcast and would falsely alert other users.
     const handleRequestUpdated = (data: {
@@ -55,9 +65,10 @@ export function useConsultationStatusAlerts(): void {
       void alertConsultationStatusChange(data.status, data._id, alertRole);
     };
 
-    const handleNewRequest = () => {
+    const handleNewRequest = (request?: { _id?: string }) => {
       if (isPatient) return;
-      void alertNewRequestAvailable();
+      if (!isProviderOnline()) return;
+      void alertNewRequestAvailable(request?._id);
     };
 
     const attach = () => {
@@ -82,5 +93,5 @@ export function useConsultationStatusAlerts(): void {
       socketService.off("requestUpdated", handleRequestUpdated);
       socketService.off("newRequestAvailable", handleNewRequest);
     };
-  }, [user?.userId, user?.role]);
+  }, [user?.userId, user?.role, user?.isDocumentVerified]);
 }

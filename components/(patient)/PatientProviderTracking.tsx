@@ -14,9 +14,10 @@ import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { buildBackendAssetUrl } from "../../lib/backend";
+import { GOOGLE_MAPS_API_KEY } from "../../lib/googleMaps";
+import { mapProviderProps } from "../../lib/map";
 import socketService from "../../lib/socket";
 import { logViewMountDebug, logViewMountWarning } from "../../lib/viewErrorLogger";
-import { GOOGLE_MAPS_API_KEY } from "../../lib/googleMaps";
 
 interface ProviderLocation {
   latitude: number;
@@ -578,7 +579,8 @@ export default function PatientProviderTracking({
           <>
             <MapView
               ref={mapViewRef}
-              style={{ flex: 1 }}
+              {...mapProviderProps}
+              style={{ flex: 1, width: "100%" }}
               onLayout={(event) => {
                 logViewMountDebug("PatientProviderTracking", "MapView layout", {
                   layout: event.nativeEvent.layout,

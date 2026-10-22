@@ -391,7 +391,7 @@ const RequestCard = ({
       case "cancelled":
         return "Request was cancelled";
       case "expired":
-        return "Request expired - no providers available";
+        return "Request expired — please create a new request if you still need care";
       case "rejected":
         return "Request was rejected";
       default:
@@ -1066,9 +1066,9 @@ export default function WaitingRoom() {
             const expiresAt = item.acceptedAt + 24 * 60 * 60 * 1000;
             return now < expiresAt;
           }
-          // For non-accepted requests, only keep recent ones (within 6 hours)
+          // For non-accepted requests, only keep recent ones (within 3 hours)
           const age = now - new Date(item.request.createdAt).getTime();
-          return age < 6 * 60 * 60 * 1000;
+          return age < 3 * 60 * 60 * 1000;
         });
         setRequests(storedRequests);
       }

@@ -22,6 +22,7 @@ import {
   setCachedAilmentCategories,
 } from "../../../lib/ailmentCache";
 import { iosInputIconSize, withIosTextInputStyle } from "../../../lib/iosInputStyles";
+import { alertConsultationSubmitted } from "../../../lib/consultationAlert";
 import { PrescriptionFile, uploadPrescription } from "../../../lib/prescription";
 import socketService from "../../../lib/socket";
 
@@ -172,7 +173,6 @@ export default function AllAilmentsScreen() {
     medicalAidDetails?: {
       medicalAidId: string;
       medicalAidTitle?: string;
-      membershipNumber: string;
       mainMemberName: string;
       residentialAddress: string;
     };
@@ -253,6 +253,8 @@ export default function AllAilmentsScreen() {
           throw uploadError;
         }
       }
+
+      void alertConsultationSubmitted(requestId);
 
       setTimeout(() => {
         router.push("/(app)/(patient)/waiting-room");
