@@ -422,7 +422,7 @@ export default function TeleconsultationCallScreen({
       </View>
 
       <View style={styles.callShell}>
-        <StreamVideo client={resources.client}>
+        <StreamVideo client={resources.client} style={streamTheme}>
           <StreamCall call={resources.call}>
             <CallJoinController />
             <CallStateWatcher
@@ -478,6 +478,17 @@ export default function TeleconsultationCallScreen({
     </SafeAreaView>
   );
 }
+
+// The SDK sizes RTCView with absoluteFillObject only, which lays out at 0 height
+// under the new architecture on Android (video renders into a 0px strip).
+// Give the renderer and stream an explicit full size.
+// (Cast: the SDK's DeepPartial<Theme> rejects string style values like "100%".)
+const streamTheme = {
+  videoRenderer: {
+    container: { width: "100%", height: "100%" },
+    videoStream: { width: "100%", height: "100%" },
+  },
+} as unknown as React.ComponentProps<typeof StreamVideo>["style"];
 
 const styles = StyleSheet.create({
   container: {
