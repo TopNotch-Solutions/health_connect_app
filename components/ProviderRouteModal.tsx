@@ -33,6 +33,7 @@ import { ensureForegroundLocationPermission } from "../lib/locationPermission";
 import socketService from "../lib/socket";
 import { getUserFacingErrorMessage } from "../lib/userFacingError";
 import { logViewMountDebug } from "../lib/viewErrorLogger";
+import { AlertDialogHost, showAlertDialog } from "./AlertDialog";
 
 interface ProviderRouteModalProps {
   visible: boolean;
@@ -444,7 +445,7 @@ export default function ProviderRouteModal({
     try {
       stopTracking();
 
-      Alert.alert(
+      showAlertDialog(
         "Cancel Request",
         "Are you sure you want to cancel this request? The patient will be notified.",
         [
@@ -934,6 +935,7 @@ export default function ProviderRouteModal({
           </View>
         </SafeAreaView>
       </View>
+      <AlertDialogHost />
     </Modal>
   );
 }

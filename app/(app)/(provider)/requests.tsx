@@ -35,6 +35,7 @@ import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
 import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
 import ProviderPrescriptionPanel from "../../../components/(provider)/ProviderPrescriptionPanel";
 import PostalAddressConfirmModal from "../../../components/(patient)/PostalAddressConfirmModal";
+import { showAlertDialog } from "@/components/AlertDialog";
 
 interface PrescriptionData {
   _id: string;
@@ -1073,7 +1074,7 @@ export default function ProviderRequests() {
   };
 
   const handleCallAmbulance = () => {
-    Alert.alert(
+    showAlertDialog(
       "Call Ambulance",
       "This will open your phone dialer and call 956 ambulance. Do you want to continue?",
       [
@@ -1098,7 +1099,7 @@ export default function ProviderRequests() {
   };
 
   const confirmStartConsultation = (requestId: string, patientName: string) => {
-    Alert.alert(
+    showAlertDialog(
       "Start Consultation",
       `Start consultation with ${patientName}? Status will change to in progress.`,
       [
@@ -1116,7 +1117,7 @@ export default function ProviderRequests() {
     requestId: string,
     patientName: string,
   ) => {
-    Alert.alert(
+    showAlertDialog(
       "Complete Consultation",
       `Are you sure you want to complete consultation for ${patientName}?`,
       [

@@ -35,6 +35,7 @@ import { alertConsultationStatusChange } from "../../../lib/consultationAlert";
 import socketService from "../../../lib/socket";
 import apiClient from "../../../lib/api";
 import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
+import { showAlertDialog } from "@/components/AlertDialog";
 
 interface RequestStatus {
   _id: string;
@@ -290,7 +291,7 @@ const RequestCard = ({
   }, [trackingModalVisible, request.providerId, patientProfileImage]);
 
   const handleCancel = async () => {
-    Alert.alert(
+    showAlertDialog(
       "Cancel Request",
       "Are you sure you want to cancel this healthcare request?",
       [
@@ -329,7 +330,7 @@ const RequestCard = ({
   const handleConfirmPayment = async () => {
     if (!onConfirmPayment) return;
 
-    Alert.alert(
+    showAlertDialog(
       "Payment Confirmed",
       "Only continue after you have sent the money to the provider through eWallet or the agreed transfer method.",
       [

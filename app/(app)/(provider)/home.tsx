@@ -52,6 +52,7 @@ import { logViewMountDebug } from "../../../lib/viewErrorLogger";
 import { AUTH_COLORS } from "../../../lib/authScreenTheme";
 import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
 import PostalAddressConfirmModal from "../../../components/(patient)/PostalAddressConfirmModal";
+import { showAlertDialog } from "@/components/AlertDialog";
 
 export default function ProviderHome() {
   const INCOMING_PAGE_SIZE = 20;
@@ -603,7 +604,7 @@ export default function ProviderHome() {
         if (!granted) {
           console.warn("Location permission not granted for provider map");
 
-          Alert.alert(
+          showAlertDialog(
             "Location Permission Required",
             "HealthConnect needs access to your location so we can show nearby patient requests. Please enable location in your device settings.",
             [
@@ -1121,7 +1122,7 @@ export default function ProviderHome() {
 
   const proceedAcceptConfirm = (request: any) => {
     const patientName = request?.patientId?.fullname || "this patient";
-    Alert.alert(
+    showAlertDialog(
       "Accept Request",
       `Are you sure you want to accept the request from ${patientName}?`,
       [
@@ -1152,7 +1153,7 @@ export default function ProviderHome() {
   };
 
   const confirmDecline = (requestId: string, patientName: string) => {
-    Alert.alert(
+    showAlertDialog(
       "Decline Request",
       `Are you sure you want to decline the request from ${patientName}?`,
       [
