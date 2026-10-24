@@ -9,11 +9,12 @@ import {
   useRouter,
 } from "expo-router";
 import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View, Alert } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getModernTabBarOptions } from "@/lib/modernTabBar";
 import { useConsultationStatusAlerts } from "@/lib/useConsultationStatusAlerts";
 import { useUnreadNotificationCount } from "@/lib/useUnreadNotificationCount";
+import { showAlertDialog } from "@/components/AlertDialog";
 
 export default function PatientTabLayout() {
   const { logout, user } = useAuth();
@@ -27,7 +28,7 @@ export default function PatientTabLayout() {
 
   const handleLogout = () => {
     if (isLoggingOut) return;
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
+    showAlertDialog("Log Out", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Log Out",

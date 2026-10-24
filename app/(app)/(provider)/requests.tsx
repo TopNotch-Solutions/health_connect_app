@@ -35,6 +35,7 @@ import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
 import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
 import ProviderPrescriptionPanel from "../../../components/(provider)/ProviderPrescriptionPanel";
 import PostalAddressConfirmModal from "../../../components/(patient)/PostalAddressConfirmModal";
+import { showAlertDialog } from "@/components/AlertDialog";
 
 interface PrescriptionData {
   _id: string;
@@ -194,7 +195,6 @@ export default function ProviderRequests() {
       if (!hasLoadedOnce.current) {
         setIsLoading(true);
       }
-      console.log("📥 Fetching provider requests for:", user.userId);
 
       await socketService.waitForConnection(10000);
 
@@ -272,11 +272,6 @@ export default function ProviderRequests() {
       historyRequests.forEach((r) => merged.set(r._id, r));
 
       const nextRequests = Array.from(merged.values());
-      console.log("✅ Merged requests:", nextRequests.length, {
-        available: available.length,
-        assigned: liveRequests.length,
-        history: historyRequests.length,
-      });
 
       const previous = requestsRef.current;
       if (hasLoadedOnce.current) {
@@ -319,7 +314,6 @@ export default function ProviderRequests() {
   // Connect to socket and load initial requests
   useEffect(() => {
     if (user?.userId) {
-      console.log("🔌 Connecting socket for requests tab");
       const normalizedRole =
         typeof user.role === "string" ? user.role.toLowerCase() : undefined;
       socketService.connect(
@@ -337,12 +331,10 @@ export default function ProviderRequests() {
       const socket = socketService.getSocket();
 
       const handleConnect = () => {
-        console.log("✅ Socket connected, loading requests");
         loadRequests();
       };
 
       if (socket?.connected) {
-        console.log("✅ Socket already connected");
         loadRequests();
       } else {
         socket?.on("connect", handleConnect);
@@ -424,7 +416,6 @@ export default function ProviderRequests() {
   // Listen for new requests and status changes
   useEffect(() => {
     const handleNewRequest = (request: Request) => {
-      console.log("📨 New request available:", request);
       void alertNewRequestAvailable(request?._id);
       setRequests((prev) => [
         request,
@@ -433,7 +424,6 @@ export default function ProviderRequests() {
     };
 
     const handleRequestHidden = (data: { requestId: string }) => {
-      console.log("🚫 Request hidden:", data.requestId);
       setRequests((prev) => prev.filter((req) => req._id !== data.requestId));
     };
 
@@ -442,7 +432,6 @@ export default function ProviderRequests() {
       status: string;
       request?: Request;
     }) => {
-      console.log("📊 Request status changed:", data);
 
       // WORKAROUND: If backend says cancelled but providerAccepted exists, it was actually accepted
       let correctStatus: Request["status"] = data.status as Request["status"];
@@ -770,7 +759,6 @@ export default function ProviderRequests() {
             "en_route",
             providerCoords,
           );
-          console.log("✅ Sent en_route with provider coordinates");
         } catch (bgError: any) {
           console.warn(
             "Failed to send en_route with coords:",
@@ -833,7 +821,6 @@ export default function ProviderRequests() {
 
     setActionLoading({ requestId: request._id, action: "route" });
     try {
-      console.log("🚗 Opening route modal for request:", request._id);
 
       // Open the map first so navigation never depends on the status update succeeding
       startRoute({
@@ -900,11 +887,9 @@ export default function ProviderRequests() {
 
   // Handle route completion
   const handleRouteComplete = useCallback(() => {
-    console.log("✅ Route completed");
     try {
       // Reload requests after a small delay to ensure modal is closed first
       setTimeout(() => {
-        console.log("🔄 Reloading requests after route completion");
         loadRequests();
       }, 500);
     } catch (error) {
@@ -921,7 +906,6 @@ export default function ProviderRequests() {
 
     setActionLoading({ requestId, action: "start" });
     try {
-      console.log("▶️ Starting consultation:", requestId);
       await socketService.updateRequestStatus(
         requestId,
         user.userId,
@@ -967,7 +951,6 @@ export default function ProviderRequests() {
 
     setActionLoading({ requestId, action: "complete" });
     try {
-      console.log("✅ Completing request:", requestId);
       await socketService.updateRequestStatus(
         requestId,
         user.userId,
@@ -1073,7 +1056,7 @@ export default function ProviderRequests() {
   };
 
   const handleCallAmbulance = () => {
-    Alert.alert(
+    showAlertDialog(
       "Call Ambulance",
       "This will open your phone dialer and call 956 ambulance. Do you want to continue?",
       [
@@ -1098,7 +1081,7 @@ export default function ProviderRequests() {
   };
 
   const confirmStartConsultation = (requestId: string, patientName: string) => {
-    Alert.alert(
+    showAlertDialog(
       "Start Consultation",
       `Start consultation with ${patientName}? Status will change to in progress.`,
       [
@@ -1116,7 +1099,7 @@ export default function ProviderRequests() {
     requestId: string,
     patientName: string,
   ) => {
-    Alert.alert(
+    showAlertDialog(
       "Complete Consultation",
       `Are you sure you want to complete consultation for ${patientName}?`,
       [

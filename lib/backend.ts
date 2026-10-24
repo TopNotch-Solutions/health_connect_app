@@ -1,20 +1,8 @@
-import * as Device from "expo-device";
-import { Platform } from "react-native";
-
 // TEMP for local testing — hardcode so EXPO_PUBLIC_* / Metro cache cannot
 // override. Restore env-based resolveBackendUrl before shipping.
 export const BACKEND_URL = "https://apihealthconnect.kopanovertex.com";
 
 export const API_BASE_URL = `${BACKEND_URL}/api`;
-
-console.log(
-  "[backend] HARDCODED BACKEND_URL =",
-  BACKEND_URL,
-  "| platform =",
-  Platform.OS,
-  "| isDevice =",
-  Device.isDevice,
-);
 
 export const buildBackendAssetUrl = (
   folder: string,

@@ -24,6 +24,7 @@ import {
   uploadProviderPrescription,
 } from "../../lib/prescription";
 import PrescriptionViewerModal from "../PrescriptionViewerModal";
+import { showAlertDialog } from "@/components/AlertDialog";
 
 const EDITABLE_ACTIVE_STATUSES = new Set([
   "in_progress",
@@ -214,7 +215,7 @@ export default function ProviderPrescriptionPanel({
       return;
     }
 
-    Alert.alert("Upload prescription", "Choose a file type", [
+    showAlertDialog("Upload prescription", "Choose a file type", [
       { text: "Photo (JPEG/PNG)", onPress: () => void pickImage() },
       { text: "PDF document", onPress: () => void pickPdf() },
       { text: "Cancel", style: "cancel" },

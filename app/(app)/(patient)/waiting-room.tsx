@@ -35,6 +35,7 @@ import { alertConsultationStatusChange } from "../../../lib/consultationAlert";
 import socketService from "../../../lib/socket";
 import apiClient from "../../../lib/api";
 import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
+import { showAlertDialog } from "@/components/AlertDialog";
 
 interface RequestStatus {
   _id: string;
@@ -277,20 +278,11 @@ const RequestCard = ({
   // Debug logging for profile images
   useEffect(() => {
     if (trackingModalVisible) {
-      console.log(
-        "RequestCard - Provider profileImage:",
-        request.providerId?.profileImage,
-      );
-      console.log(
-        "RequestCard - Provider object:",
-        JSON.stringify(request.providerId, null, 2),
-      );
-      console.log("RequestCard - Patient profileImage:", patientProfileImage);
     }
   }, [trackingModalVisible, request.providerId, patientProfileImage]);
 
   const handleCancel = async () => {
-    Alert.alert(
+    showAlertDialog(
       "Cancel Request",
       "Are you sure you want to cancel this healthcare request?",
       [
@@ -329,7 +321,7 @@ const RequestCard = ({
   const handleConfirmPayment = async () => {
     if (!onConfirmPayment) return;
 
-    Alert.alert(
+    showAlertDialog(
       "Payment Confirmed",
       "Only continue after you have sent the money to the provider through eWallet or the agreed transfer method.",
       [
@@ -1054,8 +1046,7 @@ export default function WaitingRoom() {
           } else {
             setRequests(storedRequests);
           }
-        } catch (error) {
-          console.log("Could not fetch live requests, using stored:", error);
+        } catch {
           setRequests(storedRequests);
         }
       } else {
@@ -1219,7 +1210,6 @@ export default function WaitingRoom() {
       requestId: string;
       status: any;
     }) => {
-      console.log("🔔 Request status changed:", data);
 
       // Ring + vibrate OUTSIDE setState — updater functions can be re-run by React
       const existing = requestsRef.current.find(

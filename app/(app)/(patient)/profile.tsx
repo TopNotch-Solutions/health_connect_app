@@ -30,6 +30,7 @@ import EditPostalAddressModal from "../../../components/(patient)/EditPostalAddr
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 import { buildBackendAssetUrl } from "../../../lib/backend";
+import { showAlertDialog } from "@/components/AlertDialog";
 
 export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
@@ -104,7 +105,6 @@ export default function ProfileScreen() {
 
       if (response.data?.profileImage) {
         await updateUser({ profileImage: response.data.profileImage });
-        console.log(response.data);
         Alert.alert("Success", "Profile photo updated successfully!");
       } else {
         Alert.alert("Success", "Profile photo updated successfully!");
@@ -123,7 +123,7 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
+    showAlertDialog("Log Out", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Log Out",
@@ -172,7 +172,7 @@ export default function ProfileScreen() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
+    showAlertDialog(
       "Delete Account",
       "This permanently deletes your account, your personal details and your uploaded documents. It cannot be undone.\n\nYour consultation and payment records are kept only for as long as the law requires.",
       [
@@ -183,7 +183,7 @@ export default function ProfileScreen() {
           // Second confirmation: this is irreversible and sits directly below
           // a similarly worded, recoverable action.
           onPress: () =>
-            Alert.alert(
+            showAlertDialog(
               "Are you absolutely sure?",
               "Your account cannot be recovered afterwards.",
               [
@@ -201,7 +201,7 @@ export default function ProfileScreen() {
   };
 
   const handleDeactivateAccount = () => {
-    Alert.alert(
+    showAlertDialog(
       "Deactivate Account",
       "Are you sure you want to deactivate your account? This action cannot be undone.",
       [

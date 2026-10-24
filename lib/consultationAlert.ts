@@ -178,8 +178,6 @@ function speakNow(message: string): void {
       ...(Platform.OS === "ios"
         ? { useApplicationAudioSession: false }
         : null),
-      onStart: () => console.log("🗣️ Voice alert started"),
-      onDone: () => console.log("🗣️ Voice alert finished"),
       onError: (error) =>
         console.warn("⚠️ Consultation voice alert failed:", error),
     });
@@ -251,20 +249,14 @@ export async function alertConsultationSubmitted(
 export async function alertNewRequestAvailable(
   requestId?: string,
 ): Promise<void> {
-  console.log("🔔 alertNewRequestAvailable called", {
-    requestId,
-    online: isProviderOnline(),
-  });
 
   if (!isProviderOnline()) {
-    console.log("🔇 Skipping new-request alert — provider is offline");
     return;
   }
 
   if (requestId) {
     const id = String(requestId);
     if (announcedNewRequestIds.has(id)) {
-      console.log("🔇 Already announced request", id);
       return;
     }
     announcedNewRequestIds.add(id);
@@ -284,8 +276,6 @@ export async function alertNewRequestAvailable(
     lastAlertKey = `new-request:${now}`;
     lastAlertAt = now;
   }
-
-  console.log("🗣️ Speaking provider new-request voice");
 
   if (Platform.OS === "android") {
     Vibration.vibrate([0, 400, 120, 400, 120, 400, 120, 400]);

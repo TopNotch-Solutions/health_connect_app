@@ -244,15 +244,11 @@ export default function NotificationsScreen() {
         }
         
         try {
-            console.log(`Fetching notifications for userId: ${user.userId}, page: ${page}`);
             // Backend extracts userId from JWT token
             const response = await apiClient.get(`/app/notification/all-user-notification?page=${page}&limit=10`);
-            console.log("Notifications Response:", response.data);
             const newNotifications = response.data.data || [];
             const pagination = response.data.pagination || {};
-            
-            console.log("Pagination data:", pagination);
-            
+
             if (isRefresh || page === 1) {
                 // Replace notifications on refresh or first page
                 setNotifications(newNotifications);
@@ -265,7 +261,6 @@ export default function NotificationsScreen() {
             const hasNext = pagination.hasNextPage === true;
             const currentPageNum = pagination.currentPage || page;
             const totalPagesNum = pagination.totalPages || 1;
-            console.log("Setting hasMore:", hasNext, "currentPage:", currentPageNum, "totalPages:", totalPagesNum, "newNotifications count:", newNotifications.length);
             setHasMore(hasNext);
             setCurrentPage(currentPageNum);
             setTotalPages(totalPagesNum);
@@ -297,7 +292,6 @@ export default function NotificationsScreen() {
         if (!user?.userId) return;
         try {
             const response = await apiClient.get('/app/notification/unread-count');
-            console.log("Unread Count Response:", response.data);
             setUnreadCount(response.data.data?.unReadCount || 0);
         } catch (error: any) {
             console.error("Fetch Unread Count Error:", error.message);
@@ -337,7 +331,6 @@ export default function NotificationsScreen() {
     const loadMoreNotifications = useCallback(() => {
         if (!isLoadingMore && hasMore) {
             const nextPage = currentPage + 1;
-            console.log('Loading more notifications, page:', nextPage);
             fetchNotifications(false, nextPage);
         }
     }, [isLoadingMore, hasMore, currentPage, fetchNotifications]);

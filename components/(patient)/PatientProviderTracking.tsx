@@ -141,26 +141,6 @@ export default function PatientProviderTracking({
         providerLocation,
         routeCoordinateCount: routeCoordinates.length,
       });
-      console.log(
-        "PatientProviderTracking - Provider profileImage:",
-        providerProfileImage,
-      );
-      console.log(
-        "PatientProviderTracking - Patient profileImage:",
-        patientProfileImage,
-      );
-      console.log(
-        "PatientProviderTracking - Provider profileImage URL:",
-        buildBackendAssetUrl("images", providerProfileImage) || "N/A",
-      );
-      console.log(
-        "PatientProviderTracking - Provider profileImage type:",
-        typeof providerProfileImage,
-      );
-      console.log(
-        "PatientProviderTracking - Provider profileImage truthy:",
-        !!providerProfileImage,
-      );
     }
   }, [visible, providerProfileImage, patientProfileImage]);
 
@@ -200,10 +180,6 @@ export default function PatientProviderTracking({
   const initializeTracking = () => {
     if (!requestId) return;
 
-    console.log(
-      "🔍 Initializing patient-side provider tracking for request:",
-      requestId,
-    );
     setIsLoading(true);
 
     // Request initial provider location with a timeout and retry logic
@@ -216,18 +192,12 @@ export default function PatientProviderTracking({
       const attemptGetLocation = () => {
         if (received) return;
 
-        console.log(
-          `📍 Attempting to fetch provider location (attempt ${retryCount + 1}/${maxRetries})...`,
-        );
-
         const timeout = setTimeout(() => {
           if (!received) {
             retryCount++;
             if (retryCount < maxRetries) {
-              console.log(`⚠️ Attempt ${retryCount} timed out, retrying...`);
               attemptGetLocation();
             } else {
-              console.log("❌ Max retries reached, no location available");
               received = true;
               setIsLoading(false);
               resolve();
@@ -247,10 +217,6 @@ export default function PatientProviderTracking({
 
                 const normalizedLocation = normalizeCoordinate(location);
                 if (normalizedLocation) {
-                  console.log(
-                    "📍 Initial provider location received:",
-                    normalizedLocation,
-                  );
                   setProviderLocation(normalizedLocation);
                   setRouteCoordinates([normalizedLocation]);
 
@@ -276,9 +242,6 @@ export default function PatientProviderTracking({
                   setIsLoading(false);
                   resolve();
                 } else {
-                  console.log(
-                    "⚠️ No location data received or invalid coordinates, will retry...",
-                  );
                   retryCount++;
                   if (retryCount < maxRetries) {
                     setTimeout(attemptGetLocation, retryDelay);
@@ -299,12 +262,9 @@ export default function PatientProviderTracking({
   const startTracking = () => {
     if (!requestId) return;
 
-    console.log("📡 Setting up provider location listener");
-
     const handleProviderLocationUpdate = (data: any) => {
       const normalizedLocation = normalizeCoordinate(data.location);
       if (data.requestId === requestId && normalizedLocation) {
-        console.log("📍 Provider location update:", normalizedLocation);
         setProviderLocation(normalizedLocation);
 
         // Add to route coordinates only if valid
@@ -437,12 +397,6 @@ export default function PatientProviderTracking({
     if (!currentPatientLocation || !providerLocation) return;
 
     const fetchNavRoute = async () => {
-      console.log("🗺️ Fetching navigation route from Google Maps API...");
-      console.log(
-        "Current Patient Location:",
-        JSON.stringify(currentPatientLocation),
-      );
-      console.log("Provider Location:", JSON.stringify(providerLocation));
 
       // Validate locations before fetching
       const patientLat = currentPatientLocation?.latitude;
@@ -450,11 +404,7 @@ export default function PatientProviderTracking({
       const providerLat = providerLocation?.latitude;
       const providerLng = providerLocation?.longitude;
 
-      console.log(`Patient coords: lat=${patientLat}, lng=${patientLng}`);
-      console.log(`Provider coords: lat=${providerLat}, lng=${providerLng}`);
-
       if (!patientLat || !patientLng || !providerLat || !providerLng) {
-        console.log("⚠️ Invalid locations, using direct line");
         setRouteCoordinates([providerLocation, currentPatientLocation]);
         return;
       }
@@ -470,12 +420,8 @@ export default function PatientProviderTracking({
         route.length > 0 &&
         route.every((point) => point.latitude && point.longitude)
       ) {
-        console.log("✅ Route received, points:", route.length);
         setRouteCoordinates(route);
       } else {
-        console.log(
-          "⚠️ No route found or invalid coordinates, using direct line",
-        );
         // Fallback to direct line between two points
         setRouteCoordinates([providerLocation, currentPatientLocation]);
       }
@@ -490,7 +436,6 @@ export default function PatientProviderTracking({
 
     const refreshPatientLocation = async () => {
       try {
-        console.log("📍 Refreshing patient location when modal opens...");
         const currentLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         });
@@ -498,7 +443,6 @@ export default function PatientProviderTracking({
           latitude: currentLocation.coords.latitude,
           longitude: currentLocation.coords.longitude,
         });
-        console.log("✅ Updated patient location:", newPatientLocation);
         if (newPatientLocation) {
           setCurrentPatientLocation(newPatientLocation);
         }
@@ -660,13 +604,6 @@ export default function PatientProviderTracking({
                             );
                           }}
                           onLoad={() => {
-                            console.log(
-                              "Patient profile image loaded successfully:",
-                              buildBackendAssetUrl(
-                                "images",
-                                normalizedPatientProfileImage,
-                              ),
-                            );
                           }}
                         />
                       ) : (
@@ -732,13 +669,6 @@ export default function PatientProviderTracking({
                             );
                           }}
                           onLoad={() => {
-                            console.log(
-                              "Provider profile image loaded successfully:",
-                              buildBackendAssetUrl(
-                                "images",
-                                normalizedProviderProfileImage,
-                              ),
-                            );
                           }}
                         />
                       ) : (
@@ -803,8 +733,6 @@ export default function PatientProviderTracking({
                           },
                         );
                       }
-                      console.log(`Route Distance: ${result.distance} km`);
-                      console.log(`Route Duration: ${result.duration} minutes`);
                     }}
                     onError={(errorMessage) => {
                       logViewMountWarning(
@@ -816,7 +744,6 @@ export default function PatientProviderTracking({
                           currentPatientLocation,
                         },
                       );
-                      console.log("MapViewDirections Error:", errorMessage);
                       // Fallback to straight line distance if route fails
                     }}
                   />

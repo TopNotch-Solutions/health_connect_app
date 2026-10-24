@@ -229,7 +229,6 @@ export default function TransactionsScreen() {
       const response = await apiClient.get(
         `/app/packages/all/${user.role.toLowerCase()}`,
       );
-      console.log("Packages Response:", response.data);
       if (response.data?.status === "SUCCESS") {
         setPackages(response.data.data || []);
       }
@@ -259,17 +258,11 @@ export default function TransactionsScreen() {
       }
 
       try {
-        console.log(
-          `Fetching transactions for userId: ${user.userId}, page: ${page}`,
-        );
         const response = await apiClient.get(
           `/app/transaction/transaction-history/?page=${page}&limit=10`,
         );
-        // console.log("Transactions Response:", response.data);
         const newTransactions = response.data.data || [];
         const pagination = response.data.pagination || {};
-
-        console.log("Pagination data:", pagination);
 
         if (isRefresh || page === 1) {
           // Replace transactions on refresh or first page
@@ -283,16 +276,6 @@ export default function TransactionsScreen() {
         const hasNext = pagination.hasNextPage === true;
         const currentPageNum = pagination.currentPage || page;
         const totalPagesNum = pagination.totalPages || 1;
-        console.log(
-          "Setting hasMore:",
-          hasNext,
-          "currentPage:",
-          currentPageNum,
-          "totalPages:",
-          totalPagesNum,
-          "newTransactions count:",
-          newTransactions.length,
-        );
         setHasMore(hasNext);
         setCurrentPage(currentPageNum);
         setTotalPages(totalPagesNum);
@@ -325,7 +308,6 @@ export default function TransactionsScreen() {
   const loadMoreTransactions = useCallback(() => {
     if (!isLoadingMore && hasMore) {
       const nextPage = currentPage + 1;
-      console.log("Loading more transactions, page:", nextPage);
       fetchTransactions(false, nextPage);
     }
   }, [isLoadingMore, hasMore, currentPage, fetchTransactions]);
@@ -335,9 +317,7 @@ export default function TransactionsScreen() {
     if (!user?.userId) return;
     try {
       const userResponse = await apiClient.get("/app/auth/user-details/");
-      console.log("User Details Response:", userResponse.data);
       if (userResponse.data?.status && userResponse.data?.user) {
-        console.log("Updating user details:", userResponse.data.user);
         updateUser(userResponse.data.user);
         const backendUser = userResponse.data.user;
 

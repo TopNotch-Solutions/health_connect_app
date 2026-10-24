@@ -451,7 +451,6 @@ export default function RegistrationScreen() {
           headers: { "Content-Type": "multipart/form-data" },
         },
       );
-      console.log("Registration response:", response.data);
       if (response.status === 201) {
         Alert.alert(
           "Registration Complete!",

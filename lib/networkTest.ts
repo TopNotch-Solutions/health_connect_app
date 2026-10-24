@@ -17,14 +17,12 @@ export interface NetworkTestResult {
  */
 export async function testServerConnectivity(): Promise<NetworkTestResult> {
   try {
-    console.log("🔍 Testing server connectivity to:", BACKEND_URL);
 
     const response = await axios.get(BACKEND_URL, {
       timeout: 10000,
       validateStatus: (status) => status < 500, // Accept any status < 500
     });
 
-    console.log("✅ Server responded with status:", response.status);
     return {
       success: true,
       details: {
@@ -74,14 +72,12 @@ export async function testServerConnectivity(): Promise<NetworkTestResult> {
  */
 export async function testAPIConnectivity(): Promise<NetworkTestResult> {
   try {
-    console.log("🔍 Testing API connectivity to:", API_BASE_URL);
 
     const response = await axios.get(API_BASE_URL, {
       timeout: 10000,
       validateStatus: (status) => status < 500,
     });
 
-    console.log("✅ API responded with status:", response.status);
     return {
       success: true,
       details: {
@@ -110,7 +106,6 @@ export async function runNetworkDiagnostics(): Promise<{
   apiTest: NetworkTestResult;
   summary: string;
 }> {
-  console.log("🚀 Starting network diagnostics...\n");
 
   const serverTest = await testServerConnectivity();
   await new Promise((resolve) => setTimeout(resolve, 1000)); // Small delay between tests
@@ -127,19 +122,6 @@ export async function runNetworkDiagnostics(): Promise<{
   } else {
     summary = "⚠️ Server test passed but API test failed.";
   }
-
-  console.log("\n📊 Network Diagnostics Summary:");
-  console.log(
-    "Server Test:",
-    serverTest.success ? "✅" : "❌",
-    serverTest.error || "Success",
-  );
-  console.log(
-    "API Test:",
-    apiTest.success ? "✅" : "❌",
-    apiTest.error || "Success",
-  );
-  console.log("Summary:", summary);
 
   return {
     serverTest,

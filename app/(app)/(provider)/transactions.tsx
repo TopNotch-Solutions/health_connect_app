@@ -105,17 +105,11 @@ export default function TransactionsHistoryScreen() {
       }
 
       try {
-        console.log(
-          `Fetching transactions for userId: ${user.userId}, page: ${page}`,
-        );
         const response = await apiClient.get(
           `/app/transaction/transaction-history/${user.userId}?page=${page}&limit=10`,
         );
-        console.log("Transactions Response:", response.data);
         const newTransactions = response.data.data || [];
         const pagination = response.data.pagination || {};
-
-        console.log("Pagination data:", pagination);
 
         if (isRefresh || page === 1) {
           // Replace transactions on refresh or first page
@@ -129,16 +123,6 @@ export default function TransactionsHistoryScreen() {
         const hasNext = pagination.hasNextPage === true;
         const currentPageNum = pagination.currentPage || page;
         const totalPagesNum = pagination.totalPages || 1;
-        console.log(
-          "Setting hasMore:",
-          hasNext,
-          "currentPage:",
-          currentPageNum,
-          "totalPages:",
-          totalPagesNum,
-          "newTransactions count:",
-          newTransactions.length,
-        );
         setHasMore(hasNext);
         setCurrentPage(currentPageNum);
         setTotalPages(totalPagesNum);
@@ -171,7 +155,6 @@ export default function TransactionsHistoryScreen() {
   const loadMoreTransactions = useCallback(() => {
     if (!isLoadingMore && hasMore) {
       const nextPage = currentPage + 1;
-      console.log("Loading more transactions, page:", nextPage);
       fetchTransactions(false, nextPage);
     }
   }, [isLoadingMore, hasMore, currentPage, fetchTransactions]);

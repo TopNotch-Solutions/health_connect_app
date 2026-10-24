@@ -117,7 +117,6 @@ export default function EditProviderProfileModal({
 
   const [expirationDate, setExpirationDate] = useState<Date>(() => {
     const initialDate = user?.hpcnaExpiryDate ? new Date(user.hpcnaExpiryDate) : new Date();
-    console.log("📅 Initial expiration date set:", initialDate.toISOString());
     return initialDate;
   });
 
@@ -166,25 +165,16 @@ export default function EditProviderProfileModal({
 
   // Track showDatePicker changes
   useEffect(() => {
-    console.log("📅 showDatePicker changed:", showDatePicker);
   }, [showDatePicker]);
 
   // Track expirationDate changes
   useEffect(() => {
-    console.log("📅 ExpirationDate state changed:", expirationDate.toISOString());
-    console.log("📅 Stack trace:", new Error().stack);
   }, [expirationDate]);
 
   // Initialize form data when modal opens
   useEffect(() => {
-    console.log("📋 Form data useEffect triggered:", {
-      visible,
-      user: !!user,
-      isFormDataInitialized: isFormDataInitialized.current,
-    });
 
     if (visible && user && !isFormDataInitialized.current) {
-        console.log("📋 Setting form data for the first time");
         setFormData({
           fullname: user.fullname || "",
           email: user.email || "",
@@ -213,31 +203,21 @@ export default function EditProviderProfileModal({
         });
         isFormDataInitialized.current = true;
       } else if (!visible) {
-        console.log("📋 Resetting form data initialization flag");
         isFormDataInitialized.current = false;
       }
   }, [visible]);
 
   // Initialize expiration date only when modal first opens
   useEffect(() => {
-    console.log("📅 Expiration date useEffect triggered:", {
-      visible,
-      isDateInitialized: isDateInitialized.current,
-      userHpcnaExpiryDate: user?.hpcnaExpiryDate,
-      currentExpirationDate: expirationDate.toISOString(),
-    });
 
     if (visible && !isDateInitialized.current) {
       if (user?.hpcnaExpiryDate) {
-        console.log("📅 Setting expiration date from user:", user.hpcnaExpiryDate);
         setExpirationDate(new Date(user.hpcnaExpiryDate));
       } else {
-        console.log("📅 Setting expiration date to current date");
         setExpirationDate(new Date());
       }
       isDateInitialized.current = true;
     } else if (!visible) {
-      console.log("📅 Resetting initialization flag");
       isDateInitialized.current = false;
     }
   }, [visible]);
@@ -423,22 +403,6 @@ export default function EditProviderProfileModal({
     // Convert to 264XXXXXXXXX — exactly what the backend validator expects
     const cleanedPhone = toBackendPhone(formData.cellphoneNumber);
 
-    const payload = {
-      fullname: formData.fullname,
-      email: formData.email,
-      cellphoneNumber: cleanedPhone,
-      gender: formData.gender,
-      address: formData.address,
-      hpcnaNumber: formData.hpcnaNumber,
-      hpcnaExpiryDate: expirationDate.toISOString(),
-      specializations: formData.specializations,
-      yearsOfExperience: parseInt(formData.yearsOfExperience),
-      operationalZone: formData.operationalZone,
-      governingCouncil: formData.governingCouncil,
-      bio: formData.bio,
-    };
-    console.log("📤 [EditProfile] Sending payload:", JSON.stringify(payload, null, 2));
-
     setIsLoading(true);
     try {
       const userSpecializations = user?.specializations || [];
@@ -516,11 +480,6 @@ export default function EditProviderProfileModal({
       );
       onClose();
     } catch (error: any) {
-      console.log("❌ [EditProfile] API error:", JSON.stringify({
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-      }, null, 2));
       // Surface backend error message directly — it's usually descriptive
       const msg: string =
         error.response?.data?.message || "Failed to update profile. Please try again.";

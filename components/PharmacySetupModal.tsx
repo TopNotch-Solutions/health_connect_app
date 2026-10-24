@@ -23,6 +23,7 @@ import { useAuth } from "../context/AuthContext";
 import apiClient from "../lib/api";
 import { ensureForegroundLocationPermission } from "../lib/locationPermission";
 import { KEYBOARD_AWARE_EXTRA_SCROLL } from "./ScreenLayout";
+import { AlertDialogHost, showAlertDialog } from "./AlertDialog";
 
 interface Props {
   visible: boolean;
@@ -248,7 +249,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
   };
 
   const certUploadOptions = () => {
-    Alert.alert("Upload HPCNA Certificate", "Choose file type", [
+    showAlertDialog("Upload HPCNA Certificate", "Choose file type", [
       { text: "Photo / JPEG", onPress: () => pickAndUploadCert("image") },
       { text: "PDF Document", onPress: () => pickAndUploadCert("document") },
       { text: "Cancel", style: "cancel" },
@@ -696,6 +697,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
             </TouchableOpacity>
         </KeyboardAwareScrollView>
       </View>
+      <AlertDialogHost />
     </Modal>
   );
 }

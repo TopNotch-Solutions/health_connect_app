@@ -31,6 +31,7 @@ import {
   isBankDetailsComplete,
 } from "../../../lib/bankDetails";
 import EditBankDetailsModal from "../../../components/(provider)/EditBankDetailsModal";
+import { showAlertDialog } from "@/components/AlertDialog";
 
 type MedicalAidStats = {
   eligible: boolean;
@@ -457,7 +458,7 @@ export default function ProviderMedicalAidScreen() {
       console.error("Failed to check bank details:", error);
     }
 
-    Alert.alert(
+    showAlertDialog(
       "Bank details required",
       "Complete your practice bank details before downloading a medical aid claim.",
       [
@@ -510,7 +511,7 @@ export default function ProviderMedicalAidScreen() {
         err?.response?.data?.code === "BANK_DETAILS_REQUIRED" ||
         /bank details/i.test(message)
       ) {
-        Alert.alert("Bank details required", message, [
+        showAlertDialog("Bank details required", message, [
           { text: "Cancel", style: "cancel" },
           {
             text: "Add bank details",
@@ -541,7 +542,7 @@ export default function ProviderMedicalAidScreen() {
       }
       if (isClaimClaimed(item)) return;
 
-      Alert.alert(
+      showAlertDialog(
         "Mark as claimed",
         "This will grey out the consultation and stop further downloads. Continue?",
         [

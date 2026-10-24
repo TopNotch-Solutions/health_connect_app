@@ -40,6 +40,7 @@ import PostalAddressConfirmModal from "./PostalAddressConfirmModal";
 import { PostalAddressPayload } from "../../lib/postalAddress";
 import { useAuth } from "../../context/AuthContext";
 import { getUserFacingErrorMessage } from "../../lib/userFacingError";
+import { AlertDialogHost, showAlertDialog } from "../AlertDialog";
 
 export type PaymentMethod = "wallet" | "cash" | "medical_aid";
 
@@ -396,7 +397,7 @@ export default function CreateRequestModal({
   };
 
   const confirmAndSubmit = (medicalAidDetails?: MedicalAidDetailsPayload) => {
-    Alert.alert(
+    showAlertDialog(
       "Confirm Request",
       `Submit a ${consultationMode === "video_consultation" ? "video consultation" : "house visit"} request for N$${selectedCost.toFixed(2)}?`,
       [
@@ -1154,6 +1155,7 @@ export default function CreateRequestModal({
             </View>
           </View>
         </View>
+        <AlertDialogHost />
     </Modal>
 
     <PostalAddressConfirmModal

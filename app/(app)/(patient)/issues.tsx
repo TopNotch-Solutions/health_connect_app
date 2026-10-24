@@ -285,11 +285,9 @@ export default function IssuesScreen() {
     }
 
     try {
-      console.log("Fetching FAQs from API...");
       const response = await apiClient.get(
         `/app/faq/all-faq?page=${page}&limit=10`,
       );
-      console.log("FAQs Response:", response.data);
       const newFaqs = response.data.faq || response.data.data || [];
       const pagination = response.data.pagination || {};
 

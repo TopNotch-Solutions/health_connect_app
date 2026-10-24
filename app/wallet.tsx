@@ -58,7 +58,6 @@ export default function Wallet() {
 
     // Listen for real-time transaction updates
     socketService.on("transaction:new", (transaction: Transaction) => {
-      console.log("New transaction received:", transaction);
       setTransactions((prev) => [transaction, ...prev]);
       // Update user balance
       if (transaction.status === "completed") {
@@ -69,7 +68,6 @@ export default function Wallet() {
 
     // Listen for transaction status updates
     socketService.on("transaction:updated", (transaction: Transaction) => {
-      console.log("Transaction updated:", transaction);
       setTransactions((prev) =>
         prev.map((t) => (t._id === transaction._id ? transaction : t)),
       );
@@ -84,7 +82,6 @@ export default function Wallet() {
     socketService.on(
       "wallet:balance:updated",
       (data: { newBalance: number }) => {
-        console.log("Balance updated:", data.newBalance);
         setBalance(data.newBalance);
         updateUser({ balance: data.newBalance });
       },

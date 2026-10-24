@@ -52,6 +52,7 @@ import { logViewMountDebug } from "../../../lib/viewErrorLogger";
 import { AUTH_COLORS } from "../../../lib/authScreenTheme";
 import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
 import PostalAddressConfirmModal from "../../../components/(patient)/PostalAddressConfirmModal";
+import { showAlertDialog } from "@/components/AlertDialog";
 
 export default function ProviderHome() {
   const INCOMING_PAGE_SIZE = 20;
@@ -304,15 +305,9 @@ export default function ProviderHome() {
   const fetchAndUpdateUserDetails = useCallback(async () => {
     if (!user?.userId) return;
     try {
-      console.log("🔄 Fetching latest user details...");
       const userResponse = await apiClient.get("/app/auth/user-details/");
-      console.log("User Details Response:", userResponse.data);
       if (userResponse.data?.status && userResponse.data?.user) {
         updateUser(userResponse.data.user);
-        console.log(
-          "✅ User details updated, isDocumentVerified:",
-          userResponse.data.user.isDocumentVerified,
-        );
       }
     } catch (error) {
       console.error("Error fetching user details:", error);
@@ -329,7 +324,6 @@ export default function ProviderHome() {
     options?: { append?: boolean; silent?: boolean },
   ) => {
     if (!user?.userId) {
-      console.log("⚠️ No userId, skipping request load");
       return;
     }
 
@@ -340,9 +334,6 @@ export default function ProviderHome() {
       typeof currentProviderLocation.latitude !== "number" ||
       typeof currentProviderLocation.longitude !== "number"
     ) {
-      console.log(
-        "⚠️ Provider location not ready yet, skipping request load until GPS is available",
-      );
       return;
     }
 
@@ -358,7 +349,6 @@ export default function ProviderHome() {
       isLoadingMoreRequestsRef.current = true;
       setIsLoadingMoreRequests(true);
     } else if (isLoadingRequestsRef.current) {
-      console.log("⚠️ Request load already in progress, skipping");
       return;
     } else {
       isLoadingRequestsRef.current = true;
@@ -367,18 +357,9 @@ export default function ProviderHome() {
       }
     }
 
-    console.log(
-      "📥 Starting to load available requests for provider:",
-      user.userId,
-      append ? "(load more)" : silent ? "(background)" : "(refresh)",
-    );
-
     try {
       // Wait for socket to be ready
-      console.log("⏳ Waiting for socket to connect...");
       await socketService.waitForConnection(10000);
-
-      console.log("📡 Socket is ready, fetching requests");
 
       if (append) {
         const nextPage =
@@ -470,7 +451,6 @@ export default function ProviderHome() {
         setIsLoadingRequests(false);
         isLoadingRequestsRef.current = false;
       }
-      console.log("✅ Loading complete");
     }
   }, [user?.userId]);
 
@@ -490,7 +470,6 @@ export default function ProviderHome() {
       // Only connect if not already connected for this online session
       const socket = socketService.getSocket();
       if (!socket?.connected) {
-        console.log("🔌 Connecting socket for provider:", user.userId);
         const normalizedRole =
           typeof user.role === "string" ? user.role.toLowerCase() : undefined;
         socketService.connect(
@@ -505,24 +484,18 @@ export default function ProviderHome() {
             | undefined,
         );
       } else {
-        console.log("✅ Socket already connected, reusing existing connection");
       }
 
       const currentSocket = socketService.getSocket();
-      console.log("📡 Socket state:", currentSocket?.connected);
 
       // Only set up connect handler if we haven't already handled it for this online session
       if (!socketConnectedRef.current) {
         // Listen for connect event - only load once per online toggle
         const handleConnect = () => {
           if (socketConnectedRef.current || !isOnline) {
-            console.log(
-              "⚠️ Already handled connect event or went offline, skipping",
-            );
             return;
           }
           socketConnectedRef.current = true;
-          console.log("✅ Socket connected event fired, loading requests...");
           // Small delay to ensure socket is fully ready
           setTimeout(() => {
             if (!isLoadingRequestsRef.current && isOnline) {
@@ -534,16 +507,12 @@ export default function ProviderHome() {
         // If already connected, load requests immediately
         if (currentSocket?.connected) {
           socketConnectedRef.current = true;
-          console.log("✅ Socket already connected, loading requests...");
           setTimeout(() => {
             if (!isLoadingRequestsRef.current && isOnline) {
               loadAvailableRequests();
             }
           }, 500);
         } else {
-          console.log(
-            "⏳ Socket not yet connected, waiting for connect event...",
-          );
           currentSocket?.once("connect", handleConnect);
         }
 
@@ -554,7 +523,6 @@ export default function ProviderHome() {
       }
     } else if (!isOnline) {
       // Clean up when going offline
-      console.log("📴 Provider went offline, cleaning up socket listeners");
       setRequests([]);
       requestsRef.current = [];
       setIncomingHasMore(false);
@@ -569,7 +537,6 @@ export default function ProviderHome() {
 
       // Clean up socket listeners if they were set up
       if (socketListenersCleanupRef.current) {
-        console.log("🧹 Executing socket listeners cleanup on offline");
         try {
           socketListenersCleanupRef.current();
         } catch (error) {
@@ -603,7 +570,7 @@ export default function ProviderHome() {
         if (!granted) {
           console.warn("Location permission not granted for provider map");
 
-          Alert.alert(
+          showAlertDialog(
             "Location Permission Required",
             "HealthConnect needs access to your location so we can show nearby patient requests. Please enable location in your device settings.",
             [
@@ -684,7 +651,6 @@ export default function ProviderHome() {
   // Automatically set provider offline if document verification is lost
   useEffect(() => {
     if (user?.isDocumentVerified === false && isOnline) {
-      console.log("⚠️ Document verification lost, automatically setting provider offline");
       setIsOnline(false);
       Alert.alert(
         "Account Verification Required",
@@ -697,7 +663,6 @@ export default function ProviderHome() {
   // Refresh user details and requests when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log("🔄 ProviderHome came into focus");
 
       // Fetch user details and earnings
       fetchAndUpdateUserDetails();
@@ -706,7 +671,6 @@ export default function ProviderHome() {
 
       // If online, silently refresh requests in the background
       if (isOnline && user?.userId && !isLoadingRequestsRef.current) {
-        console.log("🔄 Provider is online, background refresh on focus");
         const socket = socketService.getSocket();
         if (socket?.connected) {
           // Small delay to ensure socket is ready
@@ -761,7 +725,6 @@ export default function ProviderHome() {
 
     const intervalId = setInterval(() => {
       if (!isLoadingRequestsRef.current) {
-        console.log("⏱️ Background consultation sync");
         loadAvailableRequests(undefined, { silent: true });
       }
     }, REQUESTS_REFRESH_INTERVAL_MS);
@@ -779,9 +742,6 @@ export default function ProviderHome() {
 
     // Prevent setting up listeners multiple times for the same online session
     if (socketListenersSetupRef.current) {
-      console.log(
-        "⚠️ Socket listeners already set up for this online session, skipping",
-      );
       return;
     }
 
@@ -812,20 +772,15 @@ export default function ProviderHome() {
 
     function setupListeners(socketInstance: any) {
       if (socketListenersSetupRef.current) {
-        console.log("⚠️ Listeners already set up, skipping duplicate setup");
         return;
       }
 
       socketListenersSetupRef.current = true;
       // Ensure voice alerts are armed whenever realtime listeners are live
       setProviderOnline(true);
-      console.log(
-        "🔔 Setting up real-time socket listeners for provider (ONLINE mode)",
-      );
 
       // Handle new requests coming in real-time
       const handleNewRequest = (request: any) => {
-        console.log("✅ New request received in real-time:", request);
 
         // Always ring outside setState — React may re-run updaters and skip side effects
         void alertNewRequestAvailable(request?._id);
@@ -843,7 +798,6 @@ export default function ProviderHome() {
       // Handle request status changes (e.g., accepted by another provider, cancelled)
       const handleRequestStatusChanged = (data: any) => {
         if (!isOnline) return; // Ignore if went offline
-        console.log("🔄 Request status changed:", data);
         if (!data.requestId) return;
         setRequests((prev) => {
           // Only ring if this request was in our incoming queue
@@ -862,7 +816,6 @@ export default function ProviderHome() {
       // Handle request updates (when request is accepted/rejected/cancelled)
       const handleRequestUpdated = (data: any) => {
         if (!isOnline) return; // Ignore if went offline
-        console.log("📝 Request updated:", data);
         if (data._id) {
           if (data.status) {
             void alertConsultationStatusChange(
@@ -889,7 +842,6 @@ export default function ProviderHome() {
       // Handle request hidden (when rejected)
       const handleRequestHidden = (data: any) => {
         if (!isOnline) return; // Ignore if went offline
-        console.log("👁️ Request hidden:", data);
         if (data.requestId) {
           setRequests((prev) =>
             prev.filter((req) => req._id !== data.requestId),
@@ -913,7 +865,6 @@ export default function ProviderHome() {
 
       // Create and store cleanup function
       const cleanup = () => {
-        console.log("🧹 Cleaning up real-time socket listeners (OFFLINE mode)");
         const handlers = socketHandlersRef.current;
         if (handlers.handleNewRequest) {
           socketService.off("newRequestAvailable", handlers.handleNewRequest);
@@ -941,7 +892,6 @@ export default function ProviderHome() {
     return () => {
       // Cleanup listeners when effect unmounts or isOnline changes to false
       if (socketListenersCleanupRef.current) {
-        console.log("🧹 Cleaning up socket listeners from effect cleanup");
         try {
           socketListenersCleanupRef.current();
         } catch (error) {
@@ -1121,7 +1071,7 @@ export default function ProviderHome() {
 
   const proceedAcceptConfirm = (request: any) => {
     const patientName = request?.patientId?.fullname || "this patient";
-    Alert.alert(
+    showAlertDialog(
       "Accept Request",
       `Are you sure you want to accept the request from ${patientName}?`,
       [
@@ -1152,7 +1102,7 @@ export default function ProviderHome() {
   };
 
   const confirmDecline = (requestId: string, patientName: string) => {
-    Alert.alert(
+    showAlertDialog(
       "Decline Request",
       `Are you sure you want to decline the request from ${patientName}?`,
       [

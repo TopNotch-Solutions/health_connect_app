@@ -212,7 +212,6 @@ export default function PatientHomeScreen() {
           const imageUri = buildBackendAssetUrl("adverts", advert.image);
           if (imageUri) {
             Image.prefetch(imageUri).catch((err) => {
-              console.log("Failed to prefetch advert image:", imageUri, err);
             });
           }
         });
@@ -256,7 +255,6 @@ export default function PatientHomeScreen() {
     }
     try {
       // Wait for socket to be connected before proceeding
-      console.log("⏳ Waiting for socket to connect...");
       await socketService.waitForConnection(10000);
 
       const socket = socketService.getSocket();
@@ -266,8 +264,6 @@ export default function PatientHomeScreen() {
         return;
       }
 
-      console.log("✅ Socket is ready, fetching ailment categories");
-
       return new Promise<void>((resolve) => {
         let resolved = false;
 
@@ -275,10 +271,6 @@ export default function PatientHomeScreen() {
           if (resolved) return;
           resolved = true;
 
-          console.log(
-            "📋 Received ailment categories from backend:",
-            categories,
-          );
           if (Array.isArray(categories) && categories.length > 0) {
             applyAilmentCategories(categories);
           } else if (!ailmentsReadyRef.current) {
@@ -300,7 +292,6 @@ export default function PatientHomeScreen() {
         }, 5000);
 
         socket?.on("ailmentCategories", handleAilmentCategories);
-        console.log("📤 Emitting getAilmentCategories request");
         socket?.emit("getAilmentCategories");
 
         return () => clearTimeout(timeout);
@@ -332,13 +323,8 @@ export default function PatientHomeScreen() {
       }
 
       const liveRequests = await socketService.getPatientRequests(user.userId);
-      console.log("🔍 Raw requests received:", liveRequests);
 
       if (Array.isArray(liveRequests) && liveRequests.length > 0) {
-        console.log(
-          "First request full structure:",
-          JSON.stringify(liveRequests[0], null, 2),
-        );
       }
 
       if (Array.isArray(liveRequests)) {
@@ -349,7 +335,6 @@ export default function PatientHomeScreen() {
         const ailmentMappings = ailmentMappingsStr
           ? JSON.parse(ailmentMappingsStr)
           : {};
-        console.log("📍 Ailment mappings:", ailmentMappings);
 
         // Get the 2 most recent requests
         const recent = liveRequests
@@ -360,11 +345,6 @@ export default function PatientHomeScreen() {
           .slice(0, 2)
           .map((item: any) => {
             // Log each item's ailment structure
-            console.log("Item ailmentCategoryId:", item.ailmentCategoryId);
-            console.log(
-              "Item ailmentCategoryId type:",
-              typeof item.ailmentCategoryId,
-            );
 
             // Try to get ailment name from backend data first
             let ailmentName = "Unknown";
@@ -384,10 +364,7 @@ export default function PatientHomeScreen() {
             // Fall back to local mapping if available
             else if (ailmentMappings[item._id]) {
               ailmentName = ailmentMappings[item._id];
-              console.log("✅ Got ailment from local mapping:", ailmentName);
             }
-
-            console.log("Resolved ailment name:", ailmentName);
 
             return {
               _id: item._id,
@@ -443,7 +420,6 @@ export default function PatientHomeScreen() {
                 : undefined,
             };
           });
-        console.log("📋 Final recent requests:", recent);
         setRecentRequests(recent);
       }
     } catch (error) {
@@ -560,7 +536,6 @@ export default function PatientHomeScreen() {
           latitude: coords.latitude,
           longitude: coords.longitude,
         });
-        console.log("✅ Location obtained successfully:", coords);
       } catch (error: any) {
         console.error("Location error:", error);
         setLocation(defaultLocation);
@@ -683,14 +658,10 @@ export default function PatientHomeScreen() {
             `ailment-mappings-${user.userId}`,
             JSON.stringify(ailmentMappings),
           );
-          console.log("💾 Saved ailment mapping:", ailmentMappings);
         } catch (storageError) {
           console.error("Error saving ailment mapping:", storageError);
         }
       }
-
-      console.log("✅ Request created successfully:", request);
-      console.log("🔄 Navigating to waiting room...");
 
       void alertConsultationSubmitted(requestId);
 
@@ -698,9 +669,7 @@ export default function PatientHomeScreen() {
       // Use setTimeout to ensure modal closes first
       setTimeout(() => {
         try {
-          console.log("🚀 Executing navigation to waiting room...");
           router.push("/(app)/(patient)/waiting-room");
-          console.log("✅ Navigation to waiting room initiated");
         } catch (navError) {
           console.error("❌ Navigation error:", navError);
         }
@@ -709,8 +678,6 @@ export default function PatientHomeScreen() {
       // Refresh recent requests to show the newly created request
       loadRecentRequests();
     } catch (error: any) {
-      console.log("❌ Request creation failed:", error);
-      console.log("❌ Error details:", error.message, error.stack);
       throw new Error(error.message || "Failed to create request");
     }
   };

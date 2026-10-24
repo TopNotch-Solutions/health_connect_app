@@ -28,6 +28,7 @@ import {
   getLastNotificationResponse,
   getNotificationData,
 } from "../lib/pushNotifications";
+import { AlertDialogHost } from "../components/AlertDialog";
 import { isExpoGoRuntime } from "../lib/isExpoGoRuntime";
 import { installGlobalViewErrorLogger } from "../lib/viewErrorLogger";
 import "./globals.css";
@@ -291,7 +292,6 @@ const ProtectedLayout = () => {
 
       const listeners = await addNotificationListeners({
         onReceive: (notification) => {
-          console.log("📬 Foreground notification received:", notification);
         },
         onResponse: (response) => {
           if (!isMounted) return;
@@ -431,6 +431,8 @@ export default function RootLayout() {
             <RouteProvider>
               <ProtectedLayout />
               <GlobalRouteModal />
+              {/* Last so confirmation dialogs draw above every screen */}
+              <AlertDialogHost />
             </RouteProvider>
           </AuthProvider>
         </PersistGate>
