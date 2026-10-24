@@ -7,7 +7,6 @@ export const logViewMountDebug = (
   message: string,
   details?: Record<string, unknown>,
 ) => {
-  console.log(`${VIEW_LOG_PREFIX} ${viewName}: ${message}`, details ?? {});
 };
 
 export const logViewMountWarning = (

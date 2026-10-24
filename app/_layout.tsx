@@ -292,7 +292,6 @@ const ProtectedLayout = () => {
 
       const listeners = await addNotificationListeners({
         onReceive: (notification) => {
-          console.log("📬 Foreground notification received:", notification);
         },
         onResponse: (response) => {
           if (!isMounted) return;

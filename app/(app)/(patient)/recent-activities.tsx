@@ -197,8 +197,7 @@ export default function RecentActivities() {
           } else {
             setRequests(storedRequests);
           }
-        } catch (error) {
-          console.log("Could not fetch live requests, using stored:", error);
+        } catch {
           setRequests(storedRequests);
         }
       } else {

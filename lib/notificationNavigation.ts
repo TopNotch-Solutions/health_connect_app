@@ -153,17 +153,12 @@ export function handleNotificationOpen({
   if (!isAuthenticated || !role) {
     pendingNotificationData =
       data && typeof data === "object" ? { ...data } : {};
-    console.log(
-      "⏳ Notification tap queued until login:",
-      pendingNotificationData,
-    );
     return;
   }
 
   const href = resolveNotificationHref(data, role);
   if (!href) return;
 
-  console.log("👆 Opening notification →", href, data);
   try {
     router.push(href as any);
   } catch (error) {

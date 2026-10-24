@@ -182,7 +182,6 @@ export async function registerForPushNotifications(): Promise<string | null> {
   // Firebase Admin can target directly from the backend.
   try {
     const tokenData = await Notifications.getDevicePushTokenAsync();
-    console.log("✅ Device push token obtained:", tokenData.data);
     return tokenData.data;
   } catch (error) {
     console.error("❌ Failed to get push token:", error);
@@ -203,7 +202,6 @@ export async function savePushTokenToBackend(token: string): Promise<void> {
     await apiClient.patch("/app/auth/update-push-token", {
       pushToken: token,
     });
-    console.log("✅ Push token registered with backend");
   } catch (error) {
     // Non-fatal — the app still works, push just won't arrive until next login
     console.warn("⚠️ Could not register push token with backend:", error);
@@ -217,5 +215,4 @@ export async function savePushTokenToBackend(token: string): Promise<void> {
  */
 export async function removePushTokenFromBackend(_token: string): Promise<void> {
   // Token is cleared server-side by the logout endpoint.
-  console.log("ℹ️ Push token will be cleared by backend logout handler");
 }

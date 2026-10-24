@@ -235,8 +235,6 @@ export default function EditPatientProfileModal({
       nationalId: formData.nationalId,
     };
 
-    console.log("📤 Request payload:", JSON.stringify(payload, null, 2));
-
     setIsLoading(true);
     try {
       await apiClient.put("/app/auth/update-patient-details", payload);
@@ -245,10 +243,6 @@ export default function EditPatientProfileModal({
       Alert.alert("Success", "Profile updated successfully");
       onClose();
     } catch (error: any) {
-      console.log("❌ [EditPatient] API error:", JSON.stringify({
-        status: error.response?.status,
-        data: error.response?.data,
-      }, null, 2));
       const msg: string =
         error.response?.data?.message || "Failed to update profile. Please try again.";
       if (/cellphone|phone|mobile/i.test(msg)) {

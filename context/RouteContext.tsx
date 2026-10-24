@@ -43,12 +43,10 @@ export const RouteProvider = ({ children }: { children: React.ReactNode }) => {
   const [activeRoute, setActiveRoute] = useState<Request | null>(null);
 
   const startRoute = (request: Request) => {
-    console.log("ROUTE CONTEXT: Starting route for request", request._id);
     setActiveRoute(request);
   };
 
   const clearRoute = () => {
-    console.log("ROUTE CONTEXT: Clearing active route.");
     setActiveRoute(null);
   };
 

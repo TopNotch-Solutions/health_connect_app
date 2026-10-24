@@ -1084,8 +1084,6 @@ export default function ProviderRegistrationScreen() {
         ? String(params.providerType).toLowerCase()
         : "doctor";
 
-    console.log("📝 Building FormData with role:", role);
-
     // text fields
     const pairs: Array<[string, string]> = [
       ["fullname", accountInfo.fullname],
@@ -1132,7 +1130,6 @@ export default function ProviderRegistrationScreen() {
       if (v) {
         try {
           fd.append(k, v);
-          console.log(`✅ Added field: ${k}`);
         } catch (err) {
           console.error(`❌ Error appending field ${k}:`, err);
         }
@@ -1159,9 +1156,6 @@ export default function ProviderRegistrationScreen() {
             : name.endsWith(".pdf")
               ? "application/pdf"
               : "image/jpeg");
-        console.log(
-          `📄 File ${fallback}: name=${name}, type=${type}, uri=${uri}`,
-        );
         return { uri, name, type } as any;
       } catch (err) {
         console.error(`❌ Error processing file ${fallback}:`, err);
@@ -1186,16 +1180,13 @@ export default function ProviderRegistrationScreen() {
         const file = toFile(f, key);
         if (file) {
           fd.append(key, file);
-          console.log(`✅ Added file: ${key}`);
         } else {
-          console.log(`⚠️ Skipped file: ${key} (not provided)`);
         }
       } catch (err) {
         console.error(`❌ Error appending file ${key}:`, err);
       }
     });
 
-    console.log("✅ FormData building complete");
     return fd;
   };
 
@@ -1259,17 +1250,13 @@ export default function ProviderRegistrationScreen() {
 
     setIsLoading(true);
     try {
-      console.log("🔄 Building form data...");
       const formData = buildFormData();
 
-      console.log("📤 Submitting registration...");
       const res = await apiClient.post(
         "/app/auth/register-health-provider",
         formData,
         { headers: { "Content-Type": "multipart/form-data" } },
       );
-
-      console.log("✅ Registration response:", res.status);
 
       if (res && (res.status === 201 || res.status === 200)) {
         // Reset navigation stack and redirect to sign-in

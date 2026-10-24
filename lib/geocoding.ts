@@ -57,11 +57,9 @@ const getCurrentLocationCoordinates = async (): Promise<{
   longitude: number;
 }> => {
   try {
-    console.log('📍 Attempting to get location with expo-location...');
     const location = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.High,
     });
-    console.log('✅ Successfully got location from expo-location:', location.coords);
     return {
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,

@@ -201,7 +201,6 @@ export default function ProviderRouteModal({
 
     setIsLoading(true);
     try {
-      console.log("📍 Getting provider current location...");
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
@@ -242,7 +241,6 @@ export default function ProviderRouteModal({
 
   const startTracking = useCallback(async () => {
     try {
-      console.log("🚗 Starting real-time location tracking...");
       setIsTracking(true);
 
       const { granted } = await ensureForegroundLocationPermission({
@@ -340,7 +338,6 @@ export default function ProviderRouteModal({
         },
       );
 
-      console.log("✅ Location tracking started");
     } catch (error) {
       console.error("Error starting location tracking:", error);
       Alert.alert("Error", "Failed to start location tracking");
@@ -354,7 +351,6 @@ export default function ProviderRouteModal({
       locationSubscriptionRef.current = null;
     }
     setIsTracking(false);
-    console.log("🛑 Location tracking stopped");
   }, []);
 
   const handleArrived = useCallback(async () => {
@@ -366,7 +362,6 @@ export default function ProviderRouteModal({
     try {
       stopTracking();
 
-      console.log("✅ Marking provider as arrived");
       if (!isValidCoordinate(providerLocation)) {
         Alert.alert("Error", "Current location not available");
         return;
@@ -378,10 +373,6 @@ export default function ProviderRouteModal({
         return;
       }
 
-      console.log(
-        "📤 Updating request status to arrived with location:",
-        providerLocation,
-      );
       await socketService.updateRequestStatus(
         requestId,
         providerId,
@@ -461,7 +452,6 @@ export default function ProviderRouteModal({
             text: "Cancel Request",
             onPress: async () => {
               try {
-                console.log("📤 Cancelling request...");
                 await socketService.cancelRequest(
                   requestId,
                   "provider",
@@ -619,10 +609,6 @@ export default function ProviderRouteModal({
                     style={{ width: "100%", height: "100%" }}
                     resizeMode="cover"
                     onError={(error) => {
-                      console.log(
-                        "Failed to load provider profile image:",
-                        error,
-                      );
                     }}
                   />
                 ) : (
@@ -684,11 +670,8 @@ export default function ProviderRouteModal({
                       },
                     );
                   }
-                  console.log(`Route Distance: ${result.distance} km`);
-                  console.log(`Route Duration: ${result.duration} minutes`);
                 }}
                 onError={(errorMessage) => {
-                  console.log("MapViewDirections Error:", errorMessage);
                   // Fallback to straight line distance if route fails
                 }}
               />
@@ -730,7 +713,6 @@ export default function ProviderRouteModal({
                   style={{ width: "100%", height: "100%" }}
                   resizeMode="cover"
                   onError={(error) => {
-                    console.log("Failed to load patient profile image:", error);
                   }}
                 />
               ) : (

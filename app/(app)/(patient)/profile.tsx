@@ -105,7 +105,6 @@ export default function ProfileScreen() {
 
       if (response.data?.profileImage) {
         await updateUser({ profileImage: response.data.profileImage });
-        console.log(response.data);
         Alert.alert("Success", "Profile photo updated successfully!");
       } else {
         Alert.alert("Success", "Profile photo updated successfully!");

@@ -58,23 +58,11 @@ class SocketService {
         normalizedRole &&
         (!this.userRole || this.userRole !== normalizedRole)
       ) {
-        console.log(
-          "Socket already connected, rejoining with normalized role:",
-          normalizedRole,
-        );
         this.join(userId, normalizedRole);
       } else {
-        console.log("Socket already connected");
       }
       return this.socket;
     }
-
-    console.log(
-      "Connecting to socket with userId:",
-      userId,
-      "role:",
-      normalizedRole || "<missing-or-invalid>",
-    );
 
     this.socket = io(BACKEND_URL, {
       transports: ["polling", "websocket"],
@@ -86,7 +74,6 @@ class SocketService {
     });
 
     this.socket.on("connect", () => {
-      console.log("✅ Socket connected:", this.socket?.id);
 
       // Auto-join if role is provided
       if (normalizedRole) {
@@ -102,7 +89,6 @@ class SocketService {
     });
 
     this.socket.on("disconnect", (reason) => {
-      console.log("❌ Socket disconnected:", reason);
     });
 
     this.socket.on("connect_error", (error) => {
@@ -118,7 +104,6 @@ class SocketService {
 
   // FIX #5: Clean up event listeners on disconnect to prevent memory leaks
   private setupDisconnectHandler() {
-    console.log("🧹 Cleaning up event listeners on disconnect");
     this.eventListeners.forEach((callbacks, event) => {
       callbacks.forEach((callback) => {
         if (this.socket) {
@@ -170,14 +155,6 @@ class SocketService {
     ) {
       payload.providerLocation = providerLocation;
     }
-    console.log(
-      "📤 Emitting join event with userId:",
-      userId,
-      "role:",
-      normalizedRole,
-      "hasLocation:",
-      Boolean(payload.providerLocation),
-    );
     this.socket.emit("join", payload);
   }
 
@@ -225,7 +202,6 @@ class SocketService {
     const startTime = Date.now();
 
     while (!this.socket?.connected && Date.now() - startTime < maxWaitTime) {
-      console.log("⏳ Waiting for socket connection...");
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
@@ -233,7 +209,6 @@ class SocketService {
       throw new Error(SERVER_SLOW_MESSAGE);
     }
 
-    console.log("✅ Socket is connected");
   }
 
   getSocket() {
@@ -331,16 +306,10 @@ class SocketService {
         },
       };
 
-      console.log(
-        "📤 Emitting createRequest with payload:",
-        JSON.stringify(payload, null, 2),
-      );
-
       let isResolved = false;
 
       // Listen for success response event
       const successHandler = (response: any) => {
-        console.log("✅ Received requestCreated event:", response);
         if (isResolved) return;
         isResolved = true;
 
@@ -402,7 +371,6 @@ class SocketService {
       const handlePatientRequests = (requests: any) => {
         this.socket?.off("patientRequests", handlePatientRequests);
         clearTimeout(timeout);
-        console.log("✅ Received patientRequests event:", requests);
         resolve(requests);
       };
 
@@ -429,7 +397,6 @@ class SocketService {
       this.socket.on("patientRequests", handlePatientRequests);
       this.socket.on("requestError", handleError);
 
-      console.log("📤 Emitting getPatientRequests with patientId:", patientId);
       this.socket.emit("getPatientRequests", { patientId });
     });
   }
@@ -525,17 +492,6 @@ class SocketService {
       const page = Math.max(1, options?.page ?? 1);
       const limit = Math.min(100, Math.max(1, options?.limit ?? 20));
 
-      console.log(
-        "🔍 getAvailableRequests called with providerId:",
-        providerId,
-        { page, limit },
-      );
-      console.log("🔍 Socket state:", {
-        exists: !!this.socket,
-        connected: this.socket?.connected,
-        id: this.socket?.id,
-      });
-
       if (!this.socket?.connected) {
         console.error("❌ Socket not connected. Current state:", {
           socketExists: !!this.socket,
@@ -583,9 +539,6 @@ class SocketService {
         this.socket?.off("availableRequests", handleAvailableRequests);
         clearTimeout(timeout);
         const normalized = normalizePayload(payload);
-        console.log("✅ Received availableRequests event");
-        console.log("📊 Requests count:", normalized.requests.length);
-        console.log("📊 Pagination:", normalized.pagination);
         resolve(normalized);
       };
 
@@ -622,7 +575,6 @@ class SocketService {
         limit,
         ...(providerLocation ? { providerLocation } : {}),
       };
-      console.log("📤 Emitting getAvailableRequests with payload:", payload);
       this.socket.emit("getAvailableRequests", payload);
     });
   }
@@ -643,15 +595,6 @@ class SocketService {
         this.socket?.off("requestUpdated", handleRequestUpdated);
         this.socket?.off("requestError", handleError);
         clearTimeout(timeout);
-        console.log(
-          "✅ Request accepted - full response:",
-          JSON.stringify(request, null, 2),
-        );
-        console.log("✅ Response _id:", request?._id);
-        console.log("✅ Response status:", request?.status);
-        console.log("✅ Response providerId:", request?.providerId);
-        console.log("✅ Response patientId:", request?.patientId);
-        console.log("✅ Response timeline:", request?.timeline);
         resolve(request);
       };
 
@@ -686,24 +629,12 @@ class SocketService {
         providerId,
         ...(providerLocation ? { providerLocation } : {}),
       };
-      console.log(
-        "📤 Emitting acceptRequest with payload:",
-        JSON.stringify(payload, null, 2),
-      );
-      console.log("📤 Payload requestId type:", typeof payload.requestId);
-      console.log("📤 Payload providerId type:", typeof payload.providerId);
       this.socket.emit("acceptRequest", payload);
     });
   }
 
   getProviderRequests(providerId: string) {
     return new Promise((resolve, reject) => {
-      console.log("🔍 getProviderRequests called with providerId:", providerId);
-      console.log("🔍 Socket state:", {
-        exists: !!this.socket,
-        connected: this.socket?.connected,
-        id: this.socket?.id,
-      });
 
       if (!this.socket?.connected) {
         console.error("❌ Socket not connected. Current state:", {
@@ -720,20 +651,7 @@ class SocketService {
         // Clean up the listener
         this.socket?.off("providerRequests", handleProviderRequests);
         clearTimeout(timeout);
-        console.log("✅ Received providerRequests event");
-        console.log(
-          "📊 Provider requests data:",
-          JSON.stringify(requests, null, 2),
-        );
-        console.log(
-          "📊 Provider requests count:",
-          Array.isArray(requests) ? requests.length : "not an array",
-        );
         if (Array.isArray(requests) && requests.length > 0) {
-          console.log(
-            "📊 First provider request:",
-            JSON.stringify(requests[0], null, 2),
-          );
         }
         resolve(requests);
       };
@@ -765,10 +683,6 @@ class SocketService {
       this.socket.on("providerRequests", handleProviderRequests);
       this.socket.on("requestError", handleError);
 
-      console.log(
-        "📤 Emitting getProviderRequests with providerId:",
-        providerId,
-      );
       this.socket.emit("getProviderRequests", { providerId });
     });
   }
@@ -784,7 +698,6 @@ class SocketService {
         this.socket?.off("requestHidden", handleRequestHidden);
         this.socket?.off("requestError", handleError);
         clearTimeout(timeout);
-        console.log("✅ Request rejected:", data);
         resolve(data);
       };
 
@@ -811,7 +724,6 @@ class SocketService {
       this.socket.on("requestHidden", handleRequestHidden);
       this.socket.on("requestError", handleError);
 
-      console.log("📤 Emitting rejectRequest:", { requestId, providerId });
       this.socket.emit("rejectRequest", { requestId, providerId });
     });
   }
@@ -833,8 +745,6 @@ class SocketService {
         hasLocation: !!location,
       };
 
-      console.log("📤 Emitting updateRequestStatus with new payload:", payload);
-
       let resolved = false;
       const timeout = setTimeout(() => {
         if (!resolved) {
@@ -853,7 +763,6 @@ class SocketService {
         clearTimeout(timeout);
         this.socket?.off("requestUpdated", handleSuccess);
         this.socket?.off("requestError", handleError);
-        console.log("✅ updateRequestStatus acknowledged by server:", response);
         resolve(response);
       };
 
@@ -909,7 +818,6 @@ class SocketService {
           this.socket?.off("requestUpdated", handleRequestUpdated);
           this.socket?.off("requestError", handleError);
           clearTimeout(timeout);
-          console.log("✅ Provider response updated successfully:", response);
           resolve(response);
         }
       };
@@ -966,7 +874,6 @@ class SocketService {
         this.socket?.off("requestUpdated", handleRequestUpdated);
         this.socket?.off("requestError", handleError);
         clearTimeout(timeout);
-        console.log("✅ Request cancelled:", data);
         resolve(data);
       };
 
@@ -993,11 +900,6 @@ class SocketService {
       this.socket.on("requestUpdated", handleRequestUpdated);
       this.socket.on("requestError", handleError);
 
-      console.log("📤 Emitting cancelRequest:", {
-        requestId,
-        cancelledBy,
-        reason,
-      });
       this.socket.emit("cancelRequest", { requestId, cancelledBy, reason });
     });
   }
@@ -1015,11 +917,6 @@ class SocketService {
       return;
     }
 
-    console.log("📍 Emitting provider location update:", {
-      requestId,
-      providerId,
-      coordinates,
-    });
     this.socket.emit("updateProviderLocationRealtime", {
       requestId,
       location: coordinates,

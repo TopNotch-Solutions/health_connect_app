@@ -199,24 +199,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const online = await checkIsOnline();
       if (!online) {
-        console.log("📴 Offline — deferring app token fetch until connected");
         return;
       }
 
       try {
         const existingToken = await SecureStore.getItemAsync("appToken");
         if (existingToken) {
-          console.log("✅ App token already exists");
           return;
         }
 
-        console.log("🔑 Fetching app token...");
         const response = await apiClient.get("/app/auth/retrieve-jwt-token");
         const data = response.data;
 
         if (data?.token) {
           await SecureStore.setItemAsync("appToken", data.token);
-          console.log("✅ App token saved successfully");
         } else {
           console.error("❌ No app token in response");
         }
@@ -247,7 +243,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (email: string, password: string): Promise<User> => {
     try {
-      console.log("🔐 Starting login process...");
 
       const fetchFreshAppToken = async () => {
         const online = await checkIsOnline();
@@ -260,7 +255,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const response = await apiClient.get("/app/auth/retrieve-jwt-token");
         if (response.data?.token) {
           await SecureStore.setItemAsync("appToken", response.data.token);
-          console.log("✅ App token fetched and saved");
           return response.data.token;
         }
         throw new Error("Failed to get app token from server");
@@ -269,7 +263,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Ensure app token exists before login
       let appToken: any = await SecureStore.getItemAsync("appToken");
       if (!appToken) {
-        console.log("⚠️  No app token found, fetching...");
         try {
           appToken = await fetchFreshAppToken();
         } catch (tokenError) {
@@ -281,7 +274,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       // Call login endpoint with email and password
-      console.log("🌐 Calling login API...");
       let response;
       try {
         response = await apiClient.post("/app/auth/login", {
@@ -322,9 +314,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
 
-      console.log("✅ Login API call successful");
-      console.log("📦 Response status:", response.status);
-
       if (!response.data || !response.data.user) {
         throw new Error("Invalid response from server");
       }
@@ -337,23 +326,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Check for token in response
       if (response.data.token) {
         authToken = response.data.token;
-        console.log("✅ Token found in response.data.token");
       } else if (userDataFromBackend.token) {
         authToken = userDataFromBackend.token;
-        console.log("✅ Token found in response.data.user.token");
       }
 
       // If no token in response, the backend's login function is missing the token return
       if (!authToken) {
         console.error("❌ Backend login response missing token");
-        console.log("⚠️  Backend needs to return token in login response");
         throw new Error("Server error: Authentication token not provided");
       }
-
-      console.log(
-        "🔑 Auth token obtained:",
-        authToken.substring(0, 30) + "...",
-      );
 
       // Create user object with ALL fields (exclude token from user data)
       const userData: User = {
@@ -396,11 +377,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Save token FIRST
       await SecureStore.setItemAsync("authToken", authToken);
-      console.log("✅ Auth token saved to SecureStore");
 
       // Save user data
       await SecureStore.setItemAsync("user", JSON.stringify(userData));
-      console.log("✅ User data saved to SecureStore");
 
       setUser(userData);
 
@@ -418,7 +397,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       })();
 
-      console.log("🎉 Login successful and fully authenticated!");
       return userData;
     } catch (error: any) {
       console.error(
