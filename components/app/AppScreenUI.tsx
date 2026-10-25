@@ -5,6 +5,7 @@ import {
   Image,
   ImageSourcePropType,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -82,6 +83,8 @@ type AppHeroCardProps = {
   stats?: StatPill[];
   headerRight?: React.ReactNode;
   logoSource?: ImageSourcePropType;
+  /** Merged onto the hero card container (e.g. drop margin when parent already pads). */
+  style?: StyleProp<ViewStyle>;
 };
 
 export function AppHeroCard({
@@ -91,9 +94,10 @@ export function AppHeroCard({
   stats,
   headerRight,
   logoSource = require("../../assets/images/connectlogo.png"),
+  style,
 }: AppHeroCardProps) {
   return (
-    <View style={appScreenStyles.heroCard}>
+    <View style={[appScreenStyles.heroCard, style]}>
       <View style={appScreenStyles.heroOrbLarge} pointerEvents="none" />
       <View style={appScreenStyles.heroOrbSmall} pointerEvents="none" />
       <View style={appScreenStyles.heroRow}>

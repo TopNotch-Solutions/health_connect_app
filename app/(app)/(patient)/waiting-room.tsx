@@ -115,6 +115,29 @@ interface StoredRequest {
   acceptedAt: number; // Timestamp when request was accepted
 }
 
+/** Strip PII before writing waiting-room snapshots to AsyncStorage. */
+const sanitizeRequestsForCache = (items: StoredRequest[]): StoredRequest[] =>
+  items.map((item) => {
+    const request: any = { ...item.request };
+    if (request.medicalAidDetails) {
+      const { medicalAidTitle, icd10Code, maf } = request.medicalAidDetails;
+      request.medicalAidDetails = {
+        ...(medicalAidTitle ? { medicalAidTitle } : {}),
+        ...(icd10Code ? { icd10Code } : {}),
+        ...(maf ? { maf } : {}),
+      };
+    }
+    if (request.providerId && typeof request.providerId === "object") {
+      const { _id, fullname, role, profileImage, walletID } = request.providerId;
+      request.providerId = { _id, fullname, role, profileImage, walletID };
+    }
+    if (request.patientId && typeof request.patientId === "object") {
+      const { _id, fullname, walletID, profileImage } = request.patientId;
+      request.patientId = { _id, fullname, walletID, profileImage };
+    }
+    return { ...item, request };
+  });
+
 const StatusBadge = ({ status }: { status: string }) => {
   const getStatusColor = () => {
     switch (status) {
@@ -1041,7 +1064,7 @@ export default function WaitingRoom() {
             // Save updated requests to storage (now only valid ones)
             await AsyncStorage.setItem(
               `waiting-room-${user?.userId}`,
-              JSON.stringify(merged),
+              JSON.stringify(sanitizeRequestsForCache(merged)),
             );
           } else {
             setRequests(storedRequests);
@@ -1162,10 +1185,10 @@ export default function WaitingRoom() {
           });
         }
 
-        // Save to storage
+        // Save to storage (PII stripped)
         AsyncStorage.setItem(
           `waiting-room-${user.userId}`,
-          JSON.stringify(updated),
+          JSON.stringify(sanitizeRequestsForCache(updated)),
         ).catch((e) => console.error("Failed to save requests:", e));
 
         // If this request just moved to accepted, try fetching provider's last known location
@@ -1406,6 +1429,7 @@ export default function WaitingRoom() {
                 { icon: "inbox", label: `${sortedRequests.length} active` },
                 { icon: "clock", label: "Live updates" },
               ]}
+              style={styles.heroFlush}
             />
             {showProviderMap && patientLocation ? (
               <View style={{ height: 220, width: "100%", marginBottom: 16 }}>
@@ -1460,6 +1484,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 20,
+  },
+  // List already pads horizontally — don't stack hero margin on top of it.
+  heroFlush: {
+    marginHorizontal: 0,
   },
   requestCard: {
     backgroundColor: AUTH_COLORS.white,

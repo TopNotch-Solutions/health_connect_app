@@ -4,8 +4,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -16,6 +16,7 @@ import { AppTextInput as TextInput } from "../../../components/AppTextInput";
 import CreateRequestModal from "../../../components/(patient)/CreateRequestModal";
 import { useAuth } from "../../../context/AuthContext";
 import {
+  clearAilmentCategoriesCache,
   getCachedAilmentCategories,
   normalizeAilmentCategories,
   prefetchAilmentCategoryImages,
@@ -68,7 +69,7 @@ export default function AllAilmentsScreen() {
       setAilments(normalized);
       ailmentsReadyRef.current = true;
       setIsLoading(false);
-      void prefetchAilmentCategoryImages(normalized, normalized.length);
+      void prefetchAilmentCategoryImages(normalized, 12);
     })();
   }, []);
 
@@ -77,7 +78,7 @@ export default function AllAilmentsScreen() {
     setAilments(normalized);
     ailmentsReadyRef.current = true;
     void setCachedAilmentCategories(normalized);
-    void prefetchAilmentCategoryImages(normalized, normalized.length);
+    void prefetchAilmentCategoryImages(normalized, 12);
   }, []);
 
   const fetchAilments = useCallback(async () => {
@@ -137,6 +138,16 @@ export default function AllAilmentsScreen() {
       socketService.connect(user.userId, "patient");
     }
   }, [user?.userId]);
+
+  useEffect(() => {
+    const handleCatalogUpdated = () => {
+      void clearAilmentCategoriesCache().then(() => fetchAilments());
+    };
+    socketService.on("catalogUpdated", handleCatalogUpdated);
+    return () => {
+      socketService.off("catalogUpdated", handleCatalogUpdated);
+    };
+  }, [fetchAilments]);
 
   useFocusEffect(
     useCallback(() => {
@@ -311,23 +322,27 @@ export default function AllAilmentsScreen() {
               <Text style={styles.emptyText}>No ailments available</Text>
             </View>
           ) : showAilmentGrid ? (
-            <ScrollView
+            <FlatList
+              data={filteredAilments}
+              keyExtractor={(item) => item._id}
+              numColumns={2}
               style={styles.flex}
               contentContainerStyle={styles.scrollContent}
+              columnWrapperStyle={styles.grid}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
-            >
-              <View style={styles.grid}>
-                {filteredAilments.map((item) => (
-                  <AilmentCard
-                    key={item._id}
-                    item={item}
-                    onPress={() => handleAilmentSelect(item)}
-                  />
-                ))}
-              </View>
-            </ScrollView>
+              initialNumToRender={8}
+              maxToRenderPerBatch={8}
+              windowSize={7}
+              removeClippedSubviews
+              renderItem={({ item }) => (
+                <AilmentCard
+                  item={item}
+                  onPress={() => handleAilmentSelect(item)}
+                />
+              )}
+            />
           ) : null}
         </View>
 
@@ -398,8 +413,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "space-between",
   },
 });

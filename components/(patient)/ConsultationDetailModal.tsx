@@ -457,7 +457,7 @@ export default function ConsultationDetailModal({
                 item.medicalAidDetails?.membershipNumber ? (
                   <DetailRow
                     icon="hash"
-                    label="MAF"
+                    label="NAMAF"
                     value={
                       item.medicalAidDetails.maf ||
                       item.medicalAidDetails.membershipNumber ||

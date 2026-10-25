@@ -2,7 +2,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { buildBackendAssetUrl } from "./backend";
 
-const AILMENT_CATEGORIES_CACHE_KEY = "health_connect_ailment_categories_v2";
+const AILMENT_CATEGORIES_CACHE_KEY = "health_connect_ailment_categories_v3";
+/** Cache expires after 10 minutes so portal price/title changes cannot linger forever. */
+const AILMENT_CACHE_TTL_MS = 10 * 60 * 1000;
+
+type CachedAilmentPayload = {
+  cachedAt: number;
+  categories: any[];
+};
 
 const formatProviderRole = (role: string) =>
   role
@@ -50,13 +57,52 @@ export function normalizeAilmentCategories(categories: any[]): any[] {
   }));
 }
 
+function parseCachedPayload(raw: string): CachedAilmentPayload | null {
+  try {
+    const parsed = JSON.parse(raw);
+    // New shape: { cachedAt, categories }
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      Array.isArray(parsed.categories)
+    ) {
+      return {
+        cachedAt: Number(parsed.cachedAt) || 0,
+        categories: parsed.categories,
+      };
+    }
+    // Legacy shape: bare array
+    if (Array.isArray(parsed)) {
+      return { cachedAt: 0, categories: parsed };
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 export async function getCachedAilmentCategories(): Promise<any[] | null> {
   try {
     const raw = await AsyncStorage.getItem(AILMENT_CATEGORIES_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return null;
-    return normalizeAilmentCategories(parsed);
+    if (!raw) {
+      // Migrate: also clear legacy key so stale v2 data is not re-read elsewhere
+      await AsyncStorage.removeItem(
+        "health_connect_ailment_categories_v2",
+      ).catch(() => {});
+      return null;
+    }
+    const payload = parseCachedPayload(raw);
+    if (!payload || payload.categories.length === 0) return null;
+
+    const age = Date.now() - payload.cachedAt;
+    if (!payload.cachedAt || age > AILMENT_CACHE_TTL_MS) {
+      await AsyncStorage.removeItem(AILMENT_CATEGORIES_CACHE_KEY).catch(
+        () => {},
+      );
+      return null;
+    }
+
+    return normalizeAilmentCategories(payload.categories);
   } catch (error) {
     console.warn("Failed to read cached ailment categories:", error);
     return null;
@@ -67,12 +113,28 @@ export async function setCachedAilmentCategories(
   categories: any[],
 ): Promise<void> {
   try {
+    const payload: CachedAilmentPayload = {
+      cachedAt: Date.now(),
+      categories,
+    };
     await AsyncStorage.setItem(
       AILMENT_CATEGORIES_CACHE_KEY,
-      JSON.stringify(categories),
+      JSON.stringify(payload),
     );
   } catch (error) {
     console.warn("Failed to cache ailment categories:", error);
+  }
+}
+
+/** Drop cached ailments so the next fetch pulls portal-fresh catalog data. */
+export async function clearAilmentCategoriesCache(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([
+      AILMENT_CATEGORIES_CACHE_KEY,
+      "health_connect_ailment_categories_v2",
+    ]);
+  } catch (error) {
+    console.warn("Failed to clear ailment categories cache:", error);
   }
 }
 

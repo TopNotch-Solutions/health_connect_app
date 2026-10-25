@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -46,6 +46,7 @@ interface RequestStatus {
     medicalAidTitle?: string;
     medicalAidImage?: string;
     membershipNumber?: string;
+    maf?: string;
     mainMemberName?: string;
     residentialAddress?: string;
     postalAddress?: {
@@ -86,154 +87,185 @@ interface RequestStatus {
   };
 }
 
-interface StoredRequest {
-  request: RequestStatus;
-  acceptedAt: number;
-}
+const PAGE_SIZE = 10;
 
-const toHistoryItem = (stored: StoredRequest): HistoryItem => {
-  const request = stored.request;
-  return {
-    _id: request._id,
-    ailment: request.ailmentCategoryId?.title || "Healthcare Request",
-    status: request.status,
-    date: new Date(request.createdAt).toLocaleDateString("en-ZA", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }),
-    createdAt: request.createdAt,
-    consultationMode: request.consultationMode,
-    paymentMethod: request.paymentMethod,
-    urgency: request.urgency,
-    symptoms: request.symptoms,
-    consultationCost:
-      typeof request.consultationCost === "number"
-        ? request.consultationCost
-        : typeof request.estimatedCost === "number"
-          ? request.estimatedCost
+const toHistoryItem = (request: RequestStatus): HistoryItem => ({
+  _id: request._id,
+  ailment: request.ailmentCategoryId?.title || "Healthcare Request",
+  status: request.status,
+  date: new Date(request.createdAt).toLocaleDateString("en-ZA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }),
+  createdAt: request.createdAt,
+  consultationMode: request.consultationMode,
+  paymentMethod: request.paymentMethod,
+  urgency: request.urgency,
+  symptoms: request.symptoms,
+  consultationCost:
+    typeof request.consultationCost === "number"
+      ? request.consultationCost
+      : typeof request.estimatedCost === "number"
+        ? request.estimatedCost
+        : undefined,
+  providerName: request.providerId?.fullname,
+  providerRole: request.providerId?.role,
+  providerPhone: request.providerId?.cellphoneNumber,
+  estimatedArrival: request.providerResponse?.estimatedArrival,
+  address: request.address
+    ? {
+        route: request.address.route,
+        locality: request.address.locality,
+        region: request.address.administrative_area_level_1,
+      }
+    : undefined,
+  medicalAidDetails: request.medicalAidDetails
+    ? {
+        medicalAidTitle: request.medicalAidDetails.medicalAidTitle,
+        medicalAidImage: request.medicalAidDetails.medicalAidImage,
+        membershipNumber: request.medicalAidDetails.membershipNumber,
+        maf: request.medicalAidDetails.maf,
+        mainMemberName: request.medicalAidDetails.mainMemberName,
+        residentialAddress: request.medicalAidDetails.residentialAddress,
+        postalAddress: request.medicalAidDetails.postalAddress
+          ? {
+              formatted: request.medicalAidDetails.postalAddress.formatted,
+              postOffice: request.medicalAidDetails.postalAddress.postOffice,
+              postcode: request.medicalAidDetails.postalAddress.postcode,
+            }
           : undefined,
-    providerName: request.providerId?.fullname,
-    providerRole: request.providerId?.role,
-    providerPhone: request.providerId?.cellphoneNumber,
-    estimatedArrival: request.providerResponse?.estimatedArrival,
-    address: request.address
-      ? {
-          route: request.address.route,
-          locality: request.address.locality,
-          region: request.address.administrative_area_level_1,
-        }
-      : undefined,
-    medicalAidDetails: request.medicalAidDetails
-      ? {
-          medicalAidTitle: request.medicalAidDetails.medicalAidTitle,
-          medicalAidImage: request.medicalAidDetails.medicalAidImage,
-          membershipNumber: request.medicalAidDetails.membershipNumber,
-          mainMemberName: request.medicalAidDetails.mainMemberName,
-          residentialAddress: request.medicalAidDetails.residentialAddress,
-          postalAddress: request.medicalAidDetails.postalAddress
-            ? {
-                formatted: request.medicalAidDetails.postalAddress.formatted,
-                postOffice: request.medicalAidDetails.postalAddress.postOffice,
-                postcode: request.medicalAidDetails.postalAddress.postcode,
-              }
-            : undefined,
-          icd10Code: request.medicalAidDetails.icd10Code,
-        }
-      : undefined,
-  };
-};
+        icd10Code: request.medicalAidDetails.icd10Code,
+      }
+    : undefined,
+});
 
 export default function RecentActivities() {
   const { user } = useAuth();
-  const [requests, setRequests] = useState<StoredRequest[]>([]);
+  const [requests, setRequests] = useState<RequestStatus[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  const loadRequests = useCallback(async () => {
-    try {
-      // Get stored requests from AsyncStorage
-      const storedData = await AsyncStorage.getItem(
-        `waiting-room-${user?.userId}`,
-      );
-      let storedRequests: StoredRequest[] = storedData
-        ? JSON.parse(storedData)
-        : [];
-
-      // Also fetch live requests from socket
-      if (user?.userId && socketService.getSocket()?.connected) {
-        try {
-          const liveRequests = await socketService.getPatientRequests(
-            user.userId,
-          );
-          if (Array.isArray(liveRequests)) {
-            // Merge live requests with stored ones, prioritizing live data
-            const mergedRequests = new Map<string, StoredRequest>();
-
-            // Add stored requests first
-            storedRequests.forEach((item) => {
-              mergedRequests.set(item.request._id, item);
-            });
-
-            // Override with live requests
-            liveRequests.forEach((req: RequestStatus) => {
-              const stored = mergedRequests.get(req._id);
-              const now = Date.now();
-              const acceptedAt =
-                ["accepted", "payment_pending"].includes(req.status) && !stored
-                  ? now
-                  : stored?.acceptedAt || now;
-              mergedRequests.set(req._id, { request: req, acceptedAt });
-            });
-
-            const merged = Array.from(mergedRequests.values());
-            setRequests(merged);
-
-            // Save updated requests to storage
-            await AsyncStorage.setItem(
-              `waiting-room-${user?.userId}`,
-              JSON.stringify(merged),
-            );
-          } else {
-            setRequests(storedRequests);
-          }
-        } catch {
-          setRequests(storedRequests);
-        }
-      } else {
-        setRequests(storedRequests);
+  const fetchPage = useCallback(
+    async (pageToLoad: number, mode: "replace" | "append") => {
+      if (!user?.userId) {
+        setRequests([]);
+        setTotal(0);
+        setHasMore(false);
+        setIsLoading(false);
+        setIsRefreshing(false);
+        setIsLoadingMore(false);
+        return;
       }
-    } catch (error) {
-      console.error("Error loading requests:", error);
-      setRequests([]);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [user?.userId]);
+
+      try {
+        await socketService.waitForConnection(10000);
+        if (!socketService.getSocket()?.connected) {
+          throw new Error("Socket not connected");
+        }
+
+        const payload = await socketService.getPatientRequests(user.userId, {
+          page: pageToLoad,
+          limit: PAGE_SIZE,
+          paginated: true,
+        });
+
+        const list = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.requests)
+            ? payload.requests
+            : [];
+        const pagination = Array.isArray(payload)
+          ? null
+          : payload?.pagination || null;
+
+        setPage(pageToLoad);
+        if (pagination) {
+          setTotal(pagination.total);
+          setHasMore(Boolean(pagination.hasMore));
+        } else {
+          setTotal((prev) =>
+            mode === "replace" ? list.length : Math.max(prev, list.length),
+          );
+          setHasMore(list.length >= PAGE_SIZE);
+        }
+
+        setRequests((prev) => {
+          if (mode === "replace") return list;
+          const seen = new Set(prev.map((r) => r._id));
+          const next = [...prev];
+          for (const item of list) {
+            if (!seen.has(item._id)) {
+              next.push(item);
+              seen.add(item._id);
+            }
+          }
+          return next;
+        });
+      } catch (error) {
+        console.error("Error loading recent activities:", error);
+        if (mode === "replace") {
+          setRequests([]);
+          setTotal(0);
+          setHasMore(false);
+        }
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [user?.userId],
+  );
+
+  const reloadFirstPage = useCallback(async () => {
+    setIsLoading(true);
+    await fetchPage(1, "replace");
+  }, [fetchPage]);
 
   useEffect(() => {
-    loadRequests();
-  }, [loadRequests]);
+    void reloadFirstPage();
+  }, [reloadFirstPage]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchPage(1, "replace");
+    }, [fetchPage]),
+  );
+
+  useEffect(() => {
+    const refresh = () => {
+      void fetchPage(1, "replace");
+    };
+    socketService.on("requestUpdated", refresh);
+    socketService.on("requestStatusChanged", refresh);
+    return () => {
+      socketService.off("requestUpdated", refresh);
+      socketService.off("requestStatusChanged", refresh);
+    };
+  }, [fetchPage]);
 
   const onRefresh = useCallback(() => {
     setIsRefreshing(true);
-    loadRequests();
-  }, [loadRequests]);
+    void fetchPage(1, "replace");
+  }, [fetchPage]);
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || isLoadingMore || isLoading || isRefreshing) return;
+    setIsLoadingMore(true);
+    void fetchPage(page + 1, "append");
+  }, [fetchPage, hasMore, isLoadingMore, isLoading, isRefreshing, page]);
 
   const historyItems = useMemo(
-    () =>
-      [...requests]
-        .sort(
-          (a, b) =>
-            new Date(b.request.createdAt).getTime() -
-            new Date(a.request.createdAt).getTime(),
-        )
-        .map(toHistoryItem),
+    () => requests.map(toHistoryItem),
     [requests],
   );
 
-  if (isLoading) {
+  if (isLoading && historyItems.length === 0) {
     return (
       <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor={AUTH_COLORS.bg}>
         <View style={styles.loadingWrap}>
@@ -253,13 +285,34 @@ export default function RecentActivities() {
         columnWrapperStyle={styles.gridRow}
         renderItem={({ item }) => <HistoryCard item={item} />}
         contentContainerStyle={styles.listContent}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.4}
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Recent activity</Text>
             <Text style={styles.headerSubtitle}>
               All your healthcare requests and their status
+              {total > 0
+                ? ` · showing ${historyItems.length} of ${total}`
+                : ""}
             </Text>
           </View>
+        }
+        ListFooterComponent={
+          historyItems.length === 0 ? null : isLoadingMore ? (
+            <View style={styles.footer}>
+              <ActivityIndicator size="small" color={AUTH_COLORS.green} />
+              <Text style={styles.footerText}>Loading more…</Text>
+            </View>
+          ) : hasMore ? (
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Scroll for more</Text>
+            </View>
+          ) : (
+            <Text style={styles.footerEnd}>
+              {total <= PAGE_SIZE ? "" : "You've reached the end"}
+            </Text>
+          )
         }
         ListEmptyComponent={
           <View style={styles.emptyCard}>
@@ -336,5 +389,20 @@ const styles = StyleSheet.create({
     color: AUTH_COLORS.textMuted,
     textAlign: "center",
     marginTop: 8,
+  },
+  footer: {
+    paddingVertical: 16,
+    alignItems: "center",
+    gap: 8,
+  },
+  footerText: {
+    fontSize: 12,
+    color: AUTH_COLORS.textMuted,
+  },
+  footerEnd: {
+    paddingVertical: 16,
+    textAlign: "center",
+    fontSize: 12,
+    color: AUTH_COLORS.textMuted,
   },
 });

@@ -137,6 +137,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(null);
     await SecureStore.deleteItemAsync("user").catch(() => {});
     await SecureStore.deleteItemAsync("authToken").catch(() => {});
+    await SecureStore.deleteItemAsync("pushToken").catch(() => {});
+    await SecureStore.deleteItemAsync("appToken").catch(() => {});
   }, []);
 
   // Let the API layer end the session when the server returns 401.
@@ -151,12 +153,52 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const storedUser = await SecureStore.getItemAsync("user");
-        if (storedUser) {
+        const [storedUser, authToken] = await Promise.all([
+          SecureStore.getItemAsync("user"),
+          SecureStore.getItemAsync("authToken"),
+        ]);
+
+        // Cold start requires both a user blob and a login JWT.
+        if (!storedUser || !authToken) {
+          await SecureStore.deleteItemAsync("user").catch(() => {});
+          if (!authToken) {
+            await SecureStore.deleteItemAsync("authToken").catch(() => {});
+          }
+          setUser(null);
+          return;
+        }
+
+        // Validate the session with the server before treating the user as signed in.
+        try {
+          const response = await apiClient.get("/app/auth/user-details");
+          const remote = response.data?.user;
+          if (remote?.userId || remote?._id) {
+            const parsed = JSON.parse(storedUser) as User;
+            const merged: User = {
+              ...parsed,
+              ...remote,
+              userId: String(remote.userId || remote._id || parsed.userId),
+              fullname: remote.fullname || remote.fullname || parsed.fullname,
+            };
+            setUser(merged);
+            await SecureStore.setItemAsync("user", JSON.stringify(merged));
+          } else {
+            setUser(JSON.parse(storedUser));
+          }
+        } catch (error: any) {
+          const status = error?.response?.status;
+          if (status === 401 || status === 403) {
+            await SecureStore.deleteItemAsync("user").catch(() => {});
+            await SecureStore.deleteItemAsync("authToken").catch(() => {});
+            setUser(null);
+            return;
+          }
+          // Offline / server blip: keep local session so the user is not signed out.
           setUser(JSON.parse(storedUser));
         }
       } catch (e) {
         console.error("Failed to load user from storage", e);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }

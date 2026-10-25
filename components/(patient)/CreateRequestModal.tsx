@@ -18,6 +18,7 @@ import { mapProviderProps } from "../../lib/map";
 import apiClient from "../../lib/api";
 import { AUTH_COLORS } from "../../lib/authScreenTheme";
 import { buildBackendAssetUrl } from "../../lib/backend";
+import socketService from "../../lib/socket";
 import {
   getCurrentLocationWithAddress,
   reverseGeocode,
@@ -145,8 +146,16 @@ export default function CreateRequestModal({
     consultationMode === "video_consultation"
       ? Number(selectedAilment?.teleconsultationCost ?? NaN)
       : Number(selectedAilment?.physicalconsultationCost ?? NaN);
-  const icd10Price = Number(linkedIcd10?.price ?? NaN);
-  // Medical aid uses the ICD-10 price; cash/other methods use the ailment cost.
+  const icd10PrimaryPrice = Number(linkedIcd10?.price ?? NaN);
+  const icd10SecondaryPrice = Number(linkedIcd10?.secondaryPrice ?? NaN);
+  // Match server: medical aid consultation cost is primary + secondary ICD prices.
+  const icd10Price =
+    Number.isFinite(icd10PrimaryPrice) &&
+    Number.isFinite(icd10SecondaryPrice) &&
+    Boolean(linkedIcd10?.secondaryICD_10_code)
+      ? icd10PrimaryPrice + icd10SecondaryPrice
+      : icd10PrimaryPrice;
+  // Medical aid uses the ICD-10 price(s); cash/other methods use the ailment cost.
   const selectedCost =
     paymentMethod === "medical_aid" ? icd10Price : ailmentCost;
 
@@ -228,8 +237,21 @@ export default function CreateRequestModal({
     };
 
     loadMedicalAids();
+
+    const handleCatalogUpdated = (payload?: { type?: string }) => {
+      if (
+        !payload?.type ||
+        payload.type === "medical_aid" ||
+        payload.type === "catalog"
+      ) {
+        loadMedicalAids();
+      }
+    };
+    socketService.on("catalogUpdated", handleCatalogUpdated);
+
     return () => {
       cancelled = true;
+      socketService.off("catalogUpdated", handleCatalogUpdated);
     };
   }, [visible, hasIcd10]);
 
@@ -318,7 +340,7 @@ export default function CreateRequestModal({
     }
 
     if (paymentMethod === "medical_aid") {
-      if (isNaN(selectedCost) || selectedCost < 0) {
+      if (isNaN(selectedCost) || selectedCost <= 0) {
         Alert.alert(
           "Invalid Cost",
           "This ailment does not have a valid ICD-10 consultation price configured.",
@@ -371,7 +393,7 @@ export default function CreateRequestModal({
       const selectedAid = medicalAids.find(
         (aid) => aid.id === selectedMedicalAidId,
       );
-      // MAF / ICD-10 are snapshotted server-side from the portal ICD-10 record.
+      // NAMAF / ICD-10 are snapshotted server-side from the portal ICD-10 record.
       medicalAidDetails = {
         medicalAidId: selectedMedicalAidId,
         medicalAidTitle: selectedAid?.title,
@@ -969,6 +991,15 @@ export default function CreateRequestModal({
 
               {paymentMethod === "medical_aid" && (
                 <View className="mb-6">
+                  <View className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3">
+                    <Text className="text-xs font-semibold text-emerald-900 mb-1">
+                      Medical aid claim — 3 steps
+                    </Text>
+                    <Text className="text-xs text-emerald-800">
+                      1) Fill details below → 2) Confirm postal address → 3)
+                      Review cost and submit
+                    </Text>
+                  </View>
                   <Text className="text-base font-semibold text-gray-900 mb-2">
                     Medical Aid Details *
                   </Text>

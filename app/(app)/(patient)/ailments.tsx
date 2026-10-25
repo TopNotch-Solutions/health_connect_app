@@ -21,6 +21,7 @@ import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayo
 import CreateRequestModal from "../../../components/(patient)/CreateRequestModal";
 import { useAuth } from "../../../context/AuthContext";
 import {
+  clearAilmentCategoriesCache,
   getCachedAilmentCategories,
   normalizeAilmentCategories,
   prefetchAilmentCategoryImages,
@@ -137,6 +138,16 @@ export default function AilmentsScreen() {
       setIsLoading(false);
     }
   }, [applyAilmentCategories]);
+
+  useEffect(() => {
+    const handleCatalogUpdated = () => {
+      void clearAilmentCategoriesCache().then(() => fetchAilments());
+    };
+    socketService.on("catalogUpdated", handleCatalogUpdated);
+    return () => {
+      socketService.off("catalogUpdated", handleCatalogUpdated);
+    };
+  }, [fetchAilments]);
 
   useFocusEffect(
     useCallback(() => {

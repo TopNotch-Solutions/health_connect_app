@@ -24,7 +24,13 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import { useRoute } from "../../../context/RouteContext";
 import apiClient from "../../../lib/api";
-import { buildBackendAssetUrl } from "../../../lib/backend";
+import {
+  attachAuthToAssetUrl,
+  buildBackendAssetUrl,
+  withAccessTokenQuery,
+  type AuthenticatedAssetSource,
+} from "../../../lib/backend";
+import { downloadPrescriptionFile } from "../../../lib/downloadPrescription";
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 import {
   alertConsultationStatusChange,
@@ -98,13 +104,27 @@ interface Request {
   [key: string]: any;
 }
 
+const PAGE_SIZE = 10;
+
+function isProviderArchived(item: Request) {
+  return Boolean(item.providerArchive?.archived);
+}
+
 export default function ProviderRequests() {
   const [filter, setFilter] = useState<
-    "all" | "pending" | "accepted" | "completed"
+    "all" | "pending" | "accepted" | "completed" | "archived"
   >("all");
   const [requests, setRequests] = useState<Request[]>([]);
   const requestsRef = useRef<Request[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [archivedRequests, setArchivedRequests] = useState<Request[]>([]);
+  const [archivedPage, setArchivedPage] = useState(1);
+  const [archivedHasMore, setArchivedHasMore] = useState(false);
+  const [archivedTotal, setArchivedTotal] = useState(0);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedLoadingMore, setArchivedLoadingMore] = useState(false);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<{
     requestId: string;
     action:
@@ -132,13 +152,30 @@ export default function ProviderRequests() {
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<{ prescriptionId: string; patientName: string } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [imageViewerUrl, setImageViewerUrl] = useState<string | null>(null);
+  const [imageViewerSource, setImageViewerSource] =
+    useState<AuthenticatedAssetSource | null>(null);
+  const [prescriptionPreviewSources, setPrescriptionPreviewSources] = useState<
+    Record<string, AuthenticatedAssetSource>
+  >({});
 
   const loadPrescriptions = useCallback(async () => {
     if (!isPharmacist) return;
     try {
       const res = await apiClient.get("/app/prescription/pharmacist/all");
-      setPrescriptions(res.data.prescriptions || []);
+      const list: PrescriptionData[] = res.data.prescriptions || [];
+      setPrescriptions(list);
+
+      // Prefetch authenticated sources for gated prescription images
+      const nextSources: Record<string, AuthenticatedAssetSource> = {};
+      await Promise.all(
+        list.map(async (p) => {
+          if (!p.prescriptionImage || p.fileType !== "image") return;
+          const url = buildBackendAssetUrl("images", p.prescriptionImage);
+          if (!url) return;
+          nextSources[p._id] = await attachAuthToAssetUrl(url);
+        }),
+      );
+      setPrescriptionPreviewSources(nextSources);
     } catch (err) {
       console.error("Error loading prescriptions:", err);
     }
@@ -253,12 +290,17 @@ export default function ProviderRequests() {
           ? (availableResult as any).requests
           : [];
 
-      // Also fetch full history via REST so completed requests are always visible
+      // Also fetch full history via REST so completed requests are always visible.
+      // Archived completed requests are excluded here (only on Archived filter).
       let historyRequests: Request[] = [];
       try {
-        const histRes = await apiClient.get("/app/requests/my-history");
+        const histRes = await apiClient.get("/app/requests/my-history", {
+          params: { status: "all" },
+        });
         historyRequests = Array.isArray(histRes.data?.requests)
-          ? histRes.data.requests
+          ? histRes.data.requests.filter(
+              (r: Request) => !isProviderArchived(r),
+            )
           : [];
       } catch (histErr) {
         console.warn("⚠️ Could not fetch request history:", histErr);
@@ -266,12 +308,15 @@ export default function ProviderRequests() {
 
       // Available (unclaimed) first, then assigned live, then REST wins on conflicts
       // so payment/status progression stays accurate for claimed requests.
+      // Archived completed requests stay out of All / Pending / Accepted / Completed.
       const merged = new Map<string, Request>();
       available.forEach((r) => merged.set(r._id, r));
       liveRequests.forEach((r) => merged.set(r._id, r));
       historyRequests.forEach((r) => merged.set(r._id, r));
 
-      const nextRequests = Array.from(merged.values());
+      const nextRequests = Array.from(merged.values()).filter(
+        (r) => !isProviderArchived(r),
+      );
 
       const previous = requestsRef.current;
       if (hasLoadedOnce.current) {
@@ -510,9 +555,156 @@ export default function ProviderRequests() {
 
   const activeStatuses = ["accepted", "en_route", "arrived", "in_progress"];
 
-  const filteredRequests = requests
+  const loadArchivedRequests = useCallback(
+    async ({ pageToLoad, append }: { pageToLoad: number; append: boolean }) => {
+      try {
+        if (append) setArchivedLoadingMore(true);
+        else setArchivedLoading(true);
+
+        const histRes = await apiClient.get("/app/requests/my-history", {
+          params: {
+            status: "archived",
+            page: pageToLoad,
+            limit: PAGE_SIZE,
+          },
+        });
+        const pageItems: Request[] = Array.isArray(histRes.data?.requests)
+          ? histRes.data.requests
+          : [];
+        const pagination = histRes.data?.pagination || {};
+        const nextHasMore = Boolean(pagination.hasNextPage);
+        const nextTotal =
+          Number(pagination.totalItems ?? pageItems.length) || 0;
+
+        setArchivedRequests((prev) => {
+          if (!append) return pageItems;
+          const seen = new Set(prev.map((item) => item._id));
+          return [
+            ...prev,
+            ...pageItems.filter((item) => !seen.has(item._id)),
+          ];
+        });
+        setArchivedPage(pageToLoad);
+        setArchivedHasMore(nextHasMore);
+        setArchivedTotal(nextTotal);
+      } catch (err) {
+        console.warn("⚠️ Could not fetch archived requests:", err);
+        if (!append) {
+          setArchivedRequests([]);
+          setArchivedHasMore(false);
+          setArchivedTotal(0);
+        }
+      } finally {
+        setArchivedLoading(false);
+        setArchivedLoadingMore(false);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+    if (filter === "archived") {
+      loadArchivedRequests({ pageToLoad: 1, append: false });
+    }
+  }, [filter, loadArchivedRequests]);
+
+  const handleFilterChange = useCallback((key: string) => {
+    setFilter(
+      key as "all" | "pending" | "accepted" | "completed" | "archived",
+    );
+  }, []);
+
+  const handleArchiveRequest = useCallback(
+    (request: Request) => {
+      if (archivingId) return;
+      if (request.status !== "completed" || isProviderArchived(request)) return;
+
+      showAlertDialog(
+        "Archive consultation",
+        "This completed consultation will move to Archived. You can unarchive it later.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Archive",
+            onPress: async () => {
+              try {
+                setArchivingId(request._id);
+                await apiClient.post(`/app/requests/${request._id}/archive`);
+                setRequests((prev) =>
+                  prev.filter((item) => item._id !== request._id),
+                );
+                requestsRef.current = requestsRef.current.filter(
+                  (item) => item._id !== request._id,
+                );
+              } catch (err: any) {
+                Alert.alert(
+                  "Could not archive",
+                  err?.response?.data?.message ||
+                    err?.message ||
+                    "Please try again.",
+                );
+              } finally {
+                setArchivingId(null);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [archivingId],
+  );
+
+  const handleUnarchiveRequest = useCallback(
+    (request: Request) => {
+      if (archivingId) return;
+      if (!isProviderArchived(request)) return;
+
+      showAlertDialog(
+        "Unarchive consultation",
+        "This consultation will return to your completed list.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Unarchive",
+            onPress: async () => {
+              try {
+                setArchivingId(request._id);
+                await apiClient.post(`/app/requests/${request._id}/unarchive`);
+                setArchivedRequests((prev) =>
+                  prev.filter((item) => item._id !== request._id),
+                );
+                setArchivedTotal((prev) => Math.max(0, prev - 1));
+                // Refresh main list so it reappears under Completed
+                loadRequests();
+              } catch (err: any) {
+                Alert.alert(
+                  "Could not unarchive",
+                  err?.response?.data?.message ||
+                    err?.message ||
+                    "Please try again.",
+                );
+              } finally {
+                setArchivingId(null);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [archivingId, loadRequests],
+  );
+
+  const filteredRequests = (
+    filter === "archived" ? archivedRequests : requests
+  )
     .filter((r) => {
-      if (filter === "all") return r.status !== "cancelled" && r.status !== "expired";
+      if (filter === "archived") {
+        return r.status === "completed" && isProviderArchived(r);
+      }
+      if (isProviderArchived(r)) return false;
+      if (filter === "all")
+        return r.status !== "cancelled" && r.status !== "expired";
       if (filter === "pending")
         return r.status === "searching" || r.status === "pending";
       if (filter === "accepted")
@@ -539,6 +731,107 @@ export default function ProviderRequests() {
       }
       return 0;
     });
+
+  const displayedRequests =
+    filter === "archived"
+      ? filteredRequests
+      : filteredRequests.slice(0, visibleCount);
+
+  const hasMoreRequests =
+    filter === "archived"
+      ? archivedHasMore
+      : visibleCount < filteredRequests.length;
+
+  const totalShownCount =
+    filter === "archived" ? archivedTotal || filteredRequests.length : filteredRequests.length;
+
+  const handleLoadMore = useCallback(() => {
+    if (filter === "archived") {
+      if (archivedLoadingMore || !archivedHasMore) return;
+      loadArchivedRequests({ pageToLoad: archivedPage + 1, append: true });
+      return;
+    }
+    setVisibleCount((prev) => prev + PAGE_SIZE);
+  }, [
+    archivedHasMore,
+    archivedLoadingMore,
+    archivedPage,
+    filter,
+    loadArchivedRequests,
+  ]);
+
+  const renderCompletedArchiveActions = (request: Request) => {
+    const archived = isProviderArchived(request);
+    const busy = archivingId === request._id;
+
+    if (archived) {
+      return (
+        <TouchableOpacity
+          onPress={() => handleUnarchiveRequest(request)}
+          disabled={busy || Boolean(archivingId)}
+          style={{
+            marginTop: 8,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            borderRadius: 12,
+            paddingVertical: 12,
+            paddingHorizontal: 12,
+            backgroundColor: "rgba(187, 247, 208, 0.45)",
+            borderWidth: 1,
+            borderColor: "rgba(34, 197, 94, 0.35)",
+            opacity: busy ? 0.7 : 1,
+          }}
+        >
+          {busy ? (
+            <ActivityIndicator size="small" color={AUTH_COLORS.green} />
+          ) : (
+            <Feather name="rotate-ccw" size={15} color={AUTH_COLORS.green} />
+          )}
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: "800",
+              color: AUTH_COLORS.greenDark,
+            }}
+          >
+            {busy ? "Restoring…" : "Unarchive"}
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        onPress={() => handleArchiveRequest(request)}
+        disabled={busy || Boolean(archivingId)}
+        style={{
+          marginTop: 8,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          borderRadius: 12,
+          paddingVertical: 12,
+          paddingHorizontal: 12,
+          backgroundColor: "#E5E7EB",
+          borderWidth: 1,
+          borderColor: "#D1D5DB",
+          opacity: busy ? 0.7 : 1,
+        }}
+      >
+        {busy ? (
+          <ActivityIndicator size="small" color="#4B5563" />
+        ) : (
+          <Feather name="archive" size={15} color="#4B5563" />
+        )}
+        <Text style={{ fontSize: 13, fontWeight: "800", color: "#374151" }}>
+          {busy ? "Archiving…" : "Archive"}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -1125,7 +1418,10 @@ export default function ProviderRequests() {
           name="My requests"
           tagline="View and manage your consultations"
           stats={[
-            { icon: "folder", label: `${filteredRequests.length} shown` },
+            {
+              icon: "folder",
+              label: `${Math.min(displayedRequests.length, totalShownCount)} of ${totalShownCount}`,
+            },
             { icon: "filter", label: filter },
           ]}
         />
@@ -1136,23 +1432,31 @@ export default function ProviderRequests() {
             { key: "pending", label: "Pending", color: "#F59E0B" },
             { key: "accepted", label: "Accepted", color: "#2563EB" },
             { key: "completed", label: "Completed", color: AUTH_COLORS.green },
+            { key: "archived", label: "Archived", color: "#6B7280" },
           ]}
           active={filter}
-          onChange={(key) => setFilter(key as typeof filter)}
+          onChange={handleFilterChange}
         />
 
         {/* Requests List */}
         <View style={appScreenStyles.contentSection}>
-          {isLoading ? (
+          {isLoading || (filter === "archived" && archivedLoading) ? (
             <AppLoadingCard message="Loading requests…" />
-          ) : filteredRequests.length === 0 ? (
+          ) : displayedRequests.length === 0 ? (
             <AppEmptyState
-              icon="folder"
-              title="No requests"
-              body={`No ${filter !== "all" ? filter + " " : ""}requests found`}
+              icon={filter === "archived" ? "archive" : "folder"}
+              title={
+                filter === "archived" ? "No archived requests" : "No requests"
+              }
+              body={
+                filter === "archived"
+                  ? "Completed consultations you archive will appear here."
+                  : `No ${filter !== "all" ? filter + " " : ""}requests found`
+              }
             />
           ) : (
-            filteredRequests.map((request) => {
+            <>
+            {displayedRequests.map((request) => {
               const statusStyle = getStatusStyle(request.status);
               const isCompleted = request.status === "completed";
               const patientName =
@@ -1431,7 +1735,17 @@ export default function ProviderRequests() {
                   {/* ── Inline prescription panel (pharmacist only) ── */}
                   {isPharmacist && ailmentRequiresPrescription && linkedPrescription && (() => {
                     const p = linkedPrescription;
-                    const imageUrl = buildBackendAssetUrl("images", p.prescriptionImage);
+                    const imageSource =
+                      prescriptionPreviewSources[p._id] ||
+                      (p.prescriptionImage
+                        ? {
+                            uri:
+                              buildBackendAssetUrl(
+                                "images",
+                                p.prescriptionImage,
+                              ) || "",
+                          }
+                        : null);
                     const isPrescriptionBusy = prescriptionLoading === p._id;
                     const statusColor =
                       p.status === "accepted" ? { bg: "#DCFCE7", text: "#166534" } :
@@ -1455,10 +1769,22 @@ export default function ProviderRequests() {
                         </View>
 
                         {/* Image preview */}
-                        {p.prescriptionImage && p.fileType === "image" && imageUrl && (
-                          <TouchableOpacity onPress={() => setImageViewerUrl(imageUrl)} activeOpacity={0.85} style={{ marginBottom: 10 }}>
+                        {p.prescriptionImage && p.fileType === "image" && imageSource?.uri ? (
+                          <TouchableOpacity
+                            onPress={async () => {
+                              const url = buildBackendAssetUrl(
+                                "images",
+                                p.prescriptionImage,
+                              );
+                              if (!url) return;
+                              const source = await attachAuthToAssetUrl(url);
+                              setImageViewerSource(source);
+                            }}
+                            activeOpacity={0.85}
+                            style={{ marginBottom: 10 }}
+                          >
                             <Image
-                              source={{ uri: imageUrl }}
+                              source={imageSource}
                               style={{ width: "100%", height: 160, borderRadius: 8, backgroundColor: "#F3F4F6" }}
                               resizeMode="cover"
                             />
@@ -1467,7 +1793,7 @@ export default function ProviderRequests() {
                               <Text style={{ fontSize: 11, color: "#6B7280" }}>Tap to view full size</Text>
                             </View>
                           </TouchableOpacity>
-                        )}
+                        ) : null}
 
                         {/* PDF button */}
                         {p.prescriptionImage && p.fileType === "pdf" && (
@@ -1475,8 +1801,20 @@ export default function ProviderRequests() {
                             onPress={async () => {
                               const url = buildBackendAssetUrl("images", p.prescriptionImage);
                               if (!url) return;
-                              try { await WebBrowser.openBrowserAsync(url); }
-                              catch { Alert.alert("Error", "Could not open PDF."); }
+                              try {
+                                await downloadPrescriptionFile({
+                                  url,
+                                  fileType: "pdf",
+                                  filenameHint: p.prescriptionImage,
+                                });
+                              } catch {
+                                try {
+                                  const authed = await withAccessTokenQuery(url);
+                                  await WebBrowser.openBrowserAsync(authed);
+                                } catch {
+                                  Alert.alert("Error", "Could not open PDF.");
+                                }
+                              }
                             }}
                             activeOpacity={0.8}
                             style={{ backgroundColor: "#EFF6FF", borderRadius: 8, padding: 12, flexDirection: "row", alignItems: "center", marginBottom: 10, borderWidth: 1, borderColor: "#BFDBFE", gap: 10 }}
@@ -1627,19 +1965,22 @@ export default function ProviderRequests() {
                       )}
 
                       {request.status === "completed" && (
-                        <View
-                          className="bg-green-50 rounded-lg p-3 border border-green-200 flex-row items-center justify-center"
-                          style={{ gap: 6 }}
-                        >
-                          <Feather
-                            name="check-circle"
-                            size={14}
-                            color="#16A34A"
-                          />
-                          <Text className="text-xs text-green-700 font-semibold">
-                            Consultation Completed
-                          </Text>
-                        </View>
+                        <>
+                          <View
+                            className="bg-green-50 rounded-lg p-3 border border-green-200 flex-row items-center justify-center"
+                            style={{ gap: 6 }}
+                          >
+                            <Feather
+                              name="check-circle"
+                              size={14}
+                              color="#16A34A"
+                            />
+                            <Text className="text-xs text-green-700 font-semibold">
+                              Consultation Completed
+                            </Text>
+                          </View>
+                          {renderCompletedArchiveActions(request)}
+                        </>
                       )}
 
                       {/* Same rules as house visit: in_call / in_progress, or completed within 24h */}
@@ -1761,10 +2102,13 @@ export default function ProviderRequests() {
                       )}
 
                       {request.status === "completed" && (
-                        <View className="bg-green-50 rounded-lg p-3 border border-green-200 flex-row items-center justify-center" style={{ gap: 6 }}>
-                          <Feather name="check-circle" size={14} color="#16A34A" />
-                          <Text className="text-xs text-green-700 font-semibold">Delivery Completed</Text>
-                        </View>
+                        <>
+                          <View className="bg-green-50 rounded-lg p-3 border border-green-200 flex-row items-center justify-center" style={{ gap: 6 }}>
+                            <Feather name="check-circle" size={14} color="#16A34A" />
+                            <Text className="text-xs text-green-700 font-semibold">Delivery Completed</Text>
+                          </View>
+                          {renderCompletedArchiveActions(request)}
+                        </>
                       )}
                     </>
                   ) : (
@@ -1910,10 +2254,13 @@ export default function ProviderRequests() {
                       )}
 
                       {request.status === "completed" && (
-                        <View className="bg-green-50 rounded-lg p-3 border border-green-200 flex-row items-center justify-center" style={{ gap: 6 }}>
-                          <Feather name="check-circle" size={14} color="#16A34A" />
-                          <Text className="text-xs text-green-700 font-semibold">Consultation Completed</Text>
-                        </View>
+                        <>
+                          <View className="bg-green-50 rounded-lg p-3 border border-green-200 flex-row items-center justify-center" style={{ gap: 6 }}>
+                            <Feather name="check-circle" size={14} color="#16A34A" />
+                            <Text className="text-xs text-green-700 font-semibold">Consultation Completed</Text>
+                          </View>
+                          {renderCompletedArchiveActions(request)}
+                        </>
                       )}
 
                       <ProviderPrescriptionPanel
@@ -1929,30 +2276,125 @@ export default function ProviderRequests() {
                   )}
                 </View>
               );
-            })
+            })}
+
+            {(hasMoreRequests || totalShownCount > PAGE_SIZE) && (
+              <View style={{ marginTop: 12, marginBottom: 8, gap: 12 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <View
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      backgroundColor: AUTH_COLORS.inputBorder,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "700",
+                      color: AUTH_COLORS.textMuted,
+                    }}
+                  >
+                    Showing {displayedRequests.length} of {totalShownCount}
+                  </Text>
+                  <View
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      backgroundColor: AUTH_COLORS.inputBorder,
+                    }}
+                  />
+                </View>
+
+                {hasMoreRequests ? (
+                  <TouchableOpacity
+                    onPress={handleLoadMore}
+                    disabled={
+                      filter === "archived" ? archivedLoadingMore : false
+                    }
+                    style={{
+                      alignSelf: "center",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      backgroundColor: AUTH_COLORS.green,
+                      borderRadius: 12,
+                      paddingHorizontal: 18,
+                      paddingVertical: 12,
+                      opacity:
+                        filter === "archived" && archivedLoadingMore
+                          ? 0.7
+                          : 1,
+                    }}
+                  >
+                    {filter === "archived" && archivedLoadingMore ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={AUTH_COLORS.white}
+                      />
+                    ) : (
+                      <Feather
+                        name="chevron-down"
+                        size={18}
+                        color={AUTH_COLORS.white}
+                      />
+                    )}
+                    <Text
+                      style={{
+                        color: AUTH_COLORS.white,
+                        fontSize: 13,
+                        fontWeight: "800",
+                      }}
+                    >
+                      {filter === "archived" && archivedLoadingMore
+                        ? "Loading…"
+                        : "Load more"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : totalShownCount > PAGE_SIZE ? (
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      fontSize: 12,
+                      fontWeight: "600",
+                      color: AUTH_COLORS.textMuted,
+                    }}
+                  >
+                    All requests loaded
+                  </Text>
+                ) : null}
+              </View>
+            )}
+            </>
           )}
         </View>
       </ScrollView>
 
       {/* Full-screen image viewer */}
       <Modal
-        visible={!!imageViewerUrl}
+        visible={!!imageViewerSource}
         transparent
         animationType="fade"
-        onRequestClose={() => setImageViewerUrl(null)}
+        onRequestClose={() => setImageViewerSource(null)}
       >
         <TouchableOpacity
           style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center" }}
-          onPress={() => setImageViewerUrl(null)}
+          onPress={() => setImageViewerSource(null)}
           activeOpacity={1}
         >
           {/* Close button */}
           <View style={{ position: "absolute", top: 52, right: 20, zIndex: 10, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 999, padding: 10 }}>
             <Feather name="x" size={24} color="#FFFFFF" />
           </View>
-          {imageViewerUrl && (
+          {imageViewerSource && (
             <Image
-              source={{ uri: imageViewerUrl }}
+              source={imageViewerSource}
               style={{ width: "100%", height: "80%" }}
               resizeMode="contain"
             />

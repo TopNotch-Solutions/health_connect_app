@@ -1,11 +1,13 @@
 // Socket.IO client for real-time communication with backend
 import { io, Socket } from "socket.io-client";
+import * as SecureStore from "expo-secure-store";
 import { BACKEND_URL } from "./backend";
 import { SERVER_SLOW_MESSAGE } from "./userFacingError";
 
 class SocketService {
   private socket: Socket | null = null;
   private userRole: string | null = null;
+  private pendingUserId: string | null = null;
   private eventListeners: Map<string, Set<Function>> = new Map(); // FIX #5: Track listeners for cleanup
 
   private readonly VALID_ROLES = new Set([
@@ -52,6 +54,7 @@ class SocketService {
       | "pharmacist",
   ) {
     const normalizedRole = this.normalizeRole(role);
+    this.pendingUserId = userId;
 
     if (this.socket?.connected) {
       if (
@@ -59,23 +62,34 @@ class SocketService {
         (!this.userRole || this.userRole !== normalizedRole)
       ) {
         this.join(userId, normalizedRole);
-      } else {
       }
+      return this.socket;
+    }
+
+    if (this.socket && !this.socket.connected) {
+      // Socket exists but is disconnected — refresh auth and reconnect
+      void this.refreshAuthAndConnect(userId, normalizedRole, role);
       return this.socket;
     }
 
     this.socket = io(BACKEND_URL, {
       transports: ["polling", "websocket"],
       query: { userId },
+      auth: {},
+      autoConnect: false,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
     });
 
-    this.socket.on("connect", () => {
+    this.eventListeners.forEach((callbacks, event) => {
+      callbacks.forEach((callback) => {
+        this.socket?.on(event, callback as any);
+      });
+    });
 
-      // Auto-join if role is provided
+    this.socket.on("connect", () => {
       if (normalizedRole) {
         this.join(userId, normalizedRole);
       } else {
@@ -88,9 +102,6 @@ class SocketService {
       }
     });
 
-    this.socket.on("disconnect", (reason) => {
-    });
-
     this.socket.on("connect_error", (error) => {
       console.error("❌ Socket connection error:", error.message);
     });
@@ -99,7 +110,36 @@ class SocketService {
       console.error("❌ Socket error:", error);
     });
 
+    void this.refreshAuthAndConnect(userId, normalizedRole, role);
     return this.socket;
+  }
+
+  private async refreshAuthAndConnect(
+    userId: string,
+    normalizedRole:
+      | "patient"
+      | "doctor"
+      | "nurse"
+      | "physiotherapist"
+      | "social worker"
+      | "pharmacist"
+      | undefined,
+    _rawRole?: string,
+  ) {
+    if (!this.socket) return;
+    let authToken: string | null = null;
+    try {
+      authToken = await SecureStore.getItemAsync("authToken");
+    } catch {
+      authToken = null;
+    }
+    this.socket.auth = authToken ? { token: authToken } : {};
+    (this.socket.io.opts.query as Record<string, string>) = { userId };
+    if (!this.socket.connected) {
+      this.socket.connect();
+    } else if (normalizedRole) {
+      this.join(userId, normalizedRole);
+    }
   }
 
   // FIX #5: Clean up event listeners on disconnect to prevent memory leaks
@@ -276,11 +316,16 @@ class SocketService {
         longitude: requestData.location.longitude,
       };
 
+      if (!requestData.ailmentCategoryId) {
+        reject(new Error("Please select a valid ailment before submitting."));
+        return;
+      }
+
       const payload = {
+        // patientId is ignored server-side; identity comes from the JWT.
         patientId: requestData.patientId,
         ailmentCategory: requestData.ailmentCategory,
-        ailmentCategoryId:
-          requestData.ailmentCategoryId || "67455f1b8c8e9b5c3f2e1d6a",
+        ailmentCategoryId: requestData.ailmentCategoryId,
         consultationMode: requestData.consultationMode || "house_visit",
         paymentMethod: requestData.paymentMethod,
         symptoms: requestData.symptoms || "No symptoms provided",
@@ -361,17 +406,38 @@ class SocketService {
     });
   }
 
-  getPatientRequests(patientId: string) {
+  /**
+   * Fetch the patient's consultation requests.
+   * - No options → full list (legacy array) for home / waiting-room.
+   * - With page/limit → `{ requests, pagination }` from the server.
+   */
+  getPatientRequests(
+    patientId: string,
+    options?: { page?: number; limit?: number; paginated?: boolean },
+  ): Promise<
+    | any[]
+    | {
+        requests: any[];
+        pagination: {
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+          hasMore: boolean;
+        };
+      }
+  > {
     return new Promise((resolve, reject) => {
       if (!this.socket?.connected) {
         reject(new Error("Socket not connected"));
         return;
       }
 
-      const handlePatientRequests = (requests: any) => {
+      const handlePatientRequests = (payload: any) => {
         this.socket?.off("patientRequests", handlePatientRequests);
+        this.socket?.off("requestError", handleError);
         clearTimeout(timeout);
-        resolve(requests);
+        resolve(payload);
       };
 
       const handleError = (error: any) => {
@@ -387,17 +453,17 @@ class SocketService {
       const timeout = setTimeout(() => {
         this.socket?.off("patientRequests", handlePatientRequests);
         this.socket?.off("requestError", handleError);
-        reject(
-          new Error(
-            SERVER_SLOW_MESSAGE,
-          ),
-        );
+        reject(new Error(SERVER_SLOW_MESSAGE));
       }, 10000);
 
       this.socket.on("patientRequests", handlePatientRequests);
       this.socket.on("requestError", handleError);
 
-      this.socket.emit("getPatientRequests", { patientId });
+      const payload: Record<string, unknown> = { patientId };
+      if (options?.page !== undefined) payload.page = options.page;
+      if (options?.limit !== undefined) payload.limit = options.limit;
+      if (options?.paginated) payload.paginated = true;
+      this.socket.emit("getPatientRequests", payload);
     });
   }
 
@@ -923,8 +989,12 @@ class SocketService {
     });
   }
 
-  // Add event listeners
+  // Add event listeners (tracked so they survive reconnect / late connect)
   on(event: string, callback: (...args: any[]) => void) {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, new Set());
+    }
+    this.eventListeners.get(event)!.add(callback);
     if (this.socket) {
       this.socket.on(event, callback);
     }
@@ -932,8 +1002,16 @@ class SocketService {
 
   // Remove specific event listeners
   off(event: string, callback?: (...args: any[]) => void) {
+    if (callback) {
+      this.eventListeners.get(event)?.delete(callback);
+      if (this.socket) {
+        this.socket.off(event, callback);
+      }
+      return;
+    }
+    this.eventListeners.delete(event);
     if (this.socket) {
-      this.socket.off(event, callback);
+      this.socket.off(event);
     }
   }
 }

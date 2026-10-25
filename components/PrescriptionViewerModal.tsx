@@ -16,6 +16,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { AUTH_COLORS } from "../lib/authScreenTheme";
+import {
+  attachAuthToAssetUrl,
+  type AuthenticatedAssetSource,
+} from "../lib/backend";
 
 type Props = {
   visible: boolean;
@@ -34,11 +38,27 @@ export default function PrescriptionViewerModal({
 }: Props) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = React.useState(true);
+  const [authSource, setAuthSource] =
+    React.useState<AuthenticatedAssetSource | null>(null);
 
   React.useEffect(() => {
-    if (visible) {
-      setLoading(true);
+    let cancelled = false;
+    if (!visible || !url) {
+      setAuthSource(null);
+      setLoading(false);
+      return;
     }
+
+    setLoading(true);
+    void attachAuthToAssetUrl(url).then((source) => {
+      if (!cancelled) {
+        setAuthSource(source);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [visible, url]);
 
   const isPdf = fileType === "pdf";
@@ -71,8 +91,17 @@ export default function PrescriptionViewerModal({
         </View>
 
         <View style={styles.body}>
-          {!url ? (
-            <Text style={styles.emptyText}>No file to display.</Text>
+          {!url || !authSource ? (
+            <View style={styles.loader}>
+              {url ? (
+                <>
+                  <ActivityIndicator size="large" color={AUTH_COLORS.green} />
+                  <Text style={styles.loaderText}>Loading…</Text>
+                </>
+              ) : (
+                <Text style={styles.emptyText}>No file to display.</Text>
+              )}
+            </View>
           ) : isPdf ? (
             <>
               {loading ? (
@@ -82,7 +111,10 @@ export default function PrescriptionViewerModal({
                 </View>
               ) : null}
               <WebView
-                source={{ uri: url }}
+                source={{
+                  uri: authSource.uri,
+                  headers: authSource.headers,
+                }}
                 style={styles.webview}
                 onLoadStart={() => setLoading(true)}
                 onLoadEnd={() => setLoading(false)}
@@ -99,11 +131,15 @@ export default function PrescriptionViewerModal({
               onPress={onClose}
             >
               <Image
-                source={{ uri: url }}
+                source={{
+                  uri: authSource.uri,
+                  headers: authSource.headers,
+                }}
                 style={styles.image}
                 resizeMode="contain"
                 onLoadStart={() => setLoading(true)}
                 onLoadEnd={() => setLoading(false)}
+                onError={() => setLoading(false)}
               />
               {loading ? (
                 <View style={styles.loader}>
@@ -114,8 +150,12 @@ export default function PrescriptionViewerModal({
           )}
         </View>
 
-        <Text style={[styles.hint, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          {isPdf ? "Swipe or pinch to zoom · tap × to close" : "Tap image or × to close"}
+        <Text
+          style={[styles.hint, { paddingBottom: Math.max(insets.bottom, 16) }]}
+        >
+          {isPdf
+            ? "Swipe or pinch to zoom · tap × to close"
+            : "Tap image or × to close"}
         </Text>
       </View>
     </Modal>
@@ -164,7 +204,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#111",
   },
   loader: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 2,

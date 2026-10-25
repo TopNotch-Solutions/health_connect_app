@@ -74,6 +74,8 @@ type MedicalAidConsultation = {
     downloadCount?: number;
     claimed?: boolean;
     claimedAt?: string;
+    archived?: boolean;
+    archivedAt?: string;
   };
   timeline?: {
     consultationCompleted?: string;
@@ -81,15 +83,16 @@ type MedicalAidConsultation = {
   };
 };
 
-type FilterKey = "all" | "active" | "completed";
+type FilterKey = "all" | "active" | "completed" | "archived";
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "active", label: "Active" },
   { key: "completed", label: "Completed" },
+  { key: "archived", label: "Archived" },
 ];
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 const ACTIVE_STATUSES = new Set([
   "accepted",
@@ -109,6 +112,10 @@ function isClaimDownloaded(item: MedicalAidConsultation) {
 
 function isClaimClaimed(item: MedicalAidConsultation) {
   return Boolean(item.medicalAidClaimDownload?.claimed);
+}
+
+function isClaimArchived(item: MedicalAidConsultation) {
+  return Boolean(item.medicalAidClaimDownload?.archived);
 }
 
 /** Unclaimed / not-downloaded first, then newest activity. */
@@ -163,6 +170,7 @@ export default function ProviderMedicalAidScreen() {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
   const [editBankDetailsVisible, setEditBankDetailsVisible] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -186,13 +194,24 @@ export default function ProviderMedicalAidScreen() {
 
   const applyStatusFilter = useCallback(
     (items: MedicalAidConsultation[], statusKey: FilterKey) => {
+      if (statusKey === "archived") {
+        return items.filter(
+          (item) =>
+            item.status === "completed" &&
+            isClaimClaimed(item) &&
+            isClaimArchived(item),
+        );
+      }
+      const withoutArchived = items.filter((item) => !isClaimArchived(item));
       if (statusKey === "completed") {
-        return items.filter((item) => item.status === "completed");
+        return withoutArchived.filter((item) => item.status === "completed");
       }
       if (statusKey === "active") {
-        return items.filter((item) => ACTIVE_STATUSES.has(item.status));
+        return withoutArchived.filter((item) =>
+          ACTIVE_STATUSES.has(item.status),
+        );
       }
-      return items;
+      return withoutArchived;
     },
     [],
   );
@@ -225,6 +244,10 @@ export default function ProviderMedicalAidScreen() {
           pageItems = payload;
         }
 
+        // Defense in depth: never show archived outside the Archived filter
+        if (statusKey !== "archived") {
+          pageItems = pageItems.filter((item) => !isClaimArchived(item));
+        }
         pageItems = sortNotDownloadedFirst(pageItems);
         const pagination = payload?.pagination || {};
         const nextHasMore = Boolean(pagination.hasNextPage);
@@ -241,7 +264,11 @@ export default function ProviderMedicalAidScreen() {
             ...prev,
             ...pageItems.filter((item) => !seen.has(item._id)),
           ];
-          return sortNotDownloadedFirst(merged);
+          return sortNotDownloadedFirst(
+            statusKey === "archived"
+              ? merged
+              : merged.filter((item) => !isClaimArchived(item)),
+          );
         });
         setPage(pageToLoad);
         setHasMore(nextHasMore);
@@ -405,7 +432,10 @@ export default function ProviderMedicalAidScreen() {
     usingHistoryFallback,
   ]);
 
-  const filteredConsultations = consultations;
+  const filteredConsultations =
+    filter === "archived"
+      ? consultations.filter(isClaimArchived)
+      : consultations.filter((item) => !isClaimArchived(item));
 
   const markClaimsDownloaded = useCallback((ids: string[]) => {
     if (!ids.length) return;
@@ -449,6 +479,40 @@ export default function ProviderMedicalAidScreen() {
     setFallbackAll((prev) => sortNotDownloadedFirst(prev.map(patchItem)));
   }, []);
 
+  const removeConsultationsFromList = useCallback((ids: string[]) => {
+    if (!ids.length) return;
+    const idSet = new Set(ids);
+    setConsultations((prev) => prev.filter((item) => !idSet.has(item._id)));
+    setTotalItems((prev) => Math.max(0, prev - ids.length));
+  }, []);
+
+  const patchArchiveState = useCallback(
+    (ids: string[], archived: boolean) => {
+      if (!ids.length) return;
+      const idSet = new Set(ids);
+      const now = new Date().toISOString();
+      const patchItem = (item: MedicalAidConsultation) => {
+        if (!idSet.has(item._id)) return item;
+        return {
+          ...item,
+          medicalAidClaimDownload: {
+            ...item.medicalAidClaimDownload,
+            archived,
+            archivedAt: archived ? now : undefined,
+          },
+        };
+      };
+      setFallbackAll((prev) =>
+        sortNotDownloadedFirst(
+          applyStatusFilter(prev.map(patchItem), filter),
+        ),
+      );
+      // Leave the current filtered list via remove — item no longer belongs here
+      removeConsultationsFromList(ids);
+    },
+    [applyStatusFilter, filter, removeConsultationsFromList],
+  );
+
   const ensureBankDetailsComplete = useCallback(async (): Promise<boolean> => {
     try {
       const response = await apiClient.get("/app/bank-details");
@@ -473,7 +537,7 @@ export default function ProviderMedicalAidScreen() {
   }, []);
 
   const handleDownload = useCallback(async (item: MedicalAidConsultation) => {
-    if (claimingId) return;
+    if (claimingId || archivingId) return;
     if (item.status !== "completed") {
       Alert.alert(
         "Not available yet",
@@ -525,6 +589,7 @@ export default function ProviderMedicalAidScreen() {
       setDownloadingId(null);
     }
   }, [
+    archivingId,
     claimingId,
     ensureBankDetailsComplete,
     markClaimsDownloaded,
@@ -532,7 +597,7 @@ export default function ProviderMedicalAidScreen() {
 
   const handleMarkClaimed = useCallback(
     async (item: MedicalAidConsultation) => {
-      if (downloadingId || claimingId) return;
+      if (downloadingId || claimingId || archivingId) return;
       if (item.status !== "completed") {
         Alert.alert(
           "Not available yet",
@@ -573,7 +638,83 @@ export default function ProviderMedicalAidScreen() {
         ],
       );
     },
-    [claimingId, downloadingId, markClaimsClaimed],
+    [archivingId, claimingId, downloadingId, markClaimsClaimed],
+  );
+
+  const handleArchive = useCallback(
+    (item: MedicalAidConsultation) => {
+      if (downloadingId || claimingId || archivingId) return;
+      if (!isClaimClaimed(item) || isClaimArchived(item)) return;
+
+      showAlertDialog(
+        "Archive consultation",
+        "This claimed consultation will move to Archived. You can unarchive it later.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Archive",
+            onPress: async () => {
+              try {
+                setArchivingId(item._id);
+                await apiClient.post(
+                  `/app/medical-aid/consultations/${item._id}/archive`,
+                );
+                patchArchiveState([item._id], true);
+              } catch (err: any) {
+                console.error("Archive failed:", err);
+                Alert.alert(
+                  "Could not archive",
+                  err?.response?.data?.message ||
+                    err?.message ||
+                    "Please try again.",
+                );
+              } finally {
+                setArchivingId(null);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [archivingId, claimingId, downloadingId, patchArchiveState],
+  );
+
+  const handleUnarchive = useCallback(
+    (item: MedicalAidConsultation) => {
+      if (downloadingId || claimingId || archivingId) return;
+      if (!isClaimArchived(item)) return;
+
+      showAlertDialog(
+        "Unarchive consultation",
+        "This consultation will return to your main claimed list.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Unarchive",
+            onPress: async () => {
+              try {
+                setArchivingId(item._id);
+                await apiClient.post(
+                  `/app/medical-aid/consultations/${item._id}/unarchive`,
+                );
+                patchArchiveState([item._id], false);
+              } catch (err: any) {
+                console.error("Unarchive failed:", err);
+                Alert.alert(
+                  "Could not unarchive",
+                  err?.response?.data?.message ||
+                    err?.message ||
+                    "Please try again.",
+                );
+              } finally {
+                setArchivingId(null);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [archivingId, claimingId, downloadingId, patchArchiveState],
   );
 
   const firstName = user?.fullname?.split(" ")[0] || "Provider";
@@ -667,7 +808,9 @@ export default function ProviderMedicalAidScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.listTitle}>Consultations</Text>
                     <Text style={styles.listSubtitle}>
-                      Download a claim statement for each completed consultation
+                      {filter === "archived"
+                        ? "Archived claimed consultations — unarchive to restore them"
+                        : "Download a claim statement for each completed consultation"}
                     </Text>
                   </View>
                   <View style={styles.countBadge}>
@@ -686,9 +829,17 @@ export default function ProviderMedicalAidScreen() {
                 {filteredConsultations.length === 0 ? (
                   <View style={{ paddingHorizontal: 20 }}>
                     <AppEmptyState
-                      icon="inbox"
-                      title="No consultations yet"
-                      body="Accept a medical aid request, then return here to download the claim statement."
+                      icon={filter === "archived" ? "archive" : "inbox"}
+                      title={
+                        filter === "archived"
+                          ? "No archived consultations"
+                          : "No consultations yet"
+                      }
+                      body={
+                        filter === "archived"
+                          ? "Claimed consultations you archive will appear here."
+                          : "Accept a medical aid request, then return here to download the claim statement."
+                      }
                     />
                   </View>
                 ) : (
@@ -699,11 +850,16 @@ export default function ProviderMedicalAidScreen() {
                         item={item}
                         downloading={downloadingId === item._id}
                         claiming={claimingId === item._id}
+                        archiving={archivingId === item._id}
                         actionsDisabled={
-                          Boolean(downloadingId) || Boolean(claimingId)
+                          Boolean(downloadingId) ||
+                          Boolean(claimingId) ||
+                          Boolean(archivingId)
                         }
                         onDownload={() => handleDownload(item)}
                         onMarkClaimed={() => handleMarkClaimed(item)}
+                        onArchive={() => handleArchive(item)}
+                        onUnarchive={() => handleUnarchive(item)}
                       />
                     ))}
 
@@ -786,19 +942,26 @@ function ConsultationClaimCard({
   item,
   downloading,
   claiming,
+  archiving,
   actionsDisabled,
   onDownload,
   onMarkClaimed,
+  onArchive,
+  onUnarchive,
 }: {
   item: MedicalAidConsultation;
   downloading: boolean;
   claiming?: boolean;
+  archiving?: boolean;
   actionsDisabled?: boolean;
   onDownload: () => void;
   onMarkClaimed: () => void;
+  onArchive: () => void;
+  onUnarchive: () => void;
 }) {
   const status = statusMeta(item.status);
   const claimed = isClaimClaimed(item);
+  const archived = isClaimArchived(item);
   const canDownload = item.status === "completed" && !claimed;
   const alreadyDownloaded = Boolean(item.medicalAidClaimDownload?.downloaded);
   const downloadCount = Number(item.medicalAidClaimDownload?.downloadCount || 0);
@@ -813,6 +976,7 @@ function ConsultationClaimCard({
     item.timeline?.consultationStarted ||
     item.updatedAt ||
     item.createdAt;
+  const busy = Boolean(downloading || claiming || archiving || actionsDisabled);
 
   return (
     <View
@@ -821,6 +985,7 @@ function ConsultationClaimCard({
         (!canDownload || claimed) && styles.cardDisabled,
         alreadyDownloaded && !claimed && styles.cardDownloaded,
         claimed && styles.cardClaimed,
+        archived && styles.cardArchived,
       ]}
     >
       <View style={styles.cardTop}>
@@ -844,12 +1009,10 @@ function ConsultationClaimCard({
           >
             {aidTitle}
             {item.medicalAidDetails?.maf ||
-            item.medicalAidDetails?.membershipNumber ||
-            item.medicalAidDetails?.icd10Code
-              ? ` · MAF ${
+            item.medicalAidDetails?.membershipNumber
+              ? ` · NAMAF ${
                   item.medicalAidDetails.maf ||
-                  item.medicalAidDetails.membershipNumber ||
-                  item.medicalAidDetails.icd10Code
+                  item.medicalAidDetails.membershipNumber
                 }`
               : ""}
           </Text>
@@ -860,9 +1023,14 @@ function ConsultationClaimCard({
               {status.label}
             </Text>
           </View>
-          {claimed ? (
-            <View style={styles.claimedChip}>
+          {archived ? (
+            <View style={styles.archivedChip}>
               <Feather name="archive" size={11} color="#6B7280" />
+              <Text style={styles.claimedChipText}>Archived</Text>
+            </View>
+          ) : claimed ? (
+            <View style={styles.claimedChip}>
+              <Feather name="check-circle" size={11} color="#6B7280" />
               <Text style={styles.claimedChipText}>Claimed</Text>
             </View>
           ) : alreadyDownloaded ? (
@@ -887,7 +1055,7 @@ function ConsultationClaimCard({
         />
         <MetaRow
           icon="hash"
-          label="MAF"
+          label="NAMAF"
           value={
             item.medicalAidDetails?.maf ||
             item.medicalAidDetails?.membershipNumber ||
@@ -902,9 +1070,19 @@ function ConsultationClaimCard({
         />
       </View>
 
-      {claimed ? (
+      {archived ? (
         <View style={styles.claimedBanner}>
           <Feather name="archive" size={14} color="#6B7280" />
+          <Text style={styles.claimedBannerText}>
+            Archived
+            {item.medicalAidClaimDownload?.archivedAt
+              ? ` · ${formatDate(item.medicalAidClaimDownload.archivedAt)}`
+              : ""}
+          </Text>
+        </View>
+      ) : claimed ? (
+        <View style={styles.claimedBanner}>
+          <Feather name="check-circle" size={14} color="#6B7280" />
           <Text style={styles.claimedBannerText}>
             Marked as claimed
             {item.medicalAidClaimDownload?.claimedAt
@@ -935,7 +1113,37 @@ function ConsultationClaimCard({
             Complete this consultation before downloading the claim
           </Text>
         </View>
-      ) : claimed ? null : (
+      ) : archived ? (
+        <Pressable
+          style={[styles.unarchiveBtn, busy && styles.downloadBtnDisabled]}
+          onPress={onUnarchive}
+          disabled={busy}
+        >
+          {archiving ? (
+            <ActivityIndicator size="small" color={AUTH_COLORS.green} />
+          ) : (
+            <Feather name="rotate-ccw" size={15} color={AUTH_COLORS.green} />
+          )}
+          <Text style={styles.unarchiveBtnText}>
+            {archiving ? "Restoring…" : "Unarchive"}
+          </Text>
+        </Pressable>
+      ) : claimed ? (
+        <Pressable
+          style={[styles.archiveBtn, busy && styles.downloadBtnDisabled]}
+          onPress={onArchive}
+          disabled={busy}
+        >
+          {archiving ? (
+            <ActivityIndicator size="small" color="#4B5563" />
+          ) : (
+            <Feather name="archive" size={15} color="#4B5563" />
+          )}
+          <Text style={styles.claimBtnText}>
+            {archiving ? "Archiving…" : "Archive"}
+          </Text>
+        </Pressable>
+      ) : (
         <View style={styles.actionRow}>
           <Pressable
             style={[
@@ -945,7 +1153,7 @@ function ConsultationClaimCard({
               downloading && styles.downloadBtnDisabled,
             ]}
             onPress={onDownload}
-            disabled={downloading || actionsDisabled || claiming}
+            disabled={busy}
           >
             {downloading ? (
               <ActivityIndicator
@@ -978,18 +1186,14 @@ function ConsultationClaimCard({
           </Pressable>
 
           <Pressable
-            style={[
-              styles.claimBtn,
-              (claiming || downloading || actionsDisabled) &&
-                styles.downloadBtnDisabled,
-            ]}
+            style={[styles.claimBtn, busy && styles.downloadBtnDisabled]}
             onPress={onMarkClaimed}
-            disabled={claiming || downloading || actionsDisabled}
+            disabled={busy}
           >
             {claiming ? (
               <ActivityIndicator size="small" color="#4B5563" />
             ) : (
-              <Feather name="archive" size={15} color="#4B5563" />
+              <Feather name="check-circle" size={15} color="#4B5563" />
             )}
             <Text style={styles.claimBtnText}>
               {claiming ? "Saving…" : "Claimed"}
@@ -1180,6 +1384,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
     opacity: 0.78,
   },
+  cardArchived: {
+    borderColor: "#CBD5E1",
+    backgroundColor: "#EEF2F7",
+    opacity: 0.85,
+  },
   cardDisabled: {
     opacity: 0.92,
   },
@@ -1194,6 +1403,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     backgroundColor: "#E5E7EB",
+  },
+  archivedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "#E2E8F0",
   },
   claimedChipText: {
     fontSize: 10,
@@ -1234,6 +1452,35 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
     borderWidth: 1,
     borderColor: "#D1D5DB",
+  },
+  archiveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: "#E5E7EB",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+  },
+  unarchiveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: "rgba(187, 247, 208, 0.45)",
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.35)",
+  },
+  unarchiveBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: AUTH_COLORS.greenDark,
   },
   claimBtnText: {
     fontSize: 13,

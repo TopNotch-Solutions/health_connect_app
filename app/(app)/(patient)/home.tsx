@@ -26,6 +26,7 @@ import HistoryCard, {
 import { useAuth } from "../../../context/AuthContext";
 import apiClient from "../../../lib/api";
 import {
+  clearAilmentCategoriesCache,
   getCachedAilmentCategories,
   normalizeAilmentCategories,
   prefetchAilmentCategoryImages,
@@ -402,6 +403,7 @@ export default function PatientHomeScreen() {
                     medicalAidTitle: item.medicalAidDetails.medicalAidTitle,
                     medicalAidImage: item.medicalAidDetails.medicalAidImage,
                     membershipNumber: item.medicalAidDetails.membershipNumber,
+                    maf: item.medicalAidDetails.maf,
                     mainMemberName: item.medicalAidDetails.mainMemberName,
                     residentialAddress:
                       item.medicalAidDetails.residentialAddress,
@@ -481,6 +483,30 @@ export default function PatientHomeScreen() {
       }
     }
   }, [user?.userId, loadAilmentCategories]);
+
+  // Portal catalog changes (ailments / ICD / medical aids) → invalidate + refetch
+  useEffect(() => {
+    const handleCatalogUpdated = () => {
+      void clearAilmentCategoriesCache().then(() => loadAilmentCategories());
+    };
+    socketService.on("catalogUpdated", handleCatalogUpdated);
+    return () => {
+      socketService.off("catalogUpdated", handleCatalogUpdated);
+    };
+  }, [loadAilmentCategories]);
+
+  // Keep recent activity status live while home is mounted
+  useEffect(() => {
+    const refreshRecent = () => {
+      void loadRecentRequests();
+    };
+    socketService.on("requestUpdated", refreshRecent);
+    socketService.on("requestStatusChanged", refreshRecent);
+    return () => {
+      socketService.off("requestUpdated", refreshRecent);
+      socketService.off("requestStatusChanged", refreshRecent);
+    };
+  }, [loadRecentRequests]);
 
   // Load recent requests on mount and when screen comes into focus
   useEffect(() => {
