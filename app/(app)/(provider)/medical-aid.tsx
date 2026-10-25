@@ -3,7 +3,6 @@ import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   RefreshControl,
@@ -32,6 +31,7 @@ import {
 } from "../../../lib/bankDetails";
 import EditBankDetailsModal from "../../../components/(provider)/EditBankDetailsModal";
 import { showAlertDialog } from "@/components/AlertDialog";
+import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
 
 type MedicalAidStats = {
   eligible: boolean;
@@ -539,14 +539,14 @@ export default function ProviderMedicalAidScreen() {
   const handleDownload = useCallback(async (item: MedicalAidConsultation) => {
     if (claimingId || archivingId) return;
     if (item.status !== "completed") {
-      Alert.alert(
+      showAlertDialog(
         "Not available yet",
         "You can only download claims for completed consultations.",
       );
       return;
     }
     if (isClaimClaimed(item)) {
-      Alert.alert(
+      showAlertDialog(
         "Already claimed",
         "This consultation has been marked as claimed and can no longer be downloaded.",
       );
@@ -584,7 +584,7 @@ export default function ProviderMedicalAidScreen() {
         ]);
         return;
       }
-      Alert.alert("Download failed", message);
+      showAlertDialog("Download failed", message);
     } finally {
       setDownloadingId(null);
     }
@@ -599,7 +599,7 @@ export default function ProviderMedicalAidScreen() {
     async (item: MedicalAidConsultation) => {
       if (downloadingId || claimingId || archivingId) return;
       if (item.status !== "completed") {
-        Alert.alert(
+        showAlertDialog(
           "Not available yet",
           "Only completed consultations can be marked as claimed.",
         );
@@ -624,11 +624,9 @@ export default function ProviderMedicalAidScreen() {
                 markClaimsClaimed([item._id]);
               } catch (err: any) {
                 console.error("Mark claimed failed:", err);
-                Alert.alert(
+                showAlertDialog(
                   "Could not mark claimed",
-                  err?.response?.data?.message ||
-                    err?.message ||
-                    "Please try again.",
+                  getUserFacingErrorMessage(err, "Please try again."),
                 );
               } finally {
                 setClaimingId(null);
@@ -662,11 +660,9 @@ export default function ProviderMedicalAidScreen() {
                 patchArchiveState([item._id], true);
               } catch (err: any) {
                 console.error("Archive failed:", err);
-                Alert.alert(
+                showAlertDialog(
                   "Could not archive",
-                  err?.response?.data?.message ||
-                    err?.message ||
-                    "Please try again.",
+                  getUserFacingErrorMessage(err, "Please try again."),
                 );
               } finally {
                 setArchivingId(null);
@@ -700,11 +696,9 @@ export default function ProviderMedicalAidScreen() {
                 patchArchiveState([item._id], false);
               } catch (err: any) {
                 console.error("Unarchive failed:", err);
-                Alert.alert(
+                showAlertDialog(
                   "Could not unarchive",
-                  err?.response?.data?.message ||
-                    err?.message ||
-                    "Please try again.",
+                  getUserFacingErrorMessage(err, "Please try again."),
                 );
               } finally {
                 setArchivingId(null);

@@ -24,17 +24,63 @@ export const setUnauthorizedHandler = (handler: UnauthorizedHandler | null) => {
   onUnauthorized = handler;
 };
 
+let appTokenInflight: Promise<string | null> | null = null;
+
+function isRetrieveAppTokenUrl(url?: string): boolean {
+  return String(url || "").includes("/app/auth/retrieve-jwt-token");
+}
+
+/** Fetch/store bootstrap app token (used by pre-login routes like send-otp). */
+export async function ensureAppToken(): Promise<string | null> {
+  const existing = await SecureStore.getItemAsync("appToken");
+  if (existing) return existing;
+
+  if (appTokenInflight) return appTokenInflight;
+
+  appTokenInflight = (async () => {
+    try {
+      // Raw axios — avoids this client's interceptor (and recursion).
+      const response = await axios.get(
+        `${API_BASE_URL}/app/auth/retrieve-jwt-token`,
+        { timeout: 30000 },
+      );
+      const token = response.data?.token;
+      if (typeof token === "string" && token.length > 0) {
+        await SecureStore.setItemAsync("appToken", token);
+        return token;
+      }
+      return null;
+    } catch (error) {
+      console.error("❌ Failed to ensure app token:", error);
+      return null;
+    } finally {
+      appTokenInflight = null;
+    }
+  })();
+
+  return appTokenInflight;
+}
+
 // Add request interceptor to increase timeout for multipart/form-data (file uploads)
 apiClient.interceptors.request.use(
   async (config) => {
+    if (!config.headers) {
+      config.headers = {} as typeof config.headers;
+    }
+
     const token = await SecureStore.getItemAsync("authToken");
     if (token) {
+      // User session — used by authenticated app routes.
+      config.headers["Authorization"] = `Bearer ${token}`;
       config.headers["x-access-token"] = `Bearer ${token}`;
     }
 
-    const appToken = await SecureStore.getItemAsync("appToken");
-    if (appToken) {
-      config.headers["data-access-token"] = `Bearer ${appToken}`;
+    // Bootstrap token for pre-login routes (/auth/send-otp, verify-otp, etc.)
+    if (!isRetrieveAppTokenUrl(config.url)) {
+      const appToken = await ensureAppToken();
+      if (appToken) {
+        config.headers["data-access-token"] = `Bearer ${appToken}`;
+      }
     }
 
     if (config.headers["Content-Type"] === "multipart/form-data") {
@@ -65,17 +111,38 @@ apiClient.interceptors.response.use(
       return Promise.reject(timeoutError);
     }
 
-    if (error.response?.status === 401) {
-      await SecureStore.deleteItemAsync("authToken");
-      await SecureStore.deleteItemAsync("user");
+    // Bootstrap app-token invalid — clear and let the next request refresh it.
+    const status = error.response?.status;
+    const message = error.response?.data?.message;
+    if (status === 400 && message === "Invalid token.") {
+      await SecureStore.deleteItemAsync("appToken").catch(() => {});
+    }
 
-      console.error(
-        "[UNAUTHORIZED] Authentication failed. Please log in again.",
+    if (status === 401) {
+      // Only clear the user session for user-auth failures — not missing bootstrap token.
+      const usedUserAuth = Boolean(
+        error.config?.headers?.["x-access-token"] ||
+          error.config?.headers?.Authorization ||
+          error.config?.headers?.authorization,
       );
+      const missingBootstrap =
+        typeof message === "string" &&
+        (/wait a moment/i.test(message) ||
+          /no authorization header/i.test(message) ||
+          /no token provided/i.test(message));
 
-      // Drop the in-memory session too, so the protected layout redirects
-      // to sign-in instead of leaving the user on a screen that cannot load.
-      onUnauthorized?.();
+      if (usedUserAuth && !missingBootstrap) {
+        await SecureStore.deleteItemAsync("authToken");
+        await SecureStore.deleteItemAsync("user");
+
+        console.error(
+          "[UNAUTHORIZED] Authentication failed. Please log in again.",
+        );
+
+        onUnauthorized?.();
+      } else if (missingBootstrap) {
+        await SecureStore.deleteItemAsync("appToken").catch(() => {});
+      }
     } else if (isNetworkError(error)) {
       const offlineError = new Error(OFFLINE_MESSAGE) as Error & {
         isOffline: boolean;

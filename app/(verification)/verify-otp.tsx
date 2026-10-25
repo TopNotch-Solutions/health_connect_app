@@ -7,17 +7,18 @@ import {
 import { AppTextInput as TextInput } from "../../components/AppTextInput";
 import {
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Text,
   TextInput as RNTextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { showAlertDialog } from "../../components/AlertDialog";
 import AuthScreenLayout from "../../components/AuthScreenLayout";
 import { AuthTopBackButton } from "../../components/AuthTopBackButton";
-import apiClient from "../../lib/api";
+import apiClient, { ensureAppToken } from "../../lib/api";
 import { AUTH_COLORS, authScreenStyles } from "../../lib/authScreenTheme";
+import { getUserFacingErrorMessage } from "../../lib/userFacingError";
 
 const OTPScreen = () => {
   const router = useRouter();
@@ -51,16 +52,16 @@ const OTPScreen = () => {
     }
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     const finalOtp = otp.join("");
     if (finalOtp.length < 6) {
-      return Alert.alert(
+      return showAlertDialog(
         "Invalid Code",
         "Please enter the complete 6-digit code.",
       );
     }
     if (!cellphoneNumber) {
-      return Alert.alert(
+      return showAlertDialog(
         "Error",
         "Missing phone number. Please go back and try again.",
       );
@@ -68,79 +69,97 @@ const OTPScreen = () => {
 
     setIsLoading(true);
 
-    let promise;
-    const isResetFlow =
-      typeof params.flow === "string" && params.flow === "resetPassword";
+    try {
+      const appToken = await ensureAppToken();
+      if (!appToken) {
+        showAlertDialog(
+          "Connection issue",
+          "Could not verify just now. Please check your connection and try again.",
+        );
+        return;
+      }
 
-    if (isResetFlow) {
-      promise = apiClient.post("/app/auth/forgot-password-verify-otp", {
-        cellphoneNumber,
-        otp: finalOtp,
-      });
-    } else {
-      promise = apiClient.post("/auth/verify-otp", {
-        cellphoneNumber,
-        otp: finalOtp,
-      });
-    }
+      const isResetFlow =
+        typeof params.flow === "string" && params.flow === "resetPassword";
 
-    promise
-      .then((response) => {
-        setIsLoading(false);
+      const response = isResetFlow
+        ? await apiClient.post("/app/auth/forgot-password-verify-otp", {
+            cellphoneNumber,
+            otp: finalOtp,
+          })
+        : await apiClient.post("/auth/verify-otp", {
+            cellphoneNumber,
+            otp: finalOtp,
+          });
 
-        if (isResetFlow) {
-          if (response.status === 200 && response.data?.userId) {
-            router.replace({
-              pathname: "/(auth)/reset-password",
-              params: { userId: String(response.data.userId) },
-            });
-          } else {
-            Alert.alert(
-              "Verification Failed",
-              response.data?.message || "User ID not found in response.",
-            );
-          }
+      if (isResetFlow) {
+        if (response.status === 200 && response.data?.userId) {
+          router.replace({
+            pathname: "/(auth)/reset-password",
+            params: { userId: String(response.data.userId) },
+          });
         } else {
-          const { activeUser } = response.data || {};
-          if (activeUser) {
-            router.replace("/(root)/sign-in");
-          } else if (role === "provider") {
-            router.replace({
-              pathname: "/(auth)/(provider)/provider-type",
-              params: { cellphoneNumber },
-            });
-          } else {
-            router.replace({
-              pathname: "/(auth)/(patient)/registration",
-              params: { cellphoneNumber },
-            });
-          }
+          showAlertDialog(
+            "Verification Failed",
+            response.data?.message || "User ID not found in response.",
+          );
         }
-      })
-      .catch((error) => {
-        setIsLoading(false);
-        const errorMessage =
-          error.response?.data?.message ||
-          "A network error occurred. Please check your connection and the API endpoint.";
-        Alert.alert("Verification Failed", errorMessage);
-      });
+      } else {
+        const { activeUser } = response.data || {};
+        if (activeUser) {
+          router.replace("/(root)/sign-in");
+        } else if (role === "provider") {
+          router.replace({
+            pathname: "/(auth)/(provider)/provider-type",
+            params: { cellphoneNumber },
+          });
+        } else {
+          router.replace({
+            pathname: "/(auth)/(patient)/registration",
+            params: { cellphoneNumber },
+          });
+        }
+      }
+    } catch (error) {
+      showAlertDialog(
+        "Verification Failed",
+        getUserFacingErrorMessage(
+          error,
+          "Could not verify the code. Please try again.",
+        ),
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleResendOtp = async () => {
     if (!cellphoneNumber) {
-      return Alert.alert("Error", "Could not resend code. Please go back.");
+      return showAlertDialog(
+        "Error",
+        "Could not resend code. Please go back.",
+      );
     }
     setIsResending(true);
     try {
+      const appToken = await ensureAppToken();
+      if (!appToken) {
+        showAlertDialog(
+          "Connection issue",
+          "Could not resend the code. Please check your connection and try again.",
+        );
+        return;
+      }
       await apiClient.post("/auth/send-otp", { cellphoneNumber });
-      Alert.alert(
+      showAlertDialog(
         "Code Resent",
         "A new verification code has been sent to your phone.",
       );
     } catch (error: any) {
-      const errorMessage =
-        error?.response?.data?.message || "An error occurred.";
-      Alert.alert("Error", errorMessage);
+      showAlertDialog(
+        "Could not resend code",
+        getUserFacingErrorMessage(error, "An error occurred."),
+      );
     } finally {
       setIsResending(false);
     }

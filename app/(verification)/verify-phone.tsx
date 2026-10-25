@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import axios from "axios";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -10,16 +9,17 @@ import {
 import { AppTextInput as TextInput } from "../../components/AppTextInput";
 import {
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { showAlertDialog } from "../../components/AlertDialog";
 import AuthScreenLayout from "../../components/AuthScreenLayout";
 import { AuthTopBackButton } from "../../components/AuthTopBackButton";
-import apiClient from "../../lib/api";
+import apiClient, { ensureAppToken } from "../../lib/api";
 import { AUTH_COLORS, authScreenStyles } from "../../lib/authScreenTheme";
+import { getUserFacingErrorMessage } from "../../lib/userFacingError";
 
 const VerifyPhoneScreen = () => {
   const router = useRouter();
@@ -35,7 +35,7 @@ const VerifyPhoneScreen = () => {
       sanitizedNumber = sanitizedNumber.slice(1);
 
     if (!/^8[15]\d{7}$/.test(sanitizedNumber)) {
-      return Alert.alert(
+      return showAlertDialog(
         "Invalid Number",
         "Please enter a valid Namibian number starting with 81 or 85 (e.g., 81 234 5678 or 85 234 5678).",
       );
@@ -46,6 +46,15 @@ const VerifyPhoneScreen = () => {
     const fullPhoneNumber = `264${sanitizedNumber}`;
 
     try {
+      const appToken = await ensureAppToken();
+      if (!appToken) {
+        showAlertDialog(
+          "Connection issue",
+          "Could not start verification. Please check your connection and try again.",
+        );
+        return;
+      }
+
       const response = await apiClient.post("/auth/send-otp", {
         cellphoneNumber: fullPhoneNumber,
       });
@@ -61,16 +70,13 @@ const VerifyPhoneScreen = () => {
         });
       }
     } catch (err: unknown) {
-      let errorMessage = "An error occurred. Please try again.";
-      if (axios.isAxiosError(err)) {
-        errorMessage =
-          (err.response?.data as { message?: string } | undefined)?.message ??
-          err.message ??
-          errorMessage;
-      } else if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-      Alert.alert("Error", errorMessage);
+      showAlertDialog(
+        "Could not send code",
+        getUserFacingErrorMessage(
+          err,
+          "An error occurred. Please try again.",
+        ),
+      );
     } finally {
       setIsLoading(false);
     }

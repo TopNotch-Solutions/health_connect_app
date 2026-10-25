@@ -638,11 +638,9 @@ export default function ProviderRequests() {
                   (item) => item._id !== request._id,
                 );
               } catch (err: any) {
-                Alert.alert(
+                showAlertDialog(
                   "Could not archive",
-                  err?.response?.data?.message ||
-                    err?.message ||
-                    "Please try again.",
+                  getUserFacingErrorMessage(err, "Please try again."),
                 );
               } finally {
                 setArchivingId(null);
@@ -678,11 +676,9 @@ export default function ProviderRequests() {
                 // Refresh main list so it reappears under Completed
                 loadRequests();
               } catch (err: any) {
-                Alert.alert(
+                showAlertDialog(
                   "Could not unarchive",
-                  err?.response?.data?.message ||
-                    err?.message ||
-                    "Please try again.",
+                  getUserFacingErrorMessage(err, "Please try again."),
                 );
               } finally {
                 setArchivingId(null);

@@ -10,6 +10,12 @@ export const OFFLINE_MESSAGE =
 export const GENERIC_ERROR_MESSAGE =
   "Something went wrong. Please try again in a moment.";
 
+export const SESSION_EXPIRED_MESSAGE =
+  "Your session has expired. Please sign in again.";
+
+export const SESSION_REQUIRED_MESSAGE =
+  "Please sign in again to continue.";
+
 function isRawTimeoutMessage(message: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -18,6 +24,34 @@ function isRawTimeoutMessage(message: string): boolean {
     lower.includes("econnaborted") ||
     /timeout of \d+ms/i.test(message)
   );
+}
+
+function isAuthDeniedMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("no authorization header") ||
+    lower.includes("no token provided") ||
+    lower.includes("access denied") ||
+    lower.includes("invalid token") ||
+    lower.includes("session expired") ||
+    lower.includes("authentication required") ||
+    lower.includes("authentication failed") ||
+    lower.includes("please wait a moment")
+  );
+}
+
+function softenMessage(message: string): string {
+  const trimmed = message.trim();
+  if (!trimmed) return GENERIC_ERROR_MESSAGE;
+  if (isRawTimeoutMessage(trimmed)) return SERVER_SLOW_MESSAGE;
+  if (/please wait a moment/i.test(trimmed)) {
+    return "Could not start verification yet. Please try again in a moment.";
+  }
+  if (isAuthDeniedMessage(trimmed)) {
+    if (/expired/i.test(trimmed)) return SESSION_EXPIRED_MESSAGE;
+    return SESSION_REQUIRED_MESSAGE;
+  }
+  return trimmed;
 }
 
 /**
@@ -31,10 +65,7 @@ export function getUserFacingErrorMessage(
   if (!error) return fallback;
 
   if (typeof error === "string") {
-    const trimmed = error.trim();
-    if (!trimmed) return fallback;
-    if (isRawTimeoutMessage(trimmed)) return SERVER_SLOW_MESSAGE;
-    return trimmed;
+    return softenMessage(error) || fallback;
   }
 
   if (typeof error !== "object") return fallback;
@@ -44,12 +75,26 @@ export function getUserFacingErrorMessage(
     isOffline?: boolean;
     message?: string;
     error?: string;
-    response?: { data?: { message?: string; error?: string } };
+    response?: {
+      status?: number;
+      data?: { message?: string; error?: string };
+    };
     code?: string;
   };
 
   if (err.isOffline) return OFFLINE_MESSAGE;
   if (err.isTimeout) return SERVER_SLOW_MESSAGE;
+
+  if (err.response?.status === 401 || err.response?.status === 403) {
+    const authMsg =
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      err.message;
+    if (authMsg && typeof authMsg === "string") {
+      return softenMessage(authMsg);
+    }
+    return SESSION_REQUIRED_MESSAGE;
+  }
 
   const serverMessage =
     err.response?.data?.message ||
@@ -57,11 +102,7 @@ export function getUserFacingErrorMessage(
     (typeof err.error === "string" ? err.error : undefined);
 
   if (serverMessage && typeof serverMessage === "string") {
-    const trimmed = serverMessage.trim();
-    if (trimmed) {
-      if (isRawTimeoutMessage(trimmed)) return SERVER_SLOW_MESSAGE;
-      return trimmed;
-    }
+    return softenMessage(serverMessage) || fallback;
   }
 
   if (isNetworkError(err) || isRawTimeoutMessage(err.message || "")) {
@@ -76,9 +117,7 @@ export function getUserFacingErrorMessage(
   }
 
   if (err.message && typeof err.message === "string") {
-    const trimmed = err.message.trim();
-    if (trimmed && !isRawTimeoutMessage(trimmed)) return trimmed;
-    if (isRawTimeoutMessage(trimmed)) return SERVER_SLOW_MESSAGE;
+    return softenMessage(err.message) || fallback;
   }
 
   return fallback;
