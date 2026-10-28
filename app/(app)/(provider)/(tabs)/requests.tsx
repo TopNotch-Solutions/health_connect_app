@@ -3,13 +3,13 @@ import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
-import { AppTextInput as TextInput } from "../../../components/AppTextInput";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../../../components/AppTextInput";
 import { ActivityIndicator, Alert, Image, Linking, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import {
   getPatientLocationFromRequest,
   getRequestProviderId,
-} from "../../../lib/coordinate";
+} from "../../../../lib/coordinate";
 import {
   AppEmptyState,
   AppFilterChips,
@@ -20,27 +20,27 @@ import {
   getGreeting,
   getGreetingEmoji,
   AUTH_COLORS,
-} from "../../../components/app/AppScreenUI";
-import { useAuth } from "../../../context/AuthContext";
-import { useRoute } from "../../../context/RouteContext";
-import apiClient from "../../../lib/api";
+} from "../../../../components/app/AppScreenUI";
+import { useAuth } from "../../../../context/AuthContext";
+import { useRoute } from "../../../../context/RouteContext";
+import apiClient from "../../../../lib/api";
 import {
   attachAuthToAssetUrl,
   buildBackendAssetUrl,
   withAccessTokenQuery,
   type AuthenticatedAssetSource,
-} from "../../../lib/backend";
-import { downloadPrescriptionFile } from "../../../lib/downloadPrescription";
-import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
+} from "../../../../lib/backend";
+import { downloadPrescriptionFile } from "../../../../lib/downloadPrescription";
 import {
-  alertConsultationStatusChange,
-  alertNewRequestAvailable,
-} from "../../../lib/consultationAlert";
-import socketService from "../../../lib/socket";
-import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
-import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
-import ProviderPrescriptionPanel from "../../../components/(provider)/ProviderPrescriptionPanel";
-import PostalAddressConfirmModal from "../../../components/(patient)/PostalAddressConfirmModal";
+  ensureForegroundLocationPermission,
+  resolveProviderCoordsForAccept,
+} from "../../../../lib/locationPermission";
+import { alertNewRequestAvailable } from "../../../../lib/consultationAlert";
+import socketService from "../../../../lib/socket";
+import { canShowPatientPhone } from "../../../../lib/patientContactVisibility";
+import { getUserFacingErrorMessage } from "../../../../lib/userFacingError";
+import ProviderPrescriptionPanel from "../../../../components/(provider)/ProviderPrescriptionPanel";
+import PostalAddressConfirmModal from "../../../../components/(patient)/PostalAddressConfirmModal";
 import { showAlertDialog } from "@/components/AlertDialog";
 
 interface PrescriptionData {
@@ -135,6 +135,7 @@ export default function ProviderRequests() {
       | "complete"
       | "payment_received";
   } | null>(null);
+  const acceptInFlightRef = useRef(false);
   const { startRoute } = useRoute();
   const { user } = useAuth();
   const router = useRouter();
@@ -258,14 +259,14 @@ export default function ProviderRequests() {
         }
       } catch (locErr) {
         console.warn(
-          "⚠️ Could not get provider location for available requests:",
+          "?? Could not get provider location for available requests:",
           locErr,
         );
       }
 
       const [socketRequests, availableResult] = await Promise.all([
         socketService.getProviderRequests(user.userId).catch((err) => {
-          console.warn("⚠️ getProviderRequests failed:", err);
+          console.warn("?? getProviderRequests failed:", err);
           return [];
         }),
         providerLocation
@@ -275,7 +276,7 @@ export default function ProviderRequests() {
                 limit: 20,
               })
               .catch((err) => {
-                console.warn("⚠️ getAvailableRequests failed:", err);
+                console.warn("?? getAvailableRequests failed:", err);
                 return { requests: [], pagination: { hasMore: false } };
               })
           : Promise.resolve({ requests: [], pagination: { hasMore: false } }),
@@ -303,7 +304,7 @@ export default function ProviderRequests() {
             )
           : [];
       } catch (histErr) {
-        console.warn("⚠️ Could not fetch request history:", histErr);
+        console.warn("?? Could not fetch request history:", histErr);
       }
 
       // Available (unclaimed) first, then assigned live, then REST wins on conflicts
@@ -350,7 +351,7 @@ export default function ProviderRequests() {
       requestsRef.current = nextRequests;
       hasLoadedOnce.current = true;
     } catch (error: any) {
-      console.error("❌ Error loading requests:", error);
+      console.error("? Error loading requests:", error);
     } finally {
       setIsLoading(false);
     }
@@ -409,7 +410,7 @@ export default function ProviderRequests() {
     }, [user?.userId, loadRequests, loadPrescriptions]),
   );
 
-  // ── Prescription upload polling ───────────────────────────────────────────
+  // -- Prescription upload polling -------------------------------------------
   // While any accepted pharmacy request is still waiting for a prescription,
   // poll every 8 seconds so the pharmacist sees it the moment the patient uploads.
   const prescriptionPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -460,8 +461,8 @@ export default function ProviderRequests() {
 
   // Listen for new requests and status changes
   useEffect(() => {
+    // Voice for socket newRequestAvailable is handled by useConsultationStatusAlerts.
     const handleNewRequest = (request: Request) => {
-      void alertNewRequestAvailable(request?._id);
       setRequests((prev) => [
         request,
         ...prev.filter((r) => r._id !== request._id),
@@ -487,17 +488,8 @@ export default function ProviderRequests() {
         correctStatus = "accepted";
       }
 
-      // Ring only for consultations this provider already has in their list
+      // Status voice is handled by useConsultationStatusAlerts (tabs layout).
       setRequests((prev) => {
-        const existing = prev.find((r) => r._id === data.requestId);
-        if (existing && existing.status !== correctStatus) {
-          void alertConsultationStatusChange(
-            correctStatus,
-            data.requestId,
-            "provider",
-          );
-        }
-
         // If truly cancelled (patient cancelled, no provider acceptance), remove from list
         if (correctStatus === "cancelled" || correctStatus === "expired") {
           return prev.filter((r) => r._id !== data.requestId);
@@ -588,7 +580,7 @@ export default function ProviderRequests() {
         setArchivedHasMore(nextHasMore);
         setArchivedTotal(nextTotal);
       } catch (err) {
-        console.warn("⚠️ Could not fetch archived requests:", err);
+        console.warn("?? Could not fetch archived requests:", err);
         if (!append) {
           setArchivedRequests([]);
           setArchivedHasMore(false);
@@ -792,7 +784,7 @@ export default function ProviderRequests() {
               color: AUTH_COLORS.greenDark,
             }}
           >
-            {busy ? "Restoring…" : "Unarchive"}
+            {busy ? "Restoring..." : "Unarchive"}
           </Text>
         </TouchableOpacity>
       );
@@ -823,7 +815,7 @@ export default function ProviderRequests() {
           <Feather name="archive" size={15} color="#4B5563" />
         )}
         <Text style={{ fontSize: 13, fontWeight: "800", color: "#374151" }}>
-          {busy ? "Archiving…" : "Archive"}
+          {busy ? "Archiving..." : "Archive"}
         </Text>
       </TouchableOpacity>
     );
@@ -833,14 +825,10 @@ export default function ProviderRequests() {
     switch (status) {
       case "searching":
       case "pending":
-        // Pending — amber
         return {
-          bg: "#FEF3C7",
-          text: "#B45309",
+          bg: AUTH_COLORS.greenSoft,
+          text: AUTH_COLORS.greenDark,
           icon: "clock" as const,
-          accent: "#F59E0B",
-          cardBg: "#FFFBEB",
-          cardBorder: "#FCD34D",
         };
       case "accepted":
       case "payment_pending":
@@ -851,10 +839,9 @@ export default function ProviderRequests() {
       case "in_progress":
       case "arrived":
       case "en_route":
-        // Accepted / in progress — blue
         return {
-          bg: "#DBEAFE",
-          text: "#1D4ED8",
+          bg: AUTH_COLORS.greenSoft,
+          text: AUTH_COLORS.greenDark,
           icon:
             status === "en_route" || status === "arrived"
               ? ("navigation" as const)
@@ -862,29 +849,19 @@ export default function ProviderRequests() {
                 ? ("video" as const)
                 : status === "in_progress"
                   ? ("activity" as const)
-                  : ("check-circle" as const),
-          accent: "#2563EB",
-          cardBg: "#EFF6FF",
-          cardBorder: "#93C5FD",
+                  : ("check" as const),
         };
       case "completed":
-        // Completed — green
         return {
-          bg: "#DCFCE7",
-          text: "#15803D",
-          icon: "check-square" as const,
-          accent: AUTH_COLORS.green,
-          cardBg: "#F0FDF4",
-          cardBorder: "#86EFAC",
+          bg: "#F0FDF4",
+          text: AUTH_COLORS.greenDark,
+          icon: "check" as const,
         };
       default:
         return {
           bg: "#F3F4F6",
-          text: "#4B5563",
+          text: AUTH_COLORS.textMuted,
           icon: "circle" as const,
-          accent: "#9CA3AF",
-          cardBg: AUTH_COLORS.white,
-          cardBorder: AUTH_COLORS.inputBorder,
         };
     }
   };
@@ -947,8 +924,11 @@ export default function ProviderRequests() {
       return;
     }
 
+    if (acceptInFlightRef.current || actionLoading) return;
+
     const currentUserId = user.userId; // Store userId to avoid issues if user becomes null
 
+    acceptInFlightRef.current = true;
     setActionLoading({ requestId: request._id, action: "accept" });
     try {
       const { granted } = await ensureForegroundLocationPermission({
@@ -962,13 +942,7 @@ export default function ProviderRequests() {
         return;
       }
 
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      const acceptProviderCoords = {
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      };
+      const acceptProviderCoords = await resolveProviderCoordsForAccept();
 
       // 1) Accept on backend (assign provider)
       await socketService.acceptRequest(
@@ -1071,6 +1045,7 @@ export default function ProviderRequests() {
         getUserFacingErrorMessage(error, "Failed to accept request"),
       );
     } finally {
+      acceptInFlightRef.current = false;
       setActionLoading((prev) =>
         prev?.requestId === request._id ? null : prev,
       );
@@ -1425,10 +1400,10 @@ export default function ProviderRequests() {
         <AppFilterChips
           filters={[
             { key: "all", label: "All" },
-            { key: "pending", label: "Pending", color: "#F59E0B" },
-            { key: "accepted", label: "Accepted", color: "#2563EB" },
+            { key: "pending", label: "Pending", color: AUTH_COLORS.greenDark },
+            { key: "accepted", label: "Accepted", color: AUTH_COLORS.green },
             { key: "completed", label: "Completed", color: AUTH_COLORS.green },
-            { key: "archived", label: "Archived", color: "#6B7280" },
+            { key: "archived", label: "Archived", color: AUTH_COLORS.textMuted },
           ]}
           active={filter}
           onChange={handleFilterChange}
@@ -1437,7 +1412,7 @@ export default function ProviderRequests() {
         {/* Requests List */}
         <View style={appScreenStyles.contentSection}>
           {isLoading || (filter === "archived" && archivedLoading) ? (
-            <AppLoadingCard message="Loading requests…" />
+            <AppLoadingCard message="Loading requests..." />
           ) : displayedRequests.length === 0 ? (
             <AppEmptyState
               icon={filter === "archived" ? "archive" : "folder"}
@@ -1469,18 +1444,8 @@ export default function ProviderRequests() {
                   : "house_visit";
               const consultationModeMeta =
                 consultationMode === "video_consultation"
-                  ? {
-                      label: "Video Consultation",
-                      icon: "video" as const,
-                      color: "#0369A1",
-                      soft: "#E0F2FE",
-                    }
-                  : {
-                      label: "House Visit",
-                      icon: "home" as const,
-                      color: AUTH_COLORS.greenDark,
-                      soft: AUTH_COLORS.greenSoft,
-                    };
+                  ? { label: "Video", icon: "video" as const }
+                  : { label: "House visit", icon: "home" as const };
               const isBusy = actionLoading?.requestId === request._id;
               const isLoadingAction = (
                 action:
@@ -1531,33 +1496,11 @@ export default function ProviderRequests() {
                   style={[
                     appScreenStyles.requestCard,
                     requestCardStyles.card,
-                    {
-                      backgroundColor: statusStyle.cardBg,
-                      borderColor: statusStyle.cardBorder,
-                    },
                   ]}
                 >
-                  <View
-                    style={[
-                      requestCardStyles.accentBar,
-                      { backgroundColor: statusStyle.accent },
-                    ]}
-                  />
-
-                  {/* Header */}
                   <View style={requestCardStyles.header}>
-                    <View
-                      style={[
-                        requestCardStyles.avatar,
-                        { backgroundColor: statusStyle.bg },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          requestCardStyles.avatarText,
-                          { color: statusStyle.text },
-                        ]}
-                      >
+                    <View style={requestCardStyles.avatar}>
+                      <Text style={requestCardStyles.avatarText}>
                         {displayInitials}
                       </Text>
                     </View>
@@ -1607,7 +1550,6 @@ export default function ProviderRequests() {
                     </View>
                   </View>
 
-                  {/* Details panel */}
                   <View style={requestCardStyles.detailsPanel}>
                     <View style={requestCardStyles.detailsRow}>
                       <View style={requestCardStyles.detailItem}>
@@ -1623,112 +1565,82 @@ export default function ProviderRequests() {
                       </View>
                     </View>
 
-                    <View style={requestCardStyles.detailsSeparator} />
-
                     <View style={requestCardStyles.modeRow}>
-                      <View
-                        style={[
-                          requestCardStyles.modeIconWrap,
-                          { backgroundColor: consultationModeMeta.soft },
-                        ]}
-                      >
-                        <Feather
-                          name={consultationModeMeta.icon}
-                          size={14}
-                          color={consultationModeMeta.color}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          requestCardStyles.modeLabel,
-                          { color: consultationModeMeta.color },
-                        ]}
-                      >
+                      <Feather
+                        name={consultationModeMeta.icon}
+                        size={13}
+                        color={AUTH_COLORS.greenDark}
+                      />
+                      <Text style={requestCardStyles.modeLabel}>
                         {consultationModeMeta.label}
                       </Text>
                     </View>
 
                     {addressLine ? (
-                      <>
-                        <View style={requestCardStyles.detailsSeparator} />
-                        <View style={requestCardStyles.locationRow}>
-                          <Feather
-                            name="map-pin"
-                            size={14}
-                            color={AUTH_COLORS.green}
-                            style={{ marginTop: 2 }}
-                          />
-                          <Text style={requestCardStyles.locationText}>
-                            {addressLine}
-                          </Text>
-                        </View>
-                      </>
+                      <View style={requestCardStyles.locationRow}>
+                        <Feather
+                          name="map-pin"
+                          size={14}
+                          color={AUTH_COLORS.green}
+                          style={{ marginTop: 2 }}
+                        />
+                        <Text style={requestCardStyles.locationText}>
+                          {addressLine}
+                        </Text>
+                      </View>
                     ) : null}
 
                     {request.symptoms ? (
-                      <>
-                        <View style={requestCardStyles.detailsSeparator} />
-                        <View style={requestCardStyles.symptomsBlock}>
-                          <Text style={requestCardStyles.detailLabel}>
-                            Symptoms
-                          </Text>
-                          <Text style={requestCardStyles.symptomsText}>
-                            {request.symptoms}
-                          </Text>
-                        </View>
-                      </>
+                      <View style={requestCardStyles.symptomsBlock}>
+                        <Text style={requestCardStyles.detailLabel}>
+                          Symptoms
+                        </Text>
+                        <Text style={requestCardStyles.symptomsText}>
+                          {request.symptoms}
+                        </Text>
+                      </View>
                     ) : null}
 
                     {(request.timeline?.consultationStarted ||
                       request.timeline?.consultationCompleted) && (
-                      <>
-                        <View style={requestCardStyles.detailsSeparator} />
-                        <View style={requestCardStyles.symptomsBlock}>
-                          <Text style={requestCardStyles.detailLabel}>
-                            Consultation times
+                      <View style={requestCardStyles.symptomsBlock}>
+                        <Text style={requestCardStyles.detailLabel}>
+                          Consultation times
+                        </Text>
+                        {request.timeline?.consultationStarted ? (
+                          <Text style={requestCardStyles.symptomsText}>
+                            Started:{" "}
+                            {new Date(
+                              request.timeline.consultationStarted,
+                            ).toLocaleString()}
                           </Text>
-                          {request.timeline?.consultationStarted ? (
-                            <Text style={requestCardStyles.symptomsText}>
-                              Started:{" "}
-                              {new Date(
-                                request.timeline.consultationStarted,
-                              ).toLocaleString()}
-                            </Text>
-                          ) : null}
-                          {request.timeline?.consultationCompleted ? (
-                            <Text style={requestCardStyles.symptomsText}>
-                              Completed:{" "}
-                              {new Date(
-                                request.timeline.consultationCompleted,
-                              ).toLocaleString()}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </>
+                        ) : null}
+                        {request.timeline?.consultationCompleted ? (
+                          <Text style={requestCardStyles.symptomsText}>
+                            Completed:{" "}
+                            {new Date(
+                              request.timeline.consultationCompleted,
+                            ).toLocaleString()}
+                          </Text>
+                        ) : null}
+                      </View>
                     )}
                   </View>
 
-                  {/* Awaiting prescription upload banner */}
                   {awaitingPrescription && (
-                    <View style={{
-                      backgroundColor: "#FEF9C3",
-                      borderRadius: 8,
-                      borderWidth: 1,
-                      borderColor: "#FDE68A",
-                      padding: 10,
-                      marginBottom: 12,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}>
-                      <Feather name="clock" size={15} color="#92400E" />
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: "#92400E", flex: 1 }}>
+                    <View style={requestCardStyles.infoBanner}>
+                      <Feather
+                        name="clock"
+                        size={15}
+                        color={AUTH_COLORS.greenDark}
+                      />
+                      <Text style={requestCardStyles.infoBannerText}>
                         Awaiting prescription upload from patient
                       </Text>
                     </View>
                   )}
 
-                  {/* ── Inline prescription panel (pharmacist only) ── */}
+                  {/* -- Inline prescription panel (pharmacist only) -- */}
                   {isPharmacist && ailmentRequiresPrescription && linkedPrescription && (() => {
                     const p = linkedPrescription;
                     const imageSource =
@@ -1752,7 +1664,7 @@ export default function ProviderRequests() {
                       p.status === "rejected"  ? "Rejected" : "Awaiting Review";
 
                     return (
-                      <View style={{ borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, padding: 12, marginBottom: 12, backgroundColor: "#FAFAFA" }}>
+                      <View style={{ borderWidth: 1, borderColor: AUTH_COLORS.inputBorder, borderRadius: 14, padding: 12, marginBottom: 12, backgroundColor: AUTH_COLORS.bg }}>
                         {/* Header row */}
                         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
                           <Feather name="file-text" size={15} color="#4B5563" />
@@ -1813,14 +1725,14 @@ export default function ProviderRequests() {
                               }
                             }}
                             activeOpacity={0.8}
-                            style={{ backgroundColor: "#EFF6FF", borderRadius: 8, padding: 12, flexDirection: "row", alignItems: "center", marginBottom: 10, borderWidth: 1, borderColor: "#BFDBFE", gap: 10 }}
+                            style={{ backgroundColor: "#F0FDF4", borderRadius: 12, padding: 12, flexDirection: "row", alignItems: "center", marginBottom: 10, borderWidth: 1, borderColor: AUTH_COLORS.inputBorder, gap: 10 }}
                           >
-                            <Feather name="file-text" size={20} color="#2563EB" />
+                            <Feather name="file-text" size={20} color={AUTH_COLORS.greenDark} />
                             <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 13, fontWeight: "700", color: "#1D4ED8" }}>PDF Prescription</Text>
-                              <Text style={{ fontSize: 11, color: "#3B82F6", marginTop: 2 }}>Tap to open / download</Text>
+                              <Text style={{ fontSize: 13, fontWeight: "700", color: AUTH_COLORS.greenDark }}>PDF Prescription</Text>
+                              <Text style={{ fontSize: 11, color: AUTH_COLORS.textMuted, marginTop: 2 }}>Tap to open / download</Text>
                             </View>
-                            <Feather name="download" size={16} color="#2563EB" />
+                            <Feather name="download" size={16} color={AUTH_COLORS.greenDark} />
                           </TouchableOpacity>
                         )}
 
@@ -1837,19 +1749,19 @@ export default function ProviderRequests() {
                             <TouchableOpacity
                               onPress={() => { setRejectTarget({ prescriptionId: p._id, patientName }); setRejectModalVisible(true); }}
                               disabled={isPrescriptionBusy}
-                              style={{ flex: 1, backgroundColor: "#FEF2F2", borderRadius: 10, paddingVertical: 11, alignItems: "center", borderWidth: 1, borderColor: "#FECACA" }}
+                              style={{ flex: 1, backgroundColor: AUTH_COLORS.white, borderRadius: 999, paddingVertical: 11, alignItems: "center", borderWidth: 1.5, borderColor: "#FECACA" }}
                             >
                               <Text style={{ fontSize: 13, fontWeight: "700", color: "#DC2626" }}>Reject</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => handleAcceptPrescription(p._id)}
                               disabled={isPrescriptionBusy}
-                              style={{ flex: 2, backgroundColor: "#10B981", borderRadius: 10, paddingVertical: 11, alignItems: "center" }}
+                              style={{ flex: 2, backgroundColor: AUTH_COLORS.green, borderRadius: 999, paddingVertical: 11, alignItems: "center" }}
                             >
                               {isPrescriptionBusy ? (
                                 <ActivityIndicator size="small" color="#FFFFFF" />
                               ) : (
-                                <Text style={{ fontSize: 13, fontWeight: "700", color: "#FFFFFF" }}>✓ Accept Prescription</Text>
+                                <Text style={{ fontSize: 13, fontWeight: "700", color: "#FFFFFF" }}>Accept Prescription</Text>
                               )}
                             </TouchableOpacity>
                           </View>
@@ -1867,7 +1779,7 @@ export default function ProviderRequests() {
 
                   {/* Action buttons — pharmacy-aware */}
                   {request.consultationMode === "video_consultation" ? (
-                    /* ── VIDEO CONSULTATION FLOW ─────────────────────────────── */
+                    /* -- VIDEO CONSULTATION FLOW ------------------------------- */
                     <>
                       {(request.status === "searching" ||
                         request.status === "pending") && (
@@ -1877,12 +1789,12 @@ export default function ProviderRequests() {
                               handleDecline(request._id, patientName)
                             }
                             disabled={isBusy}
-                            className="flex-1 bg-red-50 rounded-xl py-3 px-4 items-center border border-red-200"
+                            style={requestCardStyles.dangerBtn}
                           >
                             {isLoadingAction("decline") ? (
                               <ActivityIndicator size="small" color="#DC2626" />
                             ) : (
-                              <Text className="text-red-600 font-bold text-sm">
+                              <Text style={requestCardStyles.dangerBtnText}>
                                 Decline
                               </Text>
                             )}
@@ -1890,12 +1802,15 @@ export default function ProviderRequests() {
                           <TouchableOpacity
                             onPress={() => confirmAccept(request)}
                             disabled={isBusy}
-                            className="flex-1 bg-blue-600 rounded-xl py-3 px-4 items-center"
+                            style={[
+                              requestCardStyles.acceptBtn,
+                              isLoadingAction("accept") ? { opacity: 0.7 } : null,
+                            ]}
                           >
                             {isLoadingAction("accept") ? (
                               <ActivityIndicator size="small" color="#FFFFFF" />
                             ) : (
-                              <Text className="text-white font-bold text-sm">
+                              <Text style={requestCardStyles.primaryBtnText}>
                                 Accept
                               </Text>
                             )}
@@ -1908,11 +1823,10 @@ export default function ProviderRequests() {
                           request.status,
                         ) && (
                         <View
-                          className="bg-sky-50 rounded-lg p-3 border border-sky-200 flex-row items-center justify-center"
-                          style={{ gap: 8 }}
+                          style={[requestCardStyles.statusNote, { gap: 8 }]}
                         >
-                          <ActivityIndicator size="small" color="#0369A1" />
-                          <Text className="text-xs text-sky-700 font-semibold">
+                          <ActivityIndicator size="small" color={AUTH_COLORS.green} />
+                          <Text style={requestCardStyles.statusNoteText}>
                             Waiting for patient to confirm payment...
                           </Text>
                         </View>
@@ -1925,12 +1839,12 @@ export default function ProviderRequests() {
                             handlePaymentReceived(request._id, patientName)
                           }
                           disabled={isBusy}
-                          className="bg-sky-600 rounded-xl py-3 px-4 items-center"
+                          style={requestCardStyles.primaryBtn}
                         >
                           {isLoadingAction("payment_received") ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
-                            <Text className="text-white font-bold text-sm">
+                            <Text style={requestCardStyles.primaryBtnText}>
                               Confirm Payment Received
                             </Text>
                           )}
@@ -1948,11 +1862,10 @@ export default function ProviderRequests() {
                               params: { requestId: request._id },
                             })
                           }
-                          className="bg-blue-600 rounded-xl py-3 px-4 items-center flex-row justify-center"
-                          style={{ gap: 8 }}
+                          style={[requestCardStyles.primaryBtn, { gap: 8 }]}
                         >
                           <Feather name="video" size={16} color="#FFFFFF" />
-                          <Text className="text-white font-bold text-sm">
+                          <Text style={requestCardStyles.primaryBtnText}>
                             {request.status === "in_call"
                               ? "Return to Call"
                               : "Join Call"}
@@ -1963,15 +1876,14 @@ export default function ProviderRequests() {
                       {request.status === "completed" && (
                         <>
                           <View
-                            className="bg-green-50 rounded-lg p-3 border border-green-200 flex-row items-center justify-center"
-                            style={{ gap: 6 }}
+                            style={[requestCardStyles.statusNote, { gap: 6 }]}
                           >
                             <Feather
                               name="check-circle"
                               size={14}
                               color="#16A34A"
                             />
-                            <Text className="text-xs text-green-700 font-semibold">
+                            <Text style={requestCardStyles.statusNoteText}>
                               Consultation Completed
                             </Text>
                           </View>
@@ -1993,11 +1905,11 @@ export default function ProviderRequests() {
                       />
                     </>
                   ) : isPharmacist ? (
-                    /* ── PHARMACIST / PRESCRIPTION DELIVERY FLOW ─────────────── */
+                    /* -- PHARMACIST / PRESCRIPTION DELIVERY FLOW --------------- */
                     <>
                       {(request.status === "searching" || request.status === "pending") && (
-                        <View className="bg-amber-50 rounded-lg p-3 border border-amber-200">
-                          <Text className="text-xs text-amber-700 font-medium text-center">
+                        <View style={requestCardStyles.infoBanner}>
+                          <Text style={requestCardStyles.infoBannerText}>
                             Waiting for patient to upload prescription
                           </Text>
                         </View>
@@ -2034,15 +1946,14 @@ export default function ProviderRequests() {
                           <TouchableOpacity
                             onPress={() => handleMarkRoute(request)}
                             disabled={isBusy || !prescriptionAccepted}
-                            className="bg-indigo-600 rounded-xl py-3 px-4 items-center flex-row justify-center"
-                            style={{ gap: 8, opacity: (isBusy || !prescriptionAccepted) ? 0.5 : 1 }}
+                            style={[requestCardStyles.primaryBtn, { gap: 8, opacity: (isBusy || !prescriptionAccepted) ? 0.5 : 1 }]}
                           >
                             {isLoadingAction("route") ? (
                               <ActivityIndicator size="small" color="#FFFFFF" />
                             ) : (
                               <>
                                 <Feather name="navigation" size={16} color="#FFFFFF" />
-                                <Text className="text-white font-bold text-sm">Start Delivery</Text>
+                                <Text style={requestCardStyles.primaryBtnText}>Start Delivery</Text>
                               </>
                             )}
                           </TouchableOpacity>
@@ -2053,15 +1964,14 @@ export default function ProviderRequests() {
                         <TouchableOpacity
                           onPress={() => handleMarkRoute(request)}
                           disabled={isBusy}
-                          className="bg-indigo-600 rounded-xl py-3 px-4 items-center flex-row justify-center"
-                          style={{ gap: 8, opacity: isBusy ? 0.5 : 1 }}
+                          style={[requestCardStyles.primaryBtn, { gap: 8, opacity: isBusy ? 0.5 : 1 }]}
                         >
                           {isLoadingAction("route") ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
                             <>
                               <Feather name="navigation" size={16} color="#FFFFFF" />
-                              <Text className="text-white font-bold text-sm">
+                              <Text style={requestCardStyles.primaryBtnText}>
                                 Continue Navigation
                               </Text>
                             </>
@@ -2073,12 +1983,12 @@ export default function ProviderRequests() {
                         <TouchableOpacity
                           onPress={() => confirmCompleteConsultation(request._id, patientName)}
                           disabled={isBusy}
-                          className="bg-green-600 rounded-xl py-3 px-4 items-center"
+                          style={requestCardStyles.primaryBtn}
                         >
                           {isLoadingAction("complete") ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
-                            <Text className="text-white font-bold text-sm">Complete Delivery</Text>
+                            <Text style={requestCardStyles.primaryBtnText}>Complete Delivery</Text>
                           )}
                         </TouchableOpacity>
                       )}
@@ -2087,51 +1997,54 @@ export default function ProviderRequests() {
                         <TouchableOpacity
                           onPress={() => confirmCompleteConsultation(request._id, patientName)}
                           disabled={isBusy}
-                          className="bg-green-600 rounded-xl py-3 px-4 items-center"
+                          style={requestCardStyles.primaryBtn}
                         >
                           {isLoadingAction("complete") ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
-                            <Text className="text-white font-bold text-sm">Complete Delivery</Text>
+                            <Text style={requestCardStyles.primaryBtnText}>Complete Delivery</Text>
                           )}
                         </TouchableOpacity>
                       )}
 
                       {request.status === "completed" && (
                         <>
-                          <View className="bg-green-50 rounded-lg p-3 border border-green-200 flex-row items-center justify-center" style={{ gap: 6 }}>
+                          <View style={[requestCardStyles.statusNote, { gap: 6 }]}>
                             <Feather name="check-circle" size={14} color="#16A34A" />
-                            <Text className="text-xs text-green-700 font-semibold">Delivery Completed</Text>
+                            <Text style={requestCardStyles.statusNoteText}>Delivery Completed</Text>
                           </View>
                           {renderCompletedArchiveActions(request)}
                         </>
                       )}
                     </>
                   ) : (
-                    /* ── NORMAL CONSULTATION FLOW ─────────────────────────────── */
+                    /* -- NORMAL CONSULTATION FLOW ------------------------------- */
                     <>
                       {(request.status === "searching" || request.status === "pending") && (
                         <View className="flex-row" style={{ gap: 10 }}>
                           <TouchableOpacity
                             onPress={() => handleDecline(request._id, patientName)}
                             disabled={isBusy}
-                            className="flex-1 bg-red-50 rounded-xl py-3 px-4 items-center border border-red-200"
+                            style={requestCardStyles.dangerBtn}
                           >
                             {isLoadingAction("decline") ? (
                               <ActivityIndicator size="small" color="#DC2626" />
                             ) : (
-                              <Text className="text-red-600 font-bold text-sm">Decline</Text>
+                              <Text style={requestCardStyles.dangerBtnText}>Decline</Text>
                             )}
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => confirmAccept(request)}
                             disabled={isBusy}
-                            className="flex-1 bg-blue-600 rounded-xl py-3 px-4 items-center"
+                            style={[
+                              requestCardStyles.acceptBtn,
+                              isLoadingAction("accept") ? { opacity: 0.7 } : null,
+                            ]}
                           >
                             {isLoadingAction("accept") ? (
                               <ActivityIndicator size="small" color="#FFFFFF" />
                             ) : (
-                              <Text className="text-white font-bold text-sm">Accept</Text>
+                              <Text style={requestCardStyles.primaryBtnText}>Accept</Text>
                             )}
                           </TouchableOpacity>
                         </View>
@@ -2141,15 +2054,14 @@ export default function ProviderRequests() {
                         <TouchableOpacity
                           onPress={() => handleMarkRoute(request)}
                           disabled={isBusy}
-                          className="bg-indigo-600 rounded-xl py-3 px-4 items-center flex-row justify-center"
-                          style={{ gap: 8 }}
+                          style={[requestCardStyles.primaryBtn, { gap: 8 }]}
                         >
                           {isLoadingAction("route") ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
                             <>
                               <Feather name="navigation" size={16} color="#FFFFFF" />
-                              <Text className="text-white font-bold text-sm">Navigate to Patient</Text>
+                              <Text style={requestCardStyles.primaryBtnText}>Navigate to Patient</Text>
                             </>
                           )}
                         </TouchableOpacity>
@@ -2159,15 +2071,14 @@ export default function ProviderRequests() {
                         <TouchableOpacity
                           onPress={() => handleMarkRoute(request)}
                           disabled={isBusy}
-                          className="bg-indigo-600 rounded-xl py-3 px-4 items-center flex-row justify-center"
-                          style={{ gap: 8, opacity: isBusy ? 0.5 : 1 }}
+                          style={[requestCardStyles.primaryBtn, { gap: 8, opacity: isBusy ? 0.5 : 1 }]}
                         >
                           {isLoadingAction("route") ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
                             <>
                               <Feather name="navigation" size={16} color="#FFFFFF" />
-                              <Text className="text-white font-bold text-sm">
+                              <Text style={requestCardStyles.primaryBtnText}>
                                 Continue Navigation
                               </Text>
                             </>
@@ -2179,12 +2090,12 @@ export default function ProviderRequests() {
                         <TouchableOpacity
                           onPress={() => confirmStartConsultation(request._id, patientName)}
                           disabled={isBusy}
-                          className="bg-blue-600 rounded-xl py-3 px-4 items-center"
+                          style={requestCardStyles.primaryBtn}
                         >
                           {isLoadingAction("start") ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
-                            <Text className="text-white font-bold text-sm">Start Consultation</Text>
+                            <Text style={requestCardStyles.primaryBtnText}>Start Consultation</Text>
                           )}
                         </TouchableOpacity>
                       )}
@@ -2193,12 +2104,12 @@ export default function ProviderRequests() {
                         <TouchableOpacity
                           onPress={() => confirmCompleteConsultation(request._id, patientName)}
                           disabled={isBusy}
-                          className="bg-green-600 rounded-xl py-3 px-4 items-center"
+                          style={requestCardStyles.primaryBtn}
                         >
                           {isLoadingAction("complete") ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
-                            <Text className="text-white font-bold text-sm">Complete Consultation</Text>
+                            <Text style={requestCardStyles.primaryBtnText}>Complete Consultation</Text>
                           )}
                         </TouchableOpacity>
                       )}
@@ -2206,9 +2117,9 @@ export default function ProviderRequests() {
                       {/* Cash only: waiting for patient eWallet payment */}
                       {request.paymentMethod === "cash" &&
                         request.status === "payment_pending" && (
-                        <View className="bg-sky-50 rounded-lg p-3 border border-sky-200 flex-row items-center justify-center" style={{ gap: 8 }}>
-                          <ActivityIndicator size="small" color="#0369A1" />
-                          <Text className="text-xs text-sky-700 font-semibold">Waiting for patient to confirm payment…</Text>
+                        <View style={[requestCardStyles.statusNote, { gap: 8 }]}>
+                          <ActivityIndicator size="small" color={AUTH_COLORS.green} />
+                          <Text style={requestCardStyles.statusNoteText}>Waiting for patient to confirm payment...</Text>
                         </View>
                       )}
 
@@ -2218,12 +2129,12 @@ export default function ProviderRequests() {
                         <TouchableOpacity
                           onPress={() => handlePaymentReceived(request._id, patientName)}
                           disabled={isBusy}
-                          className="bg-sky-600 rounded-xl py-3 px-4 items-center"
+                          style={requestCardStyles.primaryBtn}
                         >
                           {isLoadingAction("payment_received") ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
-                            <Text className="text-white font-bold text-sm">Confirm Payment Received</Text>
+                            <Text style={requestCardStyles.primaryBtnText}>Confirm Payment Received</Text>
                           )}
                         </TouchableOpacity>
                       )}
@@ -2237,11 +2148,10 @@ export default function ProviderRequests() {
                               params: { requestId: request._id },
                             })
                           }
-                          className="bg-blue-600 rounded-xl py-3 px-4 items-center flex-row justify-center"
-                          style={{ gap: 8 }}
+                          style={[requestCardStyles.primaryBtn, { gap: 8 }]}
                         >
                           <Feather name="video" size={16} color="#FFFFFF" />
-                          <Text className="text-white font-bold text-sm">
+                          <Text style={requestCardStyles.primaryBtnText}>
                             {request.status === "in_call"
                               ? "Return to Call"
                               : "Join Call"}
@@ -2251,9 +2161,9 @@ export default function ProviderRequests() {
 
                       {request.status === "completed" && (
                         <>
-                          <View className="bg-green-50 rounded-lg p-3 border border-green-200 flex-row items-center justify-center" style={{ gap: 6 }}>
+                          <View style={[requestCardStyles.statusNote, { gap: 6 }]}>
                             <Feather name="check-circle" size={14} color="#16A34A" />
-                            <Text className="text-xs text-green-700 font-semibold">Consultation Completed</Text>
+                            <Text style={requestCardStyles.statusNoteText}>Consultation Completed</Text>
                           </View>
                           {renderCompletedArchiveActions(request)}
                         </>
@@ -2349,7 +2259,7 @@ export default function ProviderRequests() {
                       }}
                     >
                       {filter === "archived" && archivedLoadingMore
-                        ? "Loading…"
+                        ? "Loading..."
                         : "Load more"}
                     </Text>
                   </TouchableOpacity>
@@ -2493,58 +2403,59 @@ export default function ProviderRequests() {
 const requestCardStyles = StyleSheet.create({
   card: {
     overflow: "hidden",
-    position: "relative",
-    paddingLeft: 18,
-  },
-  accentBar: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+    backgroundColor: AUTH_COLORS.white,
+    padding: 16,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 14,
-    gap: 10,
+    gap: 12,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: AUTH_COLORS.greenSoft,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   avatarText: {
     fontSize: 15,
     fontWeight: "800",
+    color: AUTH_COLORS.greenDark,
   },
   headerMain: {
     flex: 1,
     minWidth: 0,
   },
   patientName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "800",
     color: AUTH_COLORS.textDark,
+    letterSpacing: -0.2,
   },
   phoneRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    marginTop: 3,
+    marginTop: 4,
     alignSelf: "flex-start",
   },
   phoneText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
     color: AUTH_COLORS.greenDark,
   },
   ailmentLine: {
     fontSize: 13,
     color: AUTH_COLORS.textMuted,
-    marginTop: 2,
+    marginTop: 3,
   },
   statusPill: {
     flexDirection: "row",
@@ -2556,16 +2467,18 @@ const requestCardStyles = StyleSheet.create({
     maxWidth: 120,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
+    textTransform: "capitalize",
   },
   detailsPanel: {
     backgroundColor: AUTH_COLORS.bg,
     borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: AUTH_COLORS.inputBorder,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     padding: 14,
     marginBottom: 14,
+    gap: 12,
   },
   detailsRow: {
     flexDirection: "row",
@@ -2577,42 +2490,38 @@ const requestCardStyles = StyleSheet.create({
   detailDivider: {
     width: 1,
     height: 28,
-    backgroundColor: AUTH_COLORS.inputBorder,
+    backgroundColor: "#E5E7EB",
     marginHorizontal: 12,
   },
   detailLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
     color: AUTH_COLORS.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.4,
     marginBottom: 4,
   },
   detailValue: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "800",
     color: AUTH_COLORS.textDark,
-  },
-  detailsSeparator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: AUTH_COLORS.inputBorder,
-    marginVertical: 12,
   },
   modeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-  },
-  modeIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   modeLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
+    color: AUTH_COLORS.greenDark,
   },
   locationRow: {
     flexDirection: "row",
@@ -2633,6 +2542,99 @@ const requestCardStyles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: AUTH_COLORS.textDark,
+  },
+  infoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  infoBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: AUTH_COLORS.textMuted,
+    lineHeight: 18,
+  },
+  primaryBtn: {
+    borderRadius: 999,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: AUTH_COLORS.green,
+  },
+  primaryBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: AUTH_COLORS.white,
+  },
+  secondaryBtn: {
+    borderRadius: 999,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1.5,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  secondaryBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: AUTH_COLORS.textDark,
+  },
+  dangerBtn: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1.5,
+    borderColor: "#FECACA",
+  },
+  dangerBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: AUTH_COLORS.error,
+  },
+  acceptBtn: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: AUTH_COLORS.green,
+  },
+  statusNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  statusNoteText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: AUTH_COLORS.textMuted,
   },
 });
 

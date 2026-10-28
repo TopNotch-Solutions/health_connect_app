@@ -25,8 +25,8 @@ export default function TermsAndConditionsScreen() {
       router.back();
       // Use a small delay to ensure navigation completes
       setTimeout(() => {
-        if (global.acceptTermsCallback) {
-          global.acceptTermsCallback(true);
+        if ((globalThis as any).acceptTermsCallback) {
+          (globalThis as any).acceptTermsCallback(true);
         }
       }, 100);
     }

@@ -182,6 +182,9 @@ export function AppFilterChips({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      // Nested horizontal ScrollViews default to flexGrow:1 and steal vertical
+      // space inside a page ScrollView, tucking the next cards underneath.
+      style={appScreenStyles.filterBar}
       contentContainerStyle={appScreenStyles.filterScroll}
     >
       {filters.map((f) => {
@@ -587,10 +590,16 @@ export const appScreenStyles = StyleSheet.create({
     color: AUTH_COLORS.textDark,
     textAlign: "center",
   },
+  filterBar: {
+    flexGrow: 0,
+    flexShrink: 0,
+    marginBottom: 12,
+  },
   filterScroll: {
     paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingBottom: 4,
     gap: 8,
+    alignItems: "center",
   },
   filterChip: {
     height: 40,
@@ -928,15 +937,15 @@ export const appScreenStyles = StyleSheet.create({
   },
   requestCard: {
     backgroundColor: AUTH_COLORS.white,
-    borderRadius: 16,
-    borderWidth: 2,
+    borderRadius: 18,
+    borderWidth: 1,
     borderColor: AUTH_COLORS.inputBorder,
     padding: 16,
     marginBottom: 12,
-    shadowColor: AUTH_COLORS.green,
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowRadius: 16,
+    elevation: 3,
   },
 });

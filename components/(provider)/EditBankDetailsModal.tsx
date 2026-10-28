@@ -12,25 +12,51 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppTextInput as TextInput } from "../AppTextInput";
+import { AlertDialogHost } from "../AlertDialog";
 import { KEYBOARD_AWARE_EXTRA_SCROLL } from "../ScreenLayout";
 import { useAuth } from "../../context/AuthContext";
 import apiClient from "../../lib/api";
 import { AUTH_COLORS } from "../../lib/authScreenTheme";
 import { withIosStandaloneTextInputStyle } from "../../lib/iosInputStyles";
 import {
+  BankDetailsField,
   BankDetailsPayload,
   BankDetailsRecord,
   emptyBankDetails,
-  isMaskedAccountNumber,
+  isMaskedBankField,
+  maskBankField,
   toBankDetailsPayload,
   validateBankDetails,
 } from "../../lib/bankDetails";
+
+/** Ensure every loaded field is display-masked (first 2 + last 2 + * middle). */
+function maskLoadedBankDetails(
+  data: Partial<BankDetailsPayload>,
+): BankDetailsPayload {
+  return emptyBankDetails({
+    accountHolder: maskBankField(data.accountHolder),
+    bankName: maskBankField(data.bankName),
+    branchName: maskBankField(data.branchName),
+    branchCode: maskBankField(data.branchCode),
+    accountNumber: maskBankField(data.accountNumber),
+    accountType: maskBankField(data.accountType),
+  });
+}
 
 type EditBankDetailsModalProps = {
   visible: boolean;
   onClose: () => void;
   onSaved?: () => void;
 };
+
+const FIELD_KEYS: BankDetailsField[] = [
+  "accountHolder",
+  "bankName",
+  "branchName",
+  "branchCode",
+  "accountNumber",
+  "accountType",
+];
 
 export default function EditBankDetailsModal({
   visible,
@@ -44,8 +70,10 @@ export default function EditBankDetailsModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  /** Masked account number loaded from API; used if the user leaves the field blank. */
-  const [loadedMaskedAccount, setLoadedMaskedAccount] = useState<string>("");
+  /** Masked values loaded from API; restored on blur if the user leaves a field empty. */
+  const [loadedMasked, setLoadedMasked] = useState<BankDetailsPayload>(
+    emptyBankDetails(),
+  );
 
   useEffect(() => {
     if (!visible) return;
@@ -54,26 +82,26 @@ export default function EditBankDetailsModal({
     const load = async () => {
       setIsLoading(true);
       setLoadError(null);
-      setLoadedMaskedAccount("");
+      setLoadedMasked(emptyBankDetails());
       try {
         const response = await apiClient.get("/app/bank-details");
         const data = (response.data?.data ?? null) as BankDetailsRecord | null;
         if (cancelled) return;
 
-        if (data?.accountHolder || data?.accountNumber) {
-          const masked = data.accountNumber || "";
-          setLoadedMaskedAccount(masked);
-          setForm(
-            emptyBankDetails({
-              accountHolder: data.accountHolder || user?.fullname || "",
-              bankName: data.bankName,
-              branchName: data.branchName,
-              branchCode: data.branchCode,
-              accountNumber: masked,
-              accountType: data.accountType,
-            }),
-          );
+        if (
+          data &&
+          (data.accountHolder ||
+            data.bankName ||
+            data.branchName ||
+            data.branchCode ||
+            data.accountNumber ||
+            data.accountType)
+        ) {
+          const masked = maskLoadedBankDetails(data);
+          setLoadedMasked(masked);
+          setForm(masked);
         } else {
+          // New entry — prefill holder name unmasked so they can edit it.
           setForm(emptyBankDetails({ accountHolder: user?.fullname || "" }));
         }
       } catch (error: any) {
@@ -96,17 +124,38 @@ export default function EditBankDetailsModal({
     };
   }, [visible, user?.fullname]);
 
-  const updateField = <K extends keyof BankDetailsPayload>(
+  const updateField = <K extends BankDetailsField>(
     key: K,
     value: BankDetailsPayload[K],
   ) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const clearMaskedOnFocus = (key: BankDetailsField) => {
+    setForm((prev) =>
+      isMaskedBankField(prev[key]) ? { ...prev, [key]: "" } : prev,
+    );
+  };
+
+  const restoreMaskedOnBlur = (key: BankDetailsField) => {
+    setForm((prev) => {
+      if (String(prev[key] || "").trim()) return prev;
+      const masked = loadedMasked[key];
+      if (!masked) return prev;
+      return { ...prev, [key]: masked };
+    });
+  };
+
   const handleSave = async () => {
-    const accountNumber =
-      String(form.accountNumber || "").trim() || loadedMaskedAccount;
-    const formToSave = { ...form, accountNumber };
+    // If a field was cleared and left empty, fall back to the loaded mask
+    // so the server can keep the existing full value.
+    const formToSave = { ...form };
+    for (const key of FIELD_KEYS) {
+      if (!String(formToSave[key] || "").trim() && loadedMasked[key]) {
+        formToSave[key] = loadedMasked[key];
+      }
+    }
+
     const error = validateBankDetails(formToSave);
     if (error) {
       Alert.alert("Bank Details", error);
@@ -131,6 +180,10 @@ export default function EditBankDetailsModal({
       setIsSaving(false);
     }
   };
+
+  const hasLoadedDetails = FIELD_KEYS.some((key) =>
+    Boolean(loadedMasked[key]),
+  );
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
@@ -173,10 +226,18 @@ export default function EditBankDetailsModal({
             {isLoading ? (
               <View style={styles.loadingWrap}>
                 <ActivityIndicator color={AUTH_COLORS.green} size="large" />
-                <Text style={styles.loadingText}>Loading bank detailsâ€¦</Text>
+                <Text style={styles.loadingText}>Loading bank details…</Text>
               </View>
             ) : (
               <>
+                {hasLoadedDetails ? (
+                  <Text style={styles.hint}>
+                    Details are masked for security (first and last 2
+                    characters only). Tap a field to replace it, or leave it
+                    unchanged to keep the saved value.
+                  </Text>
+                ) : null}
+
                 <Text style={styles.label}>Account holder *</Text>
                 <TextInput
                   style={withIosStandaloneTextInputStyle(styles.input)}
@@ -184,6 +245,8 @@ export default function EditBankDetailsModal({
                   placeholderTextColor={AUTH_COLORS.placeholder}
                   value={form.accountHolder}
                   onChangeText={(v) => updateField("accountHolder", v)}
+                  onFocus={() => clearMaskedOnFocus("accountHolder")}
+                  onBlur={() => restoreMaskedOnBlur("accountHolder")}
                   editable={!isSaving}
                   autoCapitalize="characters"
                 />
@@ -195,6 +258,8 @@ export default function EditBankDetailsModal({
                   placeholderTextColor={AUTH_COLORS.placeholder}
                   value={form.bankName}
                   onChangeText={(v) => updateField("bankName", v)}
+                  onFocus={() => clearMaskedOnFocus("bankName")}
+                  onBlur={() => restoreMaskedOnBlur("bankName")}
                   editable={!isSaving}
                   autoCapitalize="characters"
                 />
@@ -206,6 +271,8 @@ export default function EditBankDetailsModal({
                   placeholderTextColor={AUTH_COLORS.placeholder}
                   value={form.branchName}
                   onChangeText={(v) => updateField("branchName", v)}
+                  onFocus={() => clearMaskedOnFocus("branchName")}
+                  onBlur={() => restoreMaskedOnBlur("branchName")}
                   editable={!isSaving}
                   autoCapitalize="characters"
                 />
@@ -216,9 +283,21 @@ export default function EditBankDetailsModal({
                   placeholder="e.g. 280071"
                   placeholderTextColor={AUTH_COLORS.placeholder}
                   value={form.branchCode}
-                  onChangeText={(v) =>
-                    updateField("branchCode", v.replace(/[^\dA-Za-z-]/g, ""))
-                  }
+                  onChangeText={(v) => {
+                    if (isMaskedBankField(form.branchCode)) {
+                      updateField(
+                        "branchCode",
+                        v.replace(/[^\dA-Za-z-]/g, ""),
+                      );
+                      return;
+                    }
+                    updateField(
+                      "branchCode",
+                      v.replace(/[^\dA-Za-z-]/g, ""),
+                    );
+                  }}
+                  onFocus={() => clearMaskedOnFocus("branchCode")}
+                  onBlur={() => restoreMaskedOnBlur("branchCode")}
                   editable={!isSaving}
                   keyboardType="number-pad"
                 />
@@ -227,16 +306,14 @@ export default function EditBankDetailsModal({
                 <TextInput
                   style={withIosStandaloneTextInputStyle(styles.input)}
                   placeholder={
-                    loadedMaskedAccount
+                    loadedMasked.accountNumber
                       ? "Enter new number to change"
                       : "e.g. 62156218432"
                   }
                   placeholderTextColor={AUTH_COLORS.placeholder}
                   value={form.accountNumber}
                   onChangeText={(v) => {
-                    // If the field still shows a masked value, replace it with
-                    // the new digits the user typed (do not keep asterisks).
-                    if (isMaskedAccountNumber(form.accountNumber)) {
+                    if (isMaskedBankField(form.accountNumber)) {
                       updateField(
                         "accountNumber",
                         v.replace(/\D/g, "").slice(0, 20),
@@ -248,37 +325,12 @@ export default function EditBankDetailsModal({
                       v.replace(/\D/g, "").slice(0, 20),
                     );
                   }}
-                  onFocus={() => {
-                    setForm((prev) =>
-                      isMaskedAccountNumber(prev.accountNumber)
-                        ? { ...prev, accountNumber: "" }
-                        : prev,
-                    );
-                  }}
-                  onBlur={() => {
-                    setForm((prev) => {
-                      if (
-                        !String(prev.accountNumber || "").trim() &&
-                        loadedMaskedAccount
-                      ) {
-                        return {
-                          ...prev,
-                          accountNumber: loadedMaskedAccount,
-                        };
-                      }
-                      return prev;
-                    });
-                  }}
+                  onFocus={() => clearMaskedOnFocus("accountNumber")}
+                  onBlur={() => restoreMaskedOnBlur("accountNumber")}
                   editable={!isSaving}
                   keyboardType="number-pad"
                   maxLength={20}
                 />
-                {loadedMaskedAccount ? (
-                  <Text style={styles.hint}>
-                    Account number is masked for security. Leave unchanged to
-                    keep it, or type a new number to update.
-                  </Text>
-                ) : null}
 
                 <Text style={styles.label}>Account type *</Text>
                 <TextInput
@@ -287,6 +339,8 @@ export default function EditBankDetailsModal({
                   placeholderTextColor={AUTH_COLORS.placeholder}
                   value={form.accountType}
                   onChangeText={(v) => updateField("accountType", v)}
+                  onFocus={() => clearMaskedOnFocus("accountType")}
+                  onBlur={() => restoreMaskedOnBlur("accountType")}
                   editable={!isSaving}
                   autoCapitalize="characters"
                 />
@@ -318,6 +372,7 @@ export default function EditBankDetailsModal({
           </SafeAreaView>
         </View>
       </View>
+      <AlertDialogHost active={visible} embedded />
     </Modal>
   );
 }
@@ -410,8 +465,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     color: AUTH_COLORS.textMuted,
-    marginTop: -4,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   label: {
     fontSize: 12,

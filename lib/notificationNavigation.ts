@@ -3,7 +3,7 @@
  * for the logged-in patient or provider.
  */
 
-import type { Router } from "expo-router";
+import type { Href } from "expo-router";
 
 export type NotificationNavRole = "patient" | "provider";
 
@@ -132,11 +132,15 @@ export function resolveNotificationHref(
     : "/(app)/(provider)/home";
 }
 
+type AppRouter = {
+  push: (href: Href) => void;
+};
+
 type NavigateArgs = {
   data: Record<string, unknown> | null | undefined;
   isAuthenticated: boolean;
   userRole?: string | null;
-  router: Router;
+  router: AppRouter;
 };
 
 /**

@@ -32,7 +32,7 @@ const IndexScreen = () => {
       <View className="flex-1 justify-center items-center">
         <ActivityIndicator size="large" color="#3B82F6" />
       </View>
-      <StatusBar backgroundColor="#EFF6FF" style="dark" />
+      <StatusBar style="dark" />
     </ScreenLayout>
   );
 };

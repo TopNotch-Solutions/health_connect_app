@@ -22,8 +22,8 @@ export default function ProviderTermsConditionsScreen() {
     if (accepted) {
       router.back();
       setTimeout(() => {
-        if (global.acceptProviderTermsCallback) {
-          global.acceptProviderTermsCallback(true);
+        if ((globalThis as any).acceptProviderTermsCallback) {
+          (globalThis as any).acceptProviderTermsCallback(true);
         }
       }, 100);
     }
@@ -50,7 +50,7 @@ export default function ProviderTermsConditionsScreen() {
         {/* Main Title */}
         <View className="bg-red-50 p-4 rounded-xl border-2 border-red-200 mb-6">
           <Text className="text-xl font-bold text-red-900 mb-2">
-            🩺 Absolute Provider Liability and Indemnification Agreement
+            ?? Absolute Provider Liability and Indemnification Agreement
           </Text>
           <Text className="text-sm text-red-800 leading-6">
             By clicking Accept and providing services through the Health_Connect
@@ -129,14 +129,14 @@ export default function ProviderTermsConditionsScreen() {
               Coverage Includes:
             </Text>
             <Text className="text-sm text-gray-700 leading-5 mb-2">
-              • Your professional services or clinical decisions on or off the
+              ? Your professional services or clinical decisions on or off the
               platform
             </Text>
             <Text className="text-sm text-gray-700 leading-5 mb-2">
-              • Any breach of your professional duties or this Agreement
+              ? Any breach of your professional duties or this Agreement
             </Text>
             <Text className="text-sm text-gray-700 leading-5">
-              • Any claim brought by a patient or third party regarding your
+              ? Any claim brought by a patient or third party regarding your
               medical practice
             </Text>
           </View>

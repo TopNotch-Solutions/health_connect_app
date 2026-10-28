@@ -4,7 +4,6 @@ import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   StyleSheet,
@@ -41,6 +40,7 @@ import PostalAddressConfirmModal from "./PostalAddressConfirmModal";
 import { PostalAddressPayload } from "../../lib/postalAddress";
 import { useAuth } from "../../context/AuthContext";
 import { getUserFacingErrorMessage } from "../../lib/userFacingError";
+import { resolveMedicalAidIcdPricing } from "../../lib/medicalAidIcdPricing";
 import { AlertDialogHost, showAlertDialog } from "../AlertDialog";
 
 export type PaymentMethod = "wallet" | "cash" | "medical_aid";
@@ -48,7 +48,11 @@ export type PaymentMethod = "wallet" | "cash" | "medical_aid";
 export type MedicalAidDetailsPayload = {
   medicalAidId: string;
   medicalAidTitle?: string;
+  /** Medical aid number shown as MAF on the claim form header */
+  membershipNumber: string;
   mainMemberName: string;
+  /** Main member ID shown on the claim form */
+  mainMemberId: string;
   residentialAddress: string;
   postalAddress?: PostalAddressPayload;
 };
@@ -105,7 +109,9 @@ export default function CreateRequestModal({
     { id: string; title: string; image?: string | null }[]
   >([]);
   const [selectedMedicalAidId, setSelectedMedicalAidId] = useState("");
+  const [membershipNumber, setMembershipNumber] = useState("");
   const [mainMemberName, setMainMemberName] = useState("");
+  const [mainMemberId, setMainMemberId] = useState("");
   const [residentialAddress, setResidentialAddress] = useState("");
   const [isLoadingMedicalAids, setIsLoadingMedicalAids] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -137,27 +143,19 @@ export default function CreateRequestModal({
   const [pendingMedicalAidDetails, setPendingMedicalAidDetails] =
     useState<MedicalAidDetailsPayload | null>(null);
 
-  const linkedIcd10 =
-    Array.isArray(selectedAilment?.icd10Codes) &&
-    selectedAilment.icd10Codes.length > 0
-      ? selectedAilment.icd10Codes[0]
-      : null;
+  const medicalAidIcdPricing = resolveMedicalAidIcdPricing(
+    selectedAilment?.icd10Codes,
+  );
   const ailmentCost =
     consultationMode === "video_consultation"
       ? Number(selectedAilment?.teleconsultationCost ?? NaN)
       : Number(selectedAilment?.physicalconsultationCost ?? NaN);
-  const icd10PrimaryPrice = Number(linkedIcd10?.price ?? NaN);
-  const icd10SecondaryPrice = Number(linkedIcd10?.secondaryPrice ?? NaN);
-  // Match server: medical aid consultation cost is primary + secondary ICD prices.
-  const icd10Price =
-    Number.isFinite(icd10PrimaryPrice) &&
-    Number.isFinite(icd10SecondaryPrice) &&
-    Boolean(linkedIcd10?.secondaryICD_10_code)
-      ? icd10PrimaryPrice + icd10SecondaryPrice
-      : icd10PrimaryPrice;
-  // Medical aid uses the ICD-10 price(s); cash/other methods use the ailment cost.
+  // Medical aid: first ICD price + second ICD price when two codes exist.
+  // Cash/other methods use the ailment consultation cost.
   const selectedCost =
-    paymentMethod === "medical_aid" ? icd10Price : ailmentCost;
+    paymentMethod === "medical_aid"
+      ? Number(medicalAidIcdPricing?.consultationCost ?? NaN)
+      : ailmentCost;
 
   // Load location when modal opens
   useEffect(() => {
@@ -193,7 +191,9 @@ export default function CreateRequestModal({
       setLocationError(null);
       setPaymentMethod("cash");
       setSelectedMedicalAidId("");
+      setMembershipNumber("");
       setMainMemberName("");
+      setMainMemberId("");
       setResidentialAddress("");
       setShowPostalAddressModal(false);
       setKeepRequestSheetClosed(false);
@@ -320,35 +320,35 @@ export default function CreateRequestModal({
 
     // Validation
     if (!ailmentCategory.trim()) {
-      Alert.alert("Required", "Please select or enter an ailment category");
+      showAlertDialog("Required", "Please select or enter an ailment category");
       return;
     }
 
     if (!street.trim()) {
-      Alert.alert("Required", "Please confirm your street address");
+      showAlertDialog("Required", "Please confirm your street address");
       return;
     }
 
     if (!locality.trim()) {
-      Alert.alert("Required", "Please confirm your city/locality");
+      showAlertDialog("Required", "Please confirm your city/locality");
       return;
     }
 
     if (!region.trim()) {
-      Alert.alert("Required", "Please confirm your region/province");
+      showAlertDialog("Required", "Please confirm your region/province");
       return;
     }
 
     if (paymentMethod === "medical_aid") {
       if (isNaN(selectedCost) || selectedCost <= 0) {
-        Alert.alert(
+        showAlertDialog(
           "Invalid Cost",
           "This ailment does not have a valid ICD-10 consultation price configured.",
         );
         return;
       }
     } else if (isNaN(selectedCost) || selectedCost <= 0) {
-      Alert.alert(
+      showAlertDialog(
         "Invalid Cost",
         "This ailment does not have a valid consultation cost configured.",
       );
@@ -357,7 +357,7 @@ export default function CreateRequestModal({
 
     // Ensure we have coordinates before submitting
     if (!markerCoord) {
-      Alert.alert(
+      showAlertDialog(
         "Location Required",
         "Please wait for your location to be detected or try again.",
       );
@@ -365,7 +365,7 @@ export default function CreateRequestModal({
     }
 
     if (isPharmacyRequest && !prescriptionFile) {
-      Alert.alert(
+      showAlertDialog(
         "Prescription Required",
         "Please upload a prescription image or PDF before submitting a pharmacy request.",
       );
@@ -375,15 +375,23 @@ export default function CreateRequestModal({
     let medicalAidDetails: MedicalAidDetailsPayload | undefined;
     if (paymentMethod === "medical_aid") {
       if (!selectedMedicalAidId) {
-        Alert.alert("Required", "Please select a medical aid.");
+        showAlertDialog("Required", "Please select a medical aid.");
+        return;
+      }
+      if (!membershipNumber.trim()) {
+        showAlertDialog("Required", "Please enter the medical aid number.");
         return;
       }
       if (!mainMemberName.trim()) {
-        Alert.alert("Required", "Please enter the main member name.");
+        showAlertDialog("Required", "Please enter the main member name.");
+        return;
+      }
+      if (!mainMemberId.trim()) {
+        showAlertDialog("Required", "Please enter the main member ID.");
         return;
       }
       if (!residentialAddress.trim()) {
-        Alert.alert(
+        showAlertDialog(
           "Required",
           "Please enter the patient residential address.",
         );
@@ -397,7 +405,9 @@ export default function CreateRequestModal({
       medicalAidDetails = {
         medicalAidId: selectedMedicalAidId,
         medicalAidTitle: selectedAid?.title,
+        membershipNumber: membershipNumber.trim(),
         mainMemberName: mainMemberName.trim(),
+        mainMemberId: mainMemberId.trim(),
         residentialAddress: residentialAddress.trim(),
       };
 
@@ -418,7 +428,13 @@ export default function CreateRequestModal({
     setPendingMedicalAidDetails(null);
   };
 
-  const confirmAndSubmit = (medicalAidDetails?: MedicalAidDetailsPayload) => {
+  const confirmAndSubmit = (
+    medicalAidDetails?: MedicalAidDetailsPayload,
+    options?: { sheetHidden?: boolean },
+  ) => {
+    // Capture now ? async submit finishes after later re-renders.
+    const sheetHidden = options?.sheetHidden ?? keepRequestSheetClosed;
+
     showAlertDialog(
       "Confirm Request",
       `Submit a ${consultationMode === "video_consultation" ? "video consultation" : "house visit"} request for N$${selectedCost.toFixed(2)}?`,
@@ -428,6 +444,8 @@ export default function CreateRequestModal({
           style: "cancel",
           onPress: () => {
             // Bring the request form back if they backed out of final confirm
+            setShowPostalAddressModal(false);
+            setPendingMedicalAidDetails(null);
             setKeepRequestSheetClosed(false);
           },
         },
@@ -454,12 +472,26 @@ export default function CreateRequestModal({
 
               // Don't reset form or close modal - let the parent handle navigation
               // The parent will navigate to waiting room, so we just need to close the modal
+              setShowPostalAddressModal(false);
+              setPendingMedicalAidDetails(null);
+              setKeepRequestSheetClosed(false);
               onClose();
             } catch (error: any) {
-              setKeepRequestSheetClosed(false);
-              Alert.alert(
+              // Keep postal / request sheets stable until the error dialog is
+              // dismissed ? reopening immediately covers the custom dialog.
+              showAlertDialog(
                 "Error",
                 getUserFacingErrorMessage(error, "Failed to create request"),
+                [
+                  {
+                    text: "OK",
+                    onPress: () => {
+                      setShowPostalAddressModal(false);
+                      setPendingMedicalAidDetails(null);
+                      if (sheetHidden) setKeepRequestSheetClosed(false);
+                    },
+                  },
+                ],
               );
             } finally {
               setIsLoading(false);
@@ -476,11 +508,11 @@ export default function CreateRequestModal({
       ...pendingMedicalAidDetails,
       postalAddress,
     };
-    setPendingMedicalAidDetails(null);
-    // Close postal modal and keep request sheet closed during final confirm Alert
-    setShowPostalAddressModal(false);
+    // Keep the postal Modal open so its embedded AlertDialogHost can show
+    // Confirm Request. Closing postal first races iOS Modal dismiss and the
+    // confirm dialog never appears.
     setKeepRequestSheetClosed(true);
-    confirmAndSubmit(details);
+    confirmAndSubmit(details, { sheetHidden: true });
   };
 
   const handleMapPress = async (e: any) => {
@@ -497,7 +529,7 @@ export default function CreateRequestModal({
   const pickPrescriptionImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
+      showAlertDialog(
         "Permission needed",
         "Please allow access to your photo library to upload a prescription.",
       );
@@ -558,6 +590,13 @@ export default function CreateRequestModal({
   const showRequestModal =
     visible && !showPostalAddressModal && !keepRequestSheetClosed;
 
+  const selectedAidPreview = medicalAids.find(
+    (aid) => aid.id === selectedMedicalAidId,
+  );
+  const selectedAidImageUri = selectedAidPreview?.image
+    ? buildBackendAssetUrl("images", selectedAidPreview.image)
+    : null;
+
   return (
     <>
     <Modal
@@ -571,15 +610,21 @@ export default function CreateRequestModal({
             style={[
               appModalBottomSheetStyles.sheet,
               appModalBottomSheetStyles.sheetTall,
+              localStyles.sheet,
             ]}
           >
             <View style={appModalBottomSheetStyles.handle} />
 
             <View style={localStyles.headerWrap}>
               <AppBottomSheetCloseHeader
-                title="Request Healthcare"
+                title="Request care"
                 onClose={onClose}
               />
+              <Text style={localStyles.headerSub}>
+                {ailmentCategory
+                  ? `${ailmentCategory} � nearby providers`
+                  : "Send to nearby providers"}
+              </Text>
             </View>
 
             <KeyboardAwareScrollView
@@ -593,14 +638,14 @@ export default function CreateRequestModal({
               extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
               extraHeight={120}
             >
-              {/* Ailment Category */}
-              <View className="mb-6">
-                <Text className="text-base font-semibold text-gray-900 mb-2">
-                  Ailment Category *
-                </Text>
+              <View style={localStyles.section}>
+                <Text style={localStyles.label}>Ailment</Text>
                 <TextInput
-                  style={withIosStandaloneTextInputStyle()}
-                  className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base"
+                  style={[
+                    withIosStandaloneTextInputStyle(),
+                    localStyles.inputBase,
+                    localStyles.inputReadonly,
+                  ]}
                   placeholder="e.g., Flu, Cold & Cough"
                   value={ailmentCategory}
                   onChangeText={setAilmentCategory}
@@ -608,142 +653,130 @@ export default function CreateRequestModal({
                 />
               </View>
 
-              {/* Consultation Mode */}
-              <View className="mb-6">
-                <Text className="text-base font-semibold text-gray-900 mb-2">
-                  Consultation Type *
-                </Text>
-                <View className="flex-row" style={{ gap: 10 }}>
+              <View style={localStyles.section}>
+                <Text style={localStyles.label}>How should we visit?</Text>
+                <View style={localStyles.segmentRow}>
                   <TouchableOpacity
                     onPress={() => setConsultationMode("house_visit")}
                     disabled={isLoading}
-                    className={`flex-1 rounded-lg border-2 p-3 ${
-                      consultationMode === "house_visit"
-                        ? "border-[#BBF7D0]"
-                        : "bg-white border-gray-300"
-                    }`}
-                    style={
-                      consultationMode === "house_visit"
-                        ? { backgroundColor: AUTH_COLORS.greenSoft }
-                        : undefined
-                    }
+                    style={[
+                      localStyles.segment,
+                      consultationMode === "house_visit" &&
+                        localStyles.segmentActive,
+                    ]}
+                    activeOpacity={0.88}
                   >
-                    <Text
-                      className={`text-center font-semibold ${
+                    <Feather
+                      name="home"
+                      size={16}
+                      color={
                         consultationMode === "house_visit"
-                          ? "text-[#14532D]"
-                          : "text-gray-700"
-                      }`}
+                          ? AUTH_COLORS.white
+                          : AUTH_COLORS.textMuted
+                      }
+                    />
+                    <Text
+                      style={[
+                        localStyles.segmentText,
+                        consultationMode === "house_visit" &&
+                          localStyles.segmentTextActive,
+                      ]}
                     >
-                      House Visit
+                      House visit
                     </Text>
                   </TouchableOpacity>
                   {supportsTeleconsultation && (
                     <TouchableOpacity
                       onPress={() => setConsultationMode("video_consultation")}
                       disabled={isLoading}
-                      className={`flex-1 rounded-lg border-2 p-3 ${
-                        consultationMode === "video_consultation"
-                          ? "border-[#BBF7D0]"
-                          : "bg-white border-gray-300"
-                      }`}
-                      style={
-                        consultationMode === "video_consultation"
-                          ? { backgroundColor: AUTH_COLORS.greenSoft }
-                          : undefined
-                      }
+                      style={[
+                        localStyles.segment,
+                        consultationMode === "video_consultation" &&
+                          localStyles.segmentActive,
+                      ]}
+                      activeOpacity={0.88}
                     >
-                      <Text
-                        className={`text-center font-semibold ${
+                      <Feather
+                        name="video"
+                        size={16}
+                        color={
                           consultationMode === "video_consultation"
-                            ? "text-[#14532D]"
-                            : "text-gray-700"
-                        }`}
+                            ? AUTH_COLORS.white
+                            : AUTH_COLORS.textMuted
+                        }
+                      />
+                      <Text
+                        style={[
+                          localStyles.segmentText,
+                          consultationMode === "video_consultation" &&
+                            localStyles.segmentTextActive,
+                        ]}
                       >
-                        Video Consultation
+                        Video
                       </Text>
                     </TouchableOpacity>
                   )}
                 </View>
-
-                {!supportsTeleconsultation && (
-                  <Text className="text-xs text-gray-600 mt-2">
-                    This ailment currently requires an in-person house visit.
-                  </Text>
-                )}
-
-                <View className="bg-amber-50 rounded-lg p-3 mt-3 border border-amber-300">
-                  <Text className="text-xs font-bold text-amber-900 mb-1">
-                    Disclaimer
-                  </Text>
-                  {consultationMode === "house_visit" ? (
-                    <Text className="text-xs text-amber-800 leading-5">
-                      Activate House Visit when you need a physical examination,
-                      procedure, or in-person assessment at your location.
-                    </Text>
-                  ) : (
-                    <Text className="text-xs text-amber-800 leading-5">
-                      Activate Video Consultation for follow-ups and
-                      non-emergency cases when you have stable internet, camera,
-                      and audio.
-                    </Text>
-                  )}
-                </View>
+                <Text style={localStyles.hint}>
+                  {!supportsTeleconsultation
+                    ? "This ailment needs an in-person house visit."
+                    : consultationMode === "house_visit"
+                      ? "Best for examinations and procedures at your place."
+                      : "Best for follow-ups when you have a stable connection."}
+                </Text>
               </View>
 
-              {/* Map Section */}
-              <View className="mb-6">
-                <View className="flex-row items-center justify-between mb-3">
-                  <Text className="text-base font-semibold text-gray-900">
-                    Your Location *
-                  </Text>
+              <View style={localStyles.section}>
+                <View style={localStyles.rowBetween}>
+                  <Text style={localStyles.label}>Your location</Text>
                   <TouchableOpacity
                     onPress={() => setShowMap(!showMap)}
                     disabled={isLoading || isLoadingLocation || !markerCoord}
-                    className="bg-blue-100 px-3 py-1 rounded-full border border-blue-500"
+                    style={localStyles.textLinkBtn}
+                    activeOpacity={0.85}
                   >
-                    <Text className="text-blue-600 text-sm font-semibold">
-                      {showMap ? "Hide Map" : "Show Map"}
+                    <Text style={localStyles.textLink}>
+                      {showMap ? "Hide map" : "Show map"}
                     </Text>
                   </TouchableOpacity>
                 </View>
 
                 {isLoadingLocation ? (
-                  <View className="bg-blue-50 border border-blue-200 rounded-lg p-8 items-center justify-center min-h-48">
-                    <ActivityIndicator color="#3B82F6" size="large" />
-                    <Text className="text-gray-800 mt-3 font-semibold text-center">
-                      Getting your location…
+                  <View style={localStyles.statusPanel}>
+                    <ActivityIndicator color={AUTH_COLORS.green} />
+                    <Text style={localStyles.statusTitle}>
+                      Finding your address?
                     </Text>
-                    <Text className="text-gray-600 mt-2 text-sm text-center px-4">
-                      Please wait while we detect your address so providers can
-                      find you. Submit will be available once this finishes.
+                    <Text style={localStyles.statusBody}>
+                      Submit unlocks once your location is ready.
                     </Text>
                   </View>
                 ) : locationError ? (
-                  <View className="bg-red-50 border border-red-200 rounded-lg p-6 items-center min-h-48 justify-center">
-                    <Feather name="map-pin" size={28} color="#DC2626" />
-                    <Text className="text-red-800 mt-3 font-semibold text-center">
+                  <View style={localStyles.statusPanel}>
+                    <Feather
+                      name="map-pin"
+                      size={22}
+                      color={AUTH_COLORS.error}
+                    />
+                    <Text style={localStyles.statusTitle}>
                       Location unavailable
                     </Text>
-                    <Text className="text-red-700 mt-2 text-sm text-center px-2">
-                      {locationError}
-                    </Text>
+                    <Text style={localStyles.statusBody}>{locationError}</Text>
                     <TouchableOpacity
                       onPress={loadLocationAndAddress}
                       disabled={isLoading}
-                      className="mt-4 bg-blue-600 px-5 py-3 rounded-lg"
+                      style={localStyles.secondaryBtn}
+                      activeOpacity={0.88}
                     >
-                      <Text className="text-white font-semibold">
-                        Try again
-                      </Text>
+                      <Text style={localStyles.secondaryBtnText}>Try again</Text>
                     </TouchableOpacity>
                   </View>
                 ) : showMap && mapRegion && markerCoord ? (
-                  <View className="bg-gray-50 border border-gray-300 rounded-lg overflow-hidden h-64 mb-3">
+                  <View style={localStyles.mapWrap}>
                     <MapView
                       {...mapProviderProps}
                       region={mapRegion}
-                      style={{ flex: 1, width: "100%", minHeight: 200 }}
+                      style={localStyles.map}
                       onLayout={(event) => {
                         logViewMountDebug(
                           "CreateRequestModal",
@@ -772,121 +805,82 @@ export default function CreateRequestModal({
                     >
                       <Marker coordinate={markerCoord} />
                     </MapView>
-                    <View className="bg-blue-50 p-2 flex-row items-center">
-                      <Feather name="info" size={14} color="#3B82F6" />
-                      <Text className="text-xs text-blue-700 ml-2 flex-1">
-                        Your location
-                      </Text>
-                    </View>
+                  </View>
+                ) : isLocationReady ? (
+                  <View style={localStyles.locationReadyRow}>
+                    <Feather
+                      name="check"
+                      size={14}
+                      color={AUTH_COLORS.green}
+                    />
+                    <Text style={localStyles.locationReadyText}>
+                      Address detected from your current location
+                    </Text>
                   </View>
                 ) : null}
-
-                {isLocationReady && (
-                  <View className="bg-green-50 rounded-lg p-3 mb-3 flex-row items-start border border-green-200">
-                    <Feather name="check-circle" size={16} color="#16A34A" />
-                    <View className="ml-2 flex-1">
-                      <Text className="text-sm font-semibold text-green-900">
-                        Location ready
-                      </Text>
-                      <Text className="text-xs text-green-800 mt-1">
-                        Your address has been detected. You can submit your
-                        request below.
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Address fields - auto-populated from map */}
-                {!isLoadingLocation && !locationError && (
-                  <View className="bg-amber-50 rounded-lg p-3 mb-3 flex-row items-start border border-amber-300">
-                    <Feather name="map-pin" size={16} color="#92400E" />
-                    <View className="ml-2 flex-1">
-                      <Text className="text-sm font-semibold text-amber-900">
-                        Auto-populated from location
-                      </Text>
-                      <Text className="text-xs text-amber-800 mt-1">
-                        Your location is automatically detected and displayed
-                      </Text>
-                    </View>
-                  </View>
-                )}
               </View>
 
-              {/* Street Address */}
-              <View className="mb-6">
-                <Text className="text-base font-semibold text-gray-900 mb-2">
-                  Street Address *
-                </Text>
+              <View style={localStyles.section}>
+                <Text style={localStyles.label}>Street</Text>
                 <TextInput
-                  style={withIosStandaloneTextInputStyle()}
-                  className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-base text-gray-600"
-                  placeholder="e.g., 123 Main Street"
+                  style={[
+                    withIosStandaloneTextInputStyle(),
+                    localStyles.inputBase,
+                    localStyles.inputReadonly,
+                  ]}
+                  placeholder="Street address"
                   value={street}
                   onChangeText={setStreet}
                   editable={false}
                 />
               </View>
 
-              {/* Locality */}
-              <View className="mb-6">
-                <Text className="text-base font-semibold text-gray-900 mb-2">
-                  City/Locality *
-                </Text>
+              <View style={localStyles.section}>
+                <Text style={localStyles.label}>City / locality</Text>
                 <TextInput
-                  style={withIosStandaloneTextInputStyle()}
-                  className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-base text-gray-600"
-                  placeholder="e.g., Cape Town"
+                  style={[
+                    withIosStandaloneTextInputStyle(),
+                    localStyles.inputBase,
+                    localStyles.inputReadonly,
+                  ]}
+                  placeholder="City"
                   value={locality}
                   onChangeText={setLocality}
                   editable={false}
                 />
               </View>
 
-              {/* Region */}
-              <View className="mb-6">
-                <Text className="text-base font-semibold text-gray-900 mb-2">
-                  Region/Province *
-                </Text>
+              <View style={localStyles.section}>
+                <Text style={localStyles.label}>Region</Text>
                 <TextInput
-                  style={withIosStandaloneTextInputStyle()}
-                  className="bg-gray-100 border border-gray-300 rounded-lg p-4 text-base text-gray-600"
-                  placeholder="e.g., Western Cape"
+                  style={[
+                    withIosStandaloneTextInputStyle(),
+                    localStyles.inputBase,
+                    localStyles.inputReadonly,
+                  ]}
+                  placeholder="Region"
                   value={region}
                   onChangeText={setRegion}
                   editable={false}
                 />
               </View>
 
-              {/* Due Cost */}
-              <View className="mb-6">
-                <Text className="text-base font-semibold text-gray-900 mb-2">
-                  Consultation Cost (N$) *
+              <View style={localStyles.priceBlock}>
+                <Text style={localStyles.priceLabel}>Consultation cost</Text>
+                <Text style={localStyles.priceValue}>
+                  N${isNaN(selectedCost) ? "0.00" : selectedCost.toFixed(2)}
                 </Text>
-                <View className="bg-blue-50 border border-blue-300 rounded-lg p-4">
-                  <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center flex-1">
-                      <Feather name="dollar-sign" size={20} color="#3B82F6" />
-                      <Text className="text-2xl font-bold text-blue-900 ml-2">
-                        N$
-                        {isNaN(selectedCost) ? "0.00" : selectedCost.toFixed(2)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
               </View>
 
               {isPharmacyRequest && (
-                <View className="mb-6">
-                  <Text className="text-base font-semibold text-gray-900 mb-2">
-                    Prescription *
-                  </Text>
-                  <Text className="text-xs text-gray-600 mb-3">
-                    Upload a clear photo or PDF of your prescription before
-                    submitting.
+                <View style={localStyles.section}>
+                  <Text style={localStyles.label}>Prescription</Text>
+                  <Text style={localStyles.hint}>
+                    Upload a clear photo or PDF before submitting.
                   </Text>
 
-                  {prescriptionFile && (
-                    <View className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex-row items-center mb-3">
+                  {prescriptionFile ? (
+                    <View style={localStyles.fileRow}>
                       <Feather
                         name={
                           prescriptionFile.mimeType === "application/pdf"
@@ -894,203 +888,226 @@ export default function CreateRequestModal({
                             : "image"
                         }
                         size={16}
-                        color="#2563EB"
+                        color={AUTH_COLORS.green}
                       />
-                      <Text
-                        className="text-xs text-blue-700 ml-2 flex-1"
-                        numberOfLines={1}
-                      >
+                      <Text style={localStyles.fileName} numberOfLines={1}>
                         {prescriptionFile.name}
                       </Text>
-                      <Feather name="check-circle" size={14} color="#16A34A" />
+                      <Feather
+                        name="check"
+                        size={14}
+                        color={AUTH_COLORS.green}
+                      />
                     </View>
-                  )}
+                  ) : null}
 
-                  <View className="flex-row" style={{ gap: 10 }}>
+                  <View style={localStyles.segmentRow}>
                     <TouchableOpacity
                       onPress={pickPrescriptionImage}
                       disabled={isLoading}
-                      className="flex-1 bg-emerald-600 rounded-lg py-3 px-4 items-center flex-row justify-center"
-                      style={{ gap: 6 }}
+                      style={localStyles.uploadBtn}
+                      activeOpacity={0.88}
                     >
-                      <Feather name="image" size={16} color="#FFFFFF" />
-                      <Text className="text-white font-bold text-xs">
-                        {prescriptionFile ? "Replace Image" : "Upload Image"}
+                      <Feather
+                        name="image"
+                        size={15}
+                        color={AUTH_COLORS.textDark}
+                      />
+                      <Text style={localStyles.uploadBtnText}>
+                        {prescriptionFile ? "Replace image" : "Image"}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={pickPrescriptionPdf}
                       disabled={isLoading}
-                      className="flex-1 bg-blue-50 border border-blue-300 rounded-lg py-3 px-4 items-center flex-row justify-center"
-                      style={{ gap: 6 }}
+                      style={localStyles.uploadBtn}
+                      activeOpacity={0.88}
                     >
-                      <Feather name="file-text" size={16} color="#2563EB" />
-                      <Text className="text-blue-700 font-bold text-xs">
-                        {prescriptionFile ? "Replace PDF" : "Upload PDF"}
+                      <Feather
+                        name="file-text"
+                        size={15}
+                        color={AUTH_COLORS.textDark}
+                      />
+                      <Text style={localStyles.uploadBtnText}>
+                        {prescriptionFile ? "Replace PDF" : "PDF"}
                       </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               )}
 
-              {/* Payment Method */}
-              <View className="mb-6">
-                <Text className="text-base font-semibold text-gray-900 mb-2">
-                  Payment Method *
-                </Text>
-                <View className="flex-row gap-3 flex-wrap">
-                  {visiblePaymentOptions.map((option) => (
-                    <TouchableOpacity
-                      key={option.value}
-                      onPress={() =>
-                        setPaymentMethod(option.value as PaymentMethod)
-                      }
-                      disabled={isLoading}
-                      className={`flex-1 min-w-[45%] flex-row items-center justify-center p-4 rounded-lg border-2 ${
-                        paymentMethod === option.value
-                          ? "border-[#BBF7D0]"
-                          : "bg-white border-gray-300"
-                      }`}
-                      style={
-                        paymentMethod === option.value
-                          ? { backgroundColor: AUTH_COLORS.greenSoft }
-                          : undefined
-                      }
-                    >
-                      <Feather
-                        name={option.icon as any}
-                        size={20}
-                        color={
-                          paymentMethod === option.value
-                            ? AUTH_COLORS.green
-                            : "#6B7280"
+              <View style={localStyles.section}>
+                <Text style={localStyles.label}>Payment</Text>
+                <View style={localStyles.paymentList}>
+                  {visiblePaymentOptions.map((option) => {
+                    const selected = paymentMethod === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={option.value}
+                        onPress={() =>
+                          setPaymentMethod(option.value as PaymentMethod)
                         }
-                      />
-                      <Text
-                        className={`ml-2 font-semibold ${
-                          paymentMethod === option.value
-                            ? "text-[#14532D]"
-                            : "text-gray-600"
-                        }`}
+                        disabled={isLoading}
+                        style={[
+                          localStyles.paymentRow,
+                          selected && localStyles.paymentRowActive,
+                        ]}
+                        activeOpacity={0.88}
                       >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <View
+                          style={[
+                            localStyles.paymentIcon,
+                            selected && localStyles.paymentIconActive,
+                          ]}
+                        >
+                          <Feather
+                            name={option.icon as any}
+                            size={16}
+                            color={
+                              selected
+                                ? AUTH_COLORS.white
+                                : AUTH_COLORS.textMuted
+                            }
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            localStyles.paymentLabel,
+                            selected && localStyles.paymentLabelActive,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                        <View
+                          style={[
+                            localStyles.radio,
+                            selected && localStyles.radioActive,
+                          ]}
+                        >
+                          {selected ? (
+                            <View style={localStyles.radioDot} />
+                          ) : null}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
 
                 {consultationMode === "video_consultation" &&
                   paymentMethod === "cash" && (
-                    <Text className="text-xs text-gray-600 mt-2">
-                      After a provider accepts a video consultation, you&apos;ll
-                      see their number and payment instructions before the call
-                      is unlocked.
+                    <Text style={localStyles.hint}>
+                      After a provider accepts, you&apos;ll get their number and
+                      payment steps before the call unlocks.
                     </Text>
                   )}
               </View>
 
               {paymentMethod === "medical_aid" && (
-                <View className="mb-6">
-                  <View className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3">
-                    <Text className="text-xs font-semibold text-emerald-900 mb-1">
-                      Medical aid claim — 3 steps
-                    </Text>
-                    <Text className="text-xs text-emerald-800">
-                      1) Fill details below → 2) Confirm postal address → 3)
-                      Review cost and submit
-                    </Text>
-                  </View>
-                  <Text className="text-base font-semibold text-gray-900 mb-2">
-                    Medical Aid Details *
+                <View style={localStyles.section}>
+                  <Text style={localStyles.label}>Medical aid</Text>
+                  <Text style={localStyles.hint}>
+                    Details first, then postal address, then confirm cost.
                   </Text>
 
-                  <Text className="text-sm text-gray-700 mb-1">
-                    Medical Aid
-                  </Text>
                   {isLoadingMedicalAids ? (
-                    <View className="py-3 items-center">
+                    <View style={localStyles.inlineLoader}>
                       <ActivityIndicator color={AUTH_COLORS.green} />
                     </View>
                   ) : medicalAids.length === 0 ? (
-                    <Text className="text-sm text-gray-500 py-2">
+                    <Text style={localStyles.hint}>
                       No medical aids available.
                     </Text>
                   ) : (
-                    <View>
-                      <View className="flex-row items-center" style={{ gap: 10 }}>
-                        {(() => {
-                          const selectedAid = medicalAids.find(
-                            (aid) => aid.id === selectedMedicalAidId,
-                          );
-                          const imageUri = selectedAid?.image
-                            ? buildBackendAssetUrl("images", selectedAid.image)
-                            : null;
-                          return imageUri ? (
-                            <Image
-                              source={{ uri: imageUri }}
-                              style={{
-                                width: 48,
-                                height: 48,
-                                borderRadius: 8,
-                                backgroundColor: "#F3F4F6",
-                              }}
-                              resizeMode="contain"
-                            />
-                          ) : (
-                            <View
-                              style={{
-                                width: 48,
-                                height: 48,
-                                borderRadius: 8,
-                                backgroundColor: "#F3F4F6",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              <Feather
-                                name="shield"
-                                size={20}
-                                color="#6B7280"
-                              />
-                            </View>
-                          );
-                        })()}
-                        <View style={{ flex: 1 }}>
-                          <PickerField
-                            value={selectedMedicalAidId || null}
-                            onValueChange={(value) =>
-                              setSelectedMedicalAidId(value || "")
-                            }
-                            placeholder="Select medical aid"
-                            items={medicalAids.map((aid) => ({
-                              label: aid.title,
-                              value: aid.id,
-                            }))}
-                            disabled={isLoading}
+                    <View style={localStyles.aidRow}>
+                      {selectedAidImageUri ? (
+                        <Image
+                          source={{ uri: selectedAidImageUri }}
+                          style={localStyles.aidThumb}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <View style={localStyles.aidThumbPlaceholder}>
+                          <Feather
+                            name="shield"
+                            size={18}
+                            color={AUTH_COLORS.textMuted}
                           />
                         </View>
+                      )}
+                      <View style={localStyles.aidPicker}>
+                        <PickerField
+                          value={selectedMedicalAidId || null}
+                          onValueChange={(value) =>
+                            setSelectedMedicalAidId(value || "")
+                          }
+                          placeholder="Select medical aid"
+                          items={medicalAids.map((aid) => ({
+                            label: aid.title,
+                            value: aid.id,
+                          }))}
+                          disabled={isLoading}
+                        />
                       </View>
                     </View>
                   )}
 
-                  <Text className="text-sm text-gray-700 mb-1 mt-4">
-                    Main Member Name
+                  <Text style={[localStyles.label, localStyles.labelSpaced]}>
+                    Medical aid number
                   </Text>
                   <TextInput
-                    style={withIosStandaloneTextInputStyle()}
-                    className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base"
+                    style={[
+                      withIosStandaloneTextInputStyle(),
+                      localStyles.inputBase,
+                      localStyles.inputEditable,
+                    ]}
+                    placeholder="Enter medical aid number"
+                    value={membershipNumber}
+                    onChangeText={setMembershipNumber}
+                    editable={!isLoading}
+                    autoCapitalize="characters"
+                  />
+
+                  <Text style={[localStyles.label, localStyles.labelSpaced]}>
+                    Main member name
+                  </Text>
+                  <TextInput
+                    style={[
+                      withIosStandaloneTextInputStyle(),
+                      localStyles.inputBase,
+                      localStyles.inputEditable,
+                    ]}
                     placeholder="Enter main member name"
                     value={mainMemberName}
                     onChangeText={setMainMemberName}
                     editable={!isLoading}
                   />
 
-                  <Text className="text-sm text-gray-700 mb-1 mt-4">
-                    Patient Residential Address
+                  <Text style={[localStyles.label, localStyles.labelSpaced]}>
+                    Main member ID
                   </Text>
                   <TextInput
-                    style={withIosMultilineTextInputStyle()}
-                    className="bg-gray-50 border border-gray-300 rounded-lg p-4 text-base"
+                    style={[
+                      withIosStandaloneTextInputStyle(),
+                      localStyles.inputBase,
+                      localStyles.inputEditable,
+                    ]}
+                    placeholder="Enter main member ID"
+                    value={mainMemberId}
+                    onChangeText={setMainMemberId}
+                    editable={!isLoading}
+                    autoCapitalize="characters"
+                  />
+
+                  <Text style={[localStyles.label, localStyles.labelSpaced]}>
+                    Patient residential address
+                  </Text>
+                  <TextInput
+                    style={[
+                      withIosMultilineTextInputStyle(),
+                      localStyles.inputBase,
+                      localStyles.inputEditable,
+                      localStyles.inputMultiline,
+                    ]}
                     placeholder="Enter residential address"
                     value={residentialAddress}
                     onChangeText={setResidentialAddress}
@@ -1100,62 +1117,43 @@ export default function CreateRequestModal({
                     textAlignVertical="top"
                   />
 
-                  <View className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4 flex-row items-start">
-                    <Feather name="mail" size={16} color="#2563EB" />
-                    <Text className="text-xs text-blue-800 ml-2 flex-1 leading-5">
-                      On submit you will confirm your Namibian postal address
-                      (PO Box, Private Bag, or street) with post office and
-                      5-digit postcode.
-                    </Text>
-                  </View>
+                  <Text style={localStyles.hint}>
+                    Next you&apos;ll confirm your Namibian postal address for
+                    the claim.
+                  </Text>
                 </View>
               )}
 
-              {/* Info Box */}
-              <View style={appBottomSheetStyles.warningBanner}>
-                <View className="flex-row items-start">
-                  <Feather name="info" size={20} color="#92400E" />
-                  <View className="flex-1 ml-3">
-                    <Text style={appBottomSheetStyles.warningBannerTitle}>
-                      Request will be sent to nearby providers
-                    </Text>
-                    <Text style={appBottomSheetStyles.warningBannerBody}>
-                      Your location will be shared with the healthcare provider
-                      who accepts your request. The request expires after 3
-                      hours if not accepted.
-                    </Text>
-                  </View>
-                </View>
+              <View style={localStyles.footerNote}>
+                <Feather
+                  name="info"
+                  size={15}
+                  color={AUTH_COLORS.green}
+                  style={localStyles.footerNoteIcon}
+                />
+                <Text style={localStyles.footerNoteText}>
+                  Nearby providers only see your location after they accept.
+                  Requests expire in 3 hours if nobody takes them.
+                </Text>
               </View>
             </KeyboardAwareScrollView>
 
-            {/* Footer Actions */}
-            <View style={appModalBottomSheetStyles.footer}>
-              {isLoadingLocation && (
-                <Text className="text-sm text-gray-600 text-center mb-3">
-                  Detecting your location — submit is disabled until we have
-                  your address.
+            <View style={[appModalBottomSheetStyles.footer, localStyles.footer]}>
+              {isLoadingLocation ? (
+                <Text style={localStyles.footerHint}>
+                  Detecting location ? submit stays locked for now.
                 </Text>
-              )}
-              {locationError && !isLoadingLocation && (
-                <Text className="text-sm text-red-600 text-center mb-3">
-                  Fix your location above, then you can submit your request.
+              ) : locationError ? (
+                <Text style={[localStyles.footerHint, localStyles.footerHintError]}>
+                  Fix location above to continue.
                 </Text>
-              )}
-              {isLocationReady && !isLoading && (
-                <Text className="text-sm text-green-700 text-center mb-3">
-                  Location confirmed. You can submit when ready.
-                </Text>
-              )}
+              ) : null}
               <TouchableOpacity
                 onPress={handleSubmit}
                 disabled={!canSubmit}
                 style={[
-                  appBottomSheetStyles.primaryCta,
-                  !canSubmit && {
-                    backgroundColor: "#D1D5DB",
-                    borderColor: "#D1D5DB",
-                  },
+                  localStyles.submitBtn,
+                  !canSubmit && localStyles.submitBtnDisabled,
                 ]}
                 activeOpacity={0.88}
               >
@@ -1164,30 +1162,34 @@ export default function CreateRequestModal({
                 ) : isLoadingLocation ? (
                   <>
                     <ActivityIndicator color={AUTH_COLORS.white} size="small" />
-                    <Text style={appBottomSheetStyles.primaryCtaText}>
-                      Getting location…
+                    <Text style={localStyles.submitBtnText}>
+                      Getting location?
                     </Text>
                   </>
                 ) : locationError || !markerCoord ? (
                   <Text
                     style={[
-                      appBottomSheetStyles.primaryCtaText,
-                      { color: AUTH_COLORS.textMuted },
+                      localStyles.submitBtnText,
+                      localStyles.submitBtnTextMuted,
                     ]}
                   >
                     Waiting for location
                   </Text>
                 ) : (
-                  <Text style={appBottomSheetStyles.primaryCtaText}>
-                    Submit Request
-                  </Text>
+                  <Text style={localStyles.submitBtnText}>Submit request</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
-        <AlertDialogHost />
+        <AlertDialogHost active={showRequestModal} embedded />
     </Modal>
+
+    {/* When the sheet is hidden for confirm/submit, host alerts in a Modal so
+        they are not lost behind native screens or a closed sheet. */}
+    <AlertDialogHost
+      active={visible && !showRequestModal && !showPostalAddressModal}
+    />
 
     <PostalAddressConfirmModal
       visible={visible && showPostalAddressModal}
@@ -1200,15 +1202,374 @@ export default function CreateRequestModal({
 }
 
 const localStyles = StyleSheet.create({
+  sheet: {
+    backgroundColor: AUTH_COLORS.bg,
+  },
   headerWrap: {
     paddingHorizontal: 24,
     paddingTop: 4,
+    paddingBottom: 4,
+  },
+  headerSub: {
+    marginTop: -10,
+    marginBottom: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    color: AUTH_COLORS.textMuted,
   },
   scrollBody: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 48,
+    paddingBottom: 36,
+  },
+  section: {
+    marginBottom: 22,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    color: AUTH_COLORS.textDark,
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  labelSpaced: {
+    marginTop: 16,
+  },
+  hint: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 19,
+    color: AUTH_COLORS.textMuted,
+  },
+  inputBase: {
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingLeft: 18,
+    paddingVertical: 14,
+    minHeight: 54,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  inputReadonly: {
+    backgroundColor: "#F0FDF4",
+    borderColor: AUTH_COLORS.inputBorder,
+    color: AUTH_COLORS.textDark,
+  },
+  inputEditable: {
+    backgroundColor: AUTH_COLORS.white,
+    borderColor: AUTH_COLORS.inputBorder,
+    color: AUTH_COLORS.textDark,
+    shadowColor: "#14532D",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  inputMultiline: {
+    minHeight: 104,
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
+  segmentRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  segment: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+  },
+  segmentActive: {
+    backgroundColor: AUTH_COLORS.green,
+    borderColor: AUTH_COLORS.green,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: AUTH_COLORS.textMuted,
+  },
+  segmentTextActive: {
+    color: AUTH_COLORS.white,
+  },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  textLinkBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  textLink: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: AUTH_COLORS.green,
+  },
+  statusPanel: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 140,
+    paddingHorizontal: 18,
+    paddingVertical: 22,
+    borderRadius: 16,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  statusTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    textAlign: "center",
+  },
+  statusBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: AUTH_COLORS.textMuted,
+    textAlign: "center",
+  },
+  secondaryBtn: {
+    marginTop: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: AUTH_COLORS.green,
+  },
+  secondaryBtnText: {
+    color: AUTH_COLORS.white,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  mapWrap: {
+    height: 220,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
+  },
+  map: {
+    flex: 1,
+    width: "100%",
+    minHeight: 200,
+  },
+  locationReadyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+  },
+  locationReadyText: {
+    flex: 1,
+    fontSize: 13,
+    color: AUTH_COLORS.textMuted,
+  },
+  priceBlock: {
+    marginBottom: 22,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+  },
+  priceLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: AUTH_COLORS.textMuted,
+  },
+  priceValue: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: AUTH_COLORS.textDark,
+    letterSpacing: -0.5,
+  },
+  fileRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  fileName: {
+    flex: 1,
+    fontSize: 13,
+    color: AUTH_COLORS.textDark,
+  },
+  uploadBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1.5,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  uploadBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+  },
+  paymentList: {
+    gap: 8,
+  },
+  paymentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+  },
+  paymentRowActive: {
+    borderColor: AUTH_COLORS.green,
+    backgroundColor: "rgba(22, 163, 74, 0.06)",
+  },
+  paymentIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F4F6",
+  },
+  paymentIconActive: {
+    backgroundColor: AUTH_COLORS.green,
+  },
+  paymentLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: AUTH_COLORS.textMuted,
+  },
+  paymentLabelActive: {
+    color: AUTH_COLORS.textDark,
+    fontWeight: "700",
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#D1D5DB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioActive: {
+    borderColor: AUTH_COLORS.green,
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: AUTH_COLORS.green,
+  },
+  aidRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  aidThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+  },
+  aidThumbPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aidPicker: {
+    flex: 1,
+  },
+  inlineLoader: {
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  footerNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  footerNoteIcon: {
+    marginTop: 1,
+  },
+  footerNoteText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: AUTH_COLORS.textMuted,
+  },
+  footer: {
+    gap: 8,
+  },
+  footerHint: {
+    fontSize: 13,
+    textAlign: "center",
+    color: AUTH_COLORS.textMuted,
+    marginBottom: 4,
+  },
+  footerHintError: {
+    color: AUTH_COLORS.error,
+  },
+  submitBtn: {
+    backgroundColor: AUTH_COLORS.green,
+    borderRadius: 999,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  submitBtnDisabled: {
+    backgroundColor: "#D1D5DB",
+  },
+  submitBtnText: {
+    color: AUTH_COLORS.white,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  submitBtnTextMuted: {
+    color: AUTH_COLORS.textMuted,
   },
 });

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AlertDialogHost } from "../AlertDialog";
 import { KEYBOARD_AWARE_EXTRA_SCROLL } from "../ScreenLayout";
 import { useAuth } from "../../context/AuthContext";
 import apiClient from "../../lib/api";
@@ -160,7 +161,7 @@ export default function EditPostalAddressModal({
               <View style={styles.loadingWrap}>
                 <ActivityIndicator color={AUTH_COLORS.green} size="large" />
                 <Text style={styles.loadingText}>
-                  Loading your postal addressâ€¦
+                  Loading your postal address…
                 </Text>
               </View>
             ) : (
@@ -199,6 +200,7 @@ export default function EditPostalAddressModal({
           </SafeAreaView>
         </View>
       </View>
+      <AlertDialogHost active={visible} embedded />
     </Modal>
   );
 }

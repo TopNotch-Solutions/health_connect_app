@@ -105,7 +105,7 @@ export default function ProviderRouteModal({
   const [, setLastSpeechTime] = useState<number>(0);
   const [mapReady, setMapReady] = useState(false);
 
-  // Mount map once when the modal opens — do NOT remount on GPS updates
+  // Mount map once when the modal opens � do NOT remount on GPS updates
   // (providerLocation changes constantly and was blanking the iOS map).
   useEffect(() => {
     if (!visible) {
@@ -210,7 +210,7 @@ export default function ProviderRouteModal({
         longitude: location.coords.longitude,
       };
 
-      // ✅ Validate before setting
+      // ? Validate before setting
       if (!isValidCoordinate(providerCoords)) {
         throw new Error("Invalid provider location");
       }
@@ -267,9 +267,9 @@ export default function ProviderRouteModal({
             longitude: location.coords.longitude,
           };
 
-          // ✅ Validate before setting
+          // ? Validate before setting
           if (!isValidCoordinate(newProviderLocation)) {
-            console.warn("⚠️ Invalid location update received");
+            console.warn("?? Invalid location update received");
             return;
           }
 
@@ -404,7 +404,7 @@ export default function ProviderRouteModal({
     } catch (error: any) {
       console.error("Error marking as arrived:", error);
       const message = String(error?.message || "");
-      // Already arrived (retry / double-tap) — treat as success
+      // Already arrived (retry / double-tap) � treat as success
       if (/arrived to arrived/i.test(message)) {
         arrivedRef.current = true;
         if (onCompleteRoute) {
@@ -529,7 +529,7 @@ export default function ProviderRouteModal({
     );
   }
 
-  // ✅ Use patient location as fallback for initial region
+  // ? Use patient location as fallback for initial region
   const initialRegion = isValidCoordinate(providerLocation)
     ? {
         ...providerLocation,
@@ -572,7 +572,7 @@ export default function ProviderRouteModal({
           showsMyLocationButton={Platform.OS === "android"}
           initialRegion={initialRegion}
         >
-          {/* ✅ Only render marker if coordinate is valid */}
+          {/* ? Only render marker if coordinate is valid */}
           {isValidCoordinate(providerLocation) && (
             <Marker
               coordinate={providerLocation}
@@ -618,7 +618,7 @@ export default function ProviderRouteModal({
             </Marker>
           )}
 
-          {/* ✅ Route directions using MapViewDirections - Shows the road route provider needs to travel */}
+          {/* ? Route directions using MapViewDirections - Shows the road route provider needs to travel */}
           {providerLocation &&
             isValidCoordinate(providerLocation) &&
             isValidCoordinate(patientLocation) && (
@@ -677,7 +677,7 @@ export default function ProviderRouteModal({
               />
             )}
 
-          {/* ✅ Patient marker - already validated above */}
+          {/* ? Patient marker - already validated above */}
           <Marker
             coordinate={patientLocation}
             title={`${patientName}'s Location`}
@@ -724,7 +724,7 @@ export default function ProviderRouteModal({
         ) : (
           <View style={[styles.map, styles.mapLoading]}>
             <ActivityIndicator size="large" color={AUTH_COLORS.green} />
-            <Text style={styles.mapLoadingText}>Loading map…</Text>
+            <Text style={styles.mapLoadingText}>Loading map�</Text>
           </View>
         )}
 
@@ -917,7 +917,7 @@ export default function ProviderRouteModal({
           </View>
         </SafeAreaView>
       </View>
-      <AlertDialogHost />
+      <AlertDialogHost active={visible} embedded />
     </Modal>
   );
 }

@@ -420,7 +420,7 @@ const SignInScreen = () => {
             </View>
           </Animated.View>
         </View>
-        <StatusBar backgroundColor={COLORS.bg} style="dark" />
+        <StatusBar style="dark" />
       </ScreenLayout>
     );
   } catch (error: any) {

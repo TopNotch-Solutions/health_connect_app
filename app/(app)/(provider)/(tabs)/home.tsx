@@ -30,28 +30,29 @@ import {
   getFirstName,
   getGreeting,
   getGreetingEmoji,
-} from "../../../components/app/AppScreenUI";
-import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
-import { AuthBackgroundDecor } from "../../../components/AuthScreenLayout";
-import { useAuth } from "../../../context/AuthContext";
-import { useRoute } from "../../../context/RouteContext";
-import apiClient from "../../../lib/api";
+} from "../../../../components/app/AppScreenUI";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../../components/ScreenLayout";
+import { AuthBackgroundDecor } from "../../../../components/AuthScreenLayout";
+import { useAuth } from "../../../../context/AuthContext";
+import { useRoute } from "../../../../context/RouteContext";
+import apiClient from "../../../../lib/api";
+import { alertNewRequestAvailable } from "../../../../lib/consultationAlert";
+import { hapticActionConfirm } from "../../../../lib/haptics";
 import {
-  alertConsultationStatusChange,
-  alertNewRequestAvailable,
-} from "../../../lib/consultationAlert";
-import { hapticActionConfirm } from "../../../lib/haptics";
-import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
+  ensureForegroundLocationPermission,
+  getCurrentPositionWithTimeout,
+  resolveProviderCoordsForAccept,
+} from "../../../../lib/locationPermission";
 import {
   providerOnlineStorageKey as onlineStorageKeyForUser,
   setProviderOnline,
-} from "../../../lib/providerOnline";
-import socketService from "../../../lib/socket";
-import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
-import { logViewMountDebug } from "../../../lib/viewErrorLogger";
-import { AUTH_COLORS } from "../../../lib/authScreenTheme";
-import { canShowPatientPhone } from "../../../lib/patientContactVisibility";
-import PostalAddressConfirmModal from "../../../components/(patient)/PostalAddressConfirmModal";
+} from "../../../../lib/providerOnline";
+import socketService from "../../../../lib/socket";
+import { getUserFacingErrorMessage } from "../../../../lib/userFacingError";
+import { logViewMountDebug } from "../../../../lib/viewErrorLogger";
+import { AUTH_COLORS } from "../../../../lib/authScreenTheme";
+import { canShowPatientPhone } from "../../../../lib/patientContactVisibility";
+import PostalAddressConfirmModal from "../../../../components/(patient)/PostalAddressConfirmModal";
 import { showAlertDialog } from "@/components/AlertDialog";
 
 export default function ProviderHome() {
@@ -72,6 +73,11 @@ export default function ProviderHome() {
   const [pendingAcceptRequest, setPendingAcceptRequest] = useState<any | null>(
     null,
   );
+  const [actionLoading, setActionLoading] = useState<{
+    requestId: string;
+    action: "accept" | "decline";
+  } | null>(null);
+  const acceptInFlightRef = useRef(false);
   const { user, updateUser } = useAuth();
   const router = useRouter();
 
@@ -174,7 +180,7 @@ export default function ProviderHome() {
     handleRequestHidden?: (data: any) => void;
   }>({});
   const { startRoute } = useRoute();
-  // Background sync only — sockets push new requests immediately.
+  // Background sync only � sockets push new requests immediately.
   const REQUESTS_REFRESH_INTERVAL_MS = 30000;
   const hasLoadedRequestsOnceRef = useRef(false);
 
@@ -289,7 +295,7 @@ export default function ProviderHome() {
     }
   }, []);
 
-  // Medical aid eligibility — show home quick action when specializations match ICD-10
+  // Medical aid eligibility � show home quick action when specializations match ICD-10
   const loadMedicalAidEligibility = useCallback(async () => {
     try {
       const response = await apiClient.get("/app/medical-aid/provider-stats");
@@ -432,13 +438,13 @@ export default function ProviderHome() {
         // Keep socket GPS fresh so backend can push newRequestAvailable
         socketService.syncProviderSocketLocation(currentProviderLocation);
 
-        // Socket push can miss while poll still shows the job — announce new IDs.
+        // Socket push can miss while poll still shows the job � announce new IDs.
         if (discoveredNew) {
           void alertNewRequestAvailable(newIds[0]);
         }
       }
     } catch (error: any) {
-      console.error("❌ Error loading requests:", error);
+      console.error("? Error loading requests:", error);
       console.warn(
         "Failed to load available requests, will retry on next refresh:",
         error?.message || error,
@@ -467,6 +473,28 @@ export default function ProviderHome() {
   // Connect socket and fetch available requests only when online
   useEffect(() => {
     if (user?.userId && isOnline) {
+      // Seed cached GPS before join so backend logs hasLocation: true when possible.
+      if (latestProviderLocationRef.current) {
+        socketService.setLastKnownProviderLocation(
+          latestProviderLocationRef.current,
+        );
+      } else {
+        void Location.getLastKnownPositionAsync()
+          .then((last) => {
+            if (!last?.coords) return;
+            const coords = {
+              latitude: last.coords.latitude,
+              longitude: last.coords.longitude,
+            };
+            setProviderLocation(coords);
+            socketService.setLastKnownProviderLocation(coords);
+            if (socketService.getSocket()?.connected) {
+              socketService.syncProviderSocketLocation(coords);
+            }
+          })
+          .catch(() => {});
+      }
+
       // Only connect if not already connected for this online session
       const socket = socketService.getSocket();
       if (!socket?.connected) {
@@ -483,7 +511,10 @@ export default function ProviderHome() {
             | "pharmacist"
             | undefined,
         );
-      } else {
+      } else if (latestProviderLocationRef.current) {
+        socketService.syncProviderSocketLocation(
+          latestProviderLocationRef.current,
+        );
       }
 
       const currentSocket = socketService.getSocket();
@@ -590,18 +621,21 @@ export default function ProviderHome() {
           return;
         }
 
-        const initialLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
+        // Prefer last-known / cached coords so socket join gets hasLocation:true quickly.
+        let initialCoords = await resolveProviderCoordsForAccept(
+          latestProviderLocationRef.current,
+        ).catch(async () => {
+          const loc = await getCurrentPositionWithTimeout({ timeoutMs: 10000 });
+          return {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          };
         });
 
         if (!active) return;
 
-        const initialCoords = {
-          latitude: initialLocation.coords.latitude,
-          longitude: initialLocation.coords.longitude,
-        };
-
         setProviderLocation(initialCoords);
+        socketService.syncProviderSocketLocation(initialCoords);
 
         // Force one refresh after acquiring initial coordinates for online mode.
         if (isOnline && !isLoadingRequestsRef.current) {
@@ -622,9 +656,9 @@ export default function ProviderHome() {
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
             };
-            // Keep providerLocation state current for accept / route flows.
-            // Request refreshes are handled by the 10-second interval instead.
+            // Keep providerLocation state + server socket GPS current for accept.
             setProviderLocation(nextCoords);
+            socketService.syncProviderSocketLocation(nextCoords);
           },
         );
       } catch (e) {
@@ -681,7 +715,7 @@ export default function ProviderHome() {
           }, 300);
         } else {
           console.warn(
-            "⚠️ Socket not connected on focus, will wait for connection",
+            "?? Socket not connected on focus, will wait for connection",
           );
         }
       }
@@ -719,7 +753,7 @@ export default function ProviderHome() {
     isOnline,
   ]);
 
-  // Silent background sync while online — does not show the loading card.
+  // Silent background sync while online � does not show the loading card.
   useEffect(() => {
     if (!isOnline || !user?.userId) return;
 
@@ -748,7 +782,7 @@ export default function ProviderHome() {
     const socket = socketService.getSocket();
     if (!socket?.connected) {
       console.warn(
-        "⚠️ Socket not connected, will set up listeners when connected",
+        "?? Socket not connected, will set up listeners when connected",
       );
       // Wait for socket to connect - use once to prevent multiple setups
       const checkConnection = () => {
@@ -779,12 +813,8 @@ export default function ProviderHome() {
       // Ensure voice alerts are armed whenever realtime listeners are live
       setProviderOnline(true);
 
-      // Handle new requests coming in real-time
+            // Voice alerts for socket events live in useConsultationStatusAlerts (tabs layout).
       const handleNewRequest = (request: any) => {
-
-        // Always ring outside setState — React may re-run updaters and skip side effects
-        void alertNewRequestAvailable(request?._id);
-
         setRequests((prev) => {
           if (prev.some((req) => String(req._id) === String(request._id))) {
             return prev;
@@ -799,31 +829,15 @@ export default function ProviderHome() {
       const handleRequestStatusChanged = (data: any) => {
         if (!isOnline) return; // Ignore if went offline
         if (!data.requestId) return;
-        setRequests((prev) => {
-          // Only ring if this request was in our incoming queue
-          const wasInQueue = prev.some((req) => req._id === data.requestId);
-          if (wasInQueue && data.status) {
-            void alertConsultationStatusChange(
-              data.status,
-              data.requestId,
-              "provider",
-            );
-          }
-          return prev.filter((req) => req._id !== data.requestId);
-        });
+        setRequests((prev) =>
+          prev.filter((req) => req._id !== data.requestId),
+        );
       };
 
       // Handle request updates (when request is accepted/rejected/cancelled)
       const handleRequestUpdated = (data: any) => {
         if (!isOnline) return; // Ignore if went offline
         if (data._id) {
-          if (data.status) {
-            void alertConsultationStatusChange(
-              data.status,
-              data._id,
-              "provider",
-            );
-          }
           // Remove the request from available list if it's been accepted or cancelled
           if (
             data.status === "accepted" ||
@@ -910,6 +924,9 @@ export default function ProviderHome() {
   // Pharmacist accept: get real device location then assign the request, then go to requests tab
   const handlePharmacistAccept = async (request: any) => {
     if (!user?.userId) return;
+    if (acceptInFlightRef.current || actionLoading) {
+      return;
+    }
     if (!user.isDocumentVerified) {
       Alert.alert(
         "Account Not Verified",
@@ -918,6 +935,8 @@ export default function ProviderHome() {
       );
       return;
     }
+    acceptInFlightRef.current = true;
+    setActionLoading({ requestId: request._id, action: "accept" });
     try {
       const { granted } = await ensureForegroundLocationPermission({
         requestIfNeeded: true,
@@ -929,13 +948,10 @@ export default function ProviderHome() {
         );
         return;
       }
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      const coords = {
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      };
+      const coords = await resolveProviderCoordsForAccept(
+        latestProviderLocationRef.current,
+      );
+      setProviderLocation(coords);
       await socketService.acceptRequest(request._id, user.userId, coords);
       hapticActionConfirm();
       setRequests((prev) => prev.filter((r) => r._id !== request._id));
@@ -947,6 +963,11 @@ export default function ProviderHome() {
         "Error",
         getUserFacingErrorMessage(err, "Failed to accept request."),
       );
+    } finally {
+      acceptInFlightRef.current = false;
+      setActionLoading((prev) =>
+        prev?.requestId === request._id ? null : prev,
+      );
     }
   };
 
@@ -955,6 +976,14 @@ export default function ProviderHome() {
     if (!user || !user.userId) {
       console.error("Cannot accept request: user is not available");
       Alert.alert("Error", "User session not available. Please try again.");
+      return;
+    }
+
+    if (acceptInFlightRef.current || actionLoading) {
+      Alert.alert(
+        "Please wait",
+        "Your previous accept is still processing. Wait a moment and try again.",
+      );
       return;
     }
 
@@ -980,26 +1009,25 @@ export default function ProviderHome() {
 
     const currentUserId = user.userId; // Store userId to avoid issues if user becomes null
 
+    acceptInFlightRef.current = true;
+    setActionLoading({ requestId: request._id, action: "accept" });
     try {
-      // 1) Get provider location first (required for en_route status)
+      // 1) Prefer cached GPS so accept can emit without waiting on a fresh fix
       const { granted } = await ensureForegroundLocationPermission({
         requestIfNeeded: true,
       });
       if (!granted) {
         Alert.alert(
           "Location Required",
-          "Location permission is required to accept house visit requests.",
+          "Location permission is required to accept consultation requests.",
         );
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      const providerCoords = {
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      };
+      const providerCoords = await resolveProviderCoordsForAccept(
+        latestProviderLocationRef.current,
+      );
+      setProviderLocation(providerCoords);
 
       // 2) Accept on backend (assign provider)
       await socketService.acceptRequest(
@@ -1014,36 +1042,50 @@ export default function ProviderHome() {
       // Remove from home list and open requests tab after accept
       setSelectedRequest(null);
       setRequests((prev) => prev.filter((req) => req._id !== request._id));
+      router.push("/(app)/(provider)/requests" as any);
 
       if (request.consultationMode === "video_consultation") {
-        router.push("/(app)/(provider)/requests" as any);
         return;
       }
 
-      // House visit: mark en_route, open navigation, then go to requests
-      await socketService.updateRequestStatus(
-        request._id,
-        currentUserId,
-        "en_route",
-        providerCoords,
-      );
-
+      // House visit: mark en_route + open navigation in background so accept never feels stuck
       const patientCoords = getPatientLocationFromRequest(request);
-      router.push("/(app)/(provider)/requests" as any);
       setTimeout(() => {
         startRoute({
           ...request,
+          status: "en_route",
           address: {
             ...request.address,
             ...(patientCoords ? { coordinates: patientCoords } : {}),
           },
         });
       }, 350);
+
+      void (async () => {
+        try {
+          await socketService.updateRequestStatus(
+            request._id,
+            currentUserId,
+            "en_route",
+            providerCoords,
+          );
+        } catch (bgError: any) {
+          console.warn(
+            "Failed to mark en_route after accept:",
+            bgError?.message || bgError,
+          );
+        }
+      })();
     } catch (error: any) {
       console.error("Error accepting request:", error);
       Alert.alert(
         "Error",
         getUserFacingErrorMessage(error, "Failed to accept request"),
+      );
+    } finally {
+      acceptInFlightRef.current = false;
+      setActionLoading((prev) =>
+        prev?.requestId === request._id ? null : prev,
       );
     }
   };
@@ -1069,19 +1111,6 @@ export default function ProviderHome() {
     }
   };
 
-  const proceedAcceptConfirm = (request: any) => {
-    const patientName = request?.patientId?.fullname || "this patient";
-    showAlertDialog(
-      "Accept Request",
-      `Are you sure you want to accept the request from ${patientName}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Accept", onPress: () => handleAccept(request) },
-      ],
-      { cancelable: true },
-    );
-  };
-
   const confirmAccept = (request: any) => {
     // Medical aid claims need the provider's Namibian postal address first.
     if (request?.paymentMethod === "medical_aid") {
@@ -1090,7 +1119,10 @@ export default function ProviderHome() {
       setTimeout(() => setShowPostalAddressModal(true), 280);
       return;
     }
-    proceedAcceptConfirm(request);
+    // Match Requests tab: accept immediately. A confirm AlertDialog on top of the
+    // home detail Modal often never fires onPress (stacked RN Modals).
+    setSelectedRequest(null);
+    void handleAccept(request);
   };
 
   const handleProviderPostalConfirmed = () => {
@@ -1098,7 +1130,7 @@ export default function ProviderHome() {
     setShowPostalAddressModal(false);
     setPendingAcceptRequest(null);
     if (!request) return;
-    proceedAcceptConfirm(request);
+    void handleAccept(request);
   };
 
   const confirmDecline = (requestId: string, patientName: string) => {
@@ -1119,7 +1151,7 @@ export default function ProviderHome() {
 
   // Returns true only when THIS specific request requires a prescription review
   // (pharmacist provider + ailment has requiresPrescription flag OR "prescription" in title).
-  // All other requests — even for pharmacists — go through the normal Accept flow.
+  // All other requests � even for pharmacists � go through the normal Accept flow.
   const isPrescriptionRequest = (request: any): boolean => {
     if (user?.role !== "pharmacist") return false;
     const titleFromObj =
@@ -1134,30 +1166,11 @@ export default function ProviderHome() {
     return requiresPrescription || /prescription/i.test(ailmentTitle);
   };
 
-  const getIncomingStatusStyle = (status?: string) => {
-    switch (status) {
-      case "searching":
-      case "pending":
-      case undefined:
-        return {
-          bg: "#FEF3C7",
-          text: "#B45309",
-          icon: "clock" as const,
-          accent: "#F59E0B",
-          cardBg: "#FFFBEB",
-          cardBorder: "#FCD34D",
-        };
-      default:
-        return {
-          bg: "#FEF3C7",
-          text: "#B45309",
-          icon: "inbox" as const,
-          accent: "#F59E0B",
-          cardBg: "#FFFBEB",
-          cardBorder: "#FCD34D",
-        };
-    }
-  };
+  const getIncomingStatusStyle = (_status?: string) => ({
+    bg: AUTH_COLORS.greenSoft,
+    text: AUTH_COLORS.greenDark,
+    icon: "clock" as const,
+  });
 
   const formatStatusLabel = (status: string) =>
     status
@@ -1299,7 +1312,7 @@ export default function ProviderHome() {
                     className="mt-3 bg-amber-100 px-3 py-2 rounded-lg self-start"
                   >
                     <Text className="text-amber-900 font-semibold text-sm">
-                      View Profile →
+                      View Profile ?
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1322,51 +1335,41 @@ export default function ProviderHome() {
           />
 
           {!isOnline ? (
-            <View className="bg-white rounded-2xl border-2 border-[#BBF7D0] p-6">
-              <View className="flex-row items-start">
-                <View className="w-12 h-12 bg-gray-100 rounded-2xl items-center justify-center mr-4">
-                  <Feather name="power" size={22} color="#6B7280" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-base font-bold text-gray-900">
-                    You’re offline
-                  </Text>
-                  <Text className="text-sm text-gray-600 mt-1 leading-5">
-                    Switch to online to receive nearby consultation requests.
-                  </Text>
-                </View>
+            <View style={incomingCardStyles.emptyCard}>
+              <View style={incomingCardStyles.emptyIcon}>
+                <Feather name="power" size={20} color={AUTH_COLORS.textMuted} />
+              </View>
+              <View style={incomingCardStyles.emptyCopy}>
+                <Text style={incomingCardStyles.emptyTitle}>You're offline</Text>
+                <Text style={incomingCardStyles.emptyBody}>
+                  Go online to receive nearby consultation requests.
+                </Text>
               </View>
             </View>
           ) : isLoadingRequests ? (
-            <View className="bg-white rounded-2xl border-2 border-[#BBF7D0] p-6">
-              <View className="flex-row items-center">
-                <View className="w-12 h-12 bg-blue-50 rounded-2xl items-center justify-center mr-4">
-                  <ActivityIndicator size="small" color={AUTH_COLORS.green} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-base font-bold text-gray-900">
-                    Checking for new requests…
-                  </Text>
-                  <Text className="text-sm text-gray-600 mt-1">
-                    Please wait a moment.
-                  </Text>
-                </View>
+            <View style={incomingCardStyles.emptyCard}>
+              <View style={incomingCardStyles.emptyIcon}>
+                <ActivityIndicator size="small" color={AUTH_COLORS.green} />
+              </View>
+              <View style={incomingCardStyles.emptyCopy}>
+                <Text style={incomingCardStyles.emptyTitle}>
+                  Checking for requests?
+                </Text>
+                <Text style={incomingCardStyles.emptyBody}>
+                  Hang tight ? this only takes a moment.
+                </Text>
               </View>
             </View>
           ) : requests.length === 0 ? (
-            <View className="bg-white rounded-2xl border-2 border-[#BBF7D0] p-6">
-              <View className="flex-row items-start">
-                <View className="w-12 h-12 bg-green-50 rounded-2xl items-center justify-center mr-4">
-                  <Feather name="check-circle" size={22} color="#10B981" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-base font-bold text-gray-900">
-                    You’re all caught up
-                  </Text>
-                  <Text className="text-sm text-gray-600 mt-1 leading-5">
-                    No pending consultation requests right now.
-                  </Text>
-                </View>
+            <View style={incomingCardStyles.emptyCard}>
+              <View style={incomingCardStyles.emptyIcon}>
+                <Feather name="check" size={20} color={AUTH_COLORS.green} />
+              </View>
+              <View style={incomingCardStyles.emptyCopy}>
+                <Text style={incomingCardStyles.emptyTitle}>All clear</Text>
+                <Text style={incomingCardStyles.emptyBody}>
+                  No pending consultation requests right now.
+                </Text>
               </View>
             </View>
           ) : (
@@ -1392,18 +1395,8 @@ export default function ProviderHome() {
                   : "house_visit";
               const consultationModeMeta =
                 consultationMode === "video_consultation"
-                  ? {
-                      label: "Video Consultation",
-                      icon: "video" as const,
-                      color: "#0369A1",
-                      soft: "#E0F2FE",
-                    }
-                  : {
-                      label: "House Visit",
-                      icon: "home" as const,
-                      color: AUTH_COLORS.greenDark,
-                      soft: AUTH_COLORS.greenSoft,
-                    };
+                  ? { label: "Video", icon: "video" as const }
+                  : { label: "House visit", icon: "home" as const };
               const addressLine =
                 !isCompleted && request.address
                   ? [
@@ -1422,36 +1415,15 @@ export default function ProviderHome() {
                   style={[
                     appScreenStyles.requestCard,
                     incomingCardStyles.card,
-                    {
-                      backgroundColor: statusStyle.cardBg,
-                      borderColor: statusStyle.cardBorder,
-                    },
                   ]}
                 >
-                  <View
-                    style={[
-                      incomingCardStyles.accentBar,
-                      { backgroundColor: statusStyle.accent },
-                    ]}
-                  />
-
                   <TouchableOpacity
                     onPress={() => setSelectedRequest(request)}
-                    activeOpacity={0.85}
+                    activeOpacity={0.88}
                     style={incomingCardStyles.header}
                   >
-                    <View
-                      style={[
-                        incomingCardStyles.avatar,
-                        { backgroundColor: statusStyle.bg },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          incomingCardStyles.avatarText,
-                          { color: statusStyle.text },
-                        ]}
-                      >
+                    <View style={incomingCardStyles.avatar}>
+                      <Text style={incomingCardStyles.avatarText}>
                         {displayInitials}
                       </Text>
                     </View>
@@ -1491,22 +1463,14 @@ export default function ProviderHome() {
                       </Text>
                     </View>
 
-                    <View
-                      style={[
-                        incomingCardStyles.statusPill,
-                        { backgroundColor: statusStyle.bg },
-                      ]}
-                    >
+                    <View style={incomingCardStyles.statusPill}>
                       <Feather
                         name={statusStyle.icon}
                         size={11}
                         color={statusStyle.text}
                       />
                       <Text
-                        style={[
-                          incomingCardStyles.statusText,
-                          { color: statusStyle.text },
-                        ]}
+                        style={incomingCardStyles.statusText}
                         numberOfLines={1}
                       >
                         {formatStatusLabel(request.status || "pending")}
@@ -1529,70 +1493,51 @@ export default function ProviderHome() {
                       </View>
                     </View>
 
-                    <View style={incomingCardStyles.detailsSeparator} />
-
                     <View style={incomingCardStyles.modeRow}>
-                      <View
-                        style={[
-                          incomingCardStyles.modeIconWrap,
-                          { backgroundColor: consultationModeMeta.soft },
-                        ]}
-                      >
-                        <Feather
-                          name={consultationModeMeta.icon}
-                          size={14}
-                          color={consultationModeMeta.color}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          incomingCardStyles.modeLabel,
-                          { color: consultationModeMeta.color },
-                        ]}
-                      >
+                      <Feather
+                        name={consultationModeMeta.icon}
+                        size={13}
+                        color={AUTH_COLORS.greenDark}
+                      />
+                      <Text style={incomingCardStyles.modeLabel}>
                         {consultationModeMeta.label}
                       </Text>
                     </View>
 
                     {addressLine ? (
-                      <>
-                        <View style={incomingCardStyles.detailsSeparator} />
-                        <View style={incomingCardStyles.locationRow}>
-                          <Feather
-                            name="map-pin"
-                            size={14}
-                            color={AUTH_COLORS.green}
-                            style={{ marginTop: 2 }}
-                          />
-                          <Text style={incomingCardStyles.locationText}>
-                            {addressLine}
-                          </Text>
-                        </View>
-                      </>
+                      <View style={incomingCardStyles.locationRow}>
+                        <Feather
+                          name="map-pin"
+                          size={14}
+                          color={AUTH_COLORS.green}
+                          style={{ marginTop: 2 }}
+                        />
+                        <Text style={incomingCardStyles.locationText}>
+                          {addressLine}
+                        </Text>
+                      </View>
                     ) : null}
 
                     {request.symptoms ? (
-                      <>
-                        <View style={incomingCardStyles.detailsSeparator} />
-                        <View style={incomingCardStyles.symptomsBlock}>
-                          <Text style={incomingCardStyles.detailLabel}>
-                            Symptoms
-                          </Text>
-                          <Text style={incomingCardStyles.symptomsText}>
-                            {request.symptoms}
-                          </Text>
-                        </View>
-                      </>
+                      <View style={incomingCardStyles.symptomsBlock}>
+                        <Text style={incomingCardStyles.detailLabel}>
+                          Symptoms
+                        </Text>
+                        <Text style={incomingCardStyles.symptomsText}>
+                          {request.symptoms}
+                        </Text>
+                      </View>
                     ) : null}
                   </View>
 
-                  <View className="flex-row" style={{ gap: 10 }}>
+                  <View style={incomingCardStyles.actionsRow}>
                     <TouchableOpacity
                       onPress={() => confirmDecline(request._id, patientName)}
-                      className="flex-1 bg-red-50 rounded-xl py-3 px-4 items-center border border-red-200"
+                      style={incomingCardStyles.declineBtn}
                       activeOpacity={0.85}
+                      disabled={!!actionLoading}
                     >
-                      <Text className="text-red-600 font-bold text-sm">
+                      <Text style={incomingCardStyles.declineBtnText}>
                         Decline
                       </Text>
                     </TouchableOpacity>
@@ -1604,12 +1549,24 @@ export default function ProviderHome() {
                           confirmAccept(request);
                         }
                       }}
-                      className="flex-1 bg-blue-600 rounded-xl py-3 px-4 items-center"
+                      style={[
+                        incomingCardStyles.acceptBtn,
+                        actionLoading?.requestId === request._id &&
+                        actionLoading.action === "accept"
+                          ? { opacity: 0.7 }
+                          : null,
+                      ]}
                       activeOpacity={0.9}
+                      disabled={!!actionLoading}
                     >
-                      <Text className="text-white font-bold text-sm">
-                        {prescriptionReq ? "Check" : "Accept"}
-                      </Text>
+                      {actionLoading?.requestId === request._id &&
+                      actionLoading.action === "accept" ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={incomingCardStyles.acceptBtnText}>
+                          {prescriptionReq ? "Check" : "Accept"}
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1704,11 +1661,11 @@ export default function ProviderHome() {
                   </Text>
                 </View>
                 <View
-                  className={`self-start mb-2 px-3 py-1 rounded-full border flex-row items-center ${
-                    selectedRequest.consultationMode === "video_consultation"
-                      ? "bg-blue-50 border-blue-200"
-                      : "bg-emerald-50 border-emerald-200"
-                  }`}
+                  className="self-start mb-2 px-3 py-1.5 rounded-full border flex-row items-center"
+                  style={{
+                    backgroundColor: "#F0FDF4",
+                    borderColor: AUTH_COLORS.inputBorder,
+                  }}
                 >
                   <Feather
                     name={
@@ -1717,18 +1674,11 @@ export default function ProviderHome() {
                         : "home"
                     }
                     size={12}
-                    color={
-                      selectedRequest.consultationMode === "video_consultation"
-                        ? "#1D4ED8"
-                        : "#047857"
-                    }
+                    color={AUTH_COLORS.greenDark}
                   />
                   <Text
-                    className={`text-xs font-bold ml-1.5 ${
-                      selectedRequest.consultationMode === "video_consultation"
-                        ? "text-blue-700"
-                        : "text-emerald-700"
-                    }`}
+                    className="text-xs font-bold ml-1.5"
+                    style={{ color: AUTH_COLORS.greenDark }}
                   >
                     {selectedRequest.consultationMode === "video_consultation"
                       ? "Video Consultation"
@@ -1756,12 +1706,25 @@ export default function ProviderHome() {
               </View>
 
               {/* Fee Breakdown */}
-              <View className="bg-blue-50 rounded-xl p-4 mb-4">
-                <View className="flex-row justify-between mb-3">
-                  <Text className="text-sm text-gray-700">
-                    Consultation Fee:
+              <View
+                className="rounded-2xl p-4 mb-4"
+                style={{
+                  backgroundColor: AUTH_COLORS.bg,
+                  borderWidth: 1,
+                  borderColor: AUTH_COLORS.inputBorder,
+                }}
+              >
+                <View className="flex-row justify-between items-center">
+                  <Text
+                    className="text-sm font-semibold"
+                    style={{ color: AUTH_COLORS.textMuted }}
+                  >
+                    Consultation Fee
                   </Text>
-                  <Text className="text-base font-bold text-gray-900">
+                  <Text
+                    className="text-base font-extrabold"
+                    style={{ color: AUTH_COLORS.textDark }}
+                  >
                     N$ {selectedRequest.consultationCost ?? selectedRequest.estimatedCost ?? 0}
                   </Text>
                 </View>
@@ -1857,6 +1820,7 @@ export default function ProviderHome() {
                       selectedRequest.patientId?.fullname || "Unknown",
                     )
                   }
+                  disabled={!!actionLoading}
                   className="flex-1 bg-gray-100 py-3.5 rounded-xl border-2 border-[#BBF7D0]"
                 >
                   <Text className="text-gray-700 font-bold text-center">
@@ -1871,12 +1835,23 @@ export default function ProviderHome() {
                       confirmAccept(selectedRequest);
                     }
                   }}
-                  className="flex-1 py-3.5 rounded-xl"
-                  style={{ backgroundColor: AUTH_COLORS.green }}
+                  disabled={!!actionLoading}
+                  className="flex-1 py-3.5 rounded-xl items-center justify-center"
+                  style={{
+                    backgroundColor: AUTH_COLORS.green,
+                    opacity: actionLoading?.requestId === selectedRequest._id ? 0.7 : 1,
+                  }}
                 >
-                  <Text className="text-white font-bold text-center">
-                    {isPrescriptionRequest(selectedRequest) ? "Check Prescription" : "Accept Request"}
-                  </Text>
+                  {actionLoading?.requestId === selectedRequest._id &&
+                  actionLoading.action === "accept" ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-white font-bold text-center">
+                      {isPrescriptionRequest(selectedRequest)
+                        ? "Check Prescription"
+                        : "Accept Request"}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -1937,7 +1912,7 @@ export default function ProviderHome() {
               {onboardingSteps[currentOnboardingStep].image ? (
                 <View className="w-40 h-40 rounded-full overflow-hidden mb-6 bg-gray-100">
                   <Image
-                    source={require("../../../assets/images/connectlogo.png")}
+                    source={require("../../../../assets/images/connectlogo.png")}
                     style={{ width: "100%", height: "100%" }}
                     resizeMode="cover"
                   />
@@ -2008,11 +1983,45 @@ export default function ProviderHome() {
 }
 
 const incomingCardStyles = StyleSheet.create({
+  emptyCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+    padding: 16,
+  },
+  emptyIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyCopy: {
+    flex: 1,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: AUTH_COLORS.textDark,
+  },
+  emptyBody: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 19,
+    color: AUTH_COLORS.textMuted,
+  },
   loadMoreButton: {
     marginTop: 4,
     marginBottom: 8,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 999,
     borderWidth: 1.5,
     borderColor: AUTH_COLORS.inputBorder,
     backgroundColor: AUTH_COLORS.white,
@@ -2028,58 +2037,59 @@ const incomingCardStyles = StyleSheet.create({
   },
   card: {
     overflow: "hidden",
-    position: "relative",
-    paddingLeft: 18,
-  },
-  accentBar: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+    backgroundColor: AUTH_COLORS.white,
+    padding: 16,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 14,
-    gap: 10,
+    gap: 12,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: AUTH_COLORS.greenSoft,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   avatarText: {
     fontSize: 15,
     fontWeight: "800",
+    color: AUTH_COLORS.greenDark,
   },
   headerMain: {
     flex: 1,
     minWidth: 0,
   },
   patientName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "800",
     color: AUTH_COLORS.textDark,
+    letterSpacing: -0.2,
   },
   phoneRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    marginTop: 3,
+    marginTop: 4,
     alignSelf: "flex-start",
   },
   phoneText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
     color: AUTH_COLORS.greenDark,
   },
   ailmentLine: {
     fontSize: 13,
     color: AUTH_COLORS.textMuted,
-    marginTop: 2,
+    marginTop: 3,
   },
   statusPill: {
     flexDirection: "row",
@@ -2089,18 +2099,22 @@ const incomingCardStyles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     maxWidth: 120,
+    backgroundColor: AUTH_COLORS.greenSoft,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
+    color: AUTH_COLORS.greenDark,
+    textTransform: "capitalize",
   },
   detailsPanel: {
     backgroundColor: AUTH_COLORS.bg,
     borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: AUTH_COLORS.inputBorder,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     padding: 14,
     marginBottom: 14,
+    gap: 12,
   },
   detailsRow: {
     flexDirection: "row",
@@ -2112,42 +2126,38 @@ const incomingCardStyles = StyleSheet.create({
   detailDivider: {
     width: 1,
     height: 28,
-    backgroundColor: AUTH_COLORS.inputBorder,
+    backgroundColor: "#E5E7EB",
     marginHorizontal: 12,
   },
   detailLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
     color: AUTH_COLORS.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.4,
     marginBottom: 4,
   },
   detailValue: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "800",
     color: AUTH_COLORS.textDark,
-  },
-  detailsSeparator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: AUTH_COLORS.inputBorder,
-    marginVertical: 12,
   },
   modeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-  },
-  modeIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   modeLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
+    color: AUTH_COLORS.greenDark,
   },
   locationRow: {
     flexDirection: "row",
@@ -2168,6 +2178,36 @@ const incomingCardStyles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: AUTH_COLORS.textDark,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  declineBtn: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 13,
+    alignItems: "center",
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1.5,
+    borderColor: "#FECACA",
+  },
+  declineBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: AUTH_COLORS.error,
+  },
+  acceptBtn: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 13,
+    alignItems: "center",
+    backgroundColor: AUTH_COLORS.green,
+  },
+  acceptBtnText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: AUTH_COLORS.white,
   },
 });
 

@@ -159,7 +159,7 @@ export default function AuthScreenLayout({
           </KeyboardAvoidingView>
         </View>
       </View>
-      <StatusBar backgroundColor={AUTH_COLORS.bg} style="dark" />
+      <StatusBar style="dark" />
     </ScreenLayout>
   );
 }

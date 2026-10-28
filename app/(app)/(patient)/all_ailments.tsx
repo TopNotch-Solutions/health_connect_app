@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { HeaderBackButton } from "../../../components/HeaderBackButton";
 import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import AilmentCard from "../../../components/(patient)/AilmentCard";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
@@ -184,7 +185,9 @@ export default function AllAilmentsScreen() {
     medicalAidDetails?: {
       medicalAidId: string;
       medicalAidTitle?: string;
+      membershipNumber: string;
       mainMemberName: string;
+      mainMemberId: string;
       residentialAddress: string;
     };
   }) => {
@@ -291,6 +294,15 @@ export default function AllAilmentsScreen() {
       backgroundColor="#F9FAFB"
       keyboard
     >
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerTransparent: false,
+          headerStyle: { backgroundColor: "#F9FAFB" },
+          title: "",
+          headerLeft: () => <HeaderBackButton size={30} />,
+        }}
+      />
         <View style={styles.flex}>
           <View style={styles.searchSection}>
             <View style={styles.searchRow}>
@@ -369,7 +381,7 @@ const styles = StyleSheet.create({
   },
   searchSection: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 16,
     paddingBottom: 8,
     backgroundColor: "#F9FAFB",
     zIndex: 1,

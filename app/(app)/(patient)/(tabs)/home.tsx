@@ -8,6 +8,7 @@ import {
   Animated,
   FlatList,
   Image,
+  Linking,
   Modal,
   RefreshControl,
   ScrollView,
@@ -16,35 +17,36 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
-import { AuthBackgroundDecor } from "../../../components/AuthScreenLayout";
-import AilmentCard from "../../../components/(patient)/AilmentCard";
-import CreateRequestModal from "../../../components/(patient)/CreateRequestModal";
+import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../../components/ScreenLayout";
+import { AuthBackgroundDecor } from "../../../../components/AuthScreenLayout";
+import AilmentCard from "../../../../components/(patient)/AilmentCard";
+import CreateRequestModal from "../../../../components/(patient)/CreateRequestModal";
 import HistoryCard, {
   HistoryItem,
-} from "../../../components/(patient)/HistoryCard";
-import { useAuth } from "../../../context/AuthContext";
-import apiClient from "../../../lib/api";
+} from "../../../../components/(patient)/HistoryCard";
+import { useAuth } from "../../../../context/AuthContext";
+import apiClient from "../../../../lib/api";
 import {
   clearAilmentCategoriesCache,
   getCachedAilmentCategories,
   normalizeAilmentCategories,
   prefetchAilmentCategoryImages,
   setCachedAilmentCategories,
-} from "../../../lib/ailmentCache";
-import { buildBackendAssetUrl } from "../../../lib/backend";
-import { getLocationCoordinates } from "../../../lib/geocoding";
-import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
-import { PrescriptionFile, uploadPrescription } from "../../../lib/prescription";
-import { alertConsultationSubmitted } from "../../../lib/consultationAlert";
-import socketService from "../../../lib/socket";
-import { AUTH_COLORS } from "../../../lib/authScreenTheme";
-import { appBottomSheetStyles, appModalBottomSheetStyles } from "../../../components/app/AppBottomSheetUI";
+} from "../../../../lib/ailmentCache";
+import { buildBackendAssetUrl } from "../../../../lib/backend";
+import { getLocationCoordinates } from "../../../../lib/geocoding";
+import { ensureForegroundLocationPermission } from "../../../../lib/locationPermission";
+import { PrescriptionFile, uploadPrescription } from "../../../../lib/prescription";
+import { alertConsultationSubmitted } from "../../../../lib/consultationAlert";
+import socketService from "../../../../lib/socket";
+import { AUTH_COLORS } from "../../../../lib/authScreenTheme";
+import { appModalBottomSheetStyles } from "../../../../components/app/AppBottomSheetUI";
 
 interface Advert {
   _id: string;
   description: string;
   image: string;
+  contactNumber?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,7 +56,7 @@ type SectionHeaderProps = {
   title: string;
   subtitle: string;
   onSeeAll?: () => void;
-  /** Use neutral styling (no green) — for service sections */
+  /** Use neutral styling (no green) � for service sections */
   neutral?: boolean;
 };
 
@@ -260,7 +262,7 @@ export default function PatientHomeScreen() {
 
       const socket = socketService.getSocket();
       if (!socket?.connected) {
-        console.warn("⚠️ Socket not connected after waiting");
+        console.warn("?? Socket not connected after waiting");
         setIsLoadingAilments(false);
         return;
       }
@@ -286,7 +288,7 @@ export default function PatientHomeScreen() {
           if (resolved) return;
           resolved = true;
 
-          console.warn("⚠️ Ailment categories request timeout");
+          console.warn("?? Ailment categories request timeout");
           socket?.off("ailmentCategories", handleAilmentCategories);
           setIsLoadingAilments(false);
           resolve();
@@ -311,7 +313,7 @@ export default function PatientHomeScreen() {
     }
 
     try {
-      // Wait for socket connect — otherwise mount/focus races clear the list
+      // Wait for socket connect � otherwise mount/focus races clear the list
       // and nothing retries until the user pull-to-refreshes.
       await socketService.waitForConnection(10000);
 
@@ -405,6 +407,7 @@ export default function PatientHomeScreen() {
                     membershipNumber: item.medicalAidDetails.membershipNumber,
                     maf: item.medicalAidDetails.maf,
                     mainMemberName: item.medicalAidDetails.mainMemberName,
+                    mainMemberId: item.medicalAidDetails.mainMemberId,
                     residentialAddress:
                       item.medicalAidDetails.residentialAddress,
                     postalAddress: item.medicalAidDetails.postalAddress
@@ -484,7 +487,7 @@ export default function PatientHomeScreen() {
     }
   }, [user?.userId, loadAilmentCategories]);
 
-  // Portal catalog changes (ailments / ICD / medical aids) → invalidate + refetch
+  // Portal catalog changes (ailments / ICD / medical aids) ? invalidate + refetch
   useEffect(() => {
     const handleCatalogUpdated = () => {
       void clearAilmentCategoriesCache().then(() => loadAilmentCategories());
@@ -590,7 +593,9 @@ export default function PatientHomeScreen() {
     medicalAidDetails?: {
       medicalAidId: string;
       medicalAidTitle?: string;
+      membershipNumber: string;
       mainMemberName: string;
+      mainMemberId: string;
       residentialAddress: string;
     };
   }) => {
@@ -697,7 +702,7 @@ export default function PatientHomeScreen() {
         try {
           router.push("/(app)/(patient)/waiting-room");
         } catch (navError) {
-          console.error("❌ Navigation error:", navError);
+          console.error("? Navigation error:", navError);
         }
       }, 100);
 
@@ -722,9 +727,9 @@ export default function PatientHomeScreen() {
 
   const getGreetingEmoji = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "🌤️";
-    if (hour < 18) return "☀️";
-    return "🌙";
+    if (hour < 12) return "???";
+    if (hour < 18) return "??";
+    return "??";
   };
 
   const greeting = getGreeting();
@@ -760,12 +765,12 @@ export default function PatientHomeScreen() {
                   </Text>
                   <Text style={styles.heroName}>{firstName}</Text>
                   <Text style={styles.heroTagline}>
-                    Care that comes to you — book a visit in a few taps.
+                    Care that comes to you � book a visit in a few taps.
                   </Text>
                 </View>
                 <View style={styles.heroLogoWrap}>
                   <Image
-                    source={require("../../../assets/images/connectlogo.png")}
+                    source={require("../../../../assets/images/connectlogo.png")}
                     style={styles.heroLogo}
                     resizeMode="contain"
                   />
@@ -781,7 +786,7 @@ export default function PatientHomeScreen() {
                 <View style={styles.statPill}>
                   <Feather name="heart" size={14} color={AUTH_COLORS.green} />
                   <Text style={styles.statPillText}>
-                    {ailmentCategories.length || "—"} services
+                    {ailmentCategories.length || "�"} services
                   </Text>
                 </View>
               </View>
@@ -932,7 +937,7 @@ export default function PatientHomeScreen() {
               {isLoadingAilments ? (
                 <View style={styles.loadingCard}>
                   <ActivityIndicator size="small" color={AUTH_COLORS.textMuted} />
-                  <Text style={styles.mutedText}>Finding available services…</Text>
+                  <Text style={styles.mutedText}>Finding available services�</Text>
                 </View>
               ) : ailmentCategories.length > 0 ? (
                 <FlatList
@@ -1016,43 +1021,108 @@ export default function PatientHomeScreen() {
               setSelectedAdvert(null);
             }}
           >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
+            <View style={styles.advertModalOverlay}>
+              <TouchableOpacity
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => {
+                  setAdvertModalVisible(false);
+                  setSelectedAdvert(null);
+                }}
+                accessibilityLabel="Dismiss spotlight"
+              />
+              <View style={styles.advertModalCard}>
                 {selectedAdvert && (
                   <>
-                    <Image
-                      source={{
-                        uri:
-                          buildBackendAssetUrl(
-                            "adverts",
-                            selectedAdvert.image,
-                          ) || undefined,
-                      }}
-                      style={styles.modalImage}
-                      resizeMode="contain"
-                    />
-                    <ScrollView
-                      style={styles.modalDescriptionContainer}
-                      contentContainerStyle={styles.modalDescriptionContent}
-                      showsVerticalScrollIndicator={true}
-                    >
-                      <Text style={styles.modalDescription}>
-                        {selectedAdvert.description}
-                      </Text>
-                    </ScrollView>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setAdvertModalVisible(false);
-                        setSelectedAdvert(null);
-                      }}
-                      style={[
-                        appBottomSheetStyles.primaryCta,
-                        styles.modalCancelButton,
-                      ]}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={appBottomSheetStyles.primaryCtaText}>Close</Text>
-                    </TouchableOpacity>
+                    <View style={styles.advertModalHero}>
+                      <Image
+                        source={{
+                          uri:
+                            buildBackendAssetUrl(
+                              "adverts",
+                              selectedAdvert.image,
+                            ) || undefined,
+                        }}
+                        style={styles.advertModalHeroImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.advertModalHeroScrim} />
+                      <View style={styles.advertModalHeroTop}>
+                        <View style={styles.advertModalSpotlightPill}>
+                          <Feather
+                            name="star"
+                            size={12}
+                            color={AUTH_COLORS.white}
+                          />
+                          <Text style={styles.advertModalSpotlightPillText}>
+                            Spotlight
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setAdvertModalVisible(false);
+                            setSelectedAdvert(null);
+                          }}
+                          style={styles.advertModalClose}
+                          activeOpacity={0.85}
+                          accessibilityRole="button"
+                          accessibilityLabel="Close"
+                        >
+                          <Feather name="x" size={18} color={AUTH_COLORS.white} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={styles.advertModalBody}>
+                      <ScrollView
+                        style={styles.advertModalScroll}
+                        contentContainerStyle={styles.advertModalScrollContent}
+                        showsVerticalScrollIndicator={false}
+                      >
+                        <Text style={styles.advertModalTitle}>
+                          Featured offer
+                        </Text>
+                        <Text style={styles.advertModalDescription}>
+                          {selectedAdvert.description}
+                        </Text>
+                      </ScrollView>
+
+                      {!!selectedAdvert.contactNumber?.trim() && (
+                        <TouchableOpacity
+                          onPress={() => {
+                            const phone = selectedAdvert.contactNumber!
+                              .trim()
+                              .replace(/\s+/g, "");
+                            void Linking.openURL(`tel:${phone}`);
+                          }}
+                          style={styles.advertCallButton}
+                          activeOpacity={0.88}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Call ${selectedAdvert.contactNumber}`}
+                        >
+                          <View style={styles.advertCallIconWrap}>
+                            <Feather
+                              name="phone"
+                              size={18}
+                              color={AUTH_COLORS.white}
+                            />
+                          </View>
+                          <View style={styles.advertCallTextWrap}>
+                            <Text style={styles.advertCallLabel}>
+                              Tap to call
+                            </Text>
+                            <Text style={styles.advertCallNumber}>
+                              {selectedAdvert.contactNumber.trim()}
+                            </Text>
+                          </View>
+                          <Feather
+                            name="chevron-right"
+                            size={20}
+                            color="rgba(255,255,255,0.85)"
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </>
                 )}
               </View>
@@ -1100,7 +1170,7 @@ export default function PatientHomeScreen() {
               {onboardingSteps[currentOnboardingStep].image ? (
                 <View className="w-40 h-40 rounded-full overflow-hidden mb-6 bg-gray-100">
                   <Image
-                    source={require("../../../assets/images/connectlogo.png")}
+                    source={require("../../../../assets/images/connectlogo.png")}
                     style={{ width: "100%", height: "100%" }}
                     resizeMode="contain"
                   />
@@ -1488,36 +1558,146 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  modalOverlay: appModalBottomSheetStyles.overlayCenter,
-  modalContent: appModalBottomSheetStyles.centeredCard,
   welcomeSheet: {
     height: "65%",
     width: "100%",
     padding: 24,
   },
-  modalImage: {
+  advertModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.62)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 28,
+  },
+  advertModalCard: {
     width: "100%",
-    height: 300,
-    borderRadius: 12,
+    maxWidth: 400,
+    maxHeight: "88%",
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 28,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(187, 247, 208, 0.65)",
+    shadowColor: "#052e16",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.28,
+    shadowRadius: 28,
+    elevation: 18,
+  },
+  advertModalHero: {
+    width: "100%",
+    height: 280,
+    backgroundColor: "#0f172a",
+    position: "relative",
+  },
+  advertModalHeroImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
+  },
+  advertModalHeroScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(6, 78, 59, 0.18)",
+  },
+  advertModalHeroTop: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    right: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  advertModalSpotlightPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(22, 163, 74, 0.92)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  advertModalSpotlightPillText: {
+    color: AUTH_COLORS.white,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  advertModalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.28)",
+  },
+  advertModalBody: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 20,
+    backgroundColor: AUTH_COLORS.bg,
+  },
+  advertModalScroll: {
+    maxHeight: 160,
     marginBottom: 16,
   },
-  modalDescriptionContainer: {
-    width: "100%",
-    maxHeight: 200,
-    marginBottom: 20,
+  advertModalScrollContent: {
+    paddingBottom: 4,
   },
-  modalDescriptionContent: {
-    paddingHorizontal: 4,
+  advertModalTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: AUTH_COLORS.green,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginBottom: 8,
   },
-  modalDescription: {
+  advertModalDescription: {
+    fontSize: 17,
+    color: AUTH_COLORS.textDark,
+    lineHeight: 26,
+    fontWeight: "500",
+  },
+  advertCallButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: AUTH_COLORS.green,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    shadowColor: AUTH_COLORS.greenDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  advertCallIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  advertCallTextWrap: {
+    flex: 1,
+  },
+  advertCallLabel: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  advertCallNumber: {
+    color: AUTH_COLORS.white,
     fontSize: 16,
-    color: AUTH_COLORS.textMuted,
-    lineHeight: 24,
-    textAlign: "center",
-  },
-  modalCancelButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    minWidth: 120,
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
 });

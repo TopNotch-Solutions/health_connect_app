@@ -22,7 +22,6 @@ import {
   ActivityIndicator,
   AppState,
   type AppStateStatus,
-  InteractionManager,
   Modal,
   PermissionsAndroid,
   Platform,
@@ -103,9 +102,20 @@ function CallJoinController() {
 
     const join = async () => {
       try {
-        // Wait for layout to settle so RTCView is not 0×0 on first frame
+        // Wait for layout to settle so RTCView is not 0×0 on first frame.
+        // InteractionManager was removed in RN 0.88 / Expo SDK 58.
         await new Promise<void>((resolve) => {
-          InteractionManager.runAfterInteractions(() => resolve());
+          const idle =
+            typeof globalThis.requestIdleCallback === "function"
+              ? globalThis.requestIdleCallback
+              : null;
+          if (idle) {
+            idle(() => resolve());
+            return;
+          }
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => resolve());
+          });
         });
 
         const permitted = await ensureCallMediaPermissions();

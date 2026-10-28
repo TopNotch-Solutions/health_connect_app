@@ -16,6 +16,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { PickerField } from "./PickerField";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AlertDialogHost } from "./AlertDialog";
 import { KEYBOARD_AWARE_EXTRA_SCROLL } from "./ScreenLayout";
 import { namibianRegions, townsByRegion } from "../constants/locations";
 import { useAuth } from "../context/AuthContext";
@@ -26,7 +27,7 @@ import {
   normalizeNamibianPhone,
   validateNamibianPhone,
 } from "../lib/phone";
-// ── Validation helpers ────────────────────────────────────────────────────────
+// -- Validation helpers --------------------------------------------------------
 function validatePhone(raw: string): string | null {
   return validateNamibianPhone(raw);
 }
@@ -42,7 +43,7 @@ function validateEmail(v: string): string | null {
 function toBackendPhone(raw: string): string {
   return normalizeNamibianPhone(raw);
 }
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 interface EditPatientProfileModalProps {
   visible: boolean;
@@ -601,6 +602,7 @@ export default function EditPatientProfileModal({
           </SafeAreaView>
         </View>
       </View>
+      <AlertDialogHost active={visible} embedded />
     </Modal>
   );
 }

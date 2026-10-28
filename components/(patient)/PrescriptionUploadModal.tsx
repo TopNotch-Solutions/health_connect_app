@@ -25,6 +25,7 @@ import {
   appBottomSheetStyles,
   appModalBottomSheetStyles,
 } from "../app/AppBottomSheetUI";
+import { AlertDialogHost } from "../AlertDialog";
 import { AUTH_COLORS } from "../../lib/authScreenTheme";
 import { PrescriptionFile, uploadPrescription } from "../../lib/prescription";
 
@@ -59,7 +60,7 @@ export default function PrescriptionUploadModal({
     prescription.status === "pending_review" ||
     prescription.status === "rejected";
 
-  // ── Pick from camera roll ──────────────────────────────────────────────────
+  // -- Pick from camera roll --------------------------------------------------
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -87,7 +88,7 @@ export default function PrescriptionUploadModal({
     }
   };
 
-  // ── Pick PDF document ──────────────────────────────────────────────────────
+  // -- Pick PDF document ------------------------------------------------------
   const pickDocument = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: "application/pdf",
@@ -109,7 +110,7 @@ export default function PrescriptionUploadModal({
     }
   };
 
-  // ── Upload to backend ──────────────────────────────────────────────────────
+  // -- Upload to backend ------------------------------------------------------
   const uploadFile = async (file: { uri: string; name: string; mimeType: string }) => {
     try {
       setIsUploading(true);
@@ -134,13 +135,13 @@ export default function PrescriptionUploadModal({
     }
   };
 
-  // ── Status label ───────────────────────────────────────────────────────────
+  // -- Status label -----------------------------------------------------------
   const renderStatusBadge = () => {
     if (!prescription) return null;
     const map: Record<string, { label: string; bg: string; text: string; icon: string }> = {
       pending_review: { label: "Awaiting Review", bg: "#FEF9C3", text: "#92400E", icon: "clock" },
       accepted:       { label: "Accepted",         bg: "#DCFCE7", text: "#166534", icon: "check-circle" },
-      rejected:       { label: "Rejected — Re-upload", bg: "#FEE2E2", text: "#991B1B", icon: "x-circle" },
+      rejected:       { label: "Rejected � Re-upload", bg: "#FEE2E2", text: "#991B1B", icon: "x-circle" },
       cancelled:      { label: "Cancelled",         bg: "#F3F4F6", text: "#374151", icon: "slash" },
     };
     const meta = map[prescription.status] || map.pending_review;
@@ -201,7 +202,7 @@ export default function PrescriptionUploadModal({
               : "Upload a clear photo or PDF of your prescription. You can replace it until the pharmacist reviews it."}
           </Text>
 
-          {/* Upload buttons — shown only if editable */}
+          {/* Upload buttons � shown only if editable */}
           {canEdit && (
             <View style={styles.buttonGroup}>
               {isUploading ? (
@@ -231,6 +232,7 @@ export default function PrescriptionUploadModal({
           </TouchableOpacity>
         </View>
       </View>
+      <AlertDialogHost active={visible} embedded />
     </Modal>
   );
 }

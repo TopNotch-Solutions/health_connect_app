@@ -2,19 +2,19 @@ import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
-import { AppTextInput as TextInput } from "../../../components/AppTextInput";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../../../components/AppTextInput";
 import { ActivityIndicator, Alert, FlatList, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { PickerField } from "../../../components/PickerField";
+import { PickerField } from "../../../../components/PickerField";
 import {
   AppHeroCard,
   AppScreenShell,
   AUTH_COLORS,
-} from "../../../components/app/AppScreenUI";
-import { useAuth } from "../../../context/AuthContext";
-import apiClient from "../../../lib/api";
-import { buildBackendAssetUrl } from "../../../lib/backend";
-import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
+} from "../../../../components/app/AppScreenUI";
+import { useAuth } from "../../../../context/AuthContext";
+import apiClient from "../../../../lib/api";
+import { buildBackendAssetUrl } from "../../../../lib/backend";
+import { getUserFacingErrorMessage } from "../../../../lib/userFacingError";
 
 // --- Type Definitions ---
 type Tab = "report" | "tickets" | "faq" | "safety-tips";
@@ -36,8 +36,8 @@ interface Faq {
 // --- Predefined Data ---
 const issueTypes = [
   {
-    label: "Report Malpractice of Health Provider",
-    value: "Report Malpractice of Health Provider",
+    label: "Report Malpractice of Patient",
+    value: "Report Malpractice of Patient",
   },
   { label: "Login Problem", value: "Login Problem" },
   { label: "Payment Issue", value: "Payment Issue" },
@@ -53,73 +53,73 @@ const tabs: { key: Tab; label: string }[] = [
   { key: "safety-tips", label: "Safety Tips" },
 ];
 
-// Safety Tips for Patients
-const patientSafetyTips = [
+// Helper function to get color scheme for safety tip icons
+const getSafetyTipColor = (icon: string) => {
+  const colorMap: { [key: string]: { bg: string; icon: string } } = {
+    users: { bg: "#DBEAFE", icon: "#3B82F6" },
+    "user-check": { bg: "#D1FAE5", icon: "#10B981" },
+    lock: { bg: "#E0E7FF", icon: "#6366F1" },
+    "alert-triangle": { bg: "#FEE2E2", icon: "#EF4444" },
+    "file-text": { bg: "#FEF3C7", icon: "#F59E0B" },
+    "credit-card": { bg: "#FCE7F3", icon: "#EC4899" },
+    shield: { bg: "#DBEAFE", icon: "#3B82F6" },
+    book: { bg: "#E0E7FF", icon: "#6366F1" },
+  };
+  return colorMap[icon] || { bg: "#D1FAE5", icon: "#10B981" };
+};
+
+// Safety Tips for Providers
+const providerSafetyTips = [
   {
     id: "1",
-    title: "Verify Provider Credentials",
+    title: "Maintain Professional Boundaries",
     description:
-      "Always verify that your healthcare provider is registered with the Health Professionals Council of Namibia (HPCNA) before booking an appointment. Check their profile for verification badges and credentials.",
-    icon: "shield" as const,
+      "Always maintain professional boundaries with patients. Avoid sharing personal contact information or communicating outside the platform for non-emergency matters.",
+    icon: "users" as const,
   },
   {
     id: "2",
-    title: "Share Your Location Safely",
+    title: "Verify Patient Identity",
     description:
-      "Only share your location when requesting emergency services or home visits. Your location is only shared with verified providers during active service requests.",
-    icon: "map-pin" as const,
+      "Verify patient identity before providing services, especially for home visits. Confirm their name, date of birth, and appointment details.",
+    icon: "user-check" as const,
   },
   {
     id: "3",
-    title: "Protect Your Personal Information",
+    title: "Secure Patient Information",
     description:
-      "Never share your password, PIN, or payment details with anyone. Health_Connect staff will never ask for your password via phone or email.",
+      "Protect patient confidentiality at all times. Never share patient information with unauthorized parties. Follow HIPAA and local privacy regulations.",
     icon: "lock" as const,
   },
   {
     id: "4",
-    title: "Report Suspicious Activity",
+    title: "Report Safety Concerns",
     description:
-      "If you notice any suspicious behavior or receive requests that seem unusual, report it immediately through the Report tab. Your safety is our priority.",
+      "If you feel unsafe during a home visit or encounter suspicious behavior, report it immediately through the Report tab. Your safety is paramount.",
     icon: "alert-triangle" as const,
   },
   {
     id: "5",
-    title: "Verify Payment Requests",
+    title: "Keep Documentation Updated",
     description:
-      "All payments should be processed through the app. Be cautious of providers asking for direct cash payments or payments outside the platform.",
-    icon: "credit-card" as const,
+      "Ensure your professional credentials, licenses, and certifications are always up to date. Expired credentials may affect your ability to provide services.",
+    icon: "file-text" as const,
   },
   {
     id: "6",
-    title: "Keep Emergency Contacts Updated",
+    title: "Maintain Professional Insurance",
     description:
-      "Ensure your emergency contacts are up to date in your profile. This helps us assist you quickly in case of emergencies.",
-    icon: "phone" as const,
+      "Keep your professional liability insurance current and valid. This protects both you and your patients in case of unforeseen circumstances.",
+    icon: "shield" as const,
   },
   {
     id: "7",
-    title: "Secure Your Account",
+    title: "Follow Clinical Guidelines",
     description:
-      "Use a strong, unique password and enable two-factor authentication if available. Log out when using shared devices.",
-    icon: "key" as const,
+      "Always follow evidence-based clinical guidelines and best practices. Stay updated with continuing education and professional development requirements.",
+    icon: "book" as const,
   },
 ];
-
-// Helper function to get color scheme for safety tip icons
-const getSafetyTipColor = (icon: string) => {
-  const colorMap: { [key: string]: { bg: string; icon: string } } = {
-    shield: { bg: "#DBEAFE", icon: "#3B82F6" },
-    "map-pin": { bg: "#FEF3C7", icon: "#F59E0B" },
-    lock: { bg: "#E0E7FF", icon: "#6366F1" },
-    "alert-triangle": { bg: "#FEE2E2", icon: "#EF4444" },
-    "credit-card": { bg: "#D1FAE5", icon: "#10B981" },
-    phone: { bg: "#FCE7F3", icon: "#EC4899" },
-    star: { bg: "#FEF3C7", icon: "#F59E0B" },
-    key: { bg: "#E0E7FF", icon: "#6366F1" },
-  };
-  return colorMap[icon] || { bg: "#D1FAE5", icon: "#10B981" };
-};
 
 export default function IssuesScreen() {
   const { user } = useAuth();
@@ -200,7 +200,7 @@ export default function IssuesScreen() {
     }
 
     try {
-      const CREATE_ISSUE_ENDPOINT = "/app/issue/create-issue/";
+      const CREATE_ISSUE_ENDPOINT = `/app/issue/create-issue`;
       const response = await apiClient.post(CREATE_ISSUE_ENDPOINT, fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -239,7 +239,7 @@ export default function IssuesScreen() {
       }
 
       try {
-        const GET_ISSUES_ENDPOINT = `/app/issue/all-issues/?page=${page}&limit=10`;
+        const GET_ISSUES_ENDPOINT = `/app/issue/all-issues?page=${page}&limit=10`;
         const response = await apiClient.get(GET_ISSUES_ENDPOINT);
         const newTickets = response.data.data || [];
         const pagination = response.data.pagination || {};
@@ -288,7 +288,7 @@ export default function IssuesScreen() {
       const response = await apiClient.get(
         `/app/faq/all-faq?page=${page}&limit=10`,
       );
-      const newFaqs = response.data.faq || response.data.data || [];
+      const newFaqs = response.data.data || [];
       const pagination = response.data.pagination || {};
 
       if (isRefresh || page === 1) {
@@ -308,7 +308,6 @@ export default function IssuesScreen() {
         setFaqsHasMore(false);
       }
     } catch (error: any) {
-      console.error("Error fetching FAQs:", error.message);
       Alert.alert("Error", "Could not load FAQs.");
       if (page === 1) {
         setFaqs([]);
@@ -688,7 +687,7 @@ export default function IssuesScreen() {
                   </View>
                 )}
               </View>
-            ) : null
+            ) : undefined
           }
           onRefresh={() => fetchMyTickets(true, 1)}
           refreshing={ticketsIsRefreshing}
@@ -803,7 +802,7 @@ export default function IssuesScreen() {
                   </View>
                 )}
               </View>
-            ) : null
+            ) : undefined
           }
           onRefresh={() => fetchFaqs(true, 1)}
           refreshing={faqsIsRefreshing}
@@ -828,7 +827,7 @@ export default function IssuesScreen() {
           }}
           showsVerticalScrollIndicator={false}
         >
-          {patientSafetyTips.map((item) => (
+          {providerSafetyTips.map((item) => (
             <View key={item.id} style={styles.safetyTipCard}>
               <View style={styles.safetyTipTextWrapper}>
                 <Text style={styles.safetyTipTitle}>{item.title}</Text>
@@ -1210,11 +1209,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: AUTH_COLORS.green,
+    backgroundColor: "#10B981",
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 16,
-    shadowColor: AUTH_COLORS.green,
+    shadowColor: "#10B981",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

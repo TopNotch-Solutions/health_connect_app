@@ -62,7 +62,14 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": {
+            "web": false
+          }
+        }
+      ],
       "./plugins/withNetworkSecurityConfig",
       "./plugins/withPreventScreenshots",
       [
@@ -124,6 +131,7 @@
       "expo-web-browser",
       "expo-sharing",
       "expo-audio",
+      "expo-asset",
       [
         "react-native-maps",
         {

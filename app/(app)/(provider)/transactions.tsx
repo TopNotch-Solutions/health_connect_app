@@ -248,7 +248,7 @@ export default function TransactionsHistoryScreen() {
                   </View>
                 )}
               </View>
-            ) : null
+            ) : undefined
           }
           ListEmptyComponent={
             <View className="items-center mt-10">

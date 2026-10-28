@@ -1,10 +1,9 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useState } from "react";
 import {
   Alert,
-  Animated,
   BackHandler,
-  Easing,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -31,13 +30,58 @@ type AlertDialogRequest = {
   cancelable: boolean;
 };
 
-type ShowFn = (request: AlertDialogRequest) => void;
+type HostEntry = {
+  id: string;
+  show: (request: AlertDialogRequest) => void;
+};
 
-// Hosts register in mount order; the most recently mounted one shows the
-// dialog. The root host covers normal screens, and a host mounted inside a
-// native <Modal> takes over while that modal is open (a second native modal
-// cannot be presented on top of another one on iOS).
-const hosts: ShowFn[] = [];
+/**
+ * Persist across Fast Refresh. Capturing Alert.alert after a patch would
+ * recurse forever when hosts are empty.
+ */
+const globalAlert = globalThis as typeof globalThis & {
+  __hcNativeAlert?: typeof Alert.alert;
+  __hcAlertHosts?: HostEntry[];
+  __hcAlertPatched?: boolean;
+};
+
+// Capture the real native Alert once. Never re-bind after patching or Fast
+// Refresh will make the "native" fallback recurse into showAlertDialog.
+if (typeof globalAlert.__hcNativeAlert !== "function") {
+  globalAlert.__hcNativeAlert = Alert.alert.bind(Alert);
+}
+
+// Fresh host list on every module load; effects re-register via HOST_GENERATION.
+globalAlert.__hcAlertHosts = [];
+
+const nativeAlert = globalAlert.__hcNativeAlert;
+const hosts = globalAlert.__hcAlertHosts;
+
+/** Bumps on every module reload so hosts re-register after Fast Refresh. */
+const HOST_GENERATION = Date.now();
+
+// iOS silently drops a Modal if another Modal is still dismissing.
+const MODAL_PRESENT_GAP_MS = 350;
+let lastDialogDismissAt = 0;
+let presentTimer: ReturnType<typeof setTimeout> | null = null;
+
+function markDialogDismissed() {
+  lastDialogDismissAt = Date.now();
+}
+
+function presentToTopHost(request: AlertDialogRequest): void {
+  const top = hosts[hosts.length - 1];
+  if (!top) {
+    nativeAlert(
+      request.title,
+      request.message,
+      request.buttons,
+      { cancelable: request.cancelable },
+    );
+    return;
+  }
+  top.show(request);
+}
 
 /**
  * In-app replacement for Alert.alert confirmations. Same argument shape as
@@ -50,62 +94,129 @@ export function showAlertDialog(
   options?: AlertDialogOptions,
 ): void {
   const resolvedButtons = buttons?.length ? buttons : [{ text: "OK" }];
-  const show = hosts[hosts.length - 1];
-
-  if (!show) {
-    // No host mounted (should not happen) — fall back to the system alert.
-    Alert.alert(title, message, resolvedButtons, options);
-    return;
-  }
-
-  show({
+  const request: AlertDialogRequest = {
     title,
     message,
     buttons: resolvedButtons,
     cancelable: options?.cancelable ?? true,
-  });
+  };
+
+  if (presentTimer) {
+    clearTimeout(presentTimer);
+    presentTimer = null;
+  }
+
+  const wait = Math.max(
+    0,
+    MODAL_PRESENT_GAP_MS - (Date.now() - lastDialogDismissAt),
+  );
+
+  if (wait > 0) {
+    presentTimer = setTimeout(() => {
+      presentTimer = null;
+      presentToTopHost(request);
+    }, wait);
+    return;
+  }
+
+  presentToTopHost(request);
 }
 
-export function AlertDialogHost() {
-  const [request, setRequest] = useState<AlertDialogRequest | null>(null);
-  const progress = useRef(new Animated.Value(0)).current;
+/**
+ * Route every `Alert.alert(...)` call through the custom in-app dialog so
+ * screens that still use the React Native Alert API get the branded popup.
+ */
+export function installAlertDialogPatch(): void {
+  if (globalAlert.__hcAlertPatched) return;
+  globalAlert.__hcAlertPatched = true;
+  Alert.alert = ((
+    title: string,
+    message?: string,
+    buttons?: AlertDialogButton[],
+    options?: AlertDialogOptions,
+  ) => {
+    showAlertDialog(title, message, buttons, options);
+  }) as typeof Alert.alert;
+}
 
-  const show = useCallback<ShowFn>((next) => setRequest(next), []);
+installAlertDialogPatch();
+
+type AlertDialogHostProps = {
+  /**
+   * When false, this host does not receive dialogs. Pass the parent Modal's
+   * `visible` so closed modals don't steal alerts into an invisible tree.
+   */
+  active?: boolean;
+  /**
+   * Use inside an already-open RN Modal. Renders as an absolute overlay
+   * (iOS cannot stack a second Modal). Root host leaves this false and uses
+   * a transparent Modal so dialogs appear above react-native-screens.
+   */
+  embedded?: boolean;
+};
+
+export function AlertDialogHost({
+  active = true,
+  embedded = false,
+}: AlertDialogHostProps) {
+  const id = useId();
+  const [request, setRequest] = useState<AlertDialogRequest | null>(null);
+
+  const show = useCallback((next: AlertDialogRequest) => {
+    setRequest(next);
+  }, []);
 
   useEffect(() => {
-    hosts.push(show);
+    installAlertDialogPatch();
+  }, []);
+
+  useEffect(() => {
+    if (!active) {
+      setRequest((prev) => {
+        if (prev) markDialogDismissed();
+        return null;
+      });
+      return;
+    }
+
+    const entry: HostEntry = { id, show };
+    hosts.push(entry);
     return () => {
-      const index = hosts.lastIndexOf(show);
+      const index = hosts.findIndex((h) => h.id === id);
       if (index !== -1) hosts.splice(index, 1);
     };
-  }, [show]);
-
-  useEffect(() => {
-    if (!request) return;
-    progress.setValue(0);
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: 180,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [request, progress]);
+  }, [id, show, active, HOST_GENERATION]);
 
   const cancelButton = request?.buttons.find((b) => b.style === "cancel");
 
-  const handlePress = useCallback((button: AlertDialogButton) => {
-    // Close first so an onPress that opens a follow-up dialog replaces this one.
-    setRequest(null);
-    void button.onPress?.();
-  }, []);
+  const handlePress = useCallback(
+    (button: AlertDialogButton) => {
+      markDialogDismissed();
+      setRequest(null);
+      // Non-embedded hosts use RN Modal — wait for dismiss before follow-up UI.
+      if (embedded) {
+        void button.onPress?.();
+        return;
+      }
+      setTimeout(() => {
+        void button.onPress?.();
+      }, MODAL_PRESENT_GAP_MS);
+    },
+    [embedded],
+  );
 
   const dismiss = useCallback(() => {
-    if (request?.cancelable && cancelButton) handlePress(cancelButton);
+    if (!request?.cancelable) return;
+    if (cancelButton) {
+      handlePress(cancelButton);
+      return;
+    }
+    markDialogDismissed();
+    setRequest(null);
   }, [request?.cancelable, cancelButton, handlePress]);
 
   useEffect(() => {
     if (!request) return;
-    // Swallow back presses while open so the screen underneath doesn't navigate.
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       dismiss();
       return true;
@@ -113,39 +224,39 @@ export function AlertDialogHost() {
     return () => sub.remove();
   }, [request, dismiss]);
 
-  if (!request) return null;
+  const open = active && !!request;
 
-  const isDestructive = request.buttons.some((b) => b.style === "destructive");
-  const stacked = request.buttons.length > 2;
-  // Cancel sits on the left in a row and at the bottom when stacked.
-  const ordered = stacked
-    ? [
-        ...request.buttons.filter((b) => b.style !== "cancel"),
-        ...request.buttons.filter((b) => b.style === "cancel"),
-      ]
-    : [
-        ...request.buttons.filter((b) => b.style === "cancel"),
-        ...request.buttons.filter((b) => b.style !== "cancel"),
-      ];
+  const isDestructive =
+    !!request?.buttons.some((b) => b.style === "destructive");
+  const stacked = (request?.buttons.length ?? 0) > 2;
+  const ordered = request
+    ? stacked
+      ? [
+          ...request.buttons.filter((b) => b.style !== "cancel"),
+          ...request.buttons.filter((b) => b.style === "cancel"),
+        ]
+      : [
+          ...request.buttons.filter((b) => b.style === "cancel"),
+          ...request.buttons.filter((b) => b.style !== "cancel"),
+        ]
+    : [];
 
-  const scale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.94, 1],
-  });
-
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Animated.View style={[styles.backdrop, { opacity: progress }]}>
+  const body = request ? (
+    <View
+      style={embedded ? styles.host : styles.modalRoot}
+      pointerEvents="box-none"
+    >
+      <View style={styles.backdrop}>
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={dismiss}
           accessibilityLabel="Dismiss dialog"
         />
-      </Animated.View>
+      </View>
 
       <View style={styles.center} pointerEvents="box-none">
-        <Animated.View
-          style={[styles.card, { opacity: progress, transform: [{ scale }] }]}
+        <View
+          style={styles.card}
           accessibilityViewIsModal
           accessibilityRole="alert"
         >
@@ -199,13 +310,43 @@ export function AlertDialogHost() {
               );
             })}
           </View>
-        </Animated.View>
+        </View>
       </View>
     </View>
+  ) : null;
+
+  if (embedded) {
+    if (!open) return null;
+    return body;
+  }
+
+  return (
+    <Modal
+      visible={open}
+      transparent
+      animationType="fade"
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      onRequestClose={dismiss}
+    >
+      {body}
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  host: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 10000,
+    elevation: 10000,
+  },
+  modalRoot: {
+    flex: 1,
+  },
   backdrop: {
     position: "absolute",
     top: 0,
@@ -300,7 +441,6 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 15,
     fontWeight: "600",
-    // Long labels ("Payment Confirmed") wrap to two lines in a row layout.
     textAlign: "center",
   },
   buttonTextFilled: {

@@ -462,7 +462,7 @@ const DocRow = ({
       ) : file ? (
         <Feather name="check-circle" size={20} color={AUTH_COLORS.green} />
       ) : (
-        <Text className="text-gray-400 text-xs">—</Text>
+        <Text className="text-gray-400 text-xs">?</Text>
       )}
     </View>
   );
@@ -612,12 +612,12 @@ export default function ProviderRegistrationScreen() {
 
   // Set up callback for terms and conditions acceptance
   useEffect(() => {
-    global.acceptProviderTermsCallback = (accepted: boolean) => {
+    (globalThis as any).acceptProviderTermsCallback = (accepted: boolean) => {
       setAccountInfo((p) => ({ ...p, agreeToTerms: accepted }));
     };
 
     return () => {
-      delete global.acceptProviderTermsCallback;
+      delete (globalThis as any).acceptProviderTermsCallback;
     };
   }, []);
 
@@ -1131,7 +1131,7 @@ export default function ProviderRegistrationScreen() {
         try {
           fd.append(k, v);
         } catch (err) {
-          console.error(`❌ Error appending field ${k}:`, err);
+          console.error(`? Error appending field ${k}:`, err);
         }
       }
     });
@@ -1158,7 +1158,7 @@ export default function ProviderRegistrationScreen() {
               : "image/jpeg");
         return { uri, name, type } as any;
       } catch (err) {
-        console.error(`❌ Error processing file ${fallback}:`, err);
+        console.error(`? Error processing file ${fallback}:`, err);
         return null;
       }
     };
@@ -1183,7 +1183,7 @@ export default function ProviderRegistrationScreen() {
         } else {
         }
       } catch (err) {
-        console.error(`❌ Error appending file ${key}:`, err);
+        console.error(`? Error appending file ${key}:`, err);
       }
     });
 
@@ -1244,7 +1244,7 @@ export default function ProviderRegistrationScreen() {
     // Dispensing certification is optional, do NOT treat as missing
 
     if (missing.length) {
-      Alert.alert("Missing info", "Please provide:\n• " + missing.join("\n• "));
+      Alert.alert("Missing info", "Please provide:\n? " + missing.join("\n? "));
       return;
     }
 
@@ -1264,11 +1264,11 @@ export default function ProviderRegistrationScreen() {
         router.replace("/(root)/sign-in");
       } else {
         const errorMsg = res?.data?.message ?? "Unable to register.";
-        console.error("❌ Registration error:", errorMsg);
+        console.error("? Registration error:", errorMsg);
         Alert.alert("Error", errorMsg);
       }
     } catch (e: any) {
-      console.error("❌ Exception during registration:", {
+      console.error("? Exception during registration:", {
         message: e?.message,
         code: e?.code,
         status: e?.response?.status,
@@ -1936,7 +1936,7 @@ export default function ProviderRegistrationScreen() {
                   }
                 }}
                 items={namibianRegions}
-                placeholder="Select region…"
+                placeholder="Select region?"
                 error={!!profErrors.operationalZone}
               />
             </FieldBlock>

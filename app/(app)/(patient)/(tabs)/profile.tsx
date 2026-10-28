@@ -11,26 +11,32 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { appBottomSheetStyles } from "../../../components/app/AppBottomSheetUI";
+import { appBottomSheetStyles } from "../../../../components/app/AppBottomSheetUI";
 import {
   ProfileFeatureShell,
   ProfileSectionRail,
-} from "../../../components/ProfileFeatureShell";
+} from "../../../../components/ProfileFeatureShell";
 import {
   AppMenuDivider,
   AppMenuItem,
   AppMenuSection,
   AppScreenShell,
   appScreenStyles,
-} from "../../../components/app/AppScreenUI";
-import { AUTH_COLORS } from "../../../lib/authScreenTheme";
-import ChangePasswordModal from "../../../components/ChangePasswordModal";
-import EditPatientProfileModal from "../../../components/EditPatientProfileModal";
-import EditPostalAddressModal from "../../../components/(patient)/EditPostalAddressModal";
-import { useAuth } from "../../../context/AuthContext";
-import apiClient from "../../../lib/api";
-import { buildBackendAssetUrl } from "../../../lib/backend";
+} from "../../../../components/app/AppScreenUI";
+import { AUTH_COLORS } from "../../../../lib/authScreenTheme";
+import ChangePasswordModal from "../../../../components/ChangePasswordModal";
+import EditPatientProfileModal from "../../../../components/EditPatientProfileModal";
+import EditPostalAddressModal from "../../../../components/(patient)/EditPostalAddressModal";
+import { useAuth } from "../../../../context/AuthContext";
+import apiClient from "../../../../lib/api";
+import {
+  buildBackendAssetUrl,
+  withAccessTokenQuery,
+} from "../../../../lib/backend";
 import { showAlertDialog } from "@/components/AlertDialog";
+
+type IdDocumentSide = "idDocumentFront" | "idDocumentBack";
+type IdPreviewSource = { uri: string } | null;
 
 export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
@@ -41,14 +47,77 @@ export default function ProfileScreen() {
     React.useState(false);
   const [changePasswordVisible, setChangePasswordVisible] =
     React.useState(false);
+  const [editDocumentsVisible, setEditDocumentsVisible] = React.useState(false);
   const [helpSupportVisible, setHelpSupportVisible] = React.useState(false);
   const [aboutVisible, setAboutVisible] = React.useState(false);
   const [selectedImage, setSelectedImage] =
     React.useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [uploadingDocument, setUploadingDocument] =
+    React.useState<IdDocumentSide | null>(null);
+  const [idFrontPreview, setIdFrontPreview] =
+    React.useState<IdPreviewSource>(null);
+  const [idBackPreview, setIdBackPreview] =
+    React.useState<IdPreviewSource>(null);
 
-  // This is the base URL where your backend serves images.
-  // YOU MUST CONFIRM THIS from your backend's `server.js` or `app.js` file.
-  // It's often where you see a line like `app.use(express.static('public'))`.
+  const resolveIdPreview = React.useCallback(
+    async (filename?: string | null): Promise<IdPreviewSource> => {
+      const base = buildBackendAssetUrl("images", filename);
+      if (!base) return null;
+      return { uri: await withAccessTokenQuery(base) };
+    },
+    [],
+  );
+
+  const loadIdDocumentPreviews = React.useCallback(
+    async (frontFilename?: string | null, backFilename?: string | null) => {
+      const [front, back] = await Promise.all([
+        resolveIdPreview(frontFilename ?? user?.idDocumentFront),
+        resolveIdPreview(backFilename ?? user?.idDocumentBack),
+      ]);
+      setIdFrontPreview(front);
+      setIdBackPreview(back);
+    },
+    [user?.idDocumentFront, user?.idDocumentBack, resolveIdPreview],
+  );
+
+  // When the sheet opens, pull existing ID filenames from the server and show previews.
+  React.useEffect(() => {
+    if (!editDocumentsVisible) return;
+
+    let cancelled = false;
+
+    (async () => {
+      let frontFilename: string | null | undefined = user?.idDocumentFront;
+      let backFilename: string | null | undefined = user?.idDocumentBack;
+
+      try {
+        const response = await apiClient.get("/app/auth/user-details");
+        const remote = response.data?.user;
+        if (remote && !cancelled) {
+          frontFilename = remote.idDocumentFront ?? null;
+          backFilename = remote.idDocumentBack ?? null;
+          await updateUser({
+            idDocumentFront: frontFilename || undefined,
+            idDocumentBack: backFilename || undefined,
+            isDocumentVerified: remote.isDocumentVerified,
+          });
+        }
+      } catch (error) {
+        console.warn("Could not refresh ID documents from server:", error);
+      }
+
+      if (!cancelled) {
+        await loadIdDocumentPreviews(frontFilename, backFilename);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Only re-run when the sheet opens — not when user/preview helpers change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editDocumentsVisible]);
+
   const handlePickImage = async () => {
     try {
       const { status } =
@@ -122,6 +191,106 @@ export default function ProfileScreen() {
     }
   };
 
+  const pickIdDocument = async (documentType: IdDocumentSide) => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        showAlertDialog(
+          "Permission Denied",
+          "We need gallery permissions to select an image.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.[0]) {
+        await uploadIdDocument(documentType, result.assets[0]);
+      }
+    } catch (error) {
+      showAlertDialog("Error", "Failed to pick document. Please try again.");
+      console.error("ID document picker error:", error);
+    }
+  };
+
+  const uploadIdDocument = async (
+    documentType: IdDocumentSide,
+    image: ImagePicker.ImagePickerAsset,
+  ) => {
+    if (!user?.userId) {
+      showAlertDialog("Error", "User not found. Please try again.");
+      return;
+    }
+
+    const localPreview = { uri: image.uri };
+    if (documentType === "idDocumentFront") {
+      setIdFrontPreview(localPreview);
+    } else {
+      setIdBackPreview(localPreview);
+    }
+
+    setUploadingDocument(documentType);
+    try {
+      const formData = new FormData();
+      formData.append(documentType, {
+        uri: image.uri,
+        name: image.fileName || `${documentType}-${Date.now()}.jpg`,
+        type: image.mimeType || "image/jpeg",
+      } as any);
+
+      const endpoint =
+        documentType === "idDocumentFront"
+          ? "/app/auth/update-id-front"
+          : "/app/auth/update-id-back";
+
+      const response = await apiClient.patch(endpoint, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      const savedFilename =
+        documentType === "idDocumentFront"
+          ? response.data?.idDocumentFront
+          : response.data?.idDocumentBack;
+
+      await updateUser({
+        ...(savedFilename ? { [documentType]: savedFilename } : {}),
+        isDocumentVerified: false,
+      });
+
+      if (savedFilename) {
+        const authenticated = await resolveIdPreview(savedFilename);
+        if (documentType === "idDocumentFront") {
+          setIdFrontPreview(authenticated ?? localPreview);
+        } else {
+          setIdBackPreview(authenticated ?? localPreview);
+        }
+      }
+
+      showAlertDialog(
+        "Success",
+        "ID document updated. It will be reviewed by an administrator.",
+      );
+    } catch (error: any) {
+      await loadIdDocumentPreviews();
+      showAlertDialog(
+        "Error",
+        error.response?.data?.message ||
+          "Failed to upload ID document. Please try again.",
+      );
+      console.error("ID document upload error:", error);
+    } finally {
+      setUploadingDocument(null);
+    }
+  };
+
   const handleLogout = () => {
     showAlertDialog("Log Out", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
@@ -151,7 +320,7 @@ export default function ProfileScreen() {
   const handleAboutHealthConnectPress = () => setAboutVisible(true);
 
   // Required by Google Play, which needs an in-app route to delete the account
-  // and its data. Deactivation does not satisfy that â€” it removes nothing.
+  // and its data. Deactivation does not satisfy that — it removes nothing.
   const performAccountDeletion = async () => {
     setIsLoading(true);
     try {
@@ -292,7 +461,7 @@ export default function ProfileScreen() {
                     color={AUTH_COLORS.green}
                     style={{ marginRight: 8 }}
                   />
-                  <Text style={appScreenStyles.uploadPhotoText}>Uploadingâ€¦</Text>
+                  <Text style={appScreenStyles.uploadPhotoText}>Uploading…</Text>
                 </View>
               ) : (
                 <Text style={appScreenStyles.uploadPhotoText}>Upload photo</Text>
@@ -312,6 +481,12 @@ export default function ProfileScreen() {
             icon="mail"
             label="Postal Address"
             onPress={() => setEditPostalAddressVisible(true)}
+          />
+          <AppMenuDivider />
+          <AppMenuItem
+            icon="credit-card"
+            label="ID Documents"
+            onPress={() => setEditDocumentsVisible(true)}
           />
           <AppMenuDivider />
           <AppMenuItem
@@ -391,6 +566,173 @@ export default function ProfileScreen() {
       />
 
       <ProfileFeatureShell
+        visible={editDocumentsVisible}
+        onClose={() => setEditDocumentsVisible(false)}
+        kicker="Verification"
+        title="ID documents"
+        subtitle="Upload or update your national ID (front and back)"
+      >
+        {user?.isDocumentVerified === false &&
+          (user?.idDocumentFront || user?.idDocumentBack) && (
+            <View
+              style={{
+                backgroundColor: "#FEF2F2",
+                borderWidth: 1,
+                borderColor: "#FECACA",
+                borderRadius: 12,
+                padding: 12,
+                marginBottom: 16,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#DC2626",
+                  fontSize: 13,
+                  lineHeight: 18,
+                  fontWeight: "600",
+                }}
+              >
+                Your documents are pending administrator review. Updating them
+                will restart verification.
+              </Text>
+            </View>
+          )}
+
+        {(
+          [
+            {
+              side: "idDocumentFront" as const,
+              title: "National ID (Front)",
+              preview: idFrontPreview,
+              hasStored: Boolean(user?.idDocumentFront),
+            },
+            {
+              side: "idDocumentBack" as const,
+              title: "National ID (Back)",
+              preview: idBackPreview,
+              hasStored: Boolean(user?.idDocumentBack),
+            },
+          ]
+        ).map(({ side, title, preview, hasStored }) => {
+          const isSideUploading = uploadingDocument === side;
+          return (
+            <View
+              key={side}
+              style={[
+                appBottomSheetStyles.documentCard,
+                isSideUploading && appBottomSheetStyles.documentCardUploading,
+              ]}
+            >
+              <Text style={appBottomSheetStyles.documentTitle}>{title}</Text>
+              <Text
+                style={[appBottomSheetStyles.documentSubtitle, { marginBottom: 12 }]}
+              >
+                {hasStored || preview
+                  ? "Tap replace to upload a new image"
+                  : "No document uploaded yet"}
+              </Text>
+
+              {preview ? (
+                <Image
+                  source={preview}
+                  style={{
+                    width: "100%",
+                    height: 180,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: AUTH_COLORS.inputBorder,
+                    backgroundColor: AUTH_COLORS.bg,
+                    marginBottom: 12,
+                  }}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View
+                  style={{
+                    width: "100%",
+                    height: 140,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderStyle: "dashed",
+                    borderColor: AUTH_COLORS.inputBorder,
+                    backgroundColor: AUTH_COLORS.bg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 12,
+                  }}
+                >
+                  <Feather name="image" size={28} color={AUTH_COLORS.textMuted} />
+                  <Text
+                    style={{
+                      marginTop: 8,
+                      color: AUTH_COLORS.textMuted,
+                      fontSize: 13,
+                    }}
+                  >
+                    Preview will appear here
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                onPress={() => pickIdDocument(side)}
+                disabled={uploadingDocument !== null}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: AUTH_COLORS.greenSoft,
+                  borderWidth: 1,
+                  borderColor: AUTH_COLORS.inputBorder,
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  opacity: uploadingDocument !== null ? 0.6 : 1,
+                }}
+                activeOpacity={0.7}
+              >
+                {isSideUploading ? (
+                  <>
+                    <ActivityIndicator
+                      size="small"
+                      color={AUTH_COLORS.green}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text
+                      style={{
+                        color: AUTH_COLORS.green,
+                        fontWeight: "700",
+                        fontSize: 14,
+                      }}
+                    >
+                      Uploading…
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Feather
+                      name={preview ? "refresh-cw" : "upload"}
+                      size={18}
+                      color={AUTH_COLORS.green}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text
+                      style={{
+                        color: AUTH_COLORS.green,
+                        fontWeight: "700",
+                        fontSize: 14,
+                      }}
+                    >
+                      {preview ? "Replace image" : "Upload image"}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+      </ProfileFeatureShell>
+
+      <ProfileFeatureShell
         visible={helpSupportVisible}
         onClose={() => setHelpSupportVisible(false)}
         kicker="Get assistance"
@@ -423,7 +765,7 @@ export default function ProfileScreen() {
 
         <View style={appBottomSheetStyles.ambulanceCard}>
           <Image
-            source={require("../../../assets/images/eme.png")}
+            source={require("../../../../assets/images/eme.png")}
             style={appBottomSheetStyles.ambulanceImage}
             resizeMode="contain"
           />
@@ -464,25 +806,25 @@ export default function ProfileScreen() {
             </Text>
             <View style={appBottomSheetStyles.bulletList}>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   Easy appointment booking and management
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   Secure payment processing for consultations
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   24/7 emergency services integration
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   Issue reporting and support ticket system
                 </Text>
@@ -498,34 +840,34 @@ export default function ProfileScreen() {
             </Text>
             <View style={appBottomSheetStyles.bulletList}>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   We comply with healthcare data protection regulations
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   Your information is only shared with authorized healthcare
                   providers
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   We never sell or share your data with third parties for
                   marketing purposes
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   You have full control over your data and can request deletion
                   at any time
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   Regular security audits and updates ensure your data remains
                   protected
@@ -542,35 +884,35 @@ export default function ProfileScreen() {
             </Text>
             <View style={appBottomSheetStyles.bulletList}>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   <Text style={appBottomSheetStyles.boldText}>Right to Correction:</Text> You
                   can request corrections to inaccurate information
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   <Text style={appBottomSheetStyles.boldText}>Right to Deletion:</Text> You
                   can request account deactivation and data deletion
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   <Text style={appBottomSheetStyles.boldText}>Right to Privacy:</Text> Your
                   health information is confidential and protected
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   <Text style={appBottomSheetStyles.boldText}>Right to Support:</Text> Access
                   to 24/7 customer support and issue reporting
                 </Text>
               </View>
               <View style={appBottomSheetStyles.bulletItem}>
-                <Text style={appBottomSheetStyles.bullet}>â€¢</Text>
+                <Text style={appBottomSheetStyles.bullet}>•</Text>
                 <Text style={appBottomSheetStyles.bulletText}>
                   <Text style={appBottomSheetStyles.boldText}>Your Responsibility:</Text> Keep
                   your account credentials secure and provide accurate

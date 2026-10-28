@@ -1,8 +1,9 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { PickerField } from "../PickerField";
 import { AppTextInput as TextInput } from "../AppTextInput";
 import { withIosStandaloneTextInputStyle } from "../../lib/iosInputStyles";
+import { AUTH_COLORS } from "../../lib/authScreenTheme";
 import {
   formatPostalAddressPreview,
   PostalAddressPayload,
@@ -40,34 +41,25 @@ export default function PostalAddressFormFields({
     onChange({ ...form, [key]: value });
   };
 
-  const labelCls = "text-sm text-gray-700 mb-1";
-  const inputCls =
-    "bg-gray-50 border border-gray-300 rounded-lg p-4 text-base mb-4";
-  const resolvedInputStyle = withIosStandaloneTextInputStyle(inputStyle);
-
+  const resolvedInputStyle = withIosStandaloneTextInputStyle(
+    inputStyle ? [styles.inputFallback, inputStyle] : styles.inputFallback,
+  );
+  const resolvedLabelStyle = [styles.labelFallback, labelStyle];
   const preview = formatPostalAddressPreview(form);
 
   return (
     <View>
-      <Text className={labelCls} style={labelStyle}>
-        Addressee *
-      </Text>
+      <Text style={resolvedLabelStyle}>Full name *</Text>
       <TextInput
         style={resolvedInputStyle}
-        className={inputStyle ? undefined : inputCls}
         placeholder="Full name as on mail"
         value={form.addressee}
         onChangeText={(v) => updateField("addressee", v)}
         editable={editable}
       />
 
-      <Text
-        className={labelCls}
-        style={[labelStyle, inputStyle ? { marginTop: 8 } : undefined]}
-      >
-        Address type *
-      </Text>
-      <View className="mb-4">
+      <Text style={resolvedLabelStyle}>Address type *</Text>
+      <View style={styles.pickerWrap}>
         <PickerField
           value={form.addressType}
           onValueChange={(value) =>
@@ -84,12 +76,9 @@ export default function PostalAddressFormFields({
 
       {form.addressType === "po_box" && (
         <>
-          <Text className={labelCls} style={labelStyle}>
-            PO Box number *
-          </Text>
+          <Text style={resolvedLabelStyle}>PO Box number *</Text>
           <TextInput
             style={resolvedInputStyle}
-            className={inputStyle ? undefined : inputCls}
             placeholder="e.g. 999"
             value={form.boxNumber || ""}
             onChangeText={(v) => updateField("boxNumber", v)}
@@ -101,12 +90,9 @@ export default function PostalAddressFormFields({
 
       {form.addressType === "private_bag" && (
         <>
-          <Text className={labelCls} style={labelStyle}>
-            Private Bag number *
-          </Text>
+          <Text style={resolvedLabelStyle}>Private Bag number *</Text>
           <TextInput
             style={resolvedInputStyle}
-            className={inputStyle ? undefined : inputCls}
             placeholder="e.g. 13678"
             value={form.bagNumber || ""}
             onChangeText={(v) => updateField("bagNumber", v)}
@@ -118,48 +104,36 @@ export default function PostalAddressFormFields({
 
       {form.addressType === "street" && (
         <>
-          <Text className={labelCls} style={labelStyle}>
-            Unit / additional (optional)
-          </Text>
+          <Text style={resolvedLabelStyle}>Unit / additional (optional)</Text>
           <TextInput
             style={resolvedInputStyle}
-            className={inputStyle ? undefined : inputCls}
             placeholder="e.g. Flat 2, Unit B"
             value={form.unitOrAdditional || ""}
             onChangeText={(v) => updateField("unitOrAdditional", v)}
             editable={editable}
           />
 
-          <Text className={labelCls} style={labelStyle}>
-            Street / premises *
-          </Text>
+          <Text style={resolvedLabelStyle}>Street / premises *</Text>
           <TextInput
             style={resolvedInputStyle}
-            className={inputStyle ? undefined : inputCls}
             placeholder="e.g. 11 Mermaid Street"
             value={form.premises || ""}
             onChangeText={(v) => updateField("premises", v)}
             editable={editable}
           />
 
-          <Text className={labelCls} style={labelStyle}>
-            Suburb / village (optional)
-          </Text>
+          <Text style={resolvedLabelStyle}>Suburb / village (optional)</Text>
           <TextInput
             style={resolvedInputStyle}
-            className={inputStyle ? undefined : inputCls}
             placeholder="e.g. Ocean View"
             value={form.subLocality || ""}
             onChangeText={(v) => updateField("subLocality", v)}
             editable={editable}
           />
 
-          <Text className={labelCls} style={labelStyle}>
-            Locality (optional)
-          </Text>
+          <Text style={resolvedLabelStyle}>Locality (optional)</Text>
           <TextInput
             style={resolvedInputStyle}
-            className={inputStyle ? undefined : inputCls}
             placeholder="e.g. Onethindi"
             value={form.locality || ""}
             onChangeText={(v) => updateField("locality", v)}
@@ -168,12 +142,9 @@ export default function PostalAddressFormFields({
         </>
       )}
 
-      <Text className={labelCls} style={labelStyle}>
-        Delivery post office *
-      </Text>
+      <Text style={resolvedLabelStyle}>Delivery post office *</Text>
       <TextInput
         style={resolvedInputStyle}
-        className={inputStyle ? undefined : inputCls}
         placeholder="e.g. WINDHOEK"
         value={form.postOffice}
         onChangeText={(v) => updateField("postOffice", v)}
@@ -181,12 +152,9 @@ export default function PostalAddressFormFields({
         autoCapitalize="characters"
       />
 
-      <Text className={labelCls} style={labelStyle}>
-        Postcode * (5 digits)
-      </Text>
+      <Text style={resolvedLabelStyle}>Postcode * (5 digits)</Text>
       <TextInput
         style={resolvedInputStyle}
-        className={inputStyle ? undefined : inputCls}
         placeholder="e.g. 10005"
         value={form.postcode}
         onChangeText={(v) =>
@@ -197,36 +165,78 @@ export default function PostalAddressFormFields({
         maxLength={5}
       />
 
-      <Text className={labelCls} style={labelStyle}>
-        Country
-      </Text>
+      <Text style={resolvedLabelStyle}>Country</Text>
       <TextInput
-        style={withIosStandaloneTextInputStyle(
-          inputStyle
-            ? [inputStyle, { color: "#6B7280" }]
-            : undefined,
-        )}
-        className={
-          inputStyle
-            ? undefined
-            : "bg-gray-100 border border-gray-300 rounded-lg p-4 text-base text-gray-600 mb-4"
-        }
+        style={[
+          resolvedInputStyle,
+          styles.countryInput,
+          inputStyle ? { marginBottom: 16 } : null,
+        ]}
         value="NAMIBIA"
         editable={false}
       />
 
       {showPreview ? (
-        <>
-          <Text className="text-sm font-semibold text-gray-900 mb-2">
-            Preview
-          </Text>
-          <View className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-2">
-            <Text className="text-sm text-gray-800 leading-5">
-              {preview || "—"}
-            </Text>
-          </View>
-        </>
+        <View style={styles.previewCard}>
+          <Text style={styles.previewLabel}>Preview</Text>
+          <Text style={styles.previewText}>{preview || "—"}</Text>
+        </View>
       ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  labelFallback: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    color: AUTH_COLORS.textDark,
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  inputFallback: {
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingLeft: 18,
+    paddingVertical: 14,
+    minHeight: 54,
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: 16,
+    backgroundColor: AUTH_COLORS.white,
+    borderColor: AUTH_COLORS.inputBorder,
+    color: AUTH_COLORS.textDark,
+  },
+  pickerWrap: {
+    marginBottom: 16,
+  },
+  countryInput: {
+    backgroundColor: "#F0FDF4",
+    color: AUTH_COLORS.textMuted,
+  },
+  previewCard: {
+    marginTop: 4,
+    marginBottom: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  previewLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    color: AUTH_COLORS.green,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  previewText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: AUTH_COLORS.textDark,
+  },
+});

@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AlertDialogHost } from "./AlertDialog";
 import { KEYBOARD_AWARE_EXTRA_SCROLL } from "./ScreenLayout";
 import { PickerField } from "./PickerField";
 import { namibianRegions } from "../constants/locations";
@@ -38,7 +39,7 @@ interface Specialization {
   description?: string;
 }
 
-// ── Validation helpers ────────────────────────────────────────────────────────
+// -- Validation helpers --------------------------------------------------------
 
 function validatePhone(raw: string): string | null {
   return validateNamibianPhone(raw);
@@ -64,7 +65,7 @@ function validateYears(v: string): string | null {
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 export default function EditProviderProfileModal({
   visible,
@@ -103,7 +104,7 @@ export default function EditProviderProfileModal({
     governingCouncil:
       user?.governingCouncil || "Health Professionals Council of Namibia",
     bio: user?.bio || "",
-    // ── Pharmacist-specific ────────────────────────────────────────────────
+    // -- Pharmacist-specific ------------------------------------------------
     registeredTradingName: (user as any)?.registeredTradingName || "",
     companyRegistrationNo: (user as any)?.companyRegistrationNo || "",
     businessEmail: (user as any)?.businessEmail || "",
@@ -341,7 +342,7 @@ export default function EditProviderProfileModal({
     setShowDatePicker(false);
   };
 
-  // ── Inline error helper ────────────────────────────────────────────────────
+  // -- Inline error helper ----------------------------------------------------
   const setError = (field: string, msg: string | null) =>
     setFieldErrors((prev) => {
       const next = { ...prev };
@@ -357,7 +358,7 @@ export default function EditProviderProfileModal({
       </Text>
     ) : null;
 
-  // ── Save ───────────────────────────────────────────────────────────────────
+  // -- Save -------------------------------------------------------------------
   const handleSave = async () => {
     if (!hasChanges()) {
       Alert.alert("No Changes", "No changes have been made to your profile.");
@@ -398,9 +399,9 @@ export default function EditProviderProfileModal({
       errors.bio = "Professional bio is required";
 
     setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return; // stop — fields will show their own errors
+    if (Object.keys(errors).length > 0) return; // stop � fields will show their own errors
 
-    // Convert to 264XXXXXXXXX — exactly what the backend validator expects
+    // Convert to 264XXXXXXXXX � exactly what the backend validator expects
     const cleanedPhone = toBackendPhone(formData.cellphoneNumber);
 
     setIsLoading(true);
@@ -480,7 +481,7 @@ export default function EditProviderProfileModal({
       );
       onClose();
     } catch (error: any) {
-      // Surface backend error message directly — it's usually descriptive
+      // Surface backend error message directly � it's usually descriptive
       const msg: string =
         error.response?.data?.message || "Failed to update profile. Please try again.";
       // Try to map known backend messages to specific fields
@@ -819,7 +820,7 @@ export default function EditProviderProfileModal({
               <TextInput
                 className="bg-white rounded-lg px-4 py-3 text-gray-900"
                 style={withIosStandaloneTextInputStyle({ borderWidth: 2, borderColor: fieldErrors.yearsOfExperience ? "#EF4444" : AUTH_COLORS.inputBorder, borderRadius: 12 })}
-                placeholder="Enter years (0 – 60)"
+                placeholder="Enter years (0 � 60)"
                 placeholderTextColor={AUTH_COLORS.placeholder}
                 value={formData.yearsOfExperience}
                 onChangeText={(text) => {
@@ -842,7 +843,7 @@ export default function EditProviderProfileModal({
                   if (fieldErrors.operationalZone) setError("operationalZone", null);
                 }}
                 items={namibianRegions}
-                placeholder="Select region…"
+                placeholder="Select region�"
                 disabled={isLoading}
                 error={!!fieldErrors.operationalZone}
                 borderColor={AUTH_COLORS.inputBorder}
@@ -877,7 +878,7 @@ export default function EditProviderProfileModal({
             </View>
           </View>
 
-          {/* ── Pharmacy Details (pharmacist only) ────────────────────────── */}
+          {/* -- Pharmacy Details (pharmacist only) -------------------------- */}
           {user?.role === "pharmacist" && (
             <View style={styles.sectionCard}>
               <View style={styles.pharmacyHeader}>
@@ -1081,6 +1082,7 @@ export default function EditProviderProfileModal({
         </KeyboardAwareScrollView>
         </View>
       </View>
+      <AlertDialogHost active={visible} embedded />
     </Modal>
   );
 }

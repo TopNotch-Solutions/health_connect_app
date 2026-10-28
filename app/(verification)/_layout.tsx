@@ -15,7 +15,7 @@ const VerificationLayout = () => {
         <Stack.Screen name="verify-phone" />
         <Stack.Screen name="verify-otp" />
       </Stack>
-      <StatusBar backgroundColor={AUTH_COLORS.bg} style="dark" />
+      <StatusBar style="dark" />
     </>
   );
 };

@@ -65,7 +65,7 @@ export default function AilmentsScreen() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedAilment, setSelectedAilment] = useState("");
+  const [selectedAilment, setSelectedAilment] = useState<any>(null);
   const [location, setLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -179,7 +179,9 @@ export default function AilmentsScreen() {
     medicalAidDetails?: {
       medicalAidId: string;
       medicalAidTitle?: string;
+      membershipNumber: string;
       mainMemberName: string;
+      mainMemberId: string;
       residentialAddress: string;
     };
   }) => {
@@ -307,7 +309,7 @@ export default function AilmentsScreen() {
         visible={modalVisible}
         onClose={() => {
           setModalVisible(false);
-          setSelectedAilment("");
+          setSelectedAilment(null);
         }}
         onSubmit={handleCreateRequest}
         selectedAilment={selectedAilment}

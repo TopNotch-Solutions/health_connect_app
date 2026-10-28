@@ -68,3 +68,68 @@ export async function ensureForegroundLocationPermission(
     canAskAgain,
   };
 }
+
+/** Current position with a hard timeout — High accuracy can hang indefinitely on some devices. */
+export async function getCurrentPositionWithTimeout(
+  options: {
+    timeoutMs?: number;
+    accuracy?: Location.LocationAccuracy;
+  } = {},
+): Promise<Location.LocationObject> {
+  const timeoutMs = options.timeoutMs ?? 12000;
+  const accuracy = options.accuracy ?? Location.Accuracy.Balanced;
+
+  const locationPromise = Location.getCurrentPositionAsync({ accuracy });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new Error(
+          "Unable to get your current location in time. Check GPS is on and try again.",
+        ),
+      );
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([locationPromise, timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Prefer last-known / cached coords so accept can emit immediately.
+ * Fresh GPS is only fetched when nothing usable is available.
+ */
+export async function resolveProviderCoordsForAccept(
+  cached?: { latitude: number; longitude: number } | null,
+): Promise<{ latitude: number; longitude: number }> {
+  if (
+    cached &&
+    typeof cached.latitude === "number" &&
+    typeof cached.longitude === "number" &&
+    Number.isFinite(cached.latitude) &&
+    Number.isFinite(cached.longitude)
+  ) {
+    return cached;
+  }
+
+  try {
+    const lastKnown = await Location.getLastKnownPositionAsync();
+    if (lastKnown?.coords) {
+      return {
+        latitude: lastKnown.coords.latitude,
+        longitude: lastKnown.coords.longitude,
+      };
+    }
+  } catch {
+    // fall through to live fix
+  }
+
+  const loc = await getCurrentPositionWithTimeout({ timeoutMs: 8000 });
+  return {
+    latitude: loc.coords.latitude,
+    longitude: loc.coords.longitude,
+  };
+}

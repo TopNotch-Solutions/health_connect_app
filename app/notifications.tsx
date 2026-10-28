@@ -127,72 +127,67 @@ const NotificationCard = ({ item, onPress, onDelete }: { item: Notification; onP
   const config = getNotificationConfig(item.type);
   const isUnread = item.status === 'sent' || item.status === 'delivered' || item.status === 'pending';
   const priority = item.priority || 'medium';
-  
-  const getPriorityBorder = () => {
-    if (priority === 'urgent') return '#EF4444';
-    if (priority === 'high') return '#F59E0B';
-    return 'transparent';
-  };
+  const accent =
+    priority === 'urgent'
+      ? '#DC2626'
+      : priority === 'high'
+        ? '#D97706'
+        : isUnread
+          ? AUTH_COLORS.green
+          : '#D1D5DB';
 
   return (
     <TouchableOpacity
-      activeOpacity={0.7}
+      activeOpacity={0.75}
       onPress={onPress}
       style={[
         styles.card,
-        {
-          backgroundColor: AUTH_COLORS.white,
-          borderColor: isUnread ? AUTH_COLORS.green : AUTH_COLORS.inputBorder,
-          borderLeftWidth: priority === 'urgent' || priority === 'high' ? 4 : 2,
-          borderLeftColor:
-            priority === 'urgent' || priority === 'high'
-              ? getPriorityBorder()
-              : isUnread
-                ? AUTH_COLORS.green
-                : AUTH_COLORS.inputBorder,
-        },
+        isUnread ? styles.cardUnread : styles.cardRead,
+        { borderLeftColor: accent },
       ]}
     >
       <View style={styles.cardContent}>
-        <View
-          style={[
-            styles.iconContainer,
-            { backgroundColor: config.bgColor },
-          ]}
-        >
+        <View style={styles.iconContainer}>
           {config.iconLib === 'feather' ? (
-            <Feather name={config.icon as any} size={22} color={config.color} />
+            <Feather
+              name={config.icon as any}
+              size={18}
+              color={isUnread ? AUTH_COLORS.greenDark : AUTH_COLORS.textMuted}
+            />
           ) : (
-            <MaterialCommunityIcons name={config.icon as any} size={22} color={config.color} />
+            <MaterialCommunityIcons
+              name={config.icon as any}
+              size={18}
+              color={isUnread ? AUTH_COLORS.greenDark : AUTH_COLORS.textMuted}
+            />
           )}
         </View>
-        
+
         <View style={styles.textContainer}>
           <View style={styles.titleRow}>
-            <Text style={[styles.title, isUnread && styles.titleBold]}>
+            <Text
+              style={[styles.title, isUnread && styles.titleBold]}
+              numberOfLines={2}
+            >
               {item.title}
             </Text>
-            {isUnread && <View style={styles.unreadDot} />}
+            {isUnread ? <View style={styles.unreadDot} /> : null}
           </View>
-          
-          <Text style={styles.message}>
+
+          <Text style={styles.message} numberOfLines={3}>
             {item.message}
           </Text>
-          
+
           <View style={styles.footer}>
             <Text style={styles.time}>{formatTimeAgo(item.createdAt)}</Text>
             <View style={styles.footerRight}>
-              {priority === 'urgent' && (
-                <View style={styles.urgentBadge}>
-                  <Text style={styles.urgentText}>Urgent</Text>
-                </View>
-              )}
-              {priority === 'high' && (
-                <View style={styles.highBadge}>
-                  <Text style={styles.highText}>High</Text>
-                </View>
-              )}
-              {onDelete && (
+              {priority === 'urgent' ? (
+                <Text style={styles.urgentText}>Urgent</Text>
+              ) : null}
+              {priority === 'high' ? (
+                <Text style={styles.highText}>High</Text>
+              ) : null}
+              {onDelete ? (
                 <TouchableOpacity
                   onPress={(e) => {
                     e.stopPropagation();
@@ -200,10 +195,11 @@ const NotificationCard = ({ item, onPress, onDelete }: { item: Notification; onP
                   }}
                   style={styles.deleteButton}
                   activeOpacity={0.7}
+                  hitSlop={8}
                 >
-                  <Feather name="trash-2" size={16} color="#EF4444" />
+                  <Feather name="trash-2" size={15} color="#9CA3AF" />
                 </TouchableOpacity>
-              )}
+              ) : null}
             </View>
           </View>
         </View>
@@ -350,7 +346,7 @@ export default function NotificationsScreen() {
     });
 
     return (
-        <AppScreenShell edges={SCREEN_EDGES_TOP} backgroundVariant="notifications">
+        <AppScreenShell edges={SCREEN_EDGES_TOP}>
             {/* Header */}
             <View style={[styles.header, iosCustomTopBarStyle]}>
                 <HeaderBackButton color={AUTH_COLORS.textDark} size={24} />
@@ -378,7 +374,7 @@ export default function NotificationsScreen() {
             {/* Notifications List */}
             {isLoading ? (
                 <View style={styles.loadingContainer}>
-                    <AppLoadingCard message="Loading notificationsâ€¦" />
+                    <AppLoadingCard message="Loading notifications…" />
                 </View>
             ) : (
                 <FlatList
@@ -403,7 +399,10 @@ export default function NotificationsScreen() {
                             onDelete={() => deleteNotification(item._id)}
                         />
                     )}
-                    contentContainerStyle={appScreenStyles.scrollContent}
+                    contentContainerStyle={[
+                      appScreenStyles.scrollContent,
+                      styles.listContent,
+                    ]}
                     ListEmptyComponent={
                         <AppEmptyState
                             icon="bell-off"
@@ -444,7 +443,7 @@ export default function NotificationsScreen() {
                                             </>
                                         ) : (
                                             <>
-                                                <Feather name="chevron-down" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
+                                                <Feather name="chevron-down" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
                                                 <Text style={styles.loadMoreButtonText}>Load More</Text>
                                             </>
                                         )}
@@ -457,7 +456,7 @@ export default function NotificationsScreen() {
                                     </View>
                                 )}
                             </View>
-                        ) : null
+                        ) : undefined
                     }
                     onRefresh={() => fetchNotifications(true, 1)}
                     refreshing={isRefreshing}
@@ -477,21 +476,28 @@ const styles = StyleSheet.create({
         paddingHorizontal: Platform.OS === 'ios' ? 12 : 20,
         paddingVertical: 12,
         backgroundColor: 'transparent',
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: '#E5E7EB',
     },
     headerTitle: {
-        fontSize: 22,
-        fontWeight: '800',
+        fontSize: 20,
+        fontWeight: '700',
         color: AUTH_COLORS.textDark,
         flex: 1,
         marginLeft: Platform.OS === 'ios' ? 4 : 8,
     },
     markAllButton: {
-        padding: 8,
+        paddingVertical: 6,
+        paddingHorizontal: 4,
     },
     markAllText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: AUTH_COLORS.green,
+        fontSize: 13,
+        fontWeight: '600',
+        color: AUTH_COLORS.greenDark,
+    },
+    listContent: {
+        paddingTop: 8,
+        paddingHorizontal: 0,
     },
     loadingContainer: {
         flex: 1,
@@ -501,101 +507,106 @@ const styles = StyleSheet.create({
     },
     card: {
         backgroundColor: AUTH_COLORS.white,
-        borderRadius: 16,
-        marginBottom: 12,
-        marginHorizontal: 20,
-        shadowColor: AUTH_COLORS.green,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        elevation: 2,
-        borderWidth: 2,
+        borderRadius: 12,
+        marginBottom: 10,
+        marginHorizontal: 16,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderLeftWidth: 3,
+    },
+    cardUnread: {
+        backgroundColor: '#FFFFFF',
+        borderColor: '#D1D5DB',
+    },
+    cardRead: {
+        backgroundColor: '#F9FAFB',
+        borderColor: '#E5E7EB',
     },
     cardContent: {
         flexDirection: 'row',
-        padding: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 14,
+        gap: 12,
     },
     iconContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: 40,
+        height: 40,
+        borderRadius: 10,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        backgroundColor: '#F3F4F6',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
     },
     textContainer: {
         flex: 1,
+        minWidth: 0,
     },
     titleRow: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         marginBottom: 4,
         gap: 8,
     },
     title: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '600',
-        color: AUTH_COLORS.textDark,
+        color: '#1F2937',
         flex: 1,
+        lineHeight: 20,
     },
     titleBold: {
         fontWeight: '700',
+        color: AUTH_COLORS.textDark,
     },
     unreadDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+        width: 7,
+        height: 7,
+        borderRadius: 3.5,
         backgroundColor: AUTH_COLORS.green,
+        marginTop: 6,
     },
     message: {
-        fontSize: 14,
-        color: AUTH_COLORS.textMuted,
-        lineHeight: 20,
-        marginBottom: 8,
+        fontSize: 13,
+        color: '#6B7280',
+        lineHeight: 19,
+        marginBottom: 10,
     },
     footer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginTop: 4,
+        paddingTop: 8,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: '#E5E7EB',
     },
     footerRight: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 10,
     },
     time: {
         fontSize: 12,
         color: '#9CA3AF',
+        fontWeight: '500',
     },
     deleteButton: {
-        padding: 4,
-        marginLeft: 4,
-    },
-    urgentBadge: {
-        backgroundColor: '#FEE2E2',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 8,
+        padding: 2,
     },
     urgentText: {
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: '700',
-        color: '#EF4444',
-    },
-    highBadge: {
-        backgroundColor: '#FEF3C7',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 8,
+        color: '#DC2626',
+        letterSpacing: 0.2,
     },
     highText: {
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: '700',
-        color: '#F59E0B',
+        color: '#D97706',
+        letterSpacing: 0.2,
     },
     paginationContainer: {
-        paddingVertical: 32,
+        paddingVertical: 24,
         alignItems: 'center',
         paddingHorizontal: 20,
     },
@@ -603,44 +614,39 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 16,
+        marginBottom: 14,
         width: '100%',
     },
     paginationLine: {
         flex: 1,
-        height: 1,
-        backgroundColor: AUTH_COLORS.inputBorder,
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: '#D1D5DB',
     },
     paginationTextContainer: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 12,
     },
     paginationText: {
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '600',
-        color: AUTH_COLORS.textMuted,
+        color: '#9CA3AF',
         textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        letterSpacing: 0.4,
     },
     loadMoreButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: AUTH_COLORS.green,
-        paddingVertical: 14,
-        paddingHorizontal: 32,
-        borderRadius: 999,
-        shadowColor: AUTH_COLORS.green,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
+        backgroundColor: AUTH_COLORS.greenDark,
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 10,
     },
     loadMoreButtonDisabled: {
         opacity: 0.6,
     },
     loadMoreButtonText: {
         color: AUTH_COLORS.white,
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '600',
     },
     allLoadedContainer: {
@@ -649,8 +655,8 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     allLoadedText: {
-        fontSize: 14,
-        color: AUTH_COLORS.textMuted,
+        fontSize: 13,
+        color: '#9CA3AF',
         fontWeight: '500',
     },
 });

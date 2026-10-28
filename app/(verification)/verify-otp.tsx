@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   StyleSheet,
   Text,
-  TextInput as RNTextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -20,11 +19,13 @@ import apiClient, { ensureAppToken } from "../../lib/api";
 import { AUTH_COLORS, authScreenStyles } from "../../lib/authScreenTheme";
 import { getUserFacingErrorMessage } from "../../lib/userFacingError";
 
+type OtpInputRef = React.ComponentRef<typeof TextInput>;
+
 const OTPScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [otp, setOtp] = useState<string[]>(new Array(6).fill(""));
-  const inputs = useRef<(RNTextInput | null)[]>([]);
+  const inputs = useRef<Array<OtpInputRef | null>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
@@ -212,7 +213,7 @@ const OTPScreen = () => {
         {otp.map((digit, index) => (
           <TextInput
             key={index}
-            ref={(ref: RNTextInput | null) => {
+            ref={(ref) => {
               inputs.current[index] = ref;
             }}
             style={[

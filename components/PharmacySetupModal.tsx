@@ -3,7 +3,7 @@ import { AppTextInput as TextInput } from "./AppTextInput";
 /**
  * PharmacySetupModal
  *
- * Dedicated setup screen for pharmacists — fields from the Pharmacy Category spec.
+ * Dedicated setup screen for pharmacists � fields from the Pharmacy Category spec.
  * Fixes:
  *  - useRef guard prevents re-seeding on every render (reset bug)
  *  - KeyboardAwareScrollView keeps fields visible above the keyboard
@@ -69,14 +69,14 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
   const [isUploadingCert, setIsUploadingCert] = useState(false);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  // Local cert flag — updated immediately on upload, not tied to user context re-renders
+  // Local cert flag � updated immediately on upload, not tied to user context re-renders
   const [hasCert, setHasCert] = useState(false);
 
   // Keep latest user value in a ref so the seed effect can read it without being reactive to it
   const userRef = useRef(user);
   useEffect(() => { userRef.current = user; }, [user]);
 
-  // Guard: only seed once per open session — deps=[visible] only, NOT user
+  // Guard: only seed once per open session � deps=[visible] only, NOT user
   const seededRef = useRef(false);
   useEffect(() => {
     if (visible && !seededRef.current) {
@@ -102,14 +102,14 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
     if (!visible) {
       seededRef.current = false;
     }
-  }, [visible]); // NO user in deps — prevents re-seeding when updateUser fires
+  }, [visible]); // NO user in deps � prevents re-seeding when updateUser fires
 
   const set = (key: keyof FormState, value: any) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: undefined }));
   };
 
-  // ── GPS detection ─────────────────────────────────────────────────────────
+  // -- GPS detection ---------------------------------------------------------
   const detectLocation = async () => {
     try {
       setIsDetectingLocation(true);
@@ -147,7 +147,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
     }
   };
 
-  // ── Validation ─────────────────────────────────────────────────────────────
+  // -- Validation -------------------------------------------------------------
   const validate = () => {
     const e: Partial<Record<keyof FormState, string>> = {};
     if (!form.registeredTradingName.trim())
@@ -164,7 +164,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
     return Object.keys(e).length === 0;
   };
 
-  // ── Save ───────────────────────────────────────────────────────────────────
+  // -- Save -------------------------------------------------------------------
   const handleSave = async () => {
     if (!validate()) {
       // Scroll to top so user can see which fields have errors
@@ -200,7 +200,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
     }
   };
 
-  // ── Certificate upload ─────────────────────────────────────────────────────
+  // -- Certificate upload -----------------------------------------------------
   const pickAndUploadCert = async (source: "image" | "document") => {
     try {
       let uri = "", name = "", mimeType = "";
@@ -237,7 +237,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
         headers: { "Content-Type": "multipart/form-data" },
       });
       if (res.data?.hpcnaCertificate) {
-        setHasCert(true); // update local flag immediately — no re-seed triggered
+        setHasCert(true); // update local flag immediately � no re-seed triggered
         await updateUser({ ...(user as any), hpcnaCertificate: res.data.hpcnaCertificate });
         Alert.alert("Uploaded", "HPCNA certificate uploaded successfully.");
       }
@@ -256,7 +256,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
     ]);
   };
 
-  // ── Derived ────────────────────────────────────────────────────────────────
+  // -- Derived ----------------------------------------------------------------
   // Use local hasCert flag (not user context) so status banner never flickers on updateUser
   const certFilename: string | null = hasCert
     ? ((user as any)?.hpcnaCertificate || "uploaded")
@@ -274,7 +274,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
   const formatDate = (d: Date | null) =>
     d ? d.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }) : "Select date";
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // -- Render -----------------------------------------------------------------
   return (
     <Modal
       visible={visible}
@@ -362,7 +362,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
               </View>
             </View>
 
-            {/* ── Business Identity ────────────────────────────────── */}
+            {/* -- Business Identity ---------------------------------- */}
             <SectionHeader icon="briefcase" title="Business Identity" />
 
             <Field
@@ -388,7 +388,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
               autoCapitalize="none"
             />
 
-            {/* ── Regulatory ───────────────────────────────────────── */}
+            {/* -- Regulatory ----------------------------------------- */}
             <SectionHeader icon="shield" title="Regulatory" />
 
             <Field
@@ -406,7 +406,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
               error={errors.practiceNumber}
             />
 
-            {/* ── Documentation ────────────────────────────────────── */}
+            {/* -- Documentation -------------------------------------- */}
             <SectionHeader icon="file-text" title="Documentation" />
 
             {/* HPCNA Certificate */}
@@ -492,7 +492,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
                   <Feather name="alert-triangle" size={12} color="#EF4444" />
                   <Text style={{ fontSize: 11, color: "#EF4444" }}>
-                    License has expired — renew before accepting requests
+                    License has expired � renew before accepting requests
                   </Text>
                 </View>
               )}
@@ -516,10 +516,10 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
               />
             )}
 
-            {/* ── Operations ───────────────────────────────────────── */}
+            {/* -- Operations ----------------------------------------- */}
             <SectionHeader icon="map-pin" title="Operations" />
 
-            {/* GPS — detect location button */}
+            {/* GPS � detect location button */}
             <View style={{ marginBottom: 16 }}>
               <Text style={{ fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 6 }}>
                 Pharmacy Location (for dispatch)
@@ -621,7 +621,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
               keyboardType="phone-pad"
             />
 
-            {/* ── Compliance ───────────────────────────────────────── */}
+            {/* -- Compliance ----------------------------------------- */}
             <SectionHeader icon="check-square" title="Compliance" />
 
             <TouchableOpacity
@@ -697,7 +697,7 @@ export default function PharmacySetupModal({ visible, onClose }: Props) {
             </TouchableOpacity>
         </KeyboardAwareScrollView>
       </View>
-      <AlertDialogHost />
+      <AlertDialogHost active={visible} embedded />
     </Modal>
   );
 }

@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import apiClient, { setUnauthorizedHandler } from "../lib/api";
@@ -283,7 +284,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  const login = async (email: string, password: string): Promise<User> => {
+  const login = useCallback(async (email: string, password: string): Promise<User> => {
     try {
 
       const fetchFreshAppToken = async () => {
@@ -450,29 +451,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await SecureStore.deleteItemAsync("authToken").catch(() => {});
       throw error;
     }
-  };
+  }, []);
 
-  const updateUser = async (updatedUserData: Partial<User>) => {
-    if (!user) return;
+  // Stable reference — screens that list updateUser in effect deps must not
+  // re-fire on every AuthProvider render (that caused API request storms / 429s).
+  const updateUser = useCallback(async (updatedUserData: Partial<User>) => {
+    let nextUser: User | null = null;
+    setUser((prev) => {
+      if (!prev) return prev;
+      nextUser = { ...prev, ...updatedUserData };
+      return nextUser;
+    });
+    if (nextUser) {
+      await SecureStore.setItemAsync("user", JSON.stringify(nextUser));
+    }
+  }, []);
 
-    const newUser = { ...user, ...updatedUserData };
-    setUser(newUser);
-    await SecureStore.setItemAsync("user", JSON.stringify(newUser));
-  };
+  const value = useMemo(
+    () => ({
+      user,
+      isAuthenticated: !!user,
+      isLoading,
+      login,
+      logout,
+      updateUser,
+    }),
+    [user, isLoading, login, logout, updateUser],
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        isLoading,
-        login,
-        logout,
-        updateUser,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
   );
 };
 

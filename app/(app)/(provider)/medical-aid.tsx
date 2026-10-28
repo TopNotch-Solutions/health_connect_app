@@ -65,6 +65,7 @@ type MedicalAidConsultation = {
     membershipNumber?: string;
     maf?: string;
     mainMemberName?: string;
+    mainMemberId?: string;
     residentialAddress?: string;
     icd10Code?: string;
   };
@@ -733,7 +734,10 @@ export default function ProviderMedicalAidScreen() {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={appScreenStyles.scrollContent}
+        contentContainerStyle={[
+          appScreenStyles.scrollContent,
+          { paddingTop: canShowWorkspace ? 16 : 8 },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -780,21 +784,25 @@ export default function ProviderMedicalAidScreen() {
                     icon="layers"
                     label="Total"
                     value={String(summary.total)}
+                    tone="blue"
                   />
                   <SummaryPill
                     icon="activity"
                     label="Active"
                     value={String(summary.active)}
+                    tone="amber"
                   />
                   <SummaryPill
                     icon="check-circle"
                     label="Done"
                     value={String(summary.completed)}
+                    tone="green"
                   />
                   <SummaryPill
                     icon="dollar-sign"
                     label="Month"
                     value={`N$ ${Number(summary.monthEarnings || 0).toFixed(0)}`}
+                    tone="purple"
                   />
                 </View>
 
@@ -914,20 +922,77 @@ export default function ProviderMedicalAidScreen() {
   );
 }
 
+const SUMMARY_TONES = {
+  blue: {
+    bg: "#EFF6FF",
+    border: "#3B82F6",
+    iconBg: "#3B82F6",
+    value: "#1D4ED8",
+    label: "#2563EB",
+  },
+  amber: {
+    bg: "#FFFBEB",
+    border: "#F59E0B",
+    iconBg: "#F59E0B",
+    value: "#B45309",
+    label: "#D97706",
+  },
+  green: {
+    bg: "#F0FDF4",
+    border: AUTH_COLORS.green,
+    iconBg: AUTH_COLORS.green,
+    value: AUTH_COLORS.greenDark,
+    label: AUTH_COLORS.green,
+  },
+  purple: {
+    bg: "#F5F3FF",
+    border: "#8B5CF6",
+    iconBg: "#8B5CF6",
+    value: "#6D28D9",
+    label: "#7C3AED",
+  },
+} as const;
+
+type SummaryTone = keyof typeof SUMMARY_TONES;
+
 function SummaryPill({
   icon,
   label,
   value,
+  tone,
 }: {
   icon: React.ComponentProps<typeof Feather>["name"];
   label: string;
   value: string;
+  tone: SummaryTone;
 }) {
+  const colors = SUMMARY_TONES[tone];
   return (
-    <View style={styles.summaryPill}>
-      <Feather name={icon} size={14} color={AUTH_COLORS.green} />
-      <Text style={styles.summaryValue}>{value}</Text>
-      <Text style={styles.summaryLabel}>{label}</Text>
+    <View
+      style={[
+        styles.summaryPill,
+        {
+          backgroundColor: colors.bg,
+          borderColor: colors.border,
+          shadowColor: colors.border,
+        },
+      ]}
+    >
+      <View style={[styles.summaryIconWrap, { backgroundColor: colors.iconBg }]}>
+        <Feather name={icon} size={15} color={AUTH_COLORS.white} />
+      </View>
+      <Text
+        style={[styles.summaryValue, { color: colors.value }]}
+        numberOfLines={1}
+      >
+        {value}
+      </Text>
+      <Text
+        style={[styles.summaryLabel, { color: colors.label }]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -1002,11 +1067,11 @@ function ConsultationClaimCard({
             numberOfLines={1}
           >
             {aidTitle}
-            {item.medicalAidDetails?.maf ||
-            item.medicalAidDetails?.membershipNumber
-              ? ` · NAMAF ${
-                  item.medicalAidDetails.maf ||
-                  item.medicalAidDetails.membershipNumber
+            {item.medicalAidDetails?.membershipNumber ||
+            item.medicalAidDetails?.maf
+              ? ` · ${
+                  item.medicalAidDetails.membershipNumber ||
+                  item.medicalAidDetails.maf
                 }`
               : ""}
           </Text>
@@ -1049,12 +1114,17 @@ function ConsultationClaimCard({
         />
         <MetaRow
           icon="hash"
-          label="NAMAF"
+          label="Medical aid number"
           value={
-            item.medicalAidDetails?.maf ||
             item.medicalAidDetails?.membershipNumber ||
+            item.medicalAidDetails?.maf ||
             "—"
           }
+        />
+        <MetaRow
+          icon="credit-card"
+          label="Main member ID"
+          value={item.medicalAidDetails?.mainMemberId || "—"}
         />
         <MetaRow icon="calendar" label="Date" value={formatDate(dateValue)} />
         <MetaRow
@@ -1253,33 +1323,48 @@ const styles = StyleSheet.create({
   },
   summaryStrip: {
     marginHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 20,
+    marginTop: 4,
+    marginBottom: 24,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    alignItems: "stretch",
+    gap: 10,
   },
   summaryPill: {
+    flexBasis: "47%",
     flexGrow: 1,
-    minWidth: "22%",
-    backgroundColor: AUTH_COLORS.white,
-    borderRadius: 14,
+    maxWidth: "48.5%",
+    borderRadius: 16,
     borderWidth: 2,
-    borderColor: AUTH_COLORS.inputBorder,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    alignItems: "flex-start",
-    gap: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    gap: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  summaryIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
   },
   summaryValue: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "800",
-    color: AUTH_COLORS.greenDark,
+    letterSpacing: -0.3,
+    textAlign: "center",
   },
   summaryLabel: {
     fontSize: 11,
-    fontWeight: "600",
-    color: AUTH_COLORS.textMuted,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    textAlign: "center",
   },
   listHeader: {
     paddingHorizontal: 20,

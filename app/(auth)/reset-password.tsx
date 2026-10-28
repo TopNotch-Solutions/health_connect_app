@@ -248,7 +248,7 @@ const ResetPasswordScreen = () => {
           )}
         </TouchableOpacity>
       </View>
-      <StatusBar backgroundColor="#F9FAFB" style="dark" />
+      <StatusBar style="dark" />
     </ScreenLayout>
   );
 };

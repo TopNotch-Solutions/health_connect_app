@@ -1,13 +1,14 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
-import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
+import { ensureForegroundLocationPermission } from "../../../../lib/locationPermission";
 import { useFocusEffect, useRouter, type Href } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Linking,
   RefreshControl,
   StyleSheet,
   Text,
@@ -23,25 +24,26 @@ import {
   getGreeting,
   getGreetingEmoji,
   AUTH_COLORS,
-} from "../../../components/app/AppScreenUI";
-import PatientProviderTracking from "../../../components/(patient)/PatientProviderTracking";
+} from "../../../../components/app/AppScreenUI";
+import PatientProviderTracking from "../../../../components/(patient)/PatientProviderTracking";
 import PrescriptionUploadModal, {
   PrescriptionData,
-} from "../../../components/(patient)/PrescriptionUploadModal";
-import PatientProviderPrescriptionView from "../../../components/(patient)/PatientProviderPrescriptionView";
-import ProviderMap from "../../../components/(patient)/ProviderMap";
-import { useAuth } from "../../../context/AuthContext";
-import { alertConsultationStatusChange } from "../../../lib/consultationAlert";
-import socketService from "../../../lib/socket";
-import apiClient from "../../../lib/api";
-import { getUserFacingErrorMessage } from "../../../lib/userFacingError";
+} from "../../../../components/(patient)/PrescriptionUploadModal";
+import PatientProviderPrescriptionView from "../../../../components/(patient)/PatientProviderPrescriptionView";
+import ProviderMap from "../../../../components/(patient)/ProviderMap";
+import { useAuth } from "../../../../context/AuthContext";
+import { alertConsultationStatusChange } from "../../../../lib/consultationAlert";
+import { canShowProviderPhone } from "../../../../lib/providerContactVisibility";
+import socketService from "../../../../lib/socket";
+import apiClient from "../../../../lib/api";
+import { getUserFacingErrorMessage } from "../../../../lib/userFacingError";
 import { showAlertDialog } from "@/components/AlertDialog";
 
 interface RequestStatus {
   _id: string;
   consultationMode?: "house_visit" | "video_consultation";
   paymentMethod?: "wallet" | "cash" | "medical_aid";
-  // Provider type (e.g. "Pharmacist") — from populated ailmentCategoryId
+  // Provider type (e.g. "Pharmacist") ? from populated ailmentCategoryId
   providerType?: string;
   status:
     | "searching"
@@ -139,87 +141,67 @@ const sanitizeRequestsForCache = (items: StoredRequest[]): StoredRequest[] =>
   });
 
 const StatusBadge = ({ status }: { status: string }) => {
-  const getStatusColor = () => {
+  const meta = (() => {
     switch (status) {
       case "searching":
-        return { bg: "bg-yellow-100", text: "text-yellow-800", icon: "search" };
       case "pending":
-        return { bg: "bg-blue-100", text: "text-blue-800", icon: "clock" };
-      case "accepted":
         return {
-          bg: "bg-green-100",
-          text: "text-green-800",
-          icon: "check-circle",
+          icon: "clock" as const,
+          color: AUTH_COLORS.textMuted,
+          bg: "#F3F4F6",
+        };
+      case "accepted":
+      case "paid":
+      case "ready_for_call":
+      case "arrived":
+      case "completed":
+        return {
+          icon: "check" as const,
+          color: AUTH_COLORS.greenDark,
+          bg: AUTH_COLORS.greenSoft,
         };
       case "payment_pending":
-        return {
-          bg: "bg-amber-100",
-          text: "text-amber-800",
-          icon: "credit-card",
-        };
-      case "paid":
       case "provider_confirmation_pending":
-      case "ready_for_call":
-      case "in_call":
         return {
-          bg: "bg-sky-100",
-          text: "text-sky-800",
-          icon: "video",
+          icon: "credit-card" as const,
+          color: AUTH_COLORS.greenDark,
+          bg: "#F0FDF4",
+        };
+      case "in_call":
+      case "in_progress":
+        return {
+          icon: "activity" as const,
+          color: AUTH_COLORS.greenDark,
+          bg: AUTH_COLORS.greenSoft,
         };
       case "en_route":
         return {
-          bg: "bg-purple-100",
-          text: "text-purple-800",
-          icon: "navigation",
-        };
-      case "arrived":
-        return {
-          bg: "bg-indigo-100",
-          text: "text-indigo-800",
-          icon: "map-pin",
-        };
-      case "in_progress":
-        return {
-          bg: "bg-orange-100",
-          text: "text-orange-800",
-          icon: "activity",
-        };
-      case "completed":
-        return {
-          bg: "bg-emerald-100",
-          text: "text-emerald-800",
-          icon: "check",
+          icon: "navigation" as const,
+          color: AUTH_COLORS.greenDark,
+          bg: "#F0FDF4",
         };
       case "cancelled":
-        return { bg: "bg-red-100", text: "text-red-800", icon: "x-circle" };
       case "expired":
       case "rejected":
         return {
-          bg: "bg-gray-100",
-          text: "text-gray-800",
-          icon: "alert-circle",
+          icon: "x-circle" as const,
+          color: AUTH_COLORS.error,
+          bg: "#FEF2F2",
         };
       default:
         return {
-          bg: "bg-gray-100",
-          text: "text-gray-800",
-          icon: "help-circle",
+          icon: "help-circle" as const,
+          color: AUTH_COLORS.textMuted,
+          bg: "#F3F4F6",
         };
     }
-  };
+  })();
 
-  const colors = getStatusColor();
   return (
-    <View
-      className={`${colors.bg} px-3 py-1 rounded-full flex-row items-center gap-1`}
-    >
-      <Feather
-        name={colors.icon as any}
-        size={12}
-        color={colors.text.replace("text-", "")}
-      />
-      <Text className={`${colors.text} text-xs font-semibold capitalize`}>
-        {status.replace("_", " ")}
+    <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
+      <Feather name={meta.icon} size={12} color={meta.color} />
+      <Text style={[styles.statusBadgeText, { color: meta.color }]}>
+        {status.replace(/_/g, " ")}
       </Text>
     </View>
   );
@@ -276,27 +258,10 @@ const RequestCard = ({
 
   const prescription = prescriptions[request._id] ?? null;
 
-  const getConsultationModeMeta = (
-    mode?: "house_visit" | "video_consultation",
-  ) => {
-    if (mode === "video_consultation") {
-      return {
-        label: "Video Consultation",
-        icon: "video",
-        bg: "#EFF6FF",
-        border: "#BFDBFE",
-        text: "#1D4ED8",
-      } as const;
-    }
-    return {
-      label: "House Visit",
-      icon: "home",
-      bg: "#ECFDF3",
-      border: "#BBF7D0",
-      text: "#166534",
-    } as const;
-  };
-  const consultationModeMeta = getConsultationModeMeta(request.consultationMode);
+  const consultationModeMeta =
+    request.consultationMode === "video_consultation"
+      ? { label: "Video", icon: "video" as const }
+      : { label: "House visit", icon: "home" as const };
 
   // Debug logging for profile images
   useEffect(() => {
@@ -406,7 +371,7 @@ const RequestCard = ({
       case "cancelled":
         return "Request was cancelled";
       case "expired":
-        return "Request expired — please create a new request if you still need care";
+        return "Request expired ? please create a new request if you still need care";
       case "rejected":
         return "Request was rejected";
       default:
@@ -416,56 +381,27 @@ const RequestCard = ({
 
   return (
     <View style={styles.requestCard}>
-      {/* Header with status */}
       <View style={styles.requestHeaderRow}>
-        <View className="flex-1">
+        <View style={styles.requestHeaderText}>
           <Text style={styles.requestTitle}>
-            {request.ailmentCategoryId?.title || "Healthcare Request"}
+            {request.ailmentCategoryId?.title || "Healthcare request"}
           </Text>
-          <View style={styles.requestStatusRow}>
-            <StatusBadge status={request.status} />
-          </View>
+          <Text style={styles.requestDescription}>
+            {getStatusDescription(request.status)}
+          </Text>
         </View>
+        <StatusBadge status={request.status} />
       </View>
 
-      {/* Status description */}
-      <Text style={styles.requestDescription}>
-        {getStatusDescription(request.status)}
-      </Text>
-
-      {/* Consultation mode chip */}
-      <View
-        style={{
-          backgroundColor: consultationModeMeta.bg,
-          borderColor: consultationModeMeta.border,
-          borderWidth: 1,
-          borderRadius: 999,
-          paddingHorizontal: 12,
-          paddingVertical: 6,
-          alignSelf: "flex-start",
-          marginBottom: 10,
-          flexDirection: "row",
-          alignItems: "center",
-        }}
-      >
+      <View style={styles.modeRow}>
         <Feather
-          name={consultationModeMeta.icon as any}
+          name={consultationModeMeta.icon}
           size={13}
-          color={consultationModeMeta.text}
+          color={AUTH_COLORS.greenDark}
         />
-        <Text
-          style={{
-            color: consultationModeMeta.text,
-            fontSize: 12,
-            fontWeight: "700",
-            marginLeft: 6,
-          }}
-        >
-          {consultationModeMeta.label}
-        </Text>
+        <Text style={styles.modeText}>{consultationModeMeta.label}</Text>
       </View>
 
-      {/* Provider info - only show if accepted */}
       {[
         "accepted",
         "payment_pending",
@@ -478,27 +414,44 @@ const RequestCard = ({
       ].includes(request.status) &&
         request.providerId && (
         <View style={styles.providerCard}>
-          <Text style={styles.providerCardLabel}>Provider Details</Text>
+          <Text style={styles.providerCardLabel}>Provider</Text>
           <View style={styles.providerHeaderRow}>
-            <Feather name="user" size={14} color="#1e40af" />
-            <Text style={styles.providerName}>
-              {request.providerId.fullname}
-            </Text>
-            <View style={styles.providerRolePill}>
+            <View style={styles.providerAvatar}>
+              <Feather name="user" size={14} color={AUTH_COLORS.greenDark} />
+            </View>
+            <View style={styles.providerIdentity}>
+              <Text style={styles.providerName}>
+                {request.providerId.fullname}
+              </Text>
               <Text style={styles.providerRoleText}>
                 {request.providerId.role}
               </Text>
             </View>
           </View>
-          <View style={styles.providerPhoneRow}>
-            <Feather name="phone" size={14} color="#1e40af" />
-            <Text style={styles.providerPhone}>
-              {request.providerId.cellphoneNumber}
-            </Text>
-          </View>
-          {request.providerId.bio && (
+          {canShowProviderPhone(request.status) &&
+          request.providerId.cellphoneNumber ? (
+            <TouchableOpacity
+              style={styles.providerPhoneRow}
+              onPress={() => {
+                const phone = request.providerId?.cellphoneNumber;
+                if (phone) Linking.openURL(`tel:${phone}`);
+              }}
+              activeOpacity={0.7}
+            >
+              <Feather name="phone" size={14} color={AUTH_COLORS.green} />
+              <Text style={styles.providerPhone}>
+                {request.providerId.cellphoneNumber}
+              </Text>
+              <Feather
+                name="chevron-right"
+                size={16}
+                color={AUTH_COLORS.textMuted}
+              />
+            </TouchableOpacity>
+          ) : null}
+          {request.providerId.bio ? (
             <Text style={styles.providerBio}>{request.providerId.bio}</Text>
-          )}
+          ) : null}
         </View>
       )}
 
@@ -509,65 +462,69 @@ const RequestCard = ({
         ) &&
         request.providerId && (
           <View style={styles.paymentInstructionCard}>
-            <Text style={styles.paymentInstructionTitle}>
-              Payment Instructions
-            </Text>
+            <Text style={styles.paymentInstructionTitle}>Payment</Text>
             <Text style={styles.paymentInstructionText}>
-              Pay the provider through eWallet using the number below, then tap
+              Pay via eWallet to the number below, then tap{" "}
               <Text style={styles.paymentInstructionStrong}>
-                {" "}
                 Payment Confirmed
               </Text>
               .
             </Text>
-            <Text style={styles.paymentInstructionPhone}>
-              {request.providerId.cellphoneNumber}
+            {canShowProviderPhone(request.status) &&
+            request.providerId.cellphoneNumber ? (
+              <Text style={styles.paymentInstructionPhone}>
+                {request.providerId.cellphoneNumber}
+              </Text>
+            ) : null}
+          </View>
+        )}
+
+      {request.providerResponse?.estimatedArrival &&
+        request.status !== "in_progress" &&
+        request.status !== "completed" && (
+          <View style={styles.etaRow}>
+            <Feather name="navigation" size={14} color={AUTH_COLORS.green} />
+            <Text style={styles.etaText}>
+              ETA {request.providerResponse.estimatedArrival}
             </Text>
           </View>
         )}
 
-      {/* ETA info - show if provider responded */}
-      {request.providerResponse?.estimatedArrival &&
-        request.status !== "in_progress" &&
-        request.status !== "completed" && (
-          <View style={styles.etaCard}>
-            <View style={styles.etaRow}>
-              <Feather name="navigation" size={14} color="#15803d" />
-              <Text style={styles.etaText}>
-                Estimated Arrival: {request.providerResponse.estimatedArrival}
-              </Text>
-            </View>
-          </View>
-        )}
-
-      {/* Request details */}
       <View style={styles.metaCard}>
         <View style={styles.metaRow}>
-          <Feather name="map-pin" size={14} color="#6b7280" />
+          <Feather name="map-pin" size={14} color={AUTH_COLORS.textMuted} />
           <Text style={styles.metaText} numberOfLines={2}>
             {request.address?.route}, {request.address?.locality}
           </Text>
         </View>
         <View style={styles.metaRow}>
-          <Feather name="calendar" size={14} color="#6b7280" />
+          <Feather name="calendar" size={14} color={AUTH_COLORS.textMuted} />
           <Text style={styles.metaText}>
-            Requested: {new Date(request.createdAt).toLocaleString()}
+            Requested {new Date(request.createdAt).toLocaleString()}
           </Text>
         </View>
         {request.timeline?.consultationStarted ? (
           <View style={styles.metaRow}>
-            <Feather name="play-circle" size={14} color="#6b7280" />
+            <Feather
+              name="play-circle"
+              size={14}
+              color={AUTH_COLORS.textMuted}
+            />
             <Text style={styles.metaText}>
-              Started:{" "}
+              Started{" "}
               {new Date(request.timeline.consultationStarted).toLocaleString()}
             </Text>
           </View>
         ) : null}
         {request.timeline?.consultationCompleted ? (
           <View style={styles.metaRow}>
-            <Feather name="check-circle" size={14} color="#6b7280" />
+            <Feather
+              name="check-circle"
+              size={14}
+              color={AUTH_COLORS.textMuted}
+            />
             <Text style={styles.metaText}>
-              Completed:{" "}
+              Completed{" "}
               {new Date(
                 request.timeline.consultationCompleted,
               ).toLocaleString()}
@@ -576,17 +533,14 @@ const RequestCard = ({
         ) : null}
       </View>
 
-      {/* Expiration notice for accepted requests */}
       {["accepted", "payment_pending"].includes(request.status) &&
         timeRemaining > 0 && (
-        <View style={styles.expiryCard}>
-          <Text style={styles.expiryText}>
-            This entry will expire in{" "}
-            <Text className="font-semibold">
-              {hoursRemaining}h {minutesRemaining}m
-            </Text>
+        <Text style={styles.expiryText}>
+          Expires in{" "}
+          <Text style={styles.expiryStrong}>
+            {hoursRemaining}h {minutesRemaining}m
           </Text>
-        </View>
+        </Text>
       )}
 
       {/* Track Provider button - show if en_route or arrived */}
@@ -602,7 +556,7 @@ const RequestCard = ({
                 <Feather name="map" size={16} color={AUTH_COLORS.greenDark} />
               </View>
               <Text style={styles.actionSecondaryText}>
-                Track Provider on Map
+                Track provider
               </Text>
               <Feather name="chevron-right" size={18} color={AUTH_COLORS.green} />
             </TouchableOpacity>
@@ -640,7 +594,7 @@ const RequestCard = ({
                   <Feather name="credit-card" size={16} color="#FFFFFF" />
                 </View>
                 <Text style={styles.actionPrimaryText}>
-                  I&apos;ve Confirmed Payment
+                  Payment confirmed
                 </Text>
               </>
             )}
@@ -662,65 +616,47 @@ const RequestCard = ({
               <Feather name="video" size={16} color="#FFFFFF" />
             </View>
             <Text style={styles.actionPrimaryText}>
-              {request.status === "in_call" ? "Return to Call" : "Join Video Call"}
+              {request.status === "in_call" ? "Return to call" : "Join video call"}
             </Text>
           </TouchableOpacity>
         )}
 
-      {/* ── Prescription section (pharmacy + requiresPrescription ailments only) ── */}
       {showPrescriptionSection && (
         <View style={styles.prescriptionSection}>
-          {/* Status row */}
           {prescription ? (
             <View style={styles.prescriptionStatusRow}>
               <Feather
                 name={
                   prescription.status === "accepted"
-                    ? "check-circle"
+                    ? "check"
                     : prescription.status === "rejected"
-                    ? "alert-triangle"
-                    : "clock"
+                      ? "alert-triangle"
+                      : "clock"
                 }
                 size={14}
                 color={
                   prescription.status === "accepted"
-                    ? "#16A34A"
-                    : prescription.status === "rejected"
-                    ? "#B45309"
-                    : "#92400E"
+                    ? AUTH_COLORS.green
+                    : AUTH_COLORS.textMuted
                 }
               />
-              <Text
-                style={[
-                  styles.prescriptionStatusText,
-                  {
-                    color:
-                      prescription.status === "accepted"
-                        ? "#16A34A"
-                        : prescription.status === "rejected"
-                        ? "#B45309"
-                        : "#92400E",
-                  },
-                ]}
-              >
-                Prescription:{" "}
+              <Text style={styles.prescriptionStatusText}>
                 {prescription.status === "accepted"
-                  ? "Accepted — delivery in progress"
+                  ? "Prescription accepted ? delivery in progress"
                   : prescription.status === "rejected"
-                  ? "Rejected — please re-upload"
-                  : "Awaiting pharmacist review"}
+                    ? "Prescription rejected ? please re-upload"
+                    : "Prescription awaiting pharmacist review"}
               </Text>
             </View>
           ) : (
             <View style={styles.prescriptionStatusRow}>
-              <Feather name="upload" size={14} color="#B45309" />
-              <Text style={[styles.prescriptionStatusText, { color: "#B45309" }]}>
-                Prescription required — please upload
+              <Feather name="upload" size={14} color={AUTH_COLORS.textMuted} />
+              <Text style={styles.prescriptionStatusText}>
+                Prescription required ? please upload
               </Text>
             </View>
           )}
 
-          {/* Upload / Edit button — hidden once accepted */}
           {prescription?.status !== "accepted" && (
             <TouchableOpacity
               style={styles.actionPrimary}
@@ -736,8 +672,8 @@ const RequestCard = ({
               </View>
               <Text style={styles.actionPrimaryText}>
                 {prescription?.prescriptionImage
-                  ? "Edit Prescription"
-                  : "Upload Prescription"}
+                  ? "Edit prescription"
+                  : "Upload prescription"}
               </Text>
             </TouchableOpacity>
           )}
@@ -793,7 +729,7 @@ const RequestCard = ({
               <View style={styles.actionIconDanger}>
                 <Feather name="x" size={16} color="#DC2626" />
               </View>
-              <Text style={styles.actionDangerText}>Cancel Request</Text>
+              <Text style={styles.actionDangerText}>Cancel request</Text>
             </>
           )}
         </TouchableOpacity>
@@ -855,7 +791,7 @@ export default function WaitingRoom() {
               results[item.request._id] = res.data.prescription;
             }
           } catch {
-            // 404 = no prescription yet — that's fine
+            // 404 = no prescription yet ? that's fine
           }
         }),
       );
@@ -1133,7 +1069,7 @@ export default function WaitingRoom() {
     if (!user?.userId) return;
 
     const handleRequestUpdated = async (updatedRequest: RequestStatus) => {
-      // Ring + vibrate OUTSIDE setState — updater functions can be re-run by React
+      // Ring + vibrate OUTSIDE setState ? updater functions can be re-run by React
       const existing = requestsRef.current.find(
         (item) => item.request._id === updatedRequest._id,
       );
@@ -1234,7 +1170,7 @@ export default function WaitingRoom() {
       status: any;
     }) => {
 
-      // Ring + vibrate OUTSIDE setState — updater functions can be re-run by React
+      // Ring + vibrate OUTSIDE setState ? updater functions can be re-run by React
       const existing = requestsRef.current.find(
         (item) => item.request._id === data.requestId,
       );
@@ -1394,7 +1330,7 @@ export default function WaitingRoom() {
       <AppScreenShell>
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={AUTH_COLORS.green} />
-          <Text style={styles.loadingText}>Loading your requests…</Text>
+          <Text style={styles.loadingText}>Loading your requests?</Text>
         </View>
       </AppScreenShell>
     );
@@ -1424,10 +1360,9 @@ export default function WaitingRoom() {
             <AppHeroCard
               eyebrow={`${getGreeting()} ${getGreetingEmoji()}`}
               name={firstName}
-              tagline="Track your healthcare requests and provider status in real time"
+              tagline="Your open requests and provider updates"
               stats={[
                 { icon: "inbox", label: `${sortedRequests.length} active` },
-                { icon: "clock", label: "Live updates" },
               ]}
               style={styles.heroFlush}
             />
@@ -1448,7 +1383,7 @@ export default function WaitingRoom() {
                   }}
                 />
               </View>
-            ) : null}
+            ) : undefined}
           </>
         }
         ListEmptyComponent={
@@ -1485,182 +1420,219 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
   },
-  // List already pads horizontally — don't stack hero margin on top of it.
+  // List already pads horizontally ? don't stack hero margin on top of it.
   heroFlush: {
     marginHorizontal: 0,
   },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    maxWidth: 130,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "capitalize",
+    flexShrink: 1,
+  },
   requestCard: {
     backgroundColor: AUTH_COLORS.white,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
-    marginBottom: 12,
-    borderWidth: 2,
+    marginBottom: 14,
+    borderWidth: 1,
     borderColor: AUTH_COLORS.inputBorder,
-    shadowColor: AUTH_COLORS.green,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
   },
   requestHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 8,
+    gap: 12,
+    marginBottom: 12,
+  },
+  requestHeaderText: {
+    flex: 1,
   },
   requestTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: "800",
     color: AUTH_COLORS.textDark,
+    letterSpacing: -0.2,
     marginBottom: 4,
-  },
-  requestStatusRow: {
-    flexDirection: "row",
-    alignItems: "center",
   },
   requestDescription: {
     fontSize: 13,
-    color: "#4B5563",
-    marginBottom: 10,
+    lineHeight: 19,
+    color: AUTH_COLORS.textMuted,
+  },
+  modeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginBottom: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
+  },
+  modeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: AUTH_COLORS.greenDark,
   },
   providerCard: {
-    backgroundColor: AUTH_COLORS.greenSoft,
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 8,
+    backgroundColor: AUTH_COLORS.bg,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: AUTH_COLORS.inputBorder,
   },
   providerCardLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.4,
     color: AUTH_COLORS.green,
-    marginBottom: 4,
+    marginBottom: 8,
     textTransform: "uppercase",
   },
   providerHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+    gap: 10,
+    marginBottom: 8,
   },
-  providerName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#111827",
-    marginLeft: 6,
-    flex: 1,
-  },
-  providerRolePill: {
-    marginLeft: "auto",
+  providerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     backgroundColor: AUTH_COLORS.greenSoft,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: AUTH_COLORS.inputBorder,
   },
+  providerIdentity: {
+    flex: 1,
+  },
+  providerName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+  },
   providerRoleText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
-    color: AUTH_COLORS.green,
+    color: AUTH_COLORS.textMuted,
     textTransform: "capitalize",
+    marginTop: 2,
   },
   providerPhoneRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1,
+    borderColor: AUTH_COLORS.inputBorder,
   },
   providerPhone: {
-    fontSize: 12,
-    color: "#374151",
-    marginLeft: 6,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
   },
   providerBio: {
     fontSize: 12,
-    color: "#4B5563",
-    marginTop: 6,
-    lineHeight: 17,
+    color: AUTH_COLORS.textMuted,
+    marginTop: 8,
+    lineHeight: 18,
   },
   paymentInstructionCard: {
-    backgroundColor: "#FFF7ED",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 8,
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#FED7AA",
+    borderColor: AUTH_COLORS.inputBorder,
   },
   paymentInstructionTitle: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#9A3412",
-    marginBottom: 4,
+    letterSpacing: 0.4,
+    color: AUTH_COLORS.green,
+    marginBottom: 6,
     textTransform: "uppercase",
   },
   paymentInstructionText: {
-    fontSize: 12,
-    color: "#7C2D12",
-    lineHeight: 18,
+    fontSize: 13,
+    color: AUTH_COLORS.textMuted,
+    lineHeight: 19,
   },
   paymentInstructionStrong: {
     fontWeight: "700",
-    color: "#9A3412",
+    color: AUTH_COLORS.textDark,
   },
   paymentInstructionPhone: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#7C2D12",
-    marginTop: 6,
-  },
-  etaCard: {
-    backgroundColor: "#ECFDF3",
-    borderRadius: 12,
-    padding: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
+    fontSize: 16,
+    fontWeight: "800",
+    color: AUTH_COLORS.textDark,
+    marginTop: 10,
+    letterSpacing: 0.3,
   },
   etaRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
   },
   etaText: {
     fontSize: 13,
-    fontWeight: "600",
-    color: "#14532D",
-    marginLeft: 6,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
   },
   metaCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 8,
-    marginBottom: 8,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+    backgroundColor: AUTH_COLORS.bg,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    gap: 8,
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+    gap: 8,
   },
   metaText: {
-    fontSize: 11,
-    color: "#4B5563",
-    marginLeft: 6,
+    fontSize: 12,
+    color: AUTH_COLORS.textMuted,
     flex: 1,
   },
-  expiryCard: {
-    backgroundColor: "#FFFBEB",
-    borderRadius: 10,
-    padding: 6,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-  },
   expiryText: {
-    fontSize: 11,
-    color: "#92400E",
+    fontSize: 12,
+    color: AUTH_COLORS.textMuted,
+    marginBottom: 12,
+  },
+  expiryStrong: {
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
   },
   actionPrimary: {
-    minHeight: 52,
-    backgroundColor: "#0F3D24",
-    borderRadius: 16,
+    minHeight: 50,
+    backgroundColor: AUTH_COLORS.green,
+    borderRadius: 999,
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 10,
@@ -1668,16 +1640,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    shadowColor: "#0F3D24",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 4,
   },
   actionSecondary: {
-    minHeight: 52,
+    minHeight: 50,
     backgroundColor: AUTH_COLORS.white,
-    borderRadius: 16,
+    borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginBottom: 10,
@@ -1686,16 +1653,11 @@ const styles = StyleSheet.create({
     gap: 12,
     borderWidth: 1.5,
     borderColor: AUTH_COLORS.inputBorder,
-    shadowColor: AUTH_COLORS.green,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
   },
   actionDanger: {
-    minHeight: 50,
-    backgroundColor: "#FFF5F5",
-    borderRadius: 16,
+    minHeight: 48,
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 999,
     paddingVertical: 12,
     paddingHorizontal: 14,
     flexDirection: "row",
@@ -1709,17 +1671,17 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   actionIconOnPrimary: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
   actionIconSoft: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 11,
     backgroundColor: AUTH_COLORS.greenSoft,
     alignItems: "center",
     justifyContent: "center",
@@ -1727,18 +1689,17 @@ const styles = StyleSheet.create({
     borderColor: AUTH_COLORS.inputBorder,
   },
   actionIconDanger: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: 10,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: "#FEF2F2",
     alignItems: "center",
     justifyContent: "center",
   },
   actionPrimaryText: {
     fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 0.2,
+    fontWeight: "800",
+    color: AUTH_COLORS.white,
   },
   actionSecondaryText: {
     flex: 1,
@@ -1749,25 +1710,27 @@ const styles = StyleSheet.create({
   actionDangerText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#DC2626",
+    color: AUTH_COLORS.error,
   },
   prescriptionSection: {
-    backgroundColor: "#F0FDF4",
     borderRadius: 14,
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#BBF7D0",
+    borderColor: AUTH_COLORS.inputBorder,
+    backgroundColor: AUTH_COLORS.bg,
     gap: 10,
   },
   prescriptionStatusRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   prescriptionStatusText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     flex: 1,
+    color: AUTH_COLORS.textMuted,
+    lineHeight: 18,
   },
 });

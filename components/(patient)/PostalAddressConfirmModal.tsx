@@ -2,7 +2,6 @@ import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   StyleSheet,
   Text,
@@ -12,9 +11,9 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import {
   AppBottomSheetCloseHeader,
-  appBottomSheetStyles,
   appModalBottomSheetStyles,
 } from "../app/AppBottomSheetUI";
+import { AlertDialogHost, showAlertDialog } from "../AlertDialog";
 import { KEYBOARD_AWARE_EXTRA_SCROLL } from "../ScreenLayout";
 import apiClient from "../../lib/api";
 import { AUTH_COLORS } from "../../lib/authScreenTheme";
@@ -43,10 +42,10 @@ export default function PostalAddressConfirmModal({
   onClose,
   defaultAddressee = "",
   onConfirmed,
-  title = "Confirm Postal Address",
-  bannerTitle = "Namibian postal address required",
-  bannerBody = "Medical aid claims need your NamPost postal address. Review or update it below, then confirm to continue.",
-  confirmLabel = "Confirm & Continue",
+  title = "Confirm postal address",
+  bannerTitle = "NamPost details for your claim",
+  bannerBody = "Medical aid claims need your Namibian postal address. Review or update it, then continue.",
+  confirmLabel = "Confirm & continue",
 }: PostalAddressConfirmModalProps) {
   const [form, setForm] = useState<PostalAddressPayload>(
     emptyPostalAddress({ addressee: defaultAddressee }),
@@ -114,7 +113,7 @@ export default function PostalAddressConfirmModal({
   const handleConfirm = async () => {
     const error = validatePostalAddress(form);
     if (error) {
-      Alert.alert("Postal Address", error);
+      showAlertDialog("Postal Address", error);
       return;
     }
 
@@ -124,7 +123,7 @@ export default function PostalAddressConfirmModal({
       await apiClient.put("/app/postal-address", payload);
       onConfirmed(payload);
     } catch (err: any) {
-      Alert.alert(
+      showAlertDialog(
         "Error",
         err?.response?.data?.message ||
           err?.message ||
@@ -143,144 +142,224 @@ export default function PostalAddressConfirmModal({
       onRequestClose={onClose}
     >
       <View style={appModalBottomSheetStyles.overlay}>
-          <View
-            style={[
-              appModalBottomSheetStyles.sheet,
-              appModalBottomSheetStyles.sheetTall,
-            ]}
+        <View
+          style={[
+            appModalBottomSheetStyles.sheet,
+            appModalBottomSheetStyles.sheetTall,
+            styles.sheet,
+          ]}
+        >
+          <View style={appModalBottomSheetStyles.handle} />
+
+          <View style={styles.headerWrap}>
+            <AppBottomSheetCloseHeader title={title} onClose={onClose} />
+            <Text style={styles.headerSub}>{bannerBody}</Text>
+          </View>
+
+          <KeyboardAwareScrollView
+            style={styles.scrollBody}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            enableOnAndroid
+            enableAutomaticScroll
+            extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
+            extraHeight={120}
           >
-            <View style={appModalBottomSheetStyles.handle} />
-
-            <View style={styles.headerWrap}>
-              <AppBottomSheetCloseHeader title={title} onClose={onClose} />
-            </View>
-
-            <KeyboardAwareScrollView
-              style={styles.scrollBody}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              enableOnAndroid
-              enableAutomaticScroll
-              extraScrollHeight={KEYBOARD_AWARE_EXTRA_SCROLL}
-              extraHeight={120}
-            >
-              <View style={appBottomSheetStyles.warningBanner}>
-                <View className="flex-row items-start">
-                  <Feather name="mail" size={18} color="#92400E" />
-                  <View className="flex-1 ml-3">
-                    <Text style={appBottomSheetStyles.warningBannerTitle}>
-                      {bannerTitle}
-                    </Text>
-                    <Text style={appBottomSheetStyles.warningBannerBody}>
-                      {bannerBody}
-                    </Text>
-                  </View>
-                </View>
+            {isLoading ? (
+              <View style={styles.statusPanel}>
+                <ActivityIndicator color={AUTH_COLORS.green} />
+                <Text style={styles.statusTitle}>Loading address?</Text>
+                <Text style={styles.statusBody}>
+                  Pulling your saved NamPost details.
+                </Text>
               </View>
+            ) : (
+              <>
+                {loadError ? (
+                  <Text style={styles.loadError}>{loadError}</Text>
+                ) : null}
 
-              {isLoading ? (
-                <View className="py-10 items-center">
-                  <ActivityIndicator color={AUTH_COLORS.green} size="large" />
-                  <Text className="text-gray-600 mt-3 text-sm">
-                    Loading your postal address…
+                <View style={styles.statusRow}>
+                  <Feather
+                    name={hasSavedAddress ? "check" : "mail"}
+                    size={14}
+                    color={AUTH_COLORS.green}
+                  />
+                  <Text style={styles.statusRowText}>
+                    {hasSavedAddress
+                      ? "Saved address loaded ? edit if needed, then confirm."
+                      : `${bannerTitle}. Fill in your details below.`}
                   </Text>
                 </View>
+
+                <PostalAddressFormFields
+                  form={form}
+                  onChange={setForm}
+                  editable={!isSaving}
+                  inputStyle={styles.fieldInput}
+                  labelStyle={styles.fieldLabel}
+                />
+              </>
+            )}
+          </KeyboardAwareScrollView>
+
+          <View style={[appModalBottomSheetStyles.footer, styles.footer]}>
+            <TouchableOpacity
+              onPress={onClose}
+              disabled={isSaving}
+              style={styles.cancelBtn}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleConfirm}
+              disabled={isLoading || isSaving}
+              style={[
+                styles.submitBtn,
+                (isLoading || isSaving) && styles.submitBtnDisabled,
+              ]}
+              activeOpacity={0.88}
+            >
+              {isSaving ? (
+                <ActivityIndicator color={AUTH_COLORS.white} />
               ) : (
-                <>
-                  {loadError ? (
-                    <Text className="text-amber-800 text-xs mb-3">
-                      {loadError}
-                    </Text>
-                  ) : null}
-
-                  {hasSavedAddress ? (
-                    <View className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 flex-row items-start">
-                      <Feather name="check-circle" size={16} color="#16A34A" />
-                      <Text className="text-xs text-green-800 ml-2 flex-1">
-                        Saved address loaded. Edit if needed, then confirm.
-                      </Text>
-                    </View>
-                  ) : (
-                    <View className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex-row items-start">
-                      <Feather name="info" size={16} color="#2563EB" />
-                      <Text className="text-xs text-blue-800 ml-2 flex-1">
-                        No postal address on file yet. Fill in your Namibian
-                        postal details below.
-                      </Text>
-                    </View>
-                  )}
-
-                  <PostalAddressFormFields
-                    form={form}
-                    onChange={setForm}
-                    editable={!isSaving}
-                  />
-                </>
+                <Text style={styles.submitBtnText}>{confirmLabel}</Text>
               )}
-            </KeyboardAwareScrollView>
-
-            <View style={appModalBottomSheetStyles.footer}>
-              <TouchableOpacity
-                onPress={onClose}
-                disabled={isSaving}
-                style={styles.cancelBtn}
-                activeOpacity={0.88}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleConfirm}
-                disabled={isLoading || isSaving}
-                style={[
-                  appBottomSheetStyles.primaryCta,
-                  (isLoading || isSaving) && {
-                    backgroundColor: "#D1D5DB",
-                    borderColor: "#D1D5DB",
-                  },
-                ]}
-                activeOpacity={0.88}
-              >
-                {isSaving ? (
-                  <ActivityIndicator color={AUTH_COLORS.white} />
-                ) : (
-                  <Text style={appBottomSheetStyles.primaryCtaText}>
-                    {confirmLabel}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
+      </View>
+      <AlertDialogHost active={visible} embedded />
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  sheet: {
+    backgroundColor: AUTH_COLORS.bg,
+  },
   headerWrap: {
     paddingHorizontal: 24,
     paddingTop: 4,
+    paddingBottom: 4,
+  },
+  headerSub: {
+    marginTop: -10,
+    marginBottom: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    color: AUTH_COLORS.textMuted,
   },
   scrollBody: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 48,
+    paddingBottom: 36,
+  },
+  statusPanel: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 140,
+    paddingHorizontal: 18,
+    paddingVertical: 22,
+    borderRadius: 16,
+    backgroundColor: AUTH_COLORS.white,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginBottom: 16,
+  },
+  statusTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    textAlign: "center",
+  },
+  statusBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: AUTH_COLORS.textMuted,
+    textAlign: "center",
+  },
+  loadError: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: AUTH_COLORS.error,
+    marginBottom: 12,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 18,
+    paddingVertical: 4,
+  },
+  statusRowText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: AUTH_COLORS.textMuted,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    color: AUTH_COLORS.textDark,
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  fieldInput: {
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingLeft: 18,
+    paddingVertical: 14,
+    minHeight: 54,
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: 16,
+    backgroundColor: AUTH_COLORS.white,
+    borderColor: AUTH_COLORS.inputBorder,
+    color: AUTH_COLORS.textDark,
+    shadowColor: "#14532D",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  footer: {
+    gap: 10,
   },
   cancelBtn: {
-    backgroundColor: "#DC2626",
+    backgroundColor: AUTH_COLORS.white,
     paddingVertical: 14,
     borderRadius: 999,
     alignItems: "center",
-    marginBottom: 10,
     borderWidth: 1.5,
-    borderColor: "#B91C1C",
+    borderColor: "#E5E7EB",
   },
   cancelBtnText: {
-    color: "#FFFFFF",
+    color: AUTH_COLORS.textDark,
     fontSize: 16,
     fontWeight: "700",
+  },
+  submitBtn: {
+    backgroundColor: AUTH_COLORS.green,
+    borderRadius: 999,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  submitBtnDisabled: {
+    backgroundColor: "#D1D5DB",
+  },
+  submitBtnText: {
+    color: AUTH_COLORS.white,
+    fontSize: 16,
+    fontWeight: "800",
   },
 });

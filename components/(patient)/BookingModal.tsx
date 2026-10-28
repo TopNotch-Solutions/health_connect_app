@@ -21,6 +21,7 @@ import {
   appBottomSheetStyles,
   appModalBottomSheetStyles,
 } from '../app/AppBottomSheetUI';
+import { AlertDialogHost } from '../AlertDialog';
 import { AUTH_COLORS } from '../../lib/authScreenTheme';
 import { PickerField } from '../PickerField';
 import { namibianRegions, townsByRegion } from '../../constants/locations';
@@ -120,7 +121,7 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
           "We're searching for available providers. You'll be notified shortly.",
           [{ text: "OK", onPress: () => {
               onClose(); // Close the modal
-              router.push('/(patient)/history'); // Navigate to history/requests screen
+              router.push("/(app)/(patient)/recent-activities");
             }
           }]
         );
@@ -240,6 +241,7 @@ export default function BookingModal({ visible, category, onClose, userId }: Boo
           </KeyboardAwareScrollView>
         </View>
       </SafeAreaView>
+      <AlertDialogHost active={visible} embedded />
     </Modal>
   );
 }

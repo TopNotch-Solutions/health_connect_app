@@ -2,6 +2,9 @@
  * Ring + vibrate + spoken voice when a consultation / request status changes.
  * Used on both patient and provider so neither side misses an update
  * while the app is open in the foreground.
+ *
+ * Voice is strictly serialised — only one utterance plays at a time so
+ * provider alerts never talk over each other.
  */
 
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
@@ -85,18 +88,33 @@ let lastAlertAt = 0;
 /** Request IDs we already announced (socket + poll dedupe). */
 const announcedNewRequestIds = new Set<string>();
 
+/** One-at-a-time speech queue so voices never overlap. */
+let speechChain: Promise<void> = Promise.resolve();
+let speechGeneration = 0;
+
 async function ensureAudioMode(): Promise<void> {
   if (audioReady) return;
   try {
     await setAudioModeAsync({
       playsInSilentMode: true,
-      interruptionMode: "mixWithOthers",
+      // Duck other app audio; do not mix our own utterances.
+      interruptionMode: "duckOthers",
       shouldPlayInBackground: false,
       allowsRecording: false,
     });
     audioReady = true;
   } catch {
-    // ignore
+    try {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        interruptionMode: "doNotMix",
+        shouldPlayInBackground: false,
+        allowsRecording: false,
+      });
+      audioReady = true;
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -166,24 +184,66 @@ async function hapticForStatus(status: string): Promise<void> {
   }
 }
 
-/** Speak immediately — do not wait on the chime (expo-audio can block TTS). */
-function speakNow(message: string): void {
-  try {
-    void Speech.stop().catch(() => undefined);
-    Speech.speak(message, {
-      language: "en-US",
-      pitch: 1.0,
-      rate: Platform.OS === "ios" ? 0.94 : 0.9,
-      volume: 1.0,
-      ...(Platform.OS === "ios"
-        ? { useApplicationAudioSession: false }
-        : null),
-      onError: (error) =>
-        console.warn("⚠️ Consultation voice alert failed:", error),
+/**
+ * Queue spoken alerts so only one plays. Newer alerts replace a pending
+ * queue item of lower priority only after the current line finishes.
+ */
+function enqueueSpeak(message: string): void {
+  const trimmed = String(message || "").trim();
+  if (!trimmed) return;
+
+  const generation = ++speechGeneration;
+
+  speechChain = speechChain
+    .catch(() => undefined)
+    .then(async () => {
+      // A newer speak was queued after us — skip this stale line.
+      if (generation !== speechGeneration) return;
+
+      try {
+        await Speech.stop();
+      } catch {
+        // ignore
+      }
+
+      // Brief gap so the engine fully releases the previous utterance.
+      await new Promise((r) => setTimeout(r, 80));
+
+      if (generation !== speechGeneration) return;
+
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+
+        try {
+          Speech.speak(trimmed, {
+            language: "en-US",
+            pitch: 1.0,
+            rate: Platform.OS === "ios" ? 0.94 : 0.9,
+            volume: 1.0,
+            ...(Platform.OS === "ios"
+              ? { useApplicationAudioSession: false }
+              : null),
+            onDone: done,
+            onStopped: done,
+            onError: (error) => {
+              console.warn("⚠️ Consultation voice alert failed:", error);
+              done();
+            },
+          });
+        } catch (error) {
+          console.warn("⚠️ Consultation voice alert failed:", error);
+          done();
+        }
+
+        // Safety: never block the queue forever if callbacks don't fire.
+        setTimeout(done, Math.min(20000, 2500 + trimmed.length * 80));
+      });
     });
-  } catch (error) {
-    console.warn("⚠️ Consultation voice alert failed:", error);
-  }
 }
 
 function voiceForStatus(
@@ -218,7 +278,7 @@ export async function alertConsultationStatusChange(
   if (!shouldAlert(status, requestId)) return;
 
   vibrateForStatus(status);
-  speakNow(voiceForStatus(status, role));
+  enqueueSpeak(voiceForStatus(status, role));
   void Promise.all([playAlertRing(), hapticForStatus(status)]);
 }
 
@@ -238,7 +298,7 @@ export async function alertConsultationSubmitted(
   } else {
     Vibration.vibrate();
   }
-  speakNow(CONSULTATION_SUBMITTED_VOICE);
+  enqueueSpeak(CONSULTATION_SUBMITTED_VOICE);
   void Promise.all([playAlertRing(), hapticStatusChange()]);
 }
 
@@ -249,7 +309,6 @@ export async function alertConsultationSubmitted(
 export async function alertNewRequestAvailable(
   requestId?: string,
 ): Promise<void> {
-
   if (!isProviderOnline()) {
     return;
   }
@@ -284,6 +343,6 @@ export async function alertNewRequestAvailable(
   }
 
   // Voice FIRST so it always plays even if the wav fails
-  speakNow(NEW_REQUEST_VOICE);
+  enqueueSpeak(NEW_REQUEST_VOICE);
   void Promise.all([playAlertRing(), hapticNewRequest()]);
 }

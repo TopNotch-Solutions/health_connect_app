@@ -1,6 +1,7 @@
 // Socket.IO client for real-time communication with backend
 import { io, Socket } from "socket.io-client";
 import * as SecureStore from "expo-secure-store";
+import apiClient from "./api";
 import { BACKEND_URL } from "./backend";
 import { SERVER_SLOW_MESSAGE } from "./userFacingError";
 
@@ -8,6 +9,10 @@ class SocketService {
   private socket: Socket | null = null;
   private userRole: string | null = null;
   private pendingUserId: string | null = null;
+  private lastKnownProviderLocation: {
+    latitude: number;
+    longitude: number;
+  } | null = null;
   private eventListeners: Map<string, Set<Function>> = new Map(); // FIX #5: Track listeners for cleanup
 
   private readonly VALID_ROLES = new Set([
@@ -61,7 +66,10 @@ class SocketService {
         normalizedRole &&
         (!this.userRole || this.userRole !== normalizedRole)
       ) {
-        this.join(userId, normalizedRole);
+        this.join(userId, normalizedRole, this.lastKnownProviderLocation);
+      } else if (normalizedRole && this.lastKnownProviderLocation) {
+        // Already joined — push fresh GPS so server hasLocation becomes true.
+        this.syncProviderSocketLocation(this.lastKnownProviderLocation);
       }
       return this.socket;
     }
@@ -73,7 +81,8 @@ class SocketService {
     }
 
     this.socket = io(BACKEND_URL, {
-      transports: ["polling", "websocket"],
+      // Prefer websocket — polling often fails with "xhr poll error" on device networks.
+      transports: ["websocket", "polling"],
       query: { userId },
       auth: {},
       autoConnect: false,
@@ -81,6 +90,7 @@ class SocketService {
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
 
     this.eventListeners.forEach((callbacks, event) => {
@@ -91,7 +101,7 @@ class SocketService {
 
     this.socket.on("connect", () => {
       if (normalizedRole) {
-        this.join(userId, normalizedRole);
+        this.join(userId, normalizedRole, this.lastKnownProviderLocation);
       } else {
         console.warn(
           "⚠️ Skipping socket join because role is missing or invalid. userId:",
@@ -138,7 +148,7 @@ class SocketService {
     if (!this.socket.connected) {
       this.socket.connect();
     } else if (normalizedRole) {
-      this.join(userId, normalizedRole);
+      this.join(userId, normalizedRole, this.lastKnownProviderLocation);
     }
   }
 
@@ -152,6 +162,26 @@ class SocketService {
       });
     });
     this.eventListeners.clear();
+  }
+
+  /** Cache GPS so reconnect/join can include hasLocation immediately. */
+  setLastKnownProviderLocation(
+    location: { latitude: number; longitude: number } | null,
+  ): void {
+    if (
+      location &&
+      typeof location.latitude === "number" &&
+      typeof location.longitude === "number" &&
+      Number.isFinite(location.latitude) &&
+      Number.isFinite(location.longitude)
+    ) {
+      this.lastKnownProviderLocation = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
+      return;
+    }
+    this.lastKnownProviderLocation = null;
   }
 
   // Join the socket with user role
@@ -182,18 +212,25 @@ class SocketService {
       return;
     }
 
+    const coords =
+      providerLocation &&
+      typeof providerLocation.latitude === "number" &&
+      typeof providerLocation.longitude === "number"
+        ? providerLocation
+        : this.lastKnownProviderLocation;
+
+    if (coords) {
+      this.setLastKnownProviderLocation(coords);
+    }
+
     this.userRole = normalizedRole;
     const payload: {
       userId: string;
       role: string;
       providerLocation?: { latitude: number; longitude: number };
     } = { userId, role: normalizedRole };
-    if (
-      providerLocation &&
-      typeof providerLocation.latitude === "number" &&
-      typeof providerLocation.longitude === "number"
-    ) {
-      payload.providerLocation = providerLocation;
+    if (coords) {
+      payload.providerLocation = coords;
     }
     this.socket.emit("join", payload);
   }
@@ -206,6 +243,7 @@ class SocketService {
     latitude: number;
     longitude: number;
   }): void {
+    this.setLastKnownProviderLocation(location);
     if (!this.socket?.connected) return;
     if (
       typeof location?.latitude !== "number" ||
@@ -214,7 +252,10 @@ class SocketService {
       return;
     }
     this.socket.emit("updateProviderLocation", {
-      providerLocation: location,
+      providerLocation: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
     });
   }
 
@@ -241,6 +282,14 @@ class SocketService {
   async waitForConnection(maxWaitTime: number = 5000): Promise<void> {
     const startTime = Date.now();
 
+    if (this.socket && !this.socket.connected) {
+      try {
+        this.socket.connect();
+      } catch {
+        // connect() may throw if already connecting — keep polling below
+      }
+    }
+
     while (!this.socket?.connected && Date.now() - startTime < maxWaitTime) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
@@ -248,7 +297,17 @@ class SocketService {
     if (!this.socket?.connected) {
       throw new Error(SERVER_SLOW_MESSAGE);
     }
+  }
 
+  /** Ensure socket exists and is connected before emitting critical actions. */
+  async ensureReadyForEmit(maxWaitTime: number = 10000): Promise<Socket> {
+    if (!this.socket) {
+      throw new Error(
+        "Connection not ready. Please go online and try again.",
+      );
+    }
+    await this.waitForConnection(maxWaitTime);
+    return this.socket;
   }
 
   getSocket() {
@@ -282,7 +341,9 @@ class SocketService {
     medicalAidDetails?: {
       medicalAidId: string;
       medicalAidTitle?: string;
+      membershipNumber: string;
       mainMemberName: string;
+      mainMemberId: string;
       residentialAddress: string;
       postalAddress?: {
         addressee: string;
@@ -645,57 +706,151 @@ class SocketService {
     });
   }
 
-  acceptRequest(
+  async acceptRequest(
     requestId: string,
     providerId: string,
     providerLocation?: { latitude: number; longitude: number } | null,
   ) {
-    return new Promise((resolve, reject) => {
-      if (!this.socket?.connected) {
-        console.error("❌ Socket not connected when trying to accept request");
-        reject(new Error("Socket not connected"));
-        return;
+    if (!requestId) {
+      throw new Error("Missing consultation request id.");
+    }
+
+    const locationPayload =
+      providerLocation &&
+      typeof providerLocation.latitude === "number" &&
+      typeof providerLocation.longitude === "number"
+        ? {
+            latitude: Number(providerLocation.latitude),
+            longitude: Number(providerLocation.longitude),
+          }
+        : null;
+
+    // Prefer HTTP — socket is often down (xhr poll error) while REST still works.
+    try {
+      console.log("📤 HTTP acceptRequest", {
+        requestId,
+        providerId,
+        hasLocation: Boolean(locationPayload),
+      });
+      const response = await apiClient.post(
+        `/app/requests/${encodeURIComponent(String(requestId))}/accept`,
+        locationPayload ? { providerLocation: locationPayload } : {},
+        { timeout: 30000 },
+      );
+      if (response.data?.request) {
+        return response.data.request;
       }
+      return response.data;
+    } catch (httpError: any) {
+      const status = httpError?.response?.status;
+      const apiMessage =
+        httpError?.response?.data?.message ||
+        httpError?.response?.data?.error ||
+        httpError?.message;
+
+      // Endpoint missing on older servers — fall back to socket.
+      if (status !== 404 && status !== 405) {
+        console.error("❌ HTTP acceptRequest failed:", status, apiMessage);
+        throw new Error(
+          typeof apiMessage === "string" && apiMessage.trim()
+            ? apiMessage
+            : "Failed to accept request",
+        );
+      }
+      console.warn(
+        "⚠️ HTTP accept endpoint unavailable, falling back to socket",
+        status,
+      );
+    }
+
+    if (locationPayload) {
+      try {
+        this.syncProviderSocketLocation(locationPayload);
+      } catch {
+        // best effort
+      }
+    }
+
+    const socket = await this.ensureReadyForEmit(10000);
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const matchesRequest = (payload: any) => {
+        const id =
+          payload?._id?.toString?.() ||
+          payload?._id ||
+          payload?.requestId?.toString?.() ||
+          payload?.requestId;
+        return !id || String(id) === String(requestId);
+      };
+
+      const cleanup = () => {
+        socket.off("requestUpdated", handleRequestUpdated);
+        socket.off("acceptConfirmed", handleAcceptConfirmed);
+        socket.off("requestError", handleError);
+        clearTimeout(timeout);
+      };
+
+      const settleResolve = (value: any) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+      };
+
+      const settleReject = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
 
       const handleRequestUpdated = (request: any) => {
-        this.socket?.off("requestUpdated", handleRequestUpdated);
-        this.socket?.off("requestError", handleError);
-        clearTimeout(timeout);
-        resolve(request);
+        if (!matchesRequest(request)) return;
+        settleResolve(request);
+      };
+
+      const handleAcceptConfirmed = (data: any) => {
+        if (!matchesRequest(data)) return;
+        settleResolve(data);
       };
 
       const handleError = (error: any) => {
-        this.socket?.off("requestUpdated", handleRequestUpdated);
-        this.socket?.off("requestError", handleError);
-        clearTimeout(timeout);
+        const message = String(error?.error || error?.message || "");
+        const errorRequestId =
+          error?.requestId?.toString?.() || error?.requestId;
+        if (errorRequestId && String(errorRequestId) !== String(requestId)) {
+          return;
+        }
         console.error("❌ Socket error on accept:", error);
-        reject(
-          new Error(error.error || error.message || "Failed to accept request"),
-        );
+        settleReject(new Error(message || "Failed to accept request"));
       };
 
       const timeout = setTimeout(() => {
-        this.socket?.off("requestUpdated", handleRequestUpdated);
-        this.socket?.off("requestError", handleError);
         console.error(
-          "❌ Accept request timeout - no response from backend within 10 seconds",
+          "❌ Accept request timeout - no response from backend within 15 seconds",
         );
-        reject(
-          new Error(
-            SERVER_SLOW_MESSAGE,
-          ),
-        );
-      }, 10000);
+        settleReject(new Error(SERVER_SLOW_MESSAGE));
+      }, 15000);
 
-      this.socket.on("requestUpdated", handleRequestUpdated);
-      this.socket.on("requestError", handleError);
+      socket.on("requestUpdated", handleRequestUpdated);
+      socket.on("acceptConfirmed", handleAcceptConfirmed);
+      socket.on("requestError", handleError);
 
       const payload = {
-        requestId,
-        providerId,
-        ...(providerLocation ? { providerLocation } : {}),
+        requestId: String(requestId),
+        providerId: String(providerId),
+        ...(locationPayload ? { providerLocation: locationPayload } : {}),
       };
-      this.socket.emit("acceptRequest", payload);
+
+      console.log("📤 Socket acceptRequest fallback", {
+        requestId: payload.requestId,
+        providerId: payload.providerId,
+        hasLocation: Boolean(locationPayload),
+        socketId: socket.id,
+        connected: socket.connected,
+      });
+      socket.emit("acceptRequest", payload);
     });
   }
 

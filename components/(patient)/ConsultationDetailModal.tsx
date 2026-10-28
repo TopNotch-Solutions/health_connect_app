@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,7 @@ import {
   appBottomSheetStyles,
   appModalBottomSheetStyles,
 } from "../app/AppBottomSheetUI";
+import { AlertDialogHost } from "../AlertDialog";
 import { AUTH_COLORS } from "../../lib/authScreenTheme";
 import { buildBackendAssetUrl } from "../../lib/backend";
 import { downloadPrescriptionFile } from "../../lib/downloadPrescription";
@@ -22,6 +24,7 @@ import {
   getPrescriptionByRequest,
   PrescriptionRecord,
 } from "../../lib/prescription";
+import { canShowProviderPhone } from "../../lib/providerContactVisibility";
 import PrescriptionViewerModal from "../PrescriptionViewerModal";
 
 export interface HistoryItem {
@@ -47,6 +50,7 @@ export interface HistoryItem {
     medicalAidTitle?: string;
     medicalAidImage?: string;
     membershipNumber?: string;
+    mainMemberId?: string;
     maf?: string;
     mainMemberName?: string;
     residentialAddress?: string;
@@ -127,7 +131,7 @@ const getStatusDescription = (item: HistoryItem) => {
     case "cancelled":
       return "Request was cancelled.";
     case "expired":
-      return "Request expired â€” please create a new request if you still need care.";
+      return "Request expired — please create a new request if you still need care.";
     case "rejected":
       return "Request was rejected.";
     default:
@@ -252,6 +256,9 @@ export default function ConsultationDetailModal({
       "completed",
     ].includes(item.status);
 
+  const showProviderPhone =
+    canShowProviderPhone(item.status) && !!item.providerPhone;
+
   const viewerUrl = prescription?.prescriptionImage
     ? buildBackendAssetUrl("images", prescription.prescriptionImage)
     : null;
@@ -311,7 +318,7 @@ export default function ConsultationDetailModal({
                 {getStatusDescription(item)}
               </Text>
 
-              {/* Provider-issued prescription â€” shown when one exists */}
+              {/* Provider-issued prescription — shown when one exists */}
               {canHaveProviderRx &&
               (prescriptionLoading || (prescription && viewerUrl)) ? (
                 <View style={styles.rxCard}>
@@ -453,14 +460,14 @@ export default function ConsultationDetailModal({
                     value={item.medicalAidDetails.icd10Code}
                   />
                 ) : null}
-                {item.medicalAidDetails?.maf ||
-                item.medicalAidDetails?.membershipNumber ? (
+                {item.medicalAidDetails?.membershipNumber ||
+                item.medicalAidDetails?.maf ? (
                   <DetailRow
                     icon="hash"
-                    label="NAMAF"
+                    label="Medical aid number"
                     value={
-                      item.medicalAidDetails.maf ||
                       item.medicalAidDetails.membershipNumber ||
+                      item.medicalAidDetails.maf ||
                       ""
                     }
                   />
@@ -470,6 +477,13 @@ export default function ConsultationDetailModal({
                     icon="user"
                     label="Main member name"
                     value={item.medicalAidDetails.mainMemberName}
+                  />
+                ) : null}
+                {item.medicalAidDetails?.mainMemberId ? (
+                  <DetailRow
+                    icon="credit-card"
+                    label="Main member ID"
+                    value={item.medicalAidDetails.mainMemberId}
                   />
                 ) : null}
                 {item.medicalAidDetails?.residentialAddress ? (
@@ -527,6 +541,24 @@ export default function ConsultationDetailModal({
                             item.providerRole.slice(1)}
                         </Text>
                       ) : null}
+                      {showProviderPhone ? (
+                        <TouchableOpacity
+                          onPress={() =>
+                            Linking.openURL(`tel:${item.providerPhone}`)
+                          }
+                          style={styles.providerPhoneRow}
+                          activeOpacity={0.7}
+                        >
+                          <Feather
+                            name="phone"
+                            size={13}
+                            color={AUTH_COLORS.green}
+                          />
+                          <Text style={styles.providerPhone}>
+                            {item.providerPhone}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                   </View>
                 </View>
@@ -544,6 +576,7 @@ export default function ConsultationDetailModal({
             </View>
           </View>
         </View>
+        <AlertDialogHost active={visible && !viewerVisible} embedded />
       </Modal>
 
       <PrescriptionViewerModal
@@ -768,5 +801,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: AUTH_COLORS.textMuted,
     marginTop: 2,
+  },
+  providerPhoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
+  providerPhone: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: AUTH_COLORS.green,
   },
 });

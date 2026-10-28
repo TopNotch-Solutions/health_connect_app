@@ -429,10 +429,12 @@ export default function RootLayout() {
         <PersistGate loading={null} persistor={persistor}>
           <AuthProvider>
             <RouteProvider>
-              <ProtectedLayout />
-              <GlobalRouteModal />
-              {/* Last so confirmation dialogs draw above every screen */}
-              <AlertDialogHost />
+              <View style={{ flex: 1 }}>
+                <ProtectedLayout />
+                <GlobalRouteModal />
+                {/* Last so confirmation dialogs draw above every screen */}
+                <AlertDialogHost />
+              </View>
             </RouteProvider>
           </AuthProvider>
         </PersistGate>

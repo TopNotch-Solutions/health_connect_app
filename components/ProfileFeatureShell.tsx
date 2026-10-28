@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AlertDialogHost } from "./AlertDialog";
 import { AUTH_COLORS } from "../lib/authScreenTheme";
 import { KEYBOARD_AWARE_EXTRA_SCROLL } from "./ScreenLayout";
 
@@ -21,6 +22,8 @@ type ProfileFeatureShellProps = {
   children: React.ReactNode;
   footer?: React.ReactNode;
   keyboard?: boolean;
+  /** Full-screen overlay rendered inside this Modal (e.g. document preview). */
+  overlay?: React.ReactNode;
 };
 
 export function ProfileFeatureShell({
@@ -32,6 +35,7 @@ export function ProfileFeatureShell({
   children,
   footer,
   keyboard = false,
+  overlay,
 }: ProfileFeatureShellProps) {
   return (
     <Modal
@@ -79,6 +83,9 @@ export function ProfileFeatureShell({
             <SafeAreaView edges={["bottom"]} style={styles.footerSafe} />
           )}
         </View>
+        {/* Host inside Modal so custom alerts can present over this screen (iOS). */}
+        <AlertDialogHost active={visible} embedded />
+        {overlay}
       </View>
     </Modal>
   );

@@ -4,6 +4,26 @@ import type { BottomTabNavigationOptions } from "@react-navigation/bottom-tabs";
 /** Primary bottom tab bar background */
 export const TAB_BAR_BG = "#03a9fc";
 
+/**
+ * Hide a tab from the bar without using `href: null`.
+ * Expo Router SDK 58 makes `href: null` routes unreachable.
+ */
+export const hiddenTabScreenOptions: BottomTabNavigationOptions = {
+  tabBarButton: () => null,
+  tabBarItemStyle: {
+    display: "none",
+    width: 0,
+    maxWidth: 0,
+    flex: 0,
+    padding: 0,
+    margin: 0,
+    overflow: "hidden",
+  },
+  tabBarShowLabel: false,
+  // Hide the whole bar while this secondary screen is focused.
+  tabBarStyle: { display: "none" },
+};
+
 export function getModernTabBarOptions(
   insets: { bottom: number },
 ): Pick<

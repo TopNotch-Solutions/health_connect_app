@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { Stack, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import {
 import HistoryCard, {
   HistoryItem,
 } from "../../../components/(patient)/HistoryCard";
+import { HeaderBackButton } from "../../../components/HeaderBackButton";
 import ScreenLayout, { SCREEN_EDGES_STACK } from "../../../components/ScreenLayout";
 import { useAuth } from "../../../context/AuthContext";
 import { AUTH_COLORS } from "../../../lib/authScreenTheme";
@@ -48,6 +49,7 @@ interface RequestStatus {
     membershipNumber?: string;
     maf?: string;
     mainMemberName?: string;
+    mainMemberId?: string;
     residentialAddress?: string;
     postalAddress?: {
       formatted?: string;
@@ -127,6 +129,7 @@ const toHistoryItem = (request: RequestStatus): HistoryItem => ({
         membershipNumber: request.medicalAidDetails.membershipNumber,
         maf: request.medicalAidDetails.maf,
         mainMemberName: request.medicalAidDetails.mainMemberName,
+        mainMemberId: request.medicalAidDetails.mainMemberId,
         residentialAddress: request.medicalAidDetails.residentialAddress,
         postalAddress: request.medicalAidDetails.postalAddress
           ? {
@@ -265,9 +268,22 @@ export default function RecentActivities() {
     [requests],
   );
 
+  const stackScreen = (
+    <Stack.Screen
+      options={{
+        headerShown: true,
+        headerTransparent: false,
+        headerStyle: { backgroundColor: AUTH_COLORS.bg },
+        title: "",
+        headerLeft: () => <HeaderBackButton size={30} />,
+      }}
+    />
+  );
+
   if (isLoading && historyItems.length === 0) {
     return (
       <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor={AUTH_COLORS.bg}>
+        {stackScreen}
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={AUTH_COLORS.green} />
           <Text style={styles.loadingText}>Loading your activities...</Text>
@@ -278,6 +294,7 @@ export default function RecentActivities() {
 
   return (
     <ScreenLayout edges={SCREEN_EDGES_STACK} backgroundColor={AUTH_COLORS.bg}>
+      {stackScreen}
       <FlatList
         data={historyItems}
         keyExtractor={(item) => item._id}
@@ -299,7 +316,7 @@ export default function RecentActivities() {
           </View>
         }
         ListFooterComponent={
-          historyItems.length === 0 ? null : isLoadingMore ? (
+          historyItems.length === 0 ? undefined : isLoadingMore ? (
             <View style={styles.footer}>
               <ActivityIndicator size="small" color={AUTH_COLORS.green} />
               <Text style={styles.footerText}>Loading more…</Text>
@@ -349,6 +366,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 24,
   },
   header: {

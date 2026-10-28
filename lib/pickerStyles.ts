@@ -122,6 +122,6 @@ export function getPickerContainerStyle({
       borderColor: error ? "#EF4444" : borderColor,
       backgroundColor,
     },
-    disabled ? pickerFieldStyles.disabled : null,
-  ]);
+    disabled ? pickerFieldStyles.disabled : undefined,
+  ]) as ViewStyle;
 }

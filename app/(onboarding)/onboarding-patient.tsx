@@ -166,7 +166,7 @@ const OnboardingPatientScreen = () => {
           </View>
         </View>
       </View>
-      <StatusBar backgroundColor="#EFF6FF" style="dark" />
+      <StatusBar style="dark" />
     </ScreenLayout>
   );
 };

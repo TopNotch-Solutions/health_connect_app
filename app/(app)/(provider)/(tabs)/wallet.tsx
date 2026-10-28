@@ -3,8 +3,8 @@ import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
-import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../lib/iosInputStyles";
-import { AppTextInput as TextInput } from "../../../components/AppTextInput";
+import { iosInputIconSize, withIosInputContainerStyle, withIosMultilineTextInputStyle, withIosOtpTextInputStyle, withIosStandaloneTextInputStyle, withIosTextInputStyle } from "../../../../lib/iosInputStyles";
+import { AppTextInput as TextInput } from "../../../../components/AppTextInput";
 import React, {
   useCallback,
   useEffect,
@@ -12,25 +12,32 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { ActivityIndicator, Alert, FlatList, Keyboard, Platform, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Keyboard,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useFocusEffect } from "expo-router";
 import {
-  AppHeroCard,
   AppScreenShell,
   appScreenStyles,
-  getGreeting,
-  getGreetingEmoji,
   AUTH_COLORS,
-} from "../../../components/app/AppScreenUI";
+} from "../../../../components/app/AppScreenUI";
 import {
   AppBottomSheetCloseHeader,
   appBottomSheetAppearance,
   appBottomSheetScrollPadding,
   appBottomSheetStyles,
-} from "../../../components/app/AppBottomSheetUI";
+} from "../../../../components/app/AppBottomSheetUI";
 import WebView from "react-native-webview";
-import { useAuth } from "../../../context/AuthContext";
-import apiClient from "../../../lib/api";
+import { useAuth } from "../../../../context/AuthContext";
+import apiClient from "../../../../lib/api";
 
 // --- Type Definitions ---
 interface Transaction {
@@ -77,10 +84,11 @@ const ActionButton = ({
 }) => (
   <TouchableOpacity
     onPress={onPress}
-    className="items-center bg-green-600 p-4 rounded-2xl flex-1 border border-green-600 shadow-sm"
+    style={styles.actionButton}
+    activeOpacity={0.85}
   >
-    <Feather name={icon} size={24} color="#FFFFFF" />
-    <Text className="text-white font-semibold mt-2">{label}</Text>
+    <Feather name={icon} size={18} color={AUTH_COLORS.white} />
+    <Text style={styles.actionButtonText}>{label}</Text>
   </TouchableOpacity>
 );
 
@@ -107,7 +115,6 @@ const TransactionRow = ({
     userWalletID &&
     item.walletID !== userWalletID;
 
-  // Determine the transaction label
   let label = item.type.charAt(0).toUpperCase() + item.type.slice(1);
   if (isDeposit && isFundedToOthers) {
     label = "Funded Wallet";
@@ -118,26 +125,29 @@ const TransactionRow = ({
   }
 
   return (
-    <View className="flex-row items-center justify-between bg-white p-4 rounded-xl mb-3 border border-gray-100 shadow-sm">
-      <View className="flex-row items-center" style={{ gap: 12 }}>
-        <View
-          className={`w-10 h-10 rounded-full items-center justify-center ${isPositive ? "bg-green-100" : "bg-red-100"}`}
-        >
+    <View style={styles.activityCard}>
+      <View style={styles.activityMain}>
+        <View style={styles.activityIcon}>
           <Feather
             name={isPositive ? "arrow-down-left" : "arrow-up-right"}
-            size={20}
-            color={isPositive ? "#28A745" : "#EF4444"}
+            size={16}
+            color={isPositive ? AUTH_COLORS.greenDark : "#6B7280"}
           />
         </View>
-        <View>
-          <Text className="text-base font-bold text-text-main">{label}</Text>
-          <Text className="text-sm text-gray-500">
+        <View style={styles.activityText}>
+          <Text style={styles.activityLabel} numberOfLines={1}>
+            {label}
+          </Text>
+          <Text style={styles.activityTime}>
             {new Date(item.time).toLocaleString()}
           </Text>
         </View>
       </View>
       <Text
-        className={`text-lg font-bold ${isPositive ? "text-green-600" : "text-red-500"}`}
+        style={[
+          styles.activityAmount,
+          isPositive ? styles.activityAmountPositive : styles.activityAmountNegative,
+        ]}
       >
         {isPositive ? "+" : "-"}N$ {item.amount.toFixed(2)}
       </Text>
@@ -291,8 +301,14 @@ export default function TransactionsScreen() {
           data: error.response?.data,
           url: error.config?.url,
         });
-        // Don't show alert on initial load, just set empty transactions
-        if (page === 1) {
+        if (error.response?.status === 429) {
+          Alert.alert(
+            "Please wait",
+            "Too many requests right now. Pull to refresh in a moment.",
+          );
+        }
+        // Don't clear existing rows on a rate-limit / transient failure
+        if (page === 1 && error.response?.status !== 429) {
           setTransactions([]);
         }
       } finally {
@@ -318,11 +334,9 @@ export default function TransactionsScreen() {
     try {
       const userResponse = await apiClient.get("/app/auth/user-details/");
       if (userResponse.data?.status && userResponse.data?.user) {
-        updateUser(userResponse.data.user);
         const backendUser = userResponse.data.user;
-
-        // Ensure consultations is refreshed from backend response
         await updateUser({
+          ...backendUser,
           consultations:
             typeof backendUser.consultations === "number"
               ? backendUser.consultations
@@ -332,10 +346,13 @@ export default function TransactionsScreen() {
     } catch (error) {
       console.error("Error fetching user details:", error);
     }
-  }, [user?.userId, updateUser]);
+  }, [user?.userId, user?.consultations, updateUser]);
 
-  // --- Load data when screen/component mounts ---
+  const lastTransactionsFetchRef = useRef(0);
+
+  // --- Load data once when the signed-in user is available ---
   useEffect(() => {
+    if (!user?.userId) return;
     if (isLoadingRef.current) return;
 
     isLoadingRef.current = true;
@@ -344,6 +361,7 @@ export default function TransactionsScreen() {
       try {
         await fetchAndUpdateUserDetails();
         await fetchTransactions(false, 1);
+        lastTransactionsFetchRef.current = Date.now();
         await fetchPackages();
       } finally {
         isLoadingRef.current = false;
@@ -351,13 +369,19 @@ export default function TransactionsScreen() {
     };
 
     loadData();
-  }, [fetchAndUpdateUserDetails, fetchTransactions, fetchPackages]);
+    // Intentionally only when userId changes ? unstable callback deps caused a
+    // request loop that exhausted the API rate limit (HTTP 429).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.userId]);
 
   // Refresh recent activity when Account tab is focused (e.g. after completing
-  // a consultation on the Requests tab).
+  // a consultation on the Requests tab). Skip if we just loaded moments ago.
   useFocusEffect(
     useCallback(() => {
       if (!user?.userId) return;
+      const now = Date.now();
+      if (now - lastTransactionsFetchRef.current < 4000) return;
+      lastTransactionsFetchRef.current = now;
       fetchTransactions(true, 1);
     }, [user?.userId, fetchTransactions]),
   );
@@ -405,7 +429,7 @@ export default function TransactionsScreen() {
       setIsSubmitting(true);
       try {
         // The server verifies the payment with PayGate itself before granting
-        // anything, so there is nothing useful to check here first — doing so
+        // anything, so there is nothing useful to check here first ? doing so
         // would only risk dropping a payment that actually succeeded.
         await markPackagePurchased(session);
       } catch (error: any) {
@@ -442,7 +466,7 @@ export default function TransactionsScreen() {
 
     setIsSubmitting(true);
     try {
-      // The server opens the payment with PayGate — it holds the merchant
+      // The server opens the payment with PayGate ? it holds the merchant
       // credentials and derives the amount from the package itself, so the
       // app never sees either.
       const response = await apiClient.post(
@@ -479,7 +503,7 @@ export default function TransactionsScreen() {
 
   // --- handleSendMoney (Fund Someone's Wallet) ---
   // Card details are deliberately not collected here. Raw card data must never
-  // touch this app or our backend — it belongs on the DPO hosted page.
+  // touch this app or our backend ? it belongs on the DPO hosted page.
   const handleFundOthers = async () => {
     const errors: {
       amount?: string;
@@ -584,162 +608,142 @@ export default function TransactionsScreen() {
             renderItem={({ item }) => (
               <TransactionRow item={item} userWalletID={user?.walletID} />
             )}
-            contentContainerStyle={appScreenStyles.scrollContent}
+            contentContainerStyle={[
+              appScreenStyles.scrollContent,
+              styles.listContent,
+            ]}
             onRefresh={() => fetchTransactions(true, 1)}
             refreshing={isRefreshing}
             removeClippedSubviews={false}
             ListFooterComponent={
               transactions.length > 0 ? (
-                <View className="py-8 items-center">
-                  <View className="flex-row items-center justify-center mb-4">
-                    <View className="h-px bg-gray-200 flex-1" />
-                    <View className="px-4">
-                      <Text className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                        Page {currentPage} of {totalPages}
-                      </Text>
-                    </View>
-                    <View className="h-px bg-gray-200 flex-1" />
+                <View style={styles.paginationWrap}>
+                  <View style={styles.paginationDivider}>
+                    <View style={styles.paginationLine} />
+                    <Text style={styles.paginationText}>
+                      Page {currentPage} of {totalPages}
+                    </Text>
+                    <View style={styles.paginationLine} />
                   </View>
-                  {hasMore && (
+                  {hasMore ? (
                     <TouchableOpacity
                       onPress={loadMoreTransactions}
                       disabled={isLoadingMore}
-                      className={`bg-green-600 px-8 py-3.5 rounded-2xl flex-row items-center justify-center shadow-lg ${isLoadingMore ? "opacity-60" : ""}`}
-                      style={{
-                        shadowColor: "#16A34A",
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.3,
-                        shadowRadius: 8,
-                        elevation: 6,
-                      }}
+                      style={[
+                        styles.loadMoreButton,
+                        isLoadingMore && styles.loadMoreButtonDisabled,
+                      ]}
+                      activeOpacity={0.85}
                     >
                       {isLoadingMore ? (
-                        <>
-                          <ActivityIndicator
-                            size="small"
-                            color="white"
-                            style={{ marginRight: 8 }}
-                          />
-                          <Text className="text-white font-semibold text-base">
-                            Loading...
-                          </Text>
-                        </>
+                        <ActivityIndicator
+                          size="small"
+                          color={AUTH_COLORS.white}
+                        />
                       ) : (
-                        <>
-                          <Feather
-                            name="chevron-down"
-                            size={20}
-                            color="#FFFFFF"
-                            style={{ marginRight: 6 }}
-                          />
-                          <Text className="text-white font-semibold text-base">
-                            Load More
-                          </Text>
-                        </>
+                        <Feather
+                          name="chevron-down"
+                          size={16}
+                          color={AUTH_COLORS.white}
+                        />
                       )}
-                    </TouchableOpacity>
-                  )}
-                  {!hasMore && totalPages > 1 && (
-                    <View className="flex-row items-center mt-2">
-                      <Feather
-                        name="check-circle"
-                        size={16}
-                        color="#9CA3AF"
-                        style={{ marginRight: 6 }}
-                      />
-                      <Text className="text-sm text-gray-400 font-medium">
-                        All transactions loaded
+                      <Text style={styles.loadMoreButtonText}>
+                        {isLoadingMore ? "Loading..." : "Load More"}
                       </Text>
-                    </View>
-                  )}
+                    </TouchableOpacity>
+                  ) : null}
+                  {!hasMore && totalPages > 1 ? (
+                    <Text style={styles.allLoadedText}>
+                      All transactions loaded
+                    </Text>
+                  ) : null}
                 </View>
-              ) : null
+              ) : undefined
             }
             ListHeaderComponent={
               <>
-                <AppHeroCard
-                  eyebrow={`${getGreeting()} ${getGreetingEmoji()}`}
-                  name="Account"
-                  tagline="Manage consultations and packages"
-                  stats={[
-                    {
-                      icon: "briefcase",
-                      label: `${user?.consultations || 0} consultations`,
-                    },
-                  ]}
-                />
-                {!isDocumentVerified ? (
-                  <View className="mb-6 mx-5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
-                    <Text className="text-sm font-semibold text-amber-800">
-                      Disclaimer
+                <View style={styles.pageHeader}>
+                  <Text style={styles.pageTitle}>Account</Text>
+                  <Text style={styles.pageSubtitle}>
+                    Manage consultations and packages
+                  </Text>
+                  <View style={styles.consultationsMeta}>
+                    <Feather
+                      name="briefcase"
+                      size={14}
+                      color={AUTH_COLORS.greenDark}
+                    />
+                    <Text style={styles.consultationsMetaText}>
+                      {user?.consultations || 0} consultations
                     </Text>
-                    <Text className="mt-1 text-sm text-amber-700">
+                  </View>
+                </View>
+
+                {!isDocumentVerified ? (
+                  <View style={styles.noticeCard}>
+                    <Text style={styles.noticeTitle}>Disclaimer</Text>
+                    <Text style={styles.noticeBody}>
                       Your account is currently under review. Package selection
-                      will be available once verification is complete
+                      will be available once verification is complete.
                     </Text>
                   </View>
                 ) : (
-                  <View className="mb-6 px-5" style={{ gap: 12 }}>
+                  <View style={styles.sectionBlock}>
                     {hasActivePackage ? (
-                      <View
-                        className="rounded-2xl p-4"
-                        style={{
-                          borderWidth: 2,
-                          borderColor: AUTH_COLORS.inputBorder,
-                          backgroundColor: AUTH_COLORS.greenSoft,
-                        }}
-                      >
-                        <Text
-                          className="text-sm font-semibold"
-                          style={{ color: AUTH_COLORS.textDark }}
-                        >
-                          Active package in use
-                        </Text>
-                        <Text
-                          className="mt-1 text-sm"
-                          style={{ color: AUTH_COLORS.textMuted }}
-                        >
+                      <View style={styles.activePackageCard}>
+                        <View style={styles.activePackageHeader}>
+                          <View style={styles.activePackageIcon}>
+                            <Feather
+                              name="package"
+                              size={16}
+                              color={AUTH_COLORS.greenDark}
+                            />
+                          </View>
+                          <Text style={styles.activePackageTitle}>
+                            Active package in use
+                          </Text>
+                        </View>
+                        <Text style={styles.activePackageBody}>
                           You still have {consultationsLeft} consultation
                           {consultationsLeft > 1 ? "s" : ""}. You can select a
                           new package when your consultations reach 0.
                         </Text>
+                        <View style={styles.activePackageStat}>
+                          <Text style={styles.activePackageStatValue}>
+                            {consultationsLeft}
+                          </Text>
+                          <Text style={styles.activePackageStatLabel}>
+                            remaining
+                          </Text>
+                        </View>
                       </View>
                     ) : (
-                      <View className="flex-row" style={{ gap: 16 }}>
-                        <ActionButton
-                          icon="plus-circle"
-                          label="Select package"
-                          onPress={() => addMoneySheetRef.current?.expand()}
-                        />
-                      </View>
+                      <ActionButton
+                        icon="plus-circle"
+                        label="Select package"
+                        onPress={() => addMoneySheetRef.current?.expand()}
+                      />
                     )}
                   </View>
                 )}
-                <Text
-                  className="text-xl font-bold mb-4 px-5"
-                  style={{ color: AUTH_COLORS.textDark }}
-                >
-                  Recent activity
-                </Text>
+
+                <View style={styles.activityHeader}>
+                  <Text style={styles.activityHeaderTitle}>Recent activity</Text>
+                  <Text style={styles.activityHeaderSubtitle}>
+                    Latest deposits and consultation earnings
+                  </Text>
+                </View>
               </>
             }
             ListEmptyComponent={
-              <View className="items-center mt-10 px-5">
-                <View
-                  style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 36,
-                    backgroundColor: AUTH_COLORS.greenSoft,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: 12,
-                  }}
-                >
-                  <Feather name="folder" size={32} color={AUTH_COLORS.green} />
+              <View style={styles.emptyWrap}>
+                <View style={styles.emptyIcon}>
+                  <Feather name="inbox" size={22} color="#9CA3AF" />
                 </View>
-                <Text className="text-lg" style={{ color: AUTH_COLORS.textMuted }}>
-                  No transactions yet.
+                <Text style={styles.emptyTitle}>No transactions yet</Text>
+                <Text style={styles.emptyBody}>
+                  Activity will appear here after deposits and completed
+                  consultations.
                 </Text>
               </View>
             }
@@ -785,7 +789,7 @@ export default function TransactionsScreen() {
             }}
           />
         </View>
-      ) : null}
+      ) : undefined}
       {/* Bottom sheet 1: Package selection */}
       <BottomSheet
         ref={addMoneySheetRef}
@@ -1298,3 +1302,280 @@ export default function TransactionsScreen() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  pageHeader: {
+    marginBottom: 16,
+    paddingTop: 4,
+  },
+  pageTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    marginBottom: 4,
+  },
+  pageSubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  consultationsMeta: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+  },
+  consultationsMetaText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: AUTH_COLORS.greenDark,
+  },
+  sectionBlock: {
+    marginBottom: 20,
+  },
+  noticeCard: {
+    marginBottom: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    backgroundColor: "#FFFBEB",
+    padding: 14,
+  },
+  noticeTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#92400E",
+    marginBottom: 4,
+  },
+  noticeBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#B45309",
+  },
+  activePackageCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderLeftWidth: 3,
+    borderLeftColor: AUTH_COLORS.green,
+    backgroundColor: AUTH_COLORS.white,
+    padding: 14,
+  },
+  activePackageHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8,
+  },
+  activePackageIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activePackageTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+  },
+  activePackageBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#6B7280",
+    marginBottom: 12,
+  },
+  activePackageStat: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E5E7EB",
+  },
+  activePackageStatValue: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: AUTH_COLORS.greenDark,
+  },
+  activePackageStatLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6B7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: AUTH_COLORS.greenDark,
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  actionButtonText: {
+    color: AUTH_COLORS.white,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  activityHeader: {
+    marginBottom: 12,
+  },
+  activityHeaderTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: AUTH_COLORS.textDark,
+    marginBottom: 2,
+  },
+  activityHeaderSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  activityCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    backgroundColor: AUTH_COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  activityMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 0,
+  },
+  activityIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activityText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  activityLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 2,
+  },
+  activityTime: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  activityAmount: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  activityAmountPositive: {
+    color: AUTH_COLORS.greenDark,
+  },
+  activityAmountNegative: {
+    color: "#4B5563",
+  },
+  emptyWrap: {
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 12,
+  },
+  emptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#374151",
+    marginBottom: 4,
+  },
+  emptyBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
+  paginationWrap: {
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+  paginationDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    marginBottom: 14,
+    gap: 10,
+  },
+  paginationLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#D1D5DB",
+  },
+  paginationText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#9CA3AF",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  loadMoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: AUTH_COLORS.greenDark,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  loadMoreButtonDisabled: {
+    opacity: 0.6,
+  },
+  loadMoreButtonText: {
+    color: AUTH_COLORS.white,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  allLoadedText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: "#9CA3AF",
+    fontWeight: "500",
+  },
+});

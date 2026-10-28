@@ -15,24 +15,39 @@ export type BankDetailsRecord = BankDetailsPayload & {
   createdAt?: string;
 };
 
+export type BankDetailsField = keyof BankDetailsPayload;
+
 /**
- * Display-only mask: first 2 + last 2 digits, middle as *.
- * Claim PDFs still use the full number from the server DB.
+ * Display-only mask: first 2 + last 2 characters, middle as *
+ * (one asterisk per missing character). Claim PDFs still use full
+ * values from the server DB.
  */
-export function maskAccountNumber(value: string | null | undefined): string {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (!digits) return "";
-  if (digits.length <= 4) {
-    return "*".repeat(digits.length);
+export function maskBankField(value: string | null | undefined): string {
+  const text = String(value || "");
+  if (!text) return "";
+  if (text.length <= 4) {
+    return "*".repeat(text.length);
   }
-  const first = digits.slice(0, 2);
-  const last = digits.slice(-2);
-  const middle = "*".repeat(digits.length - 4);
+  const first = text.slice(0, 2);
+  const last = text.slice(-2);
+  const middle = "*".repeat(text.length - 4);
   return `${first}${middle}${last}`;
 }
 
-export function isMaskedAccountNumber(value: string | null | undefined): boolean {
+/** @deprecated prefer maskBankField */
+export function maskAccountNumber(value: string | null | undefined): string {
+  const digits = String(value || "").replace(/\D/g, "");
+  return maskBankField(digits || value);
+}
+
+export function isMaskedBankField(value: string | null | undefined): boolean {
   return /\*/.test(String(value || ""));
+}
+
+export function isMaskedAccountNumber(
+  value: string | null | undefined,
+): boolean {
+  return isMaskedBankField(value);
 }
 
 export const emptyBankDetails = (
@@ -58,14 +73,15 @@ export function validateBankDetails(form: BankDetailsPayload): string | null {
   }
   const branchCode = String(form.branchCode || "").trim();
   if (!branchCode) return "Branch code is required.";
-  if (!/^[0-9A-Za-z-]{3,20}$/.test(branchCode)) {
+  if (isMaskedBankField(branchCode)) {
+    // Masked value from API — allowed on save (server keeps the real value).
+  } else if (!/^[0-9A-Za-z-]{3,20}$/.test(branchCode)) {
     return "Branch code looks invalid. Use the bank branch code only.";
   }
   const accountNumber = String(form.accountNumber || "").trim();
   if (!accountNumber) return "Account number is required.";
-  // Masked values from the API are allowed on save (server keeps the real number).
-  if (isMaskedAccountNumber(accountNumber)) {
-    if (!/^\d{2}\*+\d{2}$/.test(accountNumber)) {
+  if (isMaskedBankField(accountNumber)) {
+    if (accountNumber.length < 4) {
       return "Enter the full account number (6–20 digits), or leave the masked number unchanged.";
     }
   } else if (!/^\d{6,20}$/.test(accountNumber)) {
@@ -73,6 +89,20 @@ export function validateBankDetails(form: BankDetailsPayload): string | null {
   }
   if (!String(form.accountType || "").trim()) {
     return "Account type is required.";
+  }
+  // Masked non-account fields are fine — server restores full values.
+  for (const key of [
+    "accountHolder",
+    "bankName",
+    "branchName",
+    "accountType",
+  ] as const) {
+    if (
+      isMaskedBankField(form[key]) &&
+      String(form[key] || "").trim().length < 4
+    ) {
+      return `Enter the full ${key.replace(/([A-Z])/g, " $1").toLowerCase()}, or leave the masked value unchanged.`;
+    }
   }
   return null;
 }

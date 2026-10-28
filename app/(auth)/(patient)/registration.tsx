@@ -164,11 +164,11 @@ export default function RegistrationScreen() {
 
   // Set up global callback for terms acceptance
   useEffect(() => {
-    global.acceptTermsCallback = (accepted: boolean) => {
+    (globalThis as any).acceptTermsCallback = (accepted: boolean) => {
       setAcceptedTerms(accepted);
     };
     return () => {
-      delete global.acceptTermsCallback;
+      delete (globalThis as any).acceptTermsCallback;
     };
   }, []);
 

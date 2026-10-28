@@ -47,7 +47,7 @@ export function validatePostalAddress(
   const postOffice = String(address.postOffice || "").trim();
   const postcode = String(address.postcode || "").trim();
 
-  if (!addressee) return "Addressee name is required.";
+  if (!addressee) return "Full name is required.";
   if (!["po_box", "private_bag", "street"].includes(addressType)) {
     return "Please select an address type.";
   }
