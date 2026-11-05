@@ -65,8 +65,8 @@ function PatientTermsBody() {
       <Text style={styles.sectionTitle}>No Recourse Against Platform</Text>
       <Text style={styles.body}>
         You acknowledge that your sole and exclusive recourse for any claim of
-        malpractice, negligence, misdiagnosis, or professional error is
-        directly against the independent healthcare provider and not against
+        malpractice, negligence, misdiagnosis, or professional error is directly
+        against the independent healthcare provider and not against
         Health_Connect.
       </Text>
 
@@ -118,9 +118,9 @@ function ProviderTermsBody() {
         liability for any and all acts, omissions, negligence, error, or breach
         arising from the healthcare services I provide. This absolute liability
         expressly includes, but is not limited to, all medical advice, clinical
-        diagnoses, treatment plans, prescriptions, professional conduct,
-        patient outcomes, and adherence to professional standards, as strictly
-        governed by the Health Professions Councils of Namibia (HPCNA).
+        diagnoses, treatment plans, prescriptions, professional conduct, patient
+        outcomes, and adherence to professional standards, as strictly governed
+        by the Health Professions Councils of Namibia (HPCNA).
       </Text>
 
       <Text style={styles.sectionTitle}>
@@ -136,19 +136,98 @@ function ProviderTermsBody() {
         arise, directly or indirectly, from or relate to:
       </Text>
       <Text style={[styles.body, styles.bulletList]}>
-        • My professional services or clinical decisions on or off the
-        platform.{"\n"}• Any breach of my professional duties or this
-        Agreement.{"\n"}• Any claim brought by a patient or third party
-        regarding my medical practice.
+        • My professional services or clinical decisions on or off the platform.
+        {"\n"}• Any breach of my professional duties or this Agreement.{"\n"}•
+        Any claim brought by a patient or third party regarding my medical
+        practice.
       </Text>
 
       <Text style={styles.sectionTitle}>Insurance Obligation</Text>
-      <Text style={[styles.body, styles.bodyLast]}>
+      <Text style={styles.body}>
         I confirm and warrant that I possess and shall maintain, at my sole
         expense, adequate and current professional liability insurance
         (malpractice insurance) required by the HPCNA, with coverage limits
-        sufficient to cover my indemnification obligations under this
-        Agreement.
+        sufficient to cover my indemnification obligations under this Agreement.
+      </Text>
+
+      <Text style={styles.sectionTitle}>
+        Practice Banking Details &amp; Platform Non-Liability Clause
+      </Text>
+
+      <Text style={styles.subSectionTitle}>
+        1. Practice Banking Details &amp; Verification
+      </Text>
+      <Text style={styles.body}>
+        1.1. Accuracy of Information: The Practice, Provider, or User
+        (&quot;Practitioner&quot;) is solely responsible for ensuring that all
+        banking details provided, entered, or updated within the
+        Application—including bank name, account holder name, account number,
+        branch code, SWIFT/IBAN, and tax identification—are complete, accurate,
+        and up to date.
+      </Text>
+      <Text style={styles.body}>
+        1.2. No Independent Verification: Kopano-Vertex Trading CC (the owner
+        and operator of this mobile application) does not independently verify
+        the ownership, validity, or accuracy of the banking details provided by
+        the Practitioner.
+      </Text>
+      <Text style={styles.body}>
+        1.3. Notification of Changes: Any changes to banking details must be
+        made directly through the secure account settings within the Application
+        at least 5 business days prior to any scheduled payout or settlement
+        date.
+      </Text>
+
+      <Text style={styles.subSectionTitle}>
+        2. Platform Non-Liability for Payment Transfers
+      </Text>
+      <Text style={styles.body}>
+        2.1. Disclaimer of Liability: Kopano-Vertex Trading CC accepts no
+        liability, responsibility, or obligation whatsoever for any loss, delay,
+        misdirection, or failure of funds transfer resulting from:
+      </Text>
+      <Text style={[styles.body, styles.bulletList]}>
+        • Incorrect, outdated, or incomplete banking details entered into the
+        Application by the Practitioner or any authorized user.{"\n"}•
+        Fraudulent acts, unauthorized access, or account compromise occurring on
+        the Practitioner&apos;s mobile device or account credentials.{"\n"}•
+        Reversals, holds, bank fees, or processing delays imposed by third-party
+        payment processors, banking institutions, or clearinghouses.
+      </Text>
+
+      <Text style={styles.subSectionTitle}>
+        3. Third-Party Payment Processors
+      </Text>
+      <Text style={styles.body}>
+        3.1. Payment processing services within the Application are provided by
+        independent third-party payment gateways (&quot;Payment
+        Processors&quot;).
+      </Text>
+      <Text style={styles.body}>
+        3.2. By using the Application to collect or disburse payments, the
+        Practitioner agrees to be bound by the applicable terms and conditions
+        and privacy policies of such Payment Processors.
+      </Text>
+      <Text style={styles.body}>
+        3.3. Kopano-Vertex Trading CC shall not be held liable for any system
+        outages, processing failures, security breaches, or data losses
+        occurring within or caused by third-party payment gateway systems.
+      </Text>
+
+      <Text style={styles.subSectionTitle}>4. Indemnification</Text>
+      <Text style={styles.body}>
+        The Practitioner agrees to fully indemnify, defend, and hold harmless
+        Kopano-Vertex Trading CC, its officers, directors, employees, agents,
+        and affiliates from and against any claims, losses, liabilities,
+        damages, costs, or expenses (including reasonable legal fees) arising
+        out of or related to:
+      </Text>
+      <Text style={[styles.body, styles.bulletList, styles.bodyLast]}>
+        • Inaccurate banking details provided to or maintained on the
+        Application.{"\n"}• Any dispute between the Practitioner and any
+        patient, client, customer, or third party regarding payments, refunds,
+        or fee structures.{"\n"}• Any unauthorized access to or misuse of the
+        Practitioner&apos;s mobile app login credentials or financial profile.
       </Text>
     </>
   );
@@ -205,6 +284,13 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 15,
+    fontWeight: "800",
+    color: AUTH_COLORS.textDark,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  subSectionTitle: {
+    fontSize: 14,
     fontWeight: "800",
     color: AUTH_COLORS.textDark,
     marginBottom: 8,

@@ -145,11 +145,15 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "asyncRoutes": {
+          "web": false
+        }
+      },
       "eas": {
-        "projectId": "d0f37ffa-941d-4292-987d-286deb2c310f"
+        "projectId": "37466beb-b202-424c-a1ab-fa3b1a504a68"
       }
     },
-    "owner": "talo_n1"
+    "owner": "paulo_devops"
   }
 }

@@ -5,19 +5,37 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { iosPasswordToggleButtonStyle, withIosMultilineTextInputStyle, withIosStandalonePasswordTextInputStyle, withIosStandaloneTextInputStyle } from "../../../lib/iosInputStyles";
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    Linking,
+    Modal,
+    Platform,
+    StyleProp,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    ViewStyle,
+} from "react-native";
 import { AppTextInput as TextInput } from "../../../components/AppTextInput";
-import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, StyleProp, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from "react-native";
 import { PickerField } from "../../../components/PickerField";
 import RegistrationFeatureShell, {
-  ProfileSectionRail,
-  RegistrationStepActions,
-  profileFeatureStyles,
+    ProfileSectionRail,
+    RegistrationStepActions,
+    profileFeatureStyles,
 } from "../../../components/RegistrationFeatureShell";
 import TermsConditionsModal from "../../../components/TermsConditionsModal";
-import { AUTH_COLORS, authScreenStyles } from "../../../lib/authScreenTheme";
 import { namibianRegions } from "../../../constants/locations";
 import apiClient from "../../../lib/api";
+import { AUTH_COLORS, authScreenStyles } from "../../../lib/authScreenTheme";
+import {
+    iosPasswordToggleButtonStyle,
+    withIosMultilineTextInputStyle,
+    withIosStandalonePasswordTextInputStyle,
+    withIosStandaloneTextInputStyle,
+} from "../../../lib/iosInputStyles";
 import { ensureForegroundLocationPermission } from "../../../lib/locationPermission";
 
 const PHARMACIST_STEP_META = [
@@ -429,7 +447,10 @@ const DocRow = ({
             resizeMode="cover"
           />
         ) : (
-          <View className="w-12 h-12 rounded-lg mr-3 border border-[#BBF7D0] items-center justify-center overflow-hidden" style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}>
+          <View
+            className="w-12 h-12 rounded-lg mr-3 border border-[#BBF7D0] items-center justify-center overflow-hidden"
+            style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}
+          >
             <Feather name="file-text" size={20} color={AUTH_COLORS.textMuted} />
             <Text className="text-[9px] mt-0.5 text-[#4B5563]">
               {getExt(file) || "FILE"}
@@ -437,7 +458,10 @@ const DocRow = ({
           </View>
         )
       ) : (
-        <View className="w-12 h-12 rounded-lg mr-3 border border-[#BBF7D0] items-center justify-center" style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}>
+        <View
+          className="w-12 h-12 rounded-lg mr-3 border border-[#BBF7D0] items-center justify-center"
+          style={{ backgroundColor: "rgba(187, 247, 208, 0.35)" }}
+        >
           <Feather name="upload" size={18} color={AUTH_COLORS.textMuted} />
         </View>
       )}
@@ -843,9 +867,10 @@ export default function ProviderRegistrationScreen() {
           latitude,
           longitude,
         });
-        gpsAddress = [geo?.name, geo?.street, geo?.city, geo?.region]
-          .filter(Boolean)
-          .join(", ") || gpsAddress;
+        gpsAddress =
+          [geo?.name, geo?.street, geo?.city, geo?.region]
+            .filter(Boolean)
+            .join(", ") || gpsAddress;
       } catch {
         // Coordinates are enough for dispatch even if reverse-geocoding fails.
       }
@@ -1026,9 +1051,7 @@ export default function ProviderRegistrationScreen() {
       }
       if (
         pharmacyDetails.businessEmail.trim() &&
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-          pharmacyDetails.businessEmail.trim(),
-        )
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pharmacyDetails.businessEmail.trim())
       ) {
         newPharmacyErrors.businessEmail =
           "Please enter a valid business email address.";
@@ -1103,10 +1126,7 @@ export default function ProviderRegistrationScreen() {
       // Send JSON, not a comma-joined string: multipart/form-data has no
       // array type, and a joined string was being stored as ONE
       // specialization entry, which never matched an ailment category.
-      [
-        "specializations",
-        JSON.stringify(professionalDetails.specializations),
-      ],
+      ["specializations", JSON.stringify(professionalDetails.specializations)],
     ];
 
     if (isPharmacist) {
@@ -1345,9 +1365,9 @@ export default function ProviderRegistrationScreen() {
                     </Text>
                     <Text style={authScreenStyles.disclaimerBody}>
                       Your personal information is treated with the utmost
-                      confidentiality. We do not share, sell, or distribute
-                      your data to any third parties. Your privacy and data
-                      security are our top priorities.
+                      confidentiality. We do not share, sell, or distribute your
+                      data to any third parties. Your privacy and data security
+                      are our top priorities.
                     </Text>
                   </View>
                 </View>
@@ -1481,7 +1501,10 @@ export default function ProviderRegistrationScreen() {
               </View>
             </FieldBlock>
 
-            <FieldBlock label="National ID number" error={accountErrors.nationalId}>
+            <FieldBlock
+              label="National ID number"
+              error={accountErrors.nationalId}
+            >
               <TextInput
                 style={fieldInputStyle(!!accountErrors.nationalId)}
                 value={accountInfo.nationalId}
@@ -1744,7 +1767,11 @@ export default function ProviderRegistrationScreen() {
             )}
 
             <FieldBlock
-              label={isPharmacist ? "HPCNA certificate" : "HPCNA practicing certificate"}
+              label={
+                isPharmacist
+                  ? "HPCNA certificate"
+                  : "HPCNA practicing certificate"
+              }
               error={docErrors.HPCNAQualification}
               last={params?.providerType !== "nurse"}
             >
@@ -1786,7 +1813,10 @@ export default function ProviderRegistrationScreen() {
             </FieldBlock>
 
             {/* Specializations - Dynamic from API */}
-            <FieldBlock label="Specializations" error={profErrors.specializations}>
+            <FieldBlock
+              label="Specializations"
+              error={profErrors.specializations}
+            >
               <TextInput
                 style={fieldInputStyle(!!profErrors.specializations)}
                 value={professionalDetails.specializations.join(", ")}
@@ -2065,7 +2095,10 @@ export default function ProviderRegistrationScreen() {
               />
             </FieldBlock>
 
-            <FieldBlock label="Business email" error={pharmacyErrors.businessEmail}>
+            <FieldBlock
+              label="Business email"
+              error={pharmacyErrors.businessEmail}
+            >
               <TextInput
                 style={fieldInputStyle(!!pharmacyErrors.businessEmail)}
                 value={pharmacyDetails.businessEmail}
@@ -2183,8 +2216,8 @@ export default function ProviderRegistrationScreen() {
               </View>
               <Text style={[regStyles.termsText, { flex: 1 }]}>
                 I acknowledge my liability under HPCNA and confirm that my
-                pharmacy registration information and certificate are valid
-                and up to date.
+                pharmacy registration information and certificate are valid and
+                up to date.
               </Text>
             </TouchableOpacity>
             {pharmacyErrors.hpcnaLicenseExpiryAcknowledged ? (
@@ -2288,10 +2321,7 @@ export default function ProviderRegistrationScreen() {
               {/* Specializations on review */}
               <View className="mb-3 mt-3">
                 <Text className="text-sm text-[#4B5563]">Specializations</Text>
-                <View
-                  className="flex-row flex-wrap mt-1"
-                  style={{ gap: 6 }}
-                >
+                <View className="flex-row flex-wrap mt-1" style={{ gap: 6 }}>
                   {professionalDetails.specializations.length > 0 ? (
                     professionalDetails.specializations.map((spec) => (
                       <View
