@@ -47,3 +47,9 @@ health_connect_backend/
 /android/.gradle/
 /android/build/
 
+# locally built APKs for sharing
+/release-apk/
+
+# local session memory (/remember)
+/memory.md
+

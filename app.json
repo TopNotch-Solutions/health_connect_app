@@ -103,7 +103,8 @@
         {
           "android": {
             "newArchEnabled": false,
-            "edgeToEdgeEnabled": true
+            "edgeToEdgeEnabled": true,
+            "enableMinifyInReleaseBuilds": false
           },
           "ios": {
             "newArchEnabled": false,
